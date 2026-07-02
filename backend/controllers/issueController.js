@@ -3125,8 +3125,7 @@ const createIssue = asyncHandler(async (req, res) => {
   const hasEpicInput = hasOwnField(req.body, "epicId");
   const hasSprintInput = hasOwnField(req.body, "sprintId");
   const canAssignPlanningFields = hasAdminAccess(req.user?.role);
-  const normalizedType =
-    req.user.role === ROLE_TESTER ? ISSUE_TYPES.BUG : getCanonicalIssueType(type, ISSUE_TYPES.TASK);
+  const normalizedType = getCanonicalIssueType(type, ISSUE_TYPES.TASK);
   const isBug = normalizedType === ISSUE_TYPES.BUG;
   const isStory = normalizedType === ISSUE_TYPES.STORY;
   const assignLater =
@@ -3184,9 +3183,12 @@ const createIssue = asyncHandler(async (req, res) => {
     throw new Error("Developers can create Tasks and Sub-tasks under assigned Stories");
   }
 
-  if (req.user.role === "Tester" && normalizedType !== ISSUE_TYPES.BUG) {
+  if (
+    req.user.role === ROLE_TESTER &&
+    ![ISSUE_TYPES.BUG, ISSUE_TYPES.TASK, ISSUE_TYPES.SUB_TASK].includes(normalizedType)
+  ) {
     res.status(403);
-    throw new Error("Testers can only report bug issues");
+    throw new Error("Testers can only report bugs or add Story tasks");
   }
 
   if (!canAssignPlanningFields && ((hasEpicInput && epicId) || (hasSprintInput && sprintId))) {
@@ -3227,6 +3229,15 @@ const createIssue = asyncHandler(async (req, res) => {
   if (req.user.role === ROLE_DEVELOPER && !parentStory) {
     res.status(400);
     throw new Error("Developers must create Tasks from inside a Story");
+  }
+
+  if (
+    req.user.role === ROLE_TESTER &&
+    [ISSUE_TYPES.TASK, ISSUE_TYPES.SUB_TASK].includes(normalizedType) &&
+    !parentStory
+  ) {
+    res.status(400);
+    throw new Error("Testers must add Tasks from inside a Story");
   }
 
   if (

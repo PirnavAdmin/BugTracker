@@ -140,7 +140,8 @@ const StoryDetails = ({ story, projects, stories, onBack, onChanged }) => {
   const bugs = useMemo(() => children.filter((item) => item.type === "Bug"), [children]);
   const progress = story.storyProgress || {};
   const canCreateTask =
-    ADMIN_PANEL_ROLES.includes(role) || [ROLE_DEVELOPER, ROLE_TEAM_LEAD].includes(role);
+    ADMIN_PANEL_ROLES.includes(role) ||
+    [ROLE_DEVELOPER, ROLE_TEAM_LEAD, ROLE_TESTER].includes(role);
   const canCreateBug = ADMIN_PANEL_ROLES.includes(role) || role === ROLE_TESTER;
   const canManageCollaborators = ADMIN_PANEL_ROLES.includes(role);
   const canDeleteStory = ADMIN_PANEL_ROLES.includes(role);
@@ -230,7 +231,7 @@ const StoryDetails = ({ story, projects, stories, onBack, onChanged }) => {
       {canCreateTask ? (
         <Button type="button" size="sm" onClick={() => setCreateType("Task")}>
           <Plus className="h-4 w-4" />
-          Task
+          {role === ROLE_TESTER ? "Task / Update" : "Task"}
         </Button>
       ) : null}
       {canCreateBug ? (

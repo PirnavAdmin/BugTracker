@@ -107,7 +107,7 @@ const buildInitialState = ({
     labels: "",
     timeEstimateMinutes: "",
     bugDetails: {
-      severity: "",
+      severity: isBug ? "Major" : "",
       testerOwnerId: "",
       developerLeadId: "",
       stepsToReproduce: "",
@@ -605,7 +605,7 @@ const IssueCreateDialog = ({
   );
   const isBugType = formData.type === "Bug";
   const isStoryType = formData.type === "Story";
-  const supportsDescription = isStoryType || formData.type === "Task";
+  const supportsDescription = isStoryType || formData.type === "Task" || isBugType;
   const qaOwnerOptions = useMemo(
     () =>
       projectMemberOptions.filter((option) => option.role === "Tester").length
@@ -941,6 +941,15 @@ const IssueCreateDialog = ({
         setError("Priority is required for bugs.");
         return;
       }
+
+      if (
+        !formData.bugDetails.stepsToReproduce.trim() ||
+        !formData.bugDetails.expectedResult.trim() ||
+        !formData.bugDetails.actualResult.trim()
+      ) {
+        setError("Steps to reproduce, expected result, and actual result are required for bugs.");
+        return;
+      }
     }
 
     const basePayload = {
@@ -978,9 +987,9 @@ const IssueCreateDialog = ({
               testerOwnerId: formData.bugDetails.testerOwnerId || null,
               developerLeadId: assignToQueue ? null : formData.bugDetails.developerLeadId || null,
               addToBucket: assignToQueue,
-              stepsToReproduce: "",
-              expectedResult: "",
-              actualResult: "",
+              stepsToReproduce: formData.bugDetails.stepsToReproduce.trim(),
+              expectedResult: formData.bugDetails.expectedResult.trim(),
+              actualResult: formData.bugDetails.actualResult.trim(),
             },
           }
         : {
@@ -1377,6 +1386,13 @@ const IssueCreateDialog = ({
                           event.target.value === "Bug" && current.priority === "Low"
                             ? "High"
                             : current.priority,
+                        bugDetails: {
+                          ...current.bugDetails,
+                          severity:
+                            event.target.value === "Bug"
+                              ? current.bugDetails.severity || "Major"
+                              : current.bugDetails.severity,
+                        },
                       }))
                     }
                     disabled={lockType || isSubmitPending}
@@ -1408,6 +1424,110 @@ const IssueCreateDialog = ({
                 />
               </label>
             </div>
+
+            {isBugType ? (
+              <div className="rounded-[24px] border border-rose-100 bg-rose-50/40 p-3 sm:p-3.5 shadow-[0_16px_40px_-32px_rgba(15,23,42,0.28)]">
+                <div className="space-y-3">
+                  <SectionLabel
+                    title="Bug details"
+                    description="Capture enough context for the team to reproduce and verify the issue."
+                  />
+
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <label className="space-y-1.5">
+                      <span className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">
+                        Severity
+                      </span>
+                      <select
+                        className="field-select rounded-2xl"
+                        value={formData.bugDetails.severity || "Major"}
+                        onChange={(event) =>
+                          setFormData((current) => ({
+                            ...current,
+                            bugDetails: {
+                              ...current.bugDetails,
+                              severity: event.target.value,
+                            },
+                          }))
+                        }
+                        disabled={isSubmitPending}
+                      >
+                        {["Blocker", "Critical", "Major", "Minor"].map((severity) => (
+                          <option key={severity} value={severity}>
+                            {severity}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  </div>
+
+                  <label className="block space-y-1.5">
+                    <span className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">
+                      Steps to Reproduce
+                    </span>
+                    <Textarea
+                      className="min-h-[110px] rounded-2xl border-slate-200 text-sm shadow-none focus-visible:border-blue-500 focus-visible:ring-4 focus-visible:ring-blue-500/10"
+                      value={formData.bugDetails.stepsToReproduce}
+                      onChange={(event) =>
+                        setFormData((current) => ({
+                          ...current,
+                          bugDetails: {
+                            ...current.bugDetails,
+                            stepsToReproduce: event.target.value,
+                          },
+                        }))
+                      }
+                      placeholder="List the exact actions that reproduce the bug"
+                      disabled={isSubmitPending}
+                    />
+                  </label>
+
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <label className="space-y-1.5">
+                      <span className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">
+                        Expected Result
+                      </span>
+                      <Textarea
+                        className="min-h-[96px] rounded-2xl border-slate-200 text-sm shadow-none focus-visible:border-blue-500 focus-visible:ring-4 focus-visible:ring-blue-500/10"
+                        value={formData.bugDetails.expectedResult}
+                        onChange={(event) =>
+                          setFormData((current) => ({
+                            ...current,
+                            bugDetails: {
+                              ...current.bugDetails,
+                              expectedResult: event.target.value,
+                            },
+                          }))
+                        }
+                        placeholder="What should happen"
+                        disabled={isSubmitPending}
+                      />
+                    </label>
+
+                    <label className="space-y-1.5">
+                      <span className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">
+                        Actual Result
+                      </span>
+                      <Textarea
+                        className="min-h-[96px] rounded-2xl border-slate-200 text-sm shadow-none focus-visible:border-blue-500 focus-visible:ring-4 focus-visible:ring-blue-500/10"
+                        value={formData.bugDetails.actualResult}
+                        onChange={(event) =>
+                          setFormData((current) => ({
+                            ...current,
+                            bugDetails: {
+                              ...current.bugDetails,
+                              actualResult: event.target.value,
+                            },
+                          }))
+                        }
+                        placeholder="What actually happens"
+                        disabled={isSubmitPending}
+                      />
+                    </label>
+                  </div>
+                </div>
+              </div>
+            ) : null}
 
             {supportsParentStory ? (
               <div className="space-y-1.5">
