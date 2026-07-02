@@ -34,6 +34,7 @@ import IssueCreateDialog from "@/components/issues/IssueCreateDialog";
 import IssueDetailsDialog from "@/components/issues/IssueDetailsDialog";
 import IssuesToolbar from "@/components/issues/IssuesToolbar";
 import EmptyState from "@/components/shared/EmptyState";
+import ToastNotice from "@/components/shared/ToastNotice";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/hooks/use-auth";
@@ -228,6 +229,7 @@ const IssuesPage = () => {
   });
   const [selectedIssue, setSelectedIssue] = useState(null);
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  const [toast, setToast] = useState(null);
   const deferredSearch = useDeferredValue(filters.search);
   const isAdminView = hasAdminPanelAccess(role);
   const canCreateIssue = canCreateIssues(role);
@@ -667,7 +669,19 @@ const IssuesPage = () => {
       setSelectedIssue((current) =>
         String(current?._id || "") === String(deletedIssueId) ? null : current
       );
+      setToast({
+        id: `delete-success-${Date.now()}`,
+        type: "success",
+        message: "Work item deleted successfully.",
+      });
       await invalidateIssueWorkspaceQueries();
+    },
+    onError: (error) => {
+      setToast({
+        id: `delete-error-${Date.now()}`,
+        type: "error",
+        message: error.response?.data?.message || "Unable to delete this work item.",
+      });
     },
   });
 
@@ -901,6 +915,8 @@ const IssuesPage = () => {
         canEditAssignee={isAdminView}
         canDeleteIssue={canDeleteIssue}
       />
+
+      <ToastNotice toast={toast} onDismiss={() => setToast(null)} />
     </div>
   );
 };
