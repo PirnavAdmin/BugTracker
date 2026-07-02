@@ -575,6 +575,51 @@ const DateField = ({ value, onChange, label }) => (
   </div>
 );
 
+const toDateInputValue = (date) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
+};
+
+const getReportDatePreset = (preset, now = new Date()) => {
+  const end = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  let start = new Date(end);
+
+  if (preset === "week") {
+    start.setDate(end.getDate() - 6);
+  } else if (preset === "month") {
+    start.setDate(end.getDate() - 29);
+  } else if (preset === "quarterly") {
+    start.setDate(end.getDate() - 89);
+  }
+
+  return {
+    dateFrom: toDateInputValue(start),
+    dateTo: toDateInputValue(end),
+  };
+};
+
+const toLocalDayBoundaryIso = (value, end = false) => {
+  if (!value) {
+    return "";
+  }
+
+  const [year, month, day] = value.split("-").map(Number);
+  const date = new Date(
+    year,
+    month - 1,
+    day,
+    end ? 23 : 0,
+    end ? 59 : 0,
+    end ? 59 : 0,
+    end ? 999 : 0
+  );
+
+  return Number.isNaN(date.getTime()) ? "" : date.toISOString();
+};
+
 const MiniStat = ({ label, tone = "slate", value }) => {
   const tones = {
     blue: "bg-blue-50 text-blue-700",
@@ -1385,8 +1430,8 @@ const OrganizationReportsDashboard = () => {
   });
   const statusParts = getStatusParts(filters.status);
   const analyticsFilters = {
-    dateFrom: filters.dateFrom,
-    dateTo: filters.dateTo,
+    dateFrom: toLocalDayBoundaryIso(filters.dateFrom),
+    dateTo: toLocalDayBoundaryIso(filters.dateTo, true),
     projectId: filters.projectId,
     teamId: filters.teamId,
     assigneeId: filters.assigneeId,
@@ -3147,8 +3192,9 @@ const JiraReportsDashboard = () => {
   const queryClient = useQueryClient();
   const activePage = reportKey || "overview";
   const [comparisonMode, setComparisonMode] = useState("sprint");
+  const [datePreset, setDatePreset] = useState("month");
   const [drilldown, setDrilldown] = useState(null);
-  const [filters, setFilters] = useState({
+  const [filters, setFilters] = useState(() => ({
     projectId: "all",
     sprintId: "all",
     teamId: "all",
@@ -3158,9 +3204,8 @@ const JiraReportsDashboard = () => {
     severity: "all",
     status: "all",
     releaseId: "all",
-    dateFrom: "",
-    dateTo: "",
-  });
+    ...getReportDatePreset("month"),
+  }));
 
   const { data: projects = [], isLoading: projectsLoading, error: projectsError } = useQuery({
     queryKey: ["projects", "jira-reports-options"],
@@ -3200,8 +3245,8 @@ const JiraReportsDashboard = () => {
 
   const statusParts = getStatusParts(filters.status);
   const analyticsFilters = {
-    dateFrom: filters.dateFrom,
-    dateTo: filters.dateTo,
+    dateFrom: toLocalDayBoundaryIso(filters.dateFrom),
+    dateTo: toLocalDayBoundaryIso(filters.dateTo, true),
     projectId: filters.projectId,
     teamId: filters.teamId,
     assigneeId: filters.developerId,
@@ -3250,8 +3295,20 @@ const JiraReportsDashboard = () => {
       ...(key === "projectId" ? { sprintId: "all", teamId: "all", developerId: "all", testerId: "all" } : {}),
     }));
   };
+  const updateDatePreset = (preset) => {
+    setDatePreset(preset);
+    setDrilldown(null);
+
+    if (preset !== "custom") {
+      setFilters((current) => ({
+        ...current,
+        ...getReportDatePreset(preset),
+      }));
+    }
+  };
   const resetFilters = () => {
     setDrilldown(null);
+    setDatePreset("month");
     setFilters({
       projectId: "all",
       sprintId: "all",
@@ -3262,8 +3319,7 @@ const JiraReportsDashboard = () => {
       severity: "all",
       status: "all",
       releaseId: "all",
-      dateFrom: "",
-      dateTo: "",
+      ...getReportDatePreset("month"),
     });
   };
   const drillTo = (title, rows) => setDrilldown({ title, rows });
@@ -3625,8 +3681,19 @@ const JiraReportsDashboard = () => {
               <option value="month">Current vs Previous Month</option>
               <option value="release">Current vs Previous Release</option>
             </select>
-            <DateField label="Date from" value={filters.dateFrom} onChange={(event) => updateFilter("dateFrom", event.target.value)} />
-            <DateField label="Date to" value={filters.dateTo} onChange={(event) => updateFilter("dateTo", event.target.value)} />
+            <select className={ANALYTICS_SELECT_CLASS} value={datePreset} onChange={(event) => updateDatePreset(event.target.value)}>
+              <option value="today">Today</option>
+              <option value="week">Week</option>
+              <option value="month">Month</option>
+              <option value="quarterly">Quarterly</option>
+              <option value="custom">Custom</option>
+            </select>
+            {datePreset === "custom" ? (
+              <>
+                <DateField label="Date from" value={filters.dateFrom} onChange={(event) => updateFilter("dateFrom", event.target.value)} />
+                <DateField label="Date to" value={filters.dateTo} onChange={(event) => updateFilter("dateTo", event.target.value)} />
+              </>
+            ) : null}
           </div>
         </div>
 

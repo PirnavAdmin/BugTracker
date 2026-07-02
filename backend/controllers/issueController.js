@@ -1369,7 +1369,7 @@ const ensureParentStoryForProject = async ({
     type: ISSUE_TYPES.STORY,
     isDeleted: { $ne: true },
   })
-    .select("_id projectId teamId epicId sprintId assignee status")
+    .select("_id projectId teamId epicId sprintId assignee assignees status")
     .lean();
 
   if (!story) {
@@ -2221,12 +2221,11 @@ const getStories = asyncHandler(async (req, res) => {
     ];
   }
 
-  if (req.user.role === ROLE_TESTER) {
+  if ([ROLE_DEVELOPER, ROLE_TESTER].includes(req.user.role)) {
     addAndCondition(query, {
       $or: [
         { assignee: req.user._id },
         { assignees: req.user._id },
-        { reporter: req.user._id },
       ],
     });
   }
@@ -3253,10 +3252,13 @@ const createIssue = asyncHandler(async (req, res) => {
   if (
     req.user.role === ROLE_DEVELOPER &&
     parentStory &&
-    String(parentStory?.assignee || "") !== String(req.user._id)
+    String(parentStory?.assignee || "") !== String(req.user._id) &&
+    !(parentStory.assignees || []).some(
+      (storyAssigneeId) => String(storyAssigneeId) === String(req.user._id)
+    )
   ) {
     res.status(403);
-    throw new Error("Developers can only add Tasks to Stories assigned to them");
+    throw new Error("Developers can only add Tasks to Stories they collaborate on");
   }
 
   if (
