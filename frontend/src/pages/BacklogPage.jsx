@@ -1235,6 +1235,18 @@ const BacklogPage = () => {
                         })
                       }
                       onDeleteSprint={async () => {
+                        if (deleteSprintMutation.isPending) {
+                          return;
+                        }
+
+                        const confirmed = window.confirm(
+                          `Delete sprint "${section.sprint.name}"? This action cannot be undone.`
+                        );
+
+                        if (!confirmed) {
+                          return;
+                        }
+
                         try {
                           await deleteSprintMutation.mutateAsync(section.sprint._id);
                           setToast({
