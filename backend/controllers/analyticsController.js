@@ -109,8 +109,14 @@ const parseDateInput = (value, label, { end = false } = {}) => {
     };
   }
 
+  const hasExplicitTime = typeof value === "string" && value.includes("T");
+
   return {
-    value: end ? endOfDay(parsedValue) : startOfDay(parsedValue),
+    value: hasExplicitTime
+      ? parsedValue
+      : end
+        ? endOfDay(parsedValue)
+        : startOfDay(parsedValue),
   };
 };
 
@@ -1406,9 +1412,15 @@ const getTrendRange = async (query, match) => {
     }
   }
 
-  const end = query.dateTo ? endOfDay(query.dateTo) : defaultEnd;
+  const end = query.dateTo
+    ? String(query.dateTo).includes("T")
+      ? new Date(query.dateTo)
+      : endOfDay(query.dateTo)
+    : defaultEnd;
   const start = query.dateFrom
-    ? startOfDay(query.dateFrom)
+    ? String(query.dateFrom).includes("T")
+      ? new Date(query.dateFrom)
+      : startOfDay(query.dateFrom)
     : startOfDay(end.getTime() - 29 * DAY_IN_MS);
 
   return {

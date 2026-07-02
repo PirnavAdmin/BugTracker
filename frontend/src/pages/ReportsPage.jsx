@@ -588,18 +588,36 @@ const getReportDatePreset = (preset, now = new Date()) => {
   let start = new Date(end);
 
   if (preset === "week") {
-    const dayFromMonday = (end.getDay() + 6) % 7;
-    start.setDate(end.getDate() - dayFromMonday);
+    start.setDate(end.getDate() - 6);
   } else if (preset === "month") {
-    start = new Date(end.getFullYear(), end.getMonth(), 1);
+    start.setDate(end.getDate() - 29);
   } else if (preset === "quarterly") {
-    start = new Date(end.getFullYear(), Math.floor(end.getMonth() / 3) * 3, 1);
+    start.setDate(end.getDate() - 89);
   }
 
   return {
     dateFrom: toDateInputValue(start),
     dateTo: toDateInputValue(end),
   };
+};
+
+const toLocalDayBoundaryIso = (value, end = false) => {
+  if (!value) {
+    return "";
+  }
+
+  const [year, month, day] = value.split("-").map(Number);
+  const date = new Date(
+    year,
+    month - 1,
+    day,
+    end ? 23 : 0,
+    end ? 59 : 0,
+    end ? 59 : 0,
+    end ? 999 : 0
+  );
+
+  return Number.isNaN(date.getTime()) ? "" : date.toISOString();
 };
 
 const MiniStat = ({ label, tone = "slate", value }) => {
@@ -1412,8 +1430,8 @@ const OrganizationReportsDashboard = () => {
   });
   const statusParts = getStatusParts(filters.status);
   const analyticsFilters = {
-    dateFrom: filters.dateFrom,
-    dateTo: filters.dateTo,
+    dateFrom: toLocalDayBoundaryIso(filters.dateFrom),
+    dateTo: toLocalDayBoundaryIso(filters.dateTo, true),
     projectId: filters.projectId,
     teamId: filters.teamId,
     assigneeId: filters.assigneeId,
@@ -3227,8 +3245,8 @@ const JiraReportsDashboard = () => {
 
   const statusParts = getStatusParts(filters.status);
   const analyticsFilters = {
-    dateFrom: filters.dateFrom,
-    dateTo: filters.dateTo,
+    dateFrom: toLocalDayBoundaryIso(filters.dateFrom),
+    dateTo: toLocalDayBoundaryIso(filters.dateTo, true),
     projectId: filters.projectId,
     teamId: filters.teamId,
     assigneeId: filters.developerId,
