@@ -575,6 +575,33 @@ const DateField = ({ value, onChange, label }) => (
   </div>
 );
 
+const toDateInputValue = (date) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
+};
+
+const getReportDatePreset = (preset, now = new Date()) => {
+  const end = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  let start = new Date(end);
+
+  if (preset === "week") {
+    const dayFromMonday = (end.getDay() + 6) % 7;
+    start.setDate(end.getDate() - dayFromMonday);
+  } else if (preset === "month") {
+    start = new Date(end.getFullYear(), end.getMonth(), 1);
+  } else if (preset === "quarterly") {
+    start = new Date(end.getFullYear(), Math.floor(end.getMonth() / 3) * 3, 1);
+  }
+
+  return {
+    dateFrom: toDateInputValue(start),
+    dateTo: toDateInputValue(end),
+  };
+};
+
 const MiniStat = ({ label, tone = "slate", value }) => {
   const tones = {
     blue: "bg-blue-50 text-blue-700",
@@ -3147,8 +3174,9 @@ const JiraReportsDashboard = () => {
   const queryClient = useQueryClient();
   const activePage = reportKey || "overview";
   const [comparisonMode, setComparisonMode] = useState("sprint");
+  const [datePreset, setDatePreset] = useState("month");
   const [drilldown, setDrilldown] = useState(null);
-  const [filters, setFilters] = useState({
+  const [filters, setFilters] = useState(() => ({
     projectId: "all",
     sprintId: "all",
     teamId: "all",
@@ -3158,9 +3186,8 @@ const JiraReportsDashboard = () => {
     severity: "all",
     status: "all",
     releaseId: "all",
-    dateFrom: "",
-    dateTo: "",
-  });
+    ...getReportDatePreset("month"),
+  }));
 
   const { data: projects = [], isLoading: projectsLoading, error: projectsError } = useQuery({
     queryKey: ["projects", "jira-reports-options"],
@@ -3250,8 +3277,20 @@ const JiraReportsDashboard = () => {
       ...(key === "projectId" ? { sprintId: "all", teamId: "all", developerId: "all", testerId: "all" } : {}),
     }));
   };
+  const updateDatePreset = (preset) => {
+    setDatePreset(preset);
+    setDrilldown(null);
+
+    if (preset !== "custom") {
+      setFilters((current) => ({
+        ...current,
+        ...getReportDatePreset(preset),
+      }));
+    }
+  };
   const resetFilters = () => {
     setDrilldown(null);
+    setDatePreset("month");
     setFilters({
       projectId: "all",
       sprintId: "all",
@@ -3262,8 +3301,7 @@ const JiraReportsDashboard = () => {
       severity: "all",
       status: "all",
       releaseId: "all",
-      dateFrom: "",
-      dateTo: "",
+      ...getReportDatePreset("month"),
     });
   };
   const drillTo = (title, rows) => setDrilldown({ title, rows });
@@ -3625,8 +3663,19 @@ const JiraReportsDashboard = () => {
               <option value="month">Current vs Previous Month</option>
               <option value="release">Current vs Previous Release</option>
             </select>
-            <DateField label="Date from" value={filters.dateFrom} onChange={(event) => updateFilter("dateFrom", event.target.value)} />
-            <DateField label="Date to" value={filters.dateTo} onChange={(event) => updateFilter("dateTo", event.target.value)} />
+            <select className={ANALYTICS_SELECT_CLASS} value={datePreset} onChange={(event) => updateDatePreset(event.target.value)}>
+              <option value="today">Today</option>
+              <option value="week">Week</option>
+              <option value="month">Month</option>
+              <option value="quarterly">Quarterly</option>
+              <option value="custom">Custom</option>
+            </select>
+            {datePreset === "custom" ? (
+              <>
+                <DateField label="Date from" value={filters.dateFrom} onChange={(event) => updateFilter("dateFrom", event.target.value)} />
+                <DateField label="Date to" value={filters.dateTo} onChange={(event) => updateFilter("dateTo", event.target.value)} />
+              </>
+            ) : null}
           </div>
         </div>
 
