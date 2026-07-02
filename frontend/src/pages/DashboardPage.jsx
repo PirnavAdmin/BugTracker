@@ -726,7 +726,7 @@ const DashboardPage = () => {
   const recentCriticalBugs = useMemo(
     () =>
       bugs
-        .filter(isCriticalBug)
+        .filter((bug) => isCriticalBug(bug) && !isClosedBug(bug))
         .sort(
           (left, right) =>
             new Date(right.updatedAt || right.createdAt || 0).getTime() -
