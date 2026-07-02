@@ -12,6 +12,7 @@ import {
   getIssueDisplayKey,
   getIssuePriorityVariant,
   getIssueStatusLabel,
+  resolveIssueAssignees,
 } from "@/lib/issues";
 import { cn } from "@/lib/utils";
 
@@ -19,6 +20,10 @@ const StoryCard = ({ story, onClick }) => {
   const progress = story.storyProgress || {};
   const progressPercent = Number(progress.percent || 0);
   const isQueued = Boolean(story.bugDetails?.addToBucket);
+  const assignees = resolveIssueAssignees(story);
+  const assigneeLabel = assignees.length
+    ? assignees.map((assignee) => assignee.name).join(", ")
+    : "Unassigned";
 
   return (
     <button
@@ -60,7 +65,7 @@ const StoryCard = ({ story, onClick }) => {
         </span>
         <span className="flex min-w-0 items-center gap-2">
           <CircleUserRound className="h-3.5 w-3.5 shrink-0 text-blue-500" />
-          <span className="truncate">{story.assignee?.name || "Unassigned"}</span>
+          <span className="truncate">{assigneeLabel}</span>
         </span>
       </div>
 

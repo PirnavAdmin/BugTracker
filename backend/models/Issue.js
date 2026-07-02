@@ -194,6 +194,12 @@ const issueSchema = new Schema(
       default: null,
       index: true,
     },
+    assignees: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User",
+      },
+    ],
     assignedDeveloperId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
@@ -387,6 +393,7 @@ issueSchema.index({ projectId: 1, epicId: 1, planningOrder: 1 });
 issueSchema.index({ parentStoryId: 1, type: 1, status: 1 });
 issueSchema.index({ parentTaskId: 1, planningOrder: 1 });
 issueSchema.index({ assignee: 1, sprintId: 1, status: 1 });
+issueSchema.index({ assignees: 1, sprintId: 1, status: 1 });
 issueSchema.index({ displayBugId: 1 }, { unique: true, sparse: true });
 issueSchema.index({ projectId: 1, displayBugId: 1 });
 issueSchema.index({ isDeleted: 1, projectId: 1, status: 1 });

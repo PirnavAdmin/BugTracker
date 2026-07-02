@@ -33,6 +33,7 @@ import {
   getIssueDisplayKey,
   getIssuePriorityVariant,
   getIssueStatusLabel,
+  resolveIssueAssignees,
 } from "@/lib/issues";
 import { formatDateTime, getInitials } from "@/lib/utils";
 import IssueCreateDialog from "@/components/issues/IssueCreateDialog";
@@ -84,6 +85,10 @@ const StoryDetails = ({ story, projects, stories, onBack, onChanged }) => {
   const [comment, setComment] = useState("");
   const [file, setFile] = useState(null);
   const children = Array.isArray(story.children) ? story.children : [];
+  const storyAssignees = resolveIssueAssignees(story);
+  const storyAssigneeLabel = storyAssignees.length
+    ? storyAssignees.map((assignee) => assignee.name).join(", ")
+    : "Unassigned";
   const tasks = useMemo(() => children.filter((item) => taskTypes.has(item.type)), [children]);
   const bugs = useMemo(() => children.filter((item) => item.type === "Bug"), [children]);
   const progress = story.storyProgress || {};
@@ -250,7 +255,7 @@ const StoryDetails = ({ story, projects, stories, onBack, onChanged }) => {
               ["Priority", story.priority || "Medium"],
               ["Sprint", story.sprintId?.name || "Backlog"],
               ["Story Points", story.storyPoints ?? 0],
-              ["Assignee", story.assignee?.name || "Unassigned"],
+              ["Assignee", storyAssigneeLabel],
               ["Progress", `${progress.percent || 0}%`],
               ["Tasks", progress.taskCount || 0],
               ["Open Bugs", story.openBugCount || 0],

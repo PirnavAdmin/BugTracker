@@ -790,6 +790,38 @@ export const resolveIssueAssigneeId = (issue) =>
 export const resolveIssueAssignee = (issue) =>
   issue?.assignee && typeof issue.assignee === "object" ? issue.assignee : null;
 
+export const resolveIssueAssignees = (issue) => {
+  const assignees = Array.isArray(issue?.assignees)
+    ? issue.assignees.filter((assignee) => assignee && typeof assignee === "object")
+    : [];
+  const primaryAssignee = resolveIssueAssignee(issue);
+
+  if (
+    primaryAssignee &&
+    !assignees.some((assignee) => String(assignee._id) === String(primaryAssignee._id))
+  ) {
+    return [primaryAssignee, ...assignees];
+  }
+
+  return assignees;
+};
+
+export const resolveIssueAssigneeIds = (issue) => {
+  const explicitIds = Array.isArray(issue?.assigneeIds) ? issue.assigneeIds : [];
+  const collaboratorIds = Array.isArray(issue?.assignees)
+    ? issue.assignees.map((assignee) => assignee?._id || assignee)
+    : [];
+  const ids = [
+    ...explicitIds,
+    ...collaboratorIds,
+    resolveIssueAssigneeId(issue),
+  ]
+    .map((id) => String(id || ""))
+    .filter(Boolean);
+
+  return [...new Set(ids)];
+};
+
 export const resolveIssueTeamId = (issue) =>
   String(issue?.teamId?._id || issue?.teamId || "");
 
@@ -937,7 +969,7 @@ export const filterIssues = (issues, filters) => {
 
     if (
       assigneeFilter !== "all" &&
-      resolveIssueAssigneeId(issue) !== String(assigneeFilter)
+      !resolveIssueAssigneeIds(issue).includes(String(assigneeFilter))
     ) {
       return false;
     }
@@ -953,7 +985,7 @@ export const filterIssues = (issues, filters) => {
       issue.projectId?.name,
       issue.teamId?.name,
       issue.epicId?.name,
-      resolveIssueAssignee(issue)?.name,
+      ...resolveIssueAssignees(issue).map((assignee) => assignee.name),
     ]
       .filter(Boolean)
       .some((value) => String(value).toLowerCase().includes(searchTerm));

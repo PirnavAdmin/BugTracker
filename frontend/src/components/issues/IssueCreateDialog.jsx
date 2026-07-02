@@ -92,6 +92,7 @@ const buildInitialState = ({
     projectId,
     teamId: resolveTeamSelection(getProjectTeams(project), defaultTeamId),
     assigneeId: "",
+    assigneeIds: [],
     priority: isBug ? "High" : "Medium",
     type: defaultType,
     status: isBug ? ISSUE_STATUS.NEW : ISSUE_STATUS.TODO,
@@ -506,6 +507,15 @@ const IssueCreateDialog = ({
       ) || null,
     [assigneeOptions, formData.assigneeId]
   );
+  const selectedAssigneeOptions = useMemo(
+    () =>
+      assigneeOptions.filter((assignee) =>
+        Array.isArray(formData.assigneeIds)
+          ? formData.assigneeIds.includes(assignee.value)
+          : false
+      ),
+    [assigneeOptions, formData.assigneeIds]
+  );
 
   const dependencyOptions = useMemo(
     () =>
@@ -682,6 +692,7 @@ const IssueCreateDialog = ({
       ...current,
       teamId: nextTeamId,
       assigneeId: "",
+      assigneeIds: [],
       sprintId: "",
       bugDetails: {
         ...current.bugDetails,
@@ -696,15 +707,25 @@ const IssueCreateDialog = ({
       availableAssignees.map((assignee) => resolveUserId(assignee))
     );
 
-    if (!formData.assigneeId || assigneeIds.has(String(formData.assigneeId))) {
+    const selectedAssigneeIds = Array.isArray(formData.assigneeIds)
+      ? formData.assigneeIds
+      : [];
+
+    if (
+      (!formData.assigneeId || assigneeIds.has(String(formData.assigneeId))) &&
+      selectedAssigneeIds.every((assigneeId) => assigneeIds.has(String(assigneeId)))
+    ) {
       return;
     }
 
     setFormData((current) => ({
       ...current,
-      assigneeId: "",
+      assigneeId: assigneeIds.has(String(current.assigneeId)) ? current.assigneeId : "",
+      assigneeIds: (current.assigneeIds || []).filter((assigneeId) =>
+        assigneeIds.has(String(assigneeId))
+      ),
     }));
-  }, [availableAssignees, formData.assigneeId]);
+  }, [availableAssignees, formData.assigneeId, formData.assigneeIds]);
 
   useEffect(() => {
     const assigneeIds = new Set(assigneeOptions.map((assignee) => assignee.value));
@@ -806,6 +827,7 @@ const IssueCreateDialog = ({
     setFormData((current) => ({
       ...current,
       assigneeId: "",
+      assigneeIds: [],
     }));
   }, [assignEntireTeam, assignToQueue]);
 
@@ -833,6 +855,7 @@ const IssueCreateDialog = ({
       projectId: option?.value || "",
       teamId: "",
       assigneeId: "",
+      assigneeIds: [],
       dependsOnIssueId: "",
       epicId: "",
       sprintId: "",
@@ -865,6 +888,23 @@ const IssueCreateDialog = ({
       )
     ) {
       setError("Choose an assignee from the selected team.");
+      return;
+    }
+
+    const selectedAssigneeIds = Array.isArray(formData.assigneeIds)
+      ? formData.assigneeIds
+      : [];
+
+    if (
+      !assignEntireTeam &&
+      selectedAssigneeIds.some(
+        (assigneeId) =>
+          !availableAssignees.some(
+            (assignee) => resolveUserId(assignee) === String(assigneeId)
+          )
+      )
+    ) {
+      setError("Choose assignees from the selected team.");
       return;
     }
 
@@ -959,6 +999,13 @@ const IssueCreateDialog = ({
           {
             ...basePayload,
             assigneeId: assignToQueue ? null : formData.assigneeId || null,
+            assigneeIds: assignToQueue
+              ? []
+              : selectedAssigneeIds.length
+                ? selectedAssigneeIds
+                : formData.assigneeId
+                  ? [formData.assigneeId]
+                  : [],
           },
         ];
 
@@ -1078,6 +1125,7 @@ const IssueCreateDialog = ({
                           ...current,
                           teamId: option?.value || "",
                           assigneeId: "",
+                          assigneeIds: [],
                           sprintId: "",
                           bugDetails: {
                             ...current.bugDetails,
@@ -1108,6 +1156,7 @@ const IssueCreateDialog = ({
                             setFormData((current) => ({
                               ...current,
                               assigneeId: "",
+                              assigneeIds: [],
                             }));
                           }
                         }}
@@ -1137,15 +1186,23 @@ const IssueCreateDialog = ({
                       >
                         <Select
                           options={assigneeOptions}
-                          value={selectedAssigneeOption}
+                          value={isStoryType ? selectedAssigneeOptions : selectedAssigneeOption}
                           onChange={(option) =>
                             setFormData((current) => ({
                               ...current,
-                              assigneeId: option?.value || "",
+                              assigneeId: Array.isArray(option)
+                                ? option[0]?.value || ""
+                                : option?.value || "",
+                              assigneeIds: Array.isArray(option)
+                                ? option.map((assignee) => assignee.value)
+                                : option?.value
+                                  ? [option.value]
+                                  : [],
                             }))
                           }
                           styles={issueSelectStyles}
                           formatOptionLabel={formatAssigneeOptionLabel}
+                          isMulti={isStoryType}
                           isClearable
                           isDisabled={
                             !formData.teamId || assignEntireTeam || assignToQueue || isSubmitPending
@@ -1157,7 +1214,9 @@ const IssueCreateDialog = ({
                               ? "Disabled while team-wide assignment is enabled"
                               : assignToQueue
                                 ? "Disabled while work queue is enabled"
-                              : "Select assignee"
+                                : isStoryType
+                                  ? "Select assignees"
+                                  : "Select assignee"
                           }
                           noOptionsMessage={() =>
                             formData.teamId

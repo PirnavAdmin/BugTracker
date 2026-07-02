@@ -7,6 +7,7 @@ const { getCanonicalIssueType, ISSUE_TYPES } = require("../utils/issueTypes");
 
 const issuePopulation = [
   { path: "assignee", select: "name email role" },
+  { path: "assignees", select: "name email role" },
   { path: "bugDetails.testerOwner", select: "name email role" },
   { path: "bugDetails.developerLead", select: "name email role" },
   { path: "dependsOnIssueId", select: "title status dueAt" },
@@ -43,6 +44,11 @@ const serializeIssue = (issue) => {
         };
   const assigneeReference =
     serializedIssue?.assignee?._id || serializedIssue?.assignee || null;
+  const collaboratorReferences = Array.isArray(serializedIssue?.assignees)
+    ? serializedIssue.assignees
+        .map((assignee) => assignee?._id || assignee)
+        .filter(Boolean)
+    : [];
   const dependencyIssue =
     serializedIssue?.dependsOnIssueId &&
     typeof serializedIssue.dependsOnIssueId === "object"
@@ -75,6 +81,11 @@ const serializeIssue = (issue) => {
       "",
     dependsOnIssueId: dependencyIssue,
     assigneeId: assigneeReference ? String(assigneeReference) : null,
+    assigneeIds: collaboratorReferences.length
+      ? collaboratorReferences.map((assignee) => String(assignee))
+      : assigneeReference
+        ? [String(assigneeReference)]
+        : [],
     assignedDeveloperId: serializedIssue.assignedDeveloperId
       ? String(serializedIssue.assignedDeveloperId)
       : null,

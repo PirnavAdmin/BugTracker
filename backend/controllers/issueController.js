@@ -109,9 +109,13 @@ const isLeadRole = (role) => [ROLE_ADMIN, ROLE_MANAGER].includes(role);
 const ISSUE_PRIORITY_VALUES = ["Critical", "High", "Medium", "Low"];
 const escapeRegExp = (value = "") =>
   value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+const getComparableUserId = (user) => String(user?._id || user?.id || user || "");
 
 const isAssignedToUser = (issue, userId) =>
-  Boolean(issue?.assignee) && String(issue.assignee) === String(userId);
+  Boolean(userId) &&
+  (getComparableUserId(issue?.assignee) === String(userId) ||
+    (Array.isArray(issue?.assignees) &&
+      issue.assignees.some((assignee) => getComparableUserId(assignee) === String(userId))));
 
 const ACTIVE_ISSUE_QUERY = Object.freeze({ isDeleted: { $ne: true } });
 
@@ -129,6 +133,7 @@ const hasBugQaOwnership = (issue, userId) => {
 
 const getPersonalIssueAccessConditions = (user) => [
   { assignee: user._id },
+  { assignees: user._id },
   { reporter: user._id },
   { "bugDetails.testerOwner": user._id },
   { "bugDetails.developerLead": user._id },
@@ -197,6 +202,7 @@ const getAccessibleProjectIds = async (user) => {
       ...ACTIVE_ISSUE_QUERY,
       $or: [
         { assignee: user._id },
+        { assignees: user._id },
         { reporter: user._id },
         { "bugDetails.testerOwner": user._id },
         { "bugDetails.developerLead": user._id },
@@ -344,6 +350,28 @@ const cleanPayload = (payload = {}) => {
 
 const resolveAssigneeInput = (payload = {}) =>
   hasOwnField(payload, "assigneeId") ? payload.assigneeId : payload.assignee;
+
+const resolveAssigneeInputs = (payload = {}) => {
+  const rawValues = hasOwnField(payload, "assigneeIds")
+    ? payload.assigneeIds
+    : hasOwnField(payload, "assignees")
+      ? payload.assignees
+      : [resolveAssigneeInput(payload)];
+  const values = Array.isArray(rawValues) ? rawValues : [rawValues];
+  const seen = new Set();
+
+  return values
+    .map((value) => String(value || "").trim())
+    .filter((value) => value && value !== "Unassigned")
+    .filter((value) => {
+      if (seen.has(value)) {
+        return false;
+      }
+
+      seen.add(value);
+      return true;
+    });
+};
 
 const hasAssigneeInput = (payload = {}) =>
   hasOwnField(payload, "assigneeId") || hasOwnField(payload, "assignee");
@@ -1822,6 +1850,7 @@ const buildIssueQueryFromRequest = async (
     if (String(developerFilter).toLowerCase() === "me") {
       mergeOrConditions(query, [
         { assignee: req.user._id },
+        { assignees: req.user._id },
         { assignedDeveloperId: req.user._id },
         { "bugDetails.developerLead": req.user._id },
       ]);
@@ -1846,6 +1875,7 @@ const buildIssueQueryFromRequest = async (
 
       mergeOrConditions(query, [
         { assignee: developerFilter },
+        { assignees: developerFilter },
         { assignedDeveloperId: developerFilter },
         { "bugDetails.developerLead": developerFilter },
       ]);
@@ -2072,7 +2102,10 @@ const buildIssueQueryFromRequest = async (
     assigneeFilter !== "all"
   ) {
     if (String(assigneeFilter).toLowerCase() === "me") {
-      query.assignee = req.user.id;
+      mergeOrConditions(query, [
+        { assignee: req.user.id },
+        { assignees: req.user.id },
+      ]);
       return query;
     }
 
@@ -2086,7 +2119,10 @@ const buildIssueQueryFromRequest = async (
       throw new Error("You can only view issues assigned to you");
     }
 
-    query.assignee = assigneeFilter;
+    mergeOrConditions(query, [
+      { assignee: assigneeFilter },
+      { assignees: assigneeFilter },
+    ]);
   } else if (!isAdmin(req.user)) {
     addPersonalIssueAccessQuery(query, req.user);
   }
@@ -3081,7 +3117,8 @@ const createIssue = asyncHandler(async (req, res) => {
     parentStoryId,
     parentTaskId,
   } = req.body;
-  const assigneeId = resolveAssigneeInput(req.body);
+  const requestedAssigneeIds = resolveAssigneeInputs(req.body);
+  const assigneeId = requestedAssigneeIds[0] || null;
   const hasEpicInput = hasOwnField(req.body, "epicId");
   const hasSprintInput = hasOwnField(req.body, "sprintId");
   const canAssignPlanningFields = hasAdminAccess(req.user?.role);
@@ -3236,28 +3273,32 @@ const createIssue = asyncHandler(async (req, res) => {
     ),
   });
 
-  if (assigneeId && !assignLater && !sendToTriage) {
+  if (requestedAssigneeIds.length && !assignLater && !sendToTriage) {
     const canTesterAssignBugDeveloper =
       req.user.role === ROLE_TESTER && isBug;
 
     if (
       !isAdmin(req.user) &&
       !canTesterAssignBugDeveloper &&
-      String(assigneeId) !== String(req.user._id)
+      requestedAssigneeIds.some(
+        (requestedAssigneeId) => String(requestedAssigneeId) !== String(req.user._id)
+      )
     ) {
       res.status(403);
       throw new Error("Only admins can assign work to other users");
     }
 
-    const assigneeResult = await ensureAssigneeBelongsToTeam({
-      assigneeId,
-      teamId,
-      workspaceId,
-    });
+    for (const requestedAssigneeId of requestedAssigneeIds) {
+      const assigneeResult = await ensureAssigneeBelongsToTeam({
+        assigneeId: requestedAssigneeId,
+        teamId,
+        workspaceId,
+      });
 
-    if (assigneeResult.error) {
-      res.status(assigneeResult.error.status);
-      throw new Error(assigneeResult.error.message);
+      if (assigneeResult.error) {
+        res.status(assigneeResult.error.status);
+        throw new Error(assigneeResult.error.message);
+      }
     }
   }
 
@@ -3419,6 +3460,7 @@ const createIssue = asyncHandler(async (req, res) => {
     status: statusResult.value,
     priority: normalizedPriority || priority,
     assignee: assignLater ? null : assigneeId || null,
+    assignees: assignLater ? [] : requestedAssigneeIds,
     assignedDeveloperId: isBug && !assignLater ? assigneeId || null : null,
     assignedDeveloperName:
       isBug && !assignLater
