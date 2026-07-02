@@ -32,7 +32,6 @@ import {
 import { motion, AnimatePresence } from "framer-motion";
 import {
   fetchIssueActivity,
-  fetchIssueStats,
   fetchNotifications,
   fetchUnreadNotificationCount,
   markNotificationAsRead,
@@ -240,6 +239,8 @@ const getStatusLabel = (issue) =>
   isBugIssue(issue)
     ? bugWorkflowLabels[normalizeBugStatusForIssue(issue)] || getIssueStatusLabel(issue.status)
     : getIssueStatusLabel(issue.status);
+
+const isTaskWorkItem = (issue) => ["Task", "Sub-task"].includes(issue?.type);
 
 const getBadgeClass = (map, key, fallback) =>
   map[key] || fallback || "border-slate-200 bg-slate-100 text-slate-700";
@@ -1504,19 +1505,6 @@ const DeveloperDashboardPage = () => {
   });
 
   const {
-    data: activeSprintStats = null,
-    isLoading: isSprintProgressLoading,
-  } = useQuery({
-    queryKey: ["issues", "stats", "developer-dashboard", "active-sprint-tasks", user?._id],
-    queryFn: () =>
-      fetchIssueStats({
-        sprintState: "ACTIVE",
-        excludeType: "Bug",
-      }),
-    enabled: Boolean(user?._id),
-  });
-
-  const {
     data: activity = [],
     isLoading: isActivityLoading,
   } = useQuery({
@@ -1565,13 +1553,16 @@ const DeveloperDashboardPage = () => {
     [allIssues]
   );
   const taskIssues = useMemo(
-    () => allIssues.filter((issue) => !isBugIssue(issue)),
+    () => allIssues.filter(isTaskWorkItem),
     [allIssues]
   );
   const sprintProgress = useMemo(
     () => {
-      const total = activeSprintStats?.total || 0;
-      const completed = activeSprintStats?.closed || 0;
+      const activeSprintTasks = taskIssues.filter(
+        (issue) => String(issue?.sprintId?.state || issue?.sprintId?.status || "") === "ACTIVE"
+      );
+      const total = activeSprintTasks.length;
+      const completed = activeSprintTasks.filter(isIssueClosed).length;
 
       return {
         completed,
@@ -1580,7 +1571,7 @@ const DeveloperDashboardPage = () => {
         hasActiveSprint: total > 0,
       };
     },
-    [activeSprintStats]
+    [taskIssues]
   );
   useEffect(() => {
     if (!selectedIssue) {
@@ -1874,7 +1865,7 @@ const DeveloperDashboardPage = () => {
           Priority Queue
         </Button>
         <RoleRatingCard metrics={performanceRating} title="Developer Rating" />
-        <SprintProgressWidget metrics={sprintProgress} isLoading={isSprintProgressLoading} />
+        <SprintProgressWidget metrics={sprintProgress} isLoading={isIssuesLoading} />
       </section>
 
       <BugBucketPanel

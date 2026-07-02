@@ -564,6 +564,18 @@ const getCardViewFilterState = (viewId) => {
   return baseFilters;
 };
 
+const setParamIfActive = (params, key, value, defaultValue = "all") => {
+  const normalizedValue = String(value || "");
+  const normalizedDefaultValue = String(defaultValue || "");
+
+  if (!normalizedValue || normalizedValue === normalizedDefaultValue) {
+    params.delete(key);
+    return;
+  }
+
+  params.set(key, normalizedValue);
+};
+
 const TRIAGE_ACTION_MENU_WIDTH = 248;
 const TRIAGE_ACTION_MENU_HEIGHT = 286;
 const TRIAGE_ACTION_MENU_GUTTER = 12;
@@ -756,9 +768,25 @@ const AdminBugsPage = () => {
   const initialDashboardFilter = getDashboardFilterQueryValue(
     searchParams.get("filter") || searchParams.get("status")
   );
+  const hasInitialManualFilterParams = [
+    "projectId",
+    "teamId",
+    "testerId",
+    "developerId",
+    "severity",
+    "priority",
+    "sprintId",
+    "epicId",
+    "bucket",
+    "dateFrom",
+    "dateTo",
+    "search",
+  ].some((key) => searchParams.has(key));
   const initialCardView = searchParams.get("view")
     ? getBugCardView(searchParams.get("view")).id
     : searchParams.get("status") || searchParams.get("filter") || searchParams.get("lifecycle")
+      ? ""
+      : hasInitialManualFilterParams
       ? ""
       : getBugCardView().id;
   const initialCardFilters = initialCardView
@@ -1003,11 +1031,25 @@ const AdminBugsPage = () => {
       currentParams.get("filter") || currentParams.get("status")
     );
     const hasRequestedCardView = currentParams.has("view");
+    const hasManualFilterParams = [
+      "projectId",
+      "teamId",
+      "testerId",
+      "developerId",
+      "severity",
+      "priority",
+      "sprintId",
+      "epicId",
+      "bucket",
+      "dateFrom",
+      "dateTo",
+      "search",
+    ].some((key) => currentParams.has(key));
     const hasLegacyBugFilter =
       currentParams.has("status") || currentParams.has("filter") || currentParams.has("lifecycle");
     const nextCardView = hasRequestedCardView
       ? getBugCardView(currentParams.get("view"))
-      : hasLegacyBugFilter
+      : hasLegacyBugFilter || hasManualFilterParams
         ? null
         : getBugCardView();
     const cardViewFilters = nextCardView ? getCardViewFilterState(nextCardView.id) : null;
@@ -1054,6 +1096,44 @@ const AdminBugsPage = () => {
       setActiveCardView(nextCardView?.id || "");
     }
   }, [filters.projectId, projects, searchParamString]);
+
+  useEffect(() => {
+    const nextParams = new URLSearchParams(searchParams);
+
+    setParamIfActive(nextParams, "projectId", filters.projectId, ALL_PROJECTS_VALUE);
+    setParamIfActive(nextParams, "teamId", filters.teamId);
+    setParamIfActive(nextParams, "testerId", filters.testerId);
+    setParamIfActive(nextParams, "developerId", filters.developerId);
+    setParamIfActive(nextParams, "severity", filters.severity);
+    setParamIfActive(nextParams, "priority", filters.priority);
+    setParamIfActive(nextParams, "status", filters.status);
+    setParamIfActive(nextParams, "sprintId", filters.sprintId);
+    setParamIfActive(nextParams, "epicId", filters.epicId);
+    setParamIfActive(nextParams, "bucket", filters.bucket);
+    setParamIfActive(nextParams, "lifecycle", filters.lifecycle);
+    setParamIfActive(nextParams, "filter", filters.filter);
+    setParamIfActive(nextParams, "dateFrom", filters.dateFrom, "");
+    setParamIfActive(nextParams, "dateTo", filters.dateTo, "");
+    setParamIfActive(nextParams, "search", filters.search.trim(), "");
+    setParamIfActive(nextParams, "sortBy", sortBy, "updated:desc");
+    setParamIfActive(nextParams, "pageSize", pageSize, DEFAULT_PAGE_SIZE);
+
+    if (page > 1) {
+      nextParams.set("page", String(page));
+    } else {
+      nextParams.delete("page");
+    }
+
+    if (activeCardView) {
+      nextParams.set("view", activeCardView);
+    } else {
+      nextParams.delete("view");
+    }
+
+    if (nextParams.toString() !== searchParams.toString()) {
+      setSearchParams(nextParams, { replace: true });
+    }
+  }, [activeCardView, filters, page, pageSize, searchParams, setSearchParams, sortBy]);
 
   useEffect(() => {
     const bugParam = new URLSearchParams(searchParamString).get("bug");
@@ -1381,6 +1461,7 @@ const AdminBugsPage = () => {
 
   const updateFilter = (key, value) => {
     setPage(1);
+    setActiveCardView("");
     if (searchParams.has("page")) {
       const nextParams = new URLSearchParams(searchParams);
       nextParams.delete("page");
@@ -1408,6 +1489,7 @@ const AdminBugsPage = () => {
   };
 
   const applyQuickFilter = (filterId) => {
+    setPage(1);
     setActiveCardView("");
     setFilters((current) => {
       const baseFilters = {
