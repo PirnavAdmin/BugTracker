@@ -595,6 +595,7 @@ const IssueCreateDialog = ({
   );
   const isBugType = formData.type === "Bug";
   const isStoryType = formData.type === "Story";
+  const supportsDescription = isStoryType || formData.type === "Task";
   const qaOwnerOptions = useMemo(
     () =>
       projectMemberOptions.filter((option) => option.role === "Tester").length
@@ -904,7 +905,7 @@ const IssueCreateDialog = ({
 
     const basePayload = {
       title: formData.title.trim(),
-      description: isStoryType ? formData.description.trim() : "",
+      description: supportsDescription ? formData.description.trim() : "",
       projectId: formData.projectId,
       teamId: formData.teamId,
       priority: formData.priority,
@@ -1039,7 +1040,7 @@ const IssueCreateDialog = ({
               </label>
             </div>
 
-            {isStoryType ? (
+            {supportsDescription ? (
               <label className="block space-y-1.5">
                 <span className="text-sm font-semibold text-slate-900">Description</span>
                 <Textarea
