@@ -10,6 +10,7 @@ import {
   Paperclip,
   Plus,
   Trash2,
+  UserPlus,
 } from "lucide-react";
 import {
   createComment,
@@ -19,6 +20,7 @@ import {
   fetchComments,
   fetchIssueAttachments,
   fetchIssueHistory,
+  fetchProjectTeams,
   updateIssue,
   uploadIssueAttachment,
 } from "@/lib/api";
@@ -30,6 +32,14 @@ import {
   ROLE_TESTER,
 } from "@/lib/roles";
 import {
+  findProjectById,
+  getProjectTeams,
+  getProjectTeamMembers,
+  resolveProjectId,
+  resolveTeamId,
+  resolveUserId,
+} from "@/lib/project-teams";
+import {
   getIssueDisplayKey,
   getIssuePriorityVariant,
   getIssueStatusLabel,
@@ -38,6 +48,12 @@ import {
 import { formatDateTime, getInitials } from "@/lib/utils";
 import IssueCreateDialog from "@/components/issues/IssueCreateDialog";
 import IssueDetailsDialog from "@/components/issues/IssueDetailsDialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -82,19 +98,51 @@ const StoryDetails = ({ story, projects, stories, onBack, onChanged }) => {
   const [activeTab, setActiveTab] = useState("Overview");
   const [createType, setCreateType] = useState("");
   const [selectedChild, setSelectedChild] = useState(null);
+  const [isCollaboratorOpen, setIsCollaboratorOpen] = useState(false);
+  const [selectedCollaboratorIds, setSelectedCollaboratorIds] = useState([]);
   const [comment, setComment] = useState("");
   const [file, setFile] = useState(null);
   const children = Array.isArray(story.children) ? story.children : [];
   const storyAssignees = resolveIssueAssignees(story);
+  const storyAssigneeIds = useMemo(
+    () => [
+      ...new Set(
+        storyAssignees
+          .map((assignee) => resolveUserId(assignee))
+          .filter(Boolean)
+      ),
+    ],
+    [storyAssignees]
+  );
   const storyAssigneeLabel = storyAssignees.length
     ? storyAssignees.map((assignee) => assignee.name).join(", ")
     : "Unassigned";
+  const storyProjectId = resolveProjectId(story.projectId);
+  const storyTeamId = resolveTeamId(story.teamId);
+  const { data: projectTeamsData } = useQuery({
+    queryKey: ["project-teams", storyProjectId],
+    queryFn: () => fetchProjectTeams(storyProjectId),
+    enabled: Boolean(storyProjectId),
+  });
+  const storyProject = findProjectById(projects, storyProjectId);
+  const storyProjectWithTeams = useMemo(
+    () =>
+      Array.isArray(projectTeamsData) && projectTeamsData.length
+        ? { ...(storyProject || {}), teams: getProjectTeams({ teams: projectTeamsData }) }
+        : storyProject,
+    [projectTeamsData, storyProject]
+  );
+  const collaboratorOptions = useMemo(
+    () => getProjectTeamMembers(storyProjectWithTeams, storyTeamId),
+    [storyProjectWithTeams, storyTeamId]
+  );
   const tasks = useMemo(() => children.filter((item) => taskTypes.has(item.type)), [children]);
   const bugs = useMemo(() => children.filter((item) => item.type === "Bug"), [children]);
   const progress = story.storyProgress || {};
   const canCreateTask =
     ADMIN_PANEL_ROLES.includes(role) || [ROLE_DEVELOPER, ROLE_TEAM_LEAD].includes(role);
   const canCreateBug = ADMIN_PANEL_ROLES.includes(role) || role === ROLE_TESTER;
+  const canManageCollaborators = ADMIN_PANEL_ROLES.includes(role);
   const canDeleteStory = ADMIN_PANEL_ROLES.includes(role);
 
   const { data: comments = [], isLoading: commentsLoading } = useQuery({
@@ -154,6 +202,28 @@ const StoryDetails = ({ story, projects, stories, onBack, onChanged }) => {
       queryClient.invalidateQueries({ queryKey: ["issue", story._id, "attachments"] });
     },
   });
+  const openCollaboratorDialog = () => {
+    setSelectedCollaboratorIds(storyAssigneeIds);
+    setIsCollaboratorOpen(true);
+  };
+  const toggleCollaborator = (userId) => {
+    setSelectedCollaboratorIds((current) =>
+      current.includes(userId)
+        ? current.filter((selectedId) => selectedId !== userId)
+        : [...current, userId]
+    );
+  };
+  const handleCollaboratorSubmit = async (event) => {
+    event.preventDefault();
+    await updateMutation.mutateAsync({
+      id: story._id,
+      payload: {
+        assigneeId: selectedCollaboratorIds[0] || null,
+        assigneeIds: selectedCollaboratorIds,
+      },
+    });
+    setIsCollaboratorOpen(false);
+  };
 
   const createActions = (
     <div className="flex flex-wrap gap-2">
@@ -167,6 +237,12 @@ const StoryDetails = ({ story, projects, stories, onBack, onChanged }) => {
         <Button type="button" size="sm" variant="outline" onClick={() => setCreateType("Bug")}>
           <Bug className="h-4 w-4" />
           Bug
+        </Button>
+      ) : null}
+      {canManageCollaborators ? (
+        <Button type="button" size="sm" variant="outline" onClick={openCollaboratorDialog}>
+          <UserPlus className="h-4 w-4" />
+          Collaborator
         </Button>
       ) : null}
       {canDeleteStory ? (
@@ -332,6 +408,72 @@ const StoryDetails = ({ story, projects, stories, onBack, onChanged }) => {
           )) : <EmptyPanel>No activity yet.</EmptyPanel>}
         </section>
       ) : null}
+
+      <Dialog open={isCollaboratorOpen} onOpenChange={setIsCollaboratorOpen}>
+        <DialogContent className="max-w-lg border border-slate-200 bg-white">
+          <DialogHeader>
+            <DialogTitle>Story collaborators</DialogTitle>
+          </DialogHeader>
+          <form className="space-y-4" onSubmit={handleCollaboratorSubmit}>
+            <div className="max-h-80 space-y-2 overflow-y-auto">
+              {collaboratorOptions.length ? (
+                collaboratorOptions.map((member) => {
+                  const memberId = resolveUserId(member);
+                  const checked = selectedCollaboratorIds.includes(memberId);
+
+                  return (
+                    <label
+                      key={memberId}
+                      className="flex items-center gap-3 rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm transition hover:border-blue-200 hover:bg-blue-50/40"
+                    >
+                      <input
+                        type="checkbox"
+                        className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500/30"
+                        checked={checked}
+                        onChange={() => toggleCollaborator(memberId)}
+                      />
+                      <span className="flex min-w-0 flex-1 items-center gap-3">
+                        <Avatar className="h-8 w-8 rounded-xl">
+                          <AvatarFallback>{getInitials(member.name)}</AvatarFallback>
+                        </Avatar>
+                        <span className="min-w-0">
+                          <span className="block truncate font-medium text-slate-900">
+                            {member.name || member.email || "Team member"}
+                          </span>
+                          <span className="block truncate text-xs text-slate-500">
+                            {[member.role, member.email].filter(Boolean).join(" / ")}
+                          </span>
+                        </span>
+                      </span>
+                    </label>
+                  );
+                })
+              ) : (
+                <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 px-4 py-8 text-center text-sm text-slate-500">
+                  No team members are available for this Story team.
+                </div>
+              )}
+            </div>
+
+            <div className="flex justify-end gap-2 border-t border-slate-200 pt-4">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setIsCollaboratorOpen(false)}
+                disabled={updateMutation.isPending}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                disabled={updateMutation.isPending || !collaboratorOptions.length}
+              >
+                {updateMutation.isPending ? "Saving..." : "Save collaborators"}
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
 
       <IssueCreateDialog
         open={Boolean(createType)}

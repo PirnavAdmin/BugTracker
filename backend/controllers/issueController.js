@@ -374,7 +374,10 @@ const resolveAssigneeInputs = (payload = {}) => {
 };
 
 const hasAssigneeInput = (payload = {}) =>
-  hasOwnField(payload, "assigneeId") || hasOwnField(payload, "assignee");
+  hasOwnField(payload, "assigneeId") ||
+  hasOwnField(payload, "assignee") ||
+  hasOwnField(payload, "assigneeIds") ||
+  hasOwnField(payload, "assignees");
 
 const resolveAssigneeFilterInput = (payload = {}) => {
   if (hasOwnField(payload, "assignedTo")) {
@@ -3701,6 +3704,8 @@ const updateIssue = asyncHandler(async (req, res) => {
           "sprintId",
           "assigneeId",
           "assignee",
+          "assigneeIds",
+          "assignees",
           "dueAt",
           "dependsOnIssueId",
           "dependencyIds",
@@ -3800,6 +3805,11 @@ const updateIssue = asyncHandler(async (req, res) => {
     ? String(issue.parentStoryId)
     : "";
   const previousAssigneeId = issue.assignee ? String(issue.assignee) : "";
+  const previousAssigneeIds = Array.isArray(issue.assignees)
+    ? issue.assignees.map((assignee) => getComparableUserId(assignee)).filter(Boolean)
+    : previousAssigneeId
+      ? [previousAssigneeId]
+      : [];
   const previousBugDeveloperId = isBugType(issue.type)
     ? getUserIdString(issue.bugDetails?.developerLead)
     : "";
@@ -3957,8 +3967,15 @@ const updateIssue = asyncHandler(async (req, res) => {
       ? req.body.sprintId || null
       : issue.sprintId || null;
   const nextAssigneeId = hasAssigneeChange
-    ? resolveAssigneeInput(req.body) || null
+    ? resolveAssigneeInputs(req.body)[0] || null
     : issue.assignee || null;
+  const nextAssigneeIds = hasAssigneeChange
+    ? resolveAssigneeInputs(req.body)
+    : Array.isArray(issue.assignees)
+      ? issue.assignees.map((assignee) => getComparableUserId(assignee)).filter(Boolean)
+      : nextAssigneeId
+        ? [String(nextAssigneeId)]
+        : [];
   const nextDependsOnIssueId = hasDependencyChange
     ? req.body.dependsOnIssueId || null
     : issue.dependsOnIssueId || null;
@@ -4057,34 +4074,38 @@ const updateIssue = asyncHandler(async (req, res) => {
   // 1. Assignee is being CHANGED to a new value, OR
   // 2. Team is being CHANGED and there is an assignee
   // Do NOT validate if only status/other fields are changing and assignee stays the same
-  const shouldValidateAssigneeTeamMembership = nextAssigneeId && (isAssigneeChanged || isTeamChanged || hasProjectChange);
+  const shouldValidateAssigneeTeamMembership =
+    nextAssigneeIds.length && (hasAssigneeChange || isTeamChanged || hasProjectChange);
 
   console.log("Updating bug", { id: req.params.id, updates: req.body });
 
   if (shouldValidateAssigneeTeamMembership) {
     console.log("[issues] validating assignee team membership", {
       issueId: String(issue._id),
-      assigneeId: String(nextAssigneeId),
+      assigneeId: String(nextAssigneeId || ""),
+      assigneeIds: nextAssigneeIds,
       teamId: nextTeamId ? String(nextTeamId) : null,
       reason: isAssigneeChanged ? "assignee_changed" : isTeamChanged ? "team_changed" : "project_changed",
     });
 
-    const assigneeResult = await ensureAssigneeBelongsToTeam({
-      assigneeId: nextAssigneeId,
-      teamId: nextTeamId,
-      workspaceId,
-    });
-
-    if (assigneeResult.error) {
-      console.log("[issues] assignee team membership validation failed", {
-        issueId: String(issue._id),
-        assigneeId: String(nextAssigneeId),
-        teamId: nextTeamId ? String(nextTeamId) : null,
-        error: assigneeResult.error.message,
+    for (const requestedAssigneeId of nextAssigneeIds) {
+      const assigneeResult = await ensureAssigneeBelongsToTeam({
+        assigneeId: requestedAssigneeId,
+        teamId: nextTeamId,
+        workspaceId,
       });
 
-      res.status(assigneeResult.error.status);
-      throw new Error(assigneeResult.error.message);
+      if (assigneeResult.error) {
+        console.log("[issues] assignee team membership validation failed", {
+          issueId: String(issue._id),
+          assigneeId: String(requestedAssigneeId),
+          teamId: nextTeamId ? String(nextTeamId) : null,
+          error: assigneeResult.error.message,
+        });
+
+        res.status(assigneeResult.error.status);
+        throw new Error(assigneeResult.error.message);
+      }
     }
   }
 
@@ -4255,11 +4276,17 @@ const updateIssue = asyncHandler(async (req, res) => {
     } else {
       issue.assignee = nextAssigneeId;
     }
+    issue.assignees = nextAssigneeIds;
 
     changeEntries.push({
       field: "assignee",
       fromValue: previousAssigneeId,
       toValue: nextAssigneeId || null,
+    });
+    changeEntries.push({
+      field: "assignees",
+      fromValue: previousAssigneeIds,
+      toValue: nextAssigneeIds,
     });
   }
 
