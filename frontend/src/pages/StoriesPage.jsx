@@ -1,6 +1,6 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { BookOpen, Plus, Search } from "lucide-react";
 import { createIssue, fetchProjects, fetchStories, uploadIssueAttachment } from "@/lib/api";
 import { useAuth } from "@/hooks/use-auth";
@@ -17,11 +17,19 @@ const StoriesPage = () => {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const { storyId = "" } = useParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { role } = useAuth();
   const [search, setSearch] = useState("");
-  const [projectId, setProjectId] = useState("all");
+  const [projectId, setProjectId] = useState(searchParams.get("projectId") || "all");
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const canCreateStory = ADMIN_PANEL_ROLES.includes(role);
+  const storyListPath = projectId === "all" ? "/stories" : `/stories?projectId=${encodeURIComponent(projectId)}`;
+
+  useEffect(() => {
+    const nextProjectId = searchParams.get("projectId") || "all";
+
+    setProjectId((current) => (current === nextProjectId ? current : nextProjectId));
+  }, [searchParams]);
 
   const { data: projects = [], isLoading: projectsLoading } = useQuery({
     queryKey: ["projects"],
@@ -62,7 +70,7 @@ const StoriesPage = () => {
       setIsCreateOpen(false);
       await queryClient.invalidateQueries({ queryKey: ["stories"] });
       await queryClient.invalidateQueries({ queryKey: ["backlog"] });
-      navigate(`/stories/${story._id}`);
+      navigate(`/stories/${story._id}${projectId === "all" ? "" : `?projectId=${encodeURIComponent(projectId)}`}`);
     },
   });
 
@@ -80,7 +88,7 @@ const StoriesPage = () => {
         story={selectedStory}
         projects={projects}
         stories={stories}
-        onBack={() => navigate("/stories")}
+        onBack={() => navigate(storyListPath)}
         onChanged={() => queryClient.invalidateQueries({ queryKey: ["stories"] })}
       />
     );
@@ -91,7 +99,7 @@ const StoriesPage = () => {
       <EmptyState
         title="Story not found"
         description="This Story may have been removed or is outside your accessible projects."
-        action={<Button onClick={() => navigate("/stories")}>Back to Stories</Button>}
+        action={<Button onClick={() => navigate(storyListPath)}>Back to Stories</Button>}
       />
     );
   }
@@ -125,7 +133,21 @@ const StoriesPage = () => {
         </label>
         <select
           value={projectId}
-          onChange={(event) => setProjectId(event.target.value)}
+          onChange={(event) => {
+            const nextProjectId = event.target.value;
+            setProjectId(nextProjectId);
+            setSearchParams((currentParams) => {
+              const nextParams = new URLSearchParams(currentParams);
+
+              if (nextProjectId === "all") {
+                nextParams.delete("projectId");
+              } else {
+                nextParams.set("projectId", nextProjectId);
+              }
+
+              return nextParams;
+            }, { replace: true });
+          }}
           className="field-select"
         >
           <option value="all">All projects</option>
@@ -147,7 +169,9 @@ const StoriesPage = () => {
             <StoryCard
               key={story._id}
               story={story}
-              onClick={(item) => navigate(`/stories/${item._id}`)}
+              onClick={(item) =>
+                navigate(`/stories/${item._id}${projectId === "all" ? "" : `?projectId=${encodeURIComponent(projectId)}`}`)
+              }
             />
           ))}
         </div>
