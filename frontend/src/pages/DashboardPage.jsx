@@ -206,6 +206,27 @@ const isResolvedBug = (bug) =>
   BUG_RESOLVED_STATUSES.includes(normalizeBugStatusForIssue(bug));
 const isReopenedBug = (bug) =>
   getReopenedIssues([bug]).length > 0;
+const getBugDetailRouteParams = (bug) => {
+  const status = normalizeBugStatusForIssue(bug);
+  const params = { bug: bug._id };
+
+  if (status === ISSUE_STATUS.IN_PROGRESS) {
+    return { ...params, view: "inprogress" };
+  }
+
+  if (
+    [
+      ISSUE_STATUS.READY_FOR_QA,
+      ISSUE_STATUS.FIXED,
+      ISSUE_STATUS.TESTING,
+      ISSUE_STATUS.QA,
+    ].includes(status)
+  ) {
+    return { ...params, view: "readyqa" };
+  }
+
+  return params;
+};
 const isBugBucketItem = (bug) => {
   const developer = resolveBugDetails(bug)?.developerLead || bug?.assignee || bug?.assignedDeveloperId;
   const status = normalizeBugStatusForIssue(bug);
@@ -946,7 +967,7 @@ const DashboardPage = () => {
             <div className="grid gap-5 lg:grid-cols-2">
               <RecentCriticalBugs
                 bugs={recentCriticalBugs}
-                onOpen={(bug) => navigateToBugs({ bug: bug._id })}
+                onOpen={(bug) => navigateToBugs(getBugDetailRouteParams(bug))}
                 onNavigate={() => navigateToBugs({ filter: "critical" })}
               />
 
