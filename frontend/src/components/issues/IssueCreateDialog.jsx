@@ -909,7 +909,7 @@ const IssueCreateDialog = ({
       teamId: formData.teamId,
       priority: formData.priority,
       type: formData.type,
-      dueAt: null,
+      dueAt: formData.dueAt || null,
       dependsOnIssueId: null,
       parentStoryId: formData.parentStoryId || null,
       status:
@@ -1329,6 +1329,24 @@ const IssueCreateDialog = ({
                   </select>
                 </label>
               </div>
+
+              <label className="mt-3 block space-y-1.5 md:max-w-[calc(50%-0.375rem)]">
+                <span className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">
+                  Due Date (Optional)
+                </span>
+                <Input
+                  type="date"
+                  className="h-auto rounded-2xl py-3"
+                  value={formData.dueAt}
+                  onChange={(event) =>
+                    setFormData((current) => ({
+                      ...current,
+                      dueAt: event.target.value,
+                    }))
+                  }
+                  disabled={isSubmitPending}
+                />
+              </label>
             </div>
 
             {supportsParentStory ? (
