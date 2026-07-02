@@ -2221,6 +2221,16 @@ const getStories = asyncHandler(async (req, res) => {
     ];
   }
 
+  if (req.user.role === ROLE_TESTER) {
+    addAndCondition(query, {
+      $or: [
+        { assignee: req.user._id },
+        { assignees: req.user._id },
+        { reporter: req.user._id },
+      ],
+    });
+  }
+
   const stories = await populateIssueQuery(
     Issue.find(query).sort({ updatedAt: -1, createdAt: -1 })
   );
