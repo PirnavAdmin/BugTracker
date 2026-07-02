@@ -70,7 +70,7 @@ export const TESTER_BUG_COLUMNS = [
 export const DEVELOPER_BUG_COLUMNS = [
   {
     key: "available",
-    label: "Available Bugs",
+    label: "Available Work",
     helper: "Ready for pickup",
     statuses: [ISSUE_STATUS.NEW, ISSUE_STATUS.OPEN, ISSUE_STATUS.TRIAGED],
     accentClassName: "bg-orange-500",

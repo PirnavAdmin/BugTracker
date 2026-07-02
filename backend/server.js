@@ -1,6 +1,6 @@
 const path = require("path");
 require("./config/env");
-require("./utils/redis");
+const redisClient = require("./utils/redis");
 
 const cors = require("cors");
 const express = require("express");
@@ -95,6 +95,7 @@ app.use(errorHandler);
 
 const startServer = async () => {
   await connectDB();
+  await redisClient.connectRedis();
   await ensureDefaultUser();
   await syncIssueStatuses();
   await syncWorkspaceScopes();

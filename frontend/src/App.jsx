@@ -27,6 +27,7 @@ const BacklogPage = lazy(() => import("@/pages/BacklogPage"));
 const ChatPage = lazy(() => import("@/pages/ChatPage"));
 const IssuesPage = lazy(() => import("@/pages/IssuesPage"));
 const TasksPage = lazy(() => import("@/pages/TasksPage"));
+const StoriesPage = lazy(() => import("@/pages/StoriesPage"));
 const ReportsPage = lazy(() => import("@/pages/ReportsPage"));
 const UserSettingsPage = lazy(() => import("@/pages/UserSettingsPage"));
 const TeamDetailsPage = lazy(() => import("@/pages/TeamDetailsPage"));
@@ -134,6 +135,12 @@ const BugsRoute = () => {
   const { role } = useAuth();
 
   return ADMIN_PANEL_ROLES.includes(role) ? <AdminBugsPage /> : <TesterBugsPage />;
+};
+
+const TasksRoute = () => {
+  const { role } = useAuth();
+
+  return ADMIN_PANEL_ROLES.includes(role) ? <IssuesPage /> : <TasksPage />;
 };
 
 const App = () => (
@@ -312,6 +319,22 @@ const App = () => (
       <Route path="/issues" element={<IssuesPage />} />
       <Route path="/issues/:issueId" element={<IssuesPage />} />
       <Route
+        path="/stories"
+        element={
+          <ProtectedRoute roles={[...ADMIN_PANEL_ROLES, ROLE_TEAM_LEAD, ROLE_DEVELOPER, ROLE_TESTER]}>
+            <StoriesPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/stories/:storyId"
+        element={
+          <ProtectedRoute roles={[...ADMIN_PANEL_ROLES, ROLE_TEAM_LEAD, ROLE_DEVELOPER, ROLE_TESTER]}>
+            <StoriesPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
         path="/chat"
         element={
           <ProtectedRoute
@@ -324,12 +347,13 @@ const App = () => (
       <Route
         path="/tasks"
         element={
-          <ProtectedRoute roles={[ROLE_DEVELOPER, ROLE_TEAM_LEAD, ROLE_TESTER]}>
-            <TasksPage />
+          <ProtectedRoute roles={[...ADMIN_PANEL_ROLES, ROLE_DEVELOPER, ROLE_TEAM_LEAD, ROLE_TESTER]}>
+            <TasksRoute />
           </ProtectedRoute>
         }
       />
       <Route path="/reports" element={<ReportsPage />} />
+      <Route path="/reports/:reportKey" element={<ReportsPage />} />
     </Route>
     <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

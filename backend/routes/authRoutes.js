@@ -3,6 +3,7 @@ const {
   login,
   adminLogin,
   register,
+  getCurrentUser,
   getUsers,
   changePassword,
   requestPasswordReset,
@@ -17,6 +18,7 @@ router.post("/login", login);
 router.post("/admin-login", adminLogin);
 router.post("/forgot-password", requestPasswordReset);
 router.post("/reset-password", resetPasswordWithOtp);
+router.get("/me", protect, getCurrentUser);
 router.get("/users", protect, getUsers);
 router.post("/change-password", protect, changePassword);
 

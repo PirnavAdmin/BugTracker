@@ -16,6 +16,11 @@ const createDraft = (epic) => ({
   name: epic?.name || "",
   description: epic?.description || "",
   color: epic?.color || "#3B82F6",
+  owner: epic?.owner?._id || epic?.owner || "",
+  priority: epic?.priority || "Medium",
+  status: epic?.status || "ACTIVE",
+  startDate: epic?.startDate ? String(epic.startDate).slice(0, 10) : "",
+  targetDate: epic?.targetDate ? String(epic.targetDate).slice(0, 10) : "",
   assignIssuesNow: false,
   issueIds: [],
 });
@@ -106,6 +111,7 @@ const EpicDialog = ({
   onOpenChange,
   initialEpic = null,
   issues = [],
+  members = [],
   isPending = false,
   onSubmit,
 }) => {
@@ -163,6 +169,11 @@ const EpicDialog = ({
                   name: draft.name.trim(),
                   description: draft.description.trim(),
                   color: draft.color || "#3B82F6",
+                  owner: draft.owner || null,
+                  priority: draft.priority,
+                  status: draft.status,
+                  startDate: draft.startDate || null,
+                  targetDate: draft.targetDate || null,
                   issueIds: draft.assignIssuesNow ? draft.issueIds : [],
                 });
                 onOpenChange(false);
@@ -188,6 +199,84 @@ const EpicDialog = ({
                 }
               />
             </label>
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              <label className="space-y-1.5">
+                <span className="text-xs uppercase tracking-[0.22em] text-slate-500">
+                  Owner
+                </span>
+                <select
+                  className="field-select h-11 rounded-[16px] px-3"
+                  value={draft.owner}
+                  onChange={(event) =>
+                    setDraft((current) => ({ ...current, owner: event.target.value }))
+                  }
+                >
+                  <option value="">Unassigned</option>
+                  {members.map((member) => (
+                    <option key={member._id} value={member._id}>{member.name}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="space-y-1.5">
+                <span className="text-xs uppercase tracking-[0.22em] text-slate-500">
+                  Priority
+                </span>
+                <select
+                  className="field-select h-11 rounded-[16px] px-3"
+                  value={draft.priority}
+                  onChange={(event) =>
+                    setDraft((current) => ({ ...current, priority: event.target.value }))
+                  }
+                >
+                  {["Critical", "High", "Medium", "Low"].map((priority) => (
+                    <option key={priority} value={priority}>{priority}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="space-y-1.5">
+                <span className="text-xs uppercase tracking-[0.22em] text-slate-500">
+                  Start Date
+                </span>
+                <Input
+                  type="date"
+                  value={draft.startDate}
+                  onChange={(event) =>
+                    setDraft((current) => ({ ...current, startDate: event.target.value }))
+                  }
+                />
+              </label>
+              <label className="space-y-1.5">
+                <span className="text-xs uppercase tracking-[0.22em] text-slate-500">
+                  Target Date
+                </span>
+                <Input
+                  type="date"
+                  value={draft.targetDate}
+                  onChange={(event) =>
+                    setDraft((current) => ({ ...current, targetDate: event.target.value }))
+                  }
+                />
+              </label>
+              <label className="space-y-1.5 sm:col-span-2">
+                <span className="text-xs uppercase tracking-[0.22em] text-slate-500">
+                  Status
+                </span>
+                <select
+                  className="field-select h-11 rounded-[16px] px-3"
+                  value={draft.status}
+                  onChange={(event) =>
+                    setDraft((current) => ({ ...current, status: event.target.value }))
+                  }
+                >
+                  {["DRAFT", "PLANNED", "ACTIVE", "DONE", "ARCHIVED"].map((status) => (
+                    <option key={status} value={status}>
+                      {status.replaceAll("_", " ")}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
 
             <label className="space-y-1.5">
               <span className="text-xs uppercase tracking-[0.22em] text-slate-500">

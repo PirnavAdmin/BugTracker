@@ -10,6 +10,13 @@ const issuePopulation = [
   { path: "bugDetails.testerOwner", select: "name email role" },
   { path: "bugDetails.developerLead", select: "name email role" },
   { path: "dependsOnIssueId", select: "title status dueAt" },
+  { path: "dependencyIds", select: "title type status priority dueAt" },
+  {
+    path: "parentStoryId",
+    select:
+      "title type status priority storyPoints storyProgress epicId sprintId acceptanceCriteria",
+  },
+  { path: "parentTaskId", select: "title type status priority" },
   { path: "reporter", select: "name email role" },
   {
     path: "projectId",

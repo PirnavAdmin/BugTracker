@@ -15,6 +15,8 @@ const TASK_STATUS_TO_ISSUE_STATUS = Object.freeze({
   OPEN: ISSUE_STATUS.TODO,
   TODO: ISSUE_STATUS.TODO,
   IN_PROGRESS: ISSUE_STATUS.IN_PROGRESS,
+  CODE_REVIEW: ISSUE_STATUS.CODE_REVIEW,
+  QA_READY: ISSUE_STATUS.QA_READY,
   DONE: ISSUE_STATUS.DONE,
 });
 
@@ -30,7 +32,7 @@ const updateTaskStatus = asyncHandler(async (req, res, next) => {
 
   if (!issueStatus) {
     res.status(400);
-    throw new Error("Status must be OPEN, IN_PROGRESS, or DONE");
+    throw new Error("Status must be OPEN, IN_PROGRESS, CODE_REVIEW, QA_READY, or DONE");
   }
 
   const task = await Issue.findById(req.params.id).select("_id type").lean();

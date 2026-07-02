@@ -32,7 +32,12 @@ import {
   getSuggestedTeamForCategory,
 } from "@/lib/issues";
 import BugCategorySelect from "@/components/issues/BugCategorySelect";
-import { fetchModuleOwnerships, fetchProjectTeams, logTeamSelectionDebug } from "@/lib/api";
+import {
+  fetchIssues,
+  fetchModuleOwnerships,
+  fetchProjectTeams,
+  logTeamSelectionDebug,
+} from "@/lib/api";
 import {
   findProjectById,
   getProjectMembers,
@@ -110,6 +115,7 @@ const buildInitialState = ({
     projectId,
     teamId,
     assigneeId,
+    parentStoryId: "",
     bugDetails: {
       moduleName: "",
       category: "",
@@ -188,6 +194,11 @@ const IssueComposer = ({
     queryKey: ["module-ownerships"],
     queryFn: fetchModuleOwnerships,
     enabled: isTesterBugReport,
+  });
+  const { data: projectStories = [] } = useQuery({
+    queryKey: ["project-stories", selectedProjectId],
+    queryFn: () => fetchIssues({ projectId: selectedProjectId, type: "Story" }),
+    enabled: Boolean(selectedProjectId),
   });
   const selectedProjectTeams = useMemo(
     () => getProjectTeams(selectedProject),
@@ -417,6 +428,7 @@ const IssueComposer = ({
             defaultAssigneeKey
           ),
           assigneeId: "",
+          parentStoryId: "",
           bugDetails: {
             ...current.bugDetails,
             testerOwnerId: defaultAssigneeKey,
@@ -521,8 +533,8 @@ const IssueComposer = ({
         return;
       }
 
-      if (!formData.bugDetails.severity || !formData.priority) {
-        setError("Severity and priority are required for bugs.");
+      if (!formData.priority) {
+        setError("Priority is required for bugs.");
         return;
       }
 
@@ -531,9 +543,7 @@ const IssueComposer = ({
         !formData.bugDetails.expectedResult.trim() ||
         !formData.bugDetails.actualResult.trim()
       ) {
-        setError(
-          "Steps to Reproduce, Expected Result, and Actual Result are required for bugs."
-        );
+        setError("Steps to Reproduce, Expected Result, and Actual Result are required for bugs.");
         return;
       }
     }
@@ -543,12 +553,13 @@ const IssueComposer = ({
 
       const createdIssue = await onSubmit({
         title: formData.title.trim(),
-        description: formData.description.trim(),
+        description: "",
         type: formData.type,
         status: isBugType ? ISSUE_STATUS.NEW : formData.status,
         priority: formData.priority,
         projectId: formData.projectId,
         teamId: formData.teamId,
+        parentStoryId: formData.parentStoryId || null,
         assigneeId: (isTesterBugReport && !formData.bugDetails.developerLeadId)
           ? null
           : isTesterBugReport
@@ -568,7 +579,7 @@ const IssueComposer = ({
                 addToBucket: Boolean(formData.bugDetails.addToBucket),
                 sendToTriage: Boolean(formData.bugDetails.sendToTriage),
                 estimatedEffort: formData.bugDetails.estimatedEffort,
-                severity: formData.bugDetails.severity,
+                severity: formData.bugDetails.severity || "Major",
                 testerOwnerId: isTesterBugReport
                   ? defaultAssigneeKey || null
                   : formData.bugDetails.testerOwnerId || null,
@@ -582,22 +593,6 @@ const IssueComposer = ({
             }
           : {}),
       });
-
-      if (
-        includeAttachments &&
-        attachmentFiles.length &&
-        createdIssue?._id &&
-        typeof onUploadAttachment === "function"
-      ) {
-        setIsUploadingAttachments(true);
-
-        for (const file of attachmentFiles) {
-          await onUploadAttachment({
-            issueId: createdIssue._id,
-            file,
-          });
-        }
-      }
 
       setFormData(
         buildInitialState({
@@ -638,6 +633,37 @@ const IssueComposer = ({
         <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
           {submitBlockedMessage}
         </div>
+      ) : null}
+
+      {["Task", "Sub-task", "Bug"].includes(formData.type) ? (
+        <label className={isTesterBugReport ? testerFieldGroupClass : "space-y-2"}>
+          <span className={isTesterBugReport ? testerFieldLabelClass : "text-sm font-medium text-gray-700"}>
+            Parent Story (Optional)
+          </span>
+          <select
+            className={isTesterBugReport ? testerSelectClass : "field-select"}
+            value={formData.parentStoryId}
+            onChange={(event) => {
+              const story = projectStories.find(
+                (candidate) => String(candidate._id) === event.target.value
+              );
+
+              setFormData((current) => ({
+                ...current,
+                parentStoryId: event.target.value,
+                teamId: story?.teamId?._id || story?.teamId || current.teamId,
+              }));
+            }}
+            disabled={!formData.projectId}
+          >
+            <option value="">No parent Story</option>
+            {projectStories.map((story) => (
+              <option key={story._id} value={story._id}>
+                {story.displayBugId || story.issueKey || "Story"} - {story.title}
+              </option>
+            ))}
+          </select>
+        </label>
       ) : null}
 
       {!isTesterBugReport ? (
@@ -833,7 +859,7 @@ const IssueComposer = ({
                   />
                   <span className="min-w-0">
                     <span className="block text-[13px] font-semibold leading-4 text-slate-800">
-                      Add to Bucket
+                      Add to Work Queue
                     </span>
                     <span className="block text-xs leading-4 text-slate-500">
                       Assign later

@@ -3,6 +3,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import {
   BarChart3,
   Activity,
+  BookOpen,
   Bug,
   FolderKanban,
   KanbanSquare,
@@ -31,6 +32,7 @@ const iconMap = {
   projects: FolderKanban,
   teams: Users2,
   backlog: Layers3,
+  stories: BookOpen,
   issues: KanbanSquare,
   bugs: Bug,
   tasks: ListTodo,
@@ -61,6 +63,25 @@ const Navbar = () => {
   useEffect(() => {
     setIsMenuOpen(false);
   }, [location.pathname]);
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia("(min-width: 1024px)");
+    const closeDesktopMenu = (event) => {
+      if (event.matches) {
+        setIsMenuOpen(false);
+      }
+    };
+
+    closeDesktopMenu(mediaQuery);
+
+    if (typeof mediaQuery.addEventListener === "function") {
+      mediaQuery.addEventListener("change", closeDesktopMenu);
+      return () => mediaQuery.removeEventListener("change", closeDesktopMenu);
+    }
+
+    mediaQuery.addListener(closeDesktopMenu);
+    return () => mediaQuery.removeListener(closeDesktopMenu);
+  }, []);
 
   useEffect(() => {
     if (!user || hasLoadedConversations) {
@@ -100,7 +121,7 @@ const Navbar = () => {
             />
           </NavLink>
 
-          <nav className="hidden items-center gap-1.5 lg:flex xl:gap-2">
+          <nav className="hidden items-center gap-1 lg:flex">
             {navigation.map((item) => {
               const Icon = iconMap[item.icon] || LayoutDashboard;
 

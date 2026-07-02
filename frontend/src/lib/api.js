@@ -188,6 +188,11 @@ export const adminLoginRequest = async (payload = {}) => {
   return response.data;
 };
 
+export const fetchCurrentUser = async () => {
+  const response = await api.get("/auth/me");
+  return response.data?.user || response.data;
+};
+
 export const registerRequest = async (payload) => {
   const response = await api.post("/auth/register", payload);
   return response.data;
@@ -447,6 +452,12 @@ export const fetchIssues = async (filters = {}) => {
   const response = await api.get("/issues", {
     params,
   });
+  return response.data;
+};
+
+export const fetchStories = async (filters = {}) => {
+  const params = buildParams(normalizeIssueFilters(filters));
+  const response = await api.get("/issues/stories", { params });
   return response.data;
 };
 

@@ -17,14 +17,25 @@ test("buildDeveloperBugQueueQuery never includes sprint filters", () => {
   });
   const queueConditions = query.$and?.[1] || query;
 
-  assert.equal(queueConditions.type, ISSUE_TYPES.BUG);
-  assert.equal(queueConditions.assignee, null);
-  assert.equal(queueConditions.assignedDeveloperId, null);
-  assert.equal(queueConditions["bugDetails.developerLead"], null);
-  assert.deepEqual(queueConditions.status.$in, AVAILABLE_BUG_QUEUE_STATUSES);
+  const bugCondition = queueConditions.$or.find(
+    (condition) => condition.type === ISSUE_TYPES.BUG
+  );
+  const storyCondition = queueConditions.$or.find(
+    (condition) => condition.type === ISSUE_TYPES.STORY
+  );
+
+  assert.equal(bugCondition.assignee, null);
+  assert.equal(bugCondition.assignedDeveloperId, null);
+  assert.equal(bugCondition["bugDetails.developerLead"], null);
+  assert.deepEqual(bugCondition.status.$in, AVAILABLE_BUG_QUEUE_STATUSES);
+  assert.equal(storyCondition.assignee, null);
+  assert.equal(storyCondition["bugDetails.addToBucket"], true);
+  assert.deepEqual(storyCondition.status.$nin, ["DONE", "CLOSED"]);
   assert.equal(Object.prototype.hasOwnProperty.call(query, "sprintId"), false);
   assert.equal(
-    Object.prototype.hasOwnProperty.call(queueConditions, "sprintId"),
+    queueConditions.$or.some((condition) =>
+      Object.prototype.hasOwnProperty.call(condition, "sprintId")
+    ),
     false
   );
 });

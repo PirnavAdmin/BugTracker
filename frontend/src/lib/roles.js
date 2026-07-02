@@ -33,14 +33,15 @@ export const getRoleNavigation = (role) => {
       { label: "Dashboard", href: dashboardPathByRole[ROLE_ADMIN], icon: "dashboard" },
       { label: "Projects", href: "/projects", icon: "projects" },
       { label: "Backlog", href: "/backlog", icon: "backlog" },
-      { label: "Tasks", href: "/issues", icon: "issues" },
+      { label: "Stories", href: "/stories", icon: "stories" },
+      { label: "Tasks", href: "/tasks", icon: "tasks" },
       { label: "Bugs", href: "/admin/bugs", icon: "bugs" },
       { label: "Reports", href: "/reports", icon: "reports" },
       { label: "Chat", href: "/chat", icon: "chat" },
     ];
 
     if (role === ROLE_ADMIN) {
-      navigation.splice(6, 0, {
+      navigation.splice(7, 0, {
         label: "Team Activity",
         href: "/admin/team-activity",
         icon: "activity",
@@ -53,8 +54,9 @@ export const getRoleNavigation = (role) => {
   if (role === ROLE_TESTER) {
     return [
       { label: "Dashboard", href: dashboardPathByRole[ROLE_TESTER], icon: "dashboard" },
-      { label: "Bugs", href: "/bugs", icon: "bugs" },
+      { label: "Stories", href: "/stories", icon: "stories" },
       { label: "Tasks", href: "/tasks", icon: "tasks" },
+      { label: "Bugs", href: "/bugs", icon: "bugs" },
       { label: "Reports", href: "/reports", icon: "reports" },
       { label: "Chat", href: "/chat", icon: "chat" },
     ];
@@ -62,14 +64,22 @@ export const getRoleNavigation = (role) => {
 
   return [
     { label: "Dashboard", href: dashboardPathByRole[ROLE_DEVELOPER], icon: "dashboard" },
-    { label: "Bugs", href: "/dev/bugs", icon: "bugs" },
+    { label: "Stories", href: "/stories", icon: "stories" },
     { label: "Tasks", href: "/tasks", icon: "tasks" },
+    { label: "Bugs", href: "/dev/bugs", icon: "bugs" },
     { label: "Reports", href: "/reports", icon: "reports" },
     { label: "Chat", href: "/chat", icon: "chat" },
   ];
 };
 
 export const getPageMeta = (pathname, role) => {
+  if (pathname.startsWith("/stories/")) {
+    return {
+      title: "Story Details",
+      description: "Review Story scope, linked work, discussion, files, and delivery activity.",
+    };
+  }
+
   if (pathname === "/dev/settings") {
     if (role === ROLE_TESTER) {
       return {
@@ -156,6 +166,10 @@ export const getPageMeta = (pathname, role) => {
       title: "User Management",
       description:
         "Invite teammates, update workspace roles, configure mail senders, and manage workspace access controls.",
+    },
+    "/stories": {
+      title: "Stories",
+      description: "Track Story outcomes and open focused delivery details for Tasks, Bugs, and collaboration.",
     },
     "/admin/team-activity": {
       title: "Team Activity",

@@ -12,7 +12,6 @@ import {
   uploadIssueAttachment,
 } from "@/lib/api";
 import {
-  ISSUE_TYPE_OPTIONS,
   ISSUE_TYPES,
   ISSUE_STATUS,
   filterIssues,
@@ -40,9 +39,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/hooks/use-auth";
 import { canCreateIssues, canDeleteIssues, hasAdminPanelAccess } from "@/lib/roles";
 
-const WORK_ITEM_TYPE_OPTIONS = ISSUE_TYPE_OPTIONS.filter(
-  (type) => type !== ISSUE_TYPES.BUG
-);
+const WORK_ITEM_TYPE_OPTIONS = [ISSUE_TYPES.TASK];
 const isValidWorkItemType = (value) => WORK_ITEM_TYPE_OPTIONS.includes(value);
 const ALL_PROJECTS_VALUE = "ALL";
 const HIGH_PRIORITY_QUERY_VALUE = "high";
@@ -215,7 +212,7 @@ const IssuesPage = () => {
     epicId: searchParams.get("epicId") || "all",
     sprintId: searchParams.get("sprintId") || "all",
     assigneeId: searchParams.get("assigneeId") || "all",
-    type: "all",
+    type: ISSUE_TYPES.TASK,
     status: normalizeStatusFilterValue(searchParams.get("status")) || "all",
     statusGroup:
       initialFilterAlias === "open" || initialFilterAlias === "closed"

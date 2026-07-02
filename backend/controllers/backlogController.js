@@ -10,9 +10,9 @@ const {
 const { serializeProjectsWithRelations } = require("../utils/projectRelations");
 const { populateIssueQuery, serializeIssues } = require("../utils/issuePresentation");
 const {
-  buildPlanningIssueTypeQuery,
-  isPlanningIssueType,
-} = require("../utils/planningIssueTypes");
+  ISSUE_TYPES,
+} = require("../utils/issueTypes");
+const { calculateStoryProgress } = require("../utils/storyWorkflow");
 
 const escapeRegExp = (value = "") =>
   value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -51,7 +51,15 @@ const parseDateFilterInput = (value, label, { endOfDay = false } = {}) => {
 const buildBacklogIssueQuery = async (req, project) => {
   const query = {
     projectId: project._id,
-    ...buildPlanningIssueTypeQuery(),
+    isDeleted: { $ne: true },
+    type: {
+      $in: [
+        ISSUE_TYPES.STORY,
+        ISSUE_TYPES.TASK,
+        ISSUE_TYPES.SUB_TASK,
+        ISSUE_TYPES.BUG,
+      ],
+    },
   };
 
   if (req.query.teamId && req.query.teamId !== "all") {
@@ -94,6 +102,29 @@ const buildBacklogIssueQuery = async (req, project) => {
       }
 
       query.epicId = req.query.epicId;
+    }
+  }
+
+  if (req.query.priority && req.query.priority !== "all") {
+    query.priority = req.query.priority;
+  }
+
+  if (req.query.status && req.query.status !== "all") {
+    query.status = req.query.status;
+  }
+
+  if (req.query.sprintId && req.query.sprintId !== "all") {
+    if (req.query.sprintId === "backlog") {
+      query.sprintId = null;
+    } else if (!mongoose.isValidObjectId(req.query.sprintId)) {
+      return {
+        error: {
+          status: 400,
+          message: "Invalid sprint filter",
+        },
+      };
+    } else {
+      query.sprintId = req.query.sprintId;
     }
   }
 
@@ -232,18 +263,36 @@ const getBacklogBoard = asyncHandler(async (req, res) => {
       })
       .lean(),
   ]);
-  const serializedIssues = serializeIssues(issues).filter((issue) =>
-    isPlanningIssueType(issue?.type)
-  );
-  const visibleIssueIds = new Set(serializedIssues.map((issue) => String(issue._id)));
-  const epicCounts = serializedIssues.reduce((map, issue) => {
+  const serializedIssues = serializeIssues(issues);
+  const childIssuesByStory = serializedIssues.reduce((map, issue) => {
+    const storyId = String(issue?.parentStoryId?._id || issue?.parentStoryId || "");
+
+    if (!storyId) {
+      return map;
+    }
+
+    map.set(storyId, [...(map.get(storyId) || []), issue]);
+    return map;
+  }, new Map());
+  const stories = serializedIssues
+    .filter((issue) => issue?.type === ISSUE_TYPES.STORY)
+    .map((story) => {
+      const children = childIssuesByStory.get(String(story._id)) || [];
+
+      return {
+        ...story,
+        storyProgress: calculateStoryProgress(children),
+      };
+    });
+  const visibleIssueIds = new Set(stories.map((story) => String(story._id)));
+  const epicCounts = stories.reduce((map, issue) => {
     const epicId = String(issue?.epicId?._id || issue?.epicId || "unassigned");
     map.set(epicId, (map.get(epicId) || 0) + 1);
     return map;
   }, new Map());
-  const backlogIssues = serializedIssues.filter((issue) => !issue.sprintId);
+  const backlogIssues = stories.filter((issue) => !issue.sprintId);
   const sprintSections = sprints.map((sprint) => {
-    const sprintIssues = serializedIssues.filter(
+    const sprintIssues = stories.filter(
       (issue) => String(issue?.sprintId?._id || issue?.sprintId || "") === String(sprint._id)
     );
 
@@ -259,6 +308,14 @@ const getBacklogBoard = asyncHandler(async (req, res) => {
     epics: epics.map((epic) => ({
       ...epic,
       issueCount: epicCounts.get(String(epic._id)) || 0,
+      storyCount: epicCounts.get(String(epic._id)) || 0,
+      storyPoints: stories
+        .filter(
+          (story) =>
+            String(story?.epicId?._id || story?.epicId || "") ===
+            String(epic._id)
+        )
+        .reduce((total, story) => total + Number(story.storyPoints || 0), 0),
     })),
     backlogIssues,
     sprintSections,

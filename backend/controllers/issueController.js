@@ -18,6 +18,10 @@ const {
   sendIssueEmail,
 } = require("../services/emailService");
 const { scheduleIssueStateNotifications } = require("../services/sprintNotificationService");
+const {
+  syncStoryProgress,
+  validateStoryCompletion,
+} = require("../services/storyProgressService");
 const { emitBugWorkflowEvent } = require("../socket");
 const { notifyIssueEvent } = require("../services/notificationService");
 const asyncHandler = require("../utils/asyncHandler");
@@ -43,6 +47,11 @@ const {
   getCanonicalIssueType,
   isValidIssueType,
 } = require("../utils/issueTypes");
+const {
+  STORY_STATUS,
+  calculateStoryProgress,
+  isStoryType,
+} = require("../utils/storyWorkflow");
 const { getNextPlanningOrder } = require("../utils/planningOrder");
 const {
   COMPLETED_STATUS_QUERY_VALUES,
@@ -1306,6 +1315,44 @@ const ensureDependencyIssueForProject = async ({
   };
 };
 
+const ensureParentStoryForProject = async ({
+  parentStoryId,
+  projectId,
+}) => {
+  if (!parentStoryId) {
+    return { story: null };
+  }
+
+  if (!mongoose.isValidObjectId(parentStoryId)) {
+    return {
+      error: {
+        status: 400,
+        message: "Invalid parent Story id",
+      },
+    };
+  }
+
+  const story = await Issue.findOne({
+    _id: parentStoryId,
+    projectId,
+    type: ISSUE_TYPES.STORY,
+    isDeleted: { $ne: true },
+  })
+    .select("_id projectId teamId epicId sprintId assignee status")
+    .lean();
+
+  if (!story) {
+    return {
+      error: {
+        status: 404,
+        message: "Parent Story could not be found in the selected project",
+      },
+    };
+  }
+
+  return { story };
+};
+
 const ensureEpicForProject = async ({ epicId, projectId, requireActive = false }) => {
   if (!epicId) {
     return {
@@ -2098,6 +2145,83 @@ const getIssues = asyncHandler(async (req, res) => {
   res.status(200).json(serializeIssues(issues));
 });
 
+const getStories = asyncHandler(async (req, res) => {
+  const accessibleProjectIds = await getAccessibleProjectIds(req.user);
+  const query = {
+    ...ACTIVE_ISSUE_QUERY,
+    type: ISSUE_TYPES.STORY,
+    projectId: { $in: accessibleProjectIds },
+  };
+
+  if (req.query.projectId && req.query.projectId !== "all") {
+    if (!mongoose.isValidObjectId(req.query.projectId)) {
+      res.status(400);
+      throw new Error("Invalid project id filter");
+    }
+
+    if (
+      !accessibleProjectIds.some(
+        (projectId) => String(projectId) === String(req.query.projectId)
+      )
+    ) {
+      res.status(403);
+      throw new Error("You do not have access to that project");
+    }
+
+    query.projectId = req.query.projectId;
+  }
+
+  if (req.query.search?.trim()) {
+    const searchExpression = new RegExp(
+      escapeRegExp(req.query.search.trim()),
+      "i"
+    );
+    query.$or = [
+      { displayBugId: searchExpression },
+      { title: searchExpression },
+    ];
+  }
+
+  const stories = await populateIssueQuery(
+    Issue.find(query).sort({ updatedAt: -1, createdAt: -1 })
+  );
+  const storyIds = stories.map((story) => story._id);
+  const children = storyIds.length
+    ? await populateIssueQuery(
+        Issue.find({
+          ...ACTIVE_ISSUE_QUERY,
+          parentStoryId: { $in: storyIds },
+          type: {
+            $in: [ISSUE_TYPES.TASK, ISSUE_TYPES.SUB_TASK, ISSUE_TYPES.BUG],
+          },
+        }).sort({ createdAt: -1 })
+      )
+    : [];
+  const serializedChildren = serializeIssues(children);
+  const childrenByStory = serializedChildren.reduce((map, child) => {
+    const storyId = String(child?.parentStoryId?._id || child?.parentStoryId || "");
+    map.set(storyId, [...(map.get(storyId) || []), child]);
+    return map;
+  }, new Map());
+
+  res.status(200).json(
+    serializeIssues(stories).map((story) => {
+      const storyChildren = childrenByStory.get(String(story._id)) || [];
+      const storyProgress = calculateStoryProgress(storyChildren);
+
+      return {
+        ...story,
+        children: storyChildren,
+        storyProgress,
+        openBugCount: Math.max(
+          0,
+          storyProgress.bugCount - storyProgress.resolvedBugCount
+        ),
+      };
+    })
+  );
+});
+
 const getIssueStats = asyncHandler(async (req, res) => {
   const query = await buildIssueQueryFromRequest(req, res);
   const issues = await Issue.find(query)
@@ -2170,7 +2294,7 @@ const getMyIssues = asyncHandler(async (req, res) => {
 const getBugBucket = asyncHandler(async (req, res) => {
   if (!isDevRole(req.user?.role) && !isLeadRole(req.user?.role)) {
     res.status(403);
-    throw new Error("Only developers and leads can view the bug bucket");
+    throw new Error("Only developers and leads can view the work queue");
   }
 
   const [accessibleProjectIds, userTeamIds] = await Promise.all([
@@ -2233,8 +2357,13 @@ const getBugBucket = asyncHandler(async (req, res) => {
   });
   Object.assign(query, ACTIVE_ISSUE_QUERY);
   const requestFilters = summarizeBugQueryFilters(req);
-  const [totalBugsInDatabase, matchingQueueCount] = await Promise.all([
-    Issue.countDocuments({ ...ACTIVE_ISSUE_QUERY, type: ISSUE_TYPES.BUG }),
+  const [totalQueueItemsInDatabase, matchingQueueCount] = await Promise.all([
+    Issue.countDocuments({
+      ...ACTIVE_ISSUE_QUERY,
+      type: {
+        $in: [ISSUE_TYPES.BUG, ISSUE_TYPES.STORY],
+      },
+    }),
     Issue.countDocuments(query),
   ]);
 
@@ -2278,9 +2407,9 @@ const getBugBucket = asyncHandler(async (req, res) => {
   logBugWorkflowQuery("developer-queue", {
     userId: String(req.user?.id || req.user?._id || ""),
     role: req.user?.role || "",
-    totalBugsInDatabase,
-    bugsMatchingQueueQuery: matchingQueueCount,
-    bugsReturned: issues.length,
+    totalQueueItemsInDatabase,
+    workItemsMatchingQueueQuery: matchingQueueCount,
+    workItemsReturned: issues.length,
     accessibleProjectCount: accessibleProjectIds.length,
     userTeamCount: userTeamIds.length,
     queueStatuses: AVAILABLE_BUG_QUEUE_STATUSES,
@@ -2294,7 +2423,7 @@ const getBugBucket = asyncHandler(async (req, res) => {
       ...issue,
       pickupEligibility: pickupEligibilityByIssueId.get(String(issue._id)) || {
         canPick: false,
-        reason: "You can only pick bugs when one of your teams is attached to this project.",
+        reason: "You can only pick work when one of your teams is attached to this project.",
         userTeamIds: [],
         projectTeamIds: [],
         matchingTeamIds: [],
@@ -2309,7 +2438,7 @@ const getBugBucket = asyncHandler(async (req, res) => {
 const pickIssue = asyncHandler(async (req, res) => {
   if (!isDevRole(req.user?.role) && !isLeadRole(req.user?.role)) {
     res.status(403);
-    throw new Error("Only developers and leads can pick bugs");
+    throw new Error("Only developers and leads can pick work");
   }
 
   if (!mongoose.isValidObjectId(req.params.id)) {
@@ -2324,9 +2453,12 @@ const pickIssue = asyncHandler(async (req, res) => {
     throw new Error("Issue not found");
   }
 
-  if (!isBugType(existingIssue.type)) {
+  const isBug = isBugType(existingIssue.type);
+  const isStory = isStoryType(existingIssue.type);
+
+  if (!isBug && !isStory) {
     res.status(400);
-    throw new Error("Only bugs can be picked from the bucket");
+    throw new Error("Only bugs and Stories can be picked from the work queue");
   }
 
   const [project, userTeamIds] = await Promise.all([
@@ -2339,7 +2471,7 @@ const pickIssue = asyncHandler(async (req, res) => {
 
   if (!project && !hasTeamAccess && !isLeadRole(req.user?.role)) {
     res.status(403);
-    throw new Error("You do not have access to this bug");
+    throw new Error("You do not have access to this work item");
   }
 
   const pickupEligibility = await getBugPickupProjectEligibility({
@@ -2354,9 +2486,11 @@ const pickIssue = asyncHandler(async (req, res) => {
     throw new Error(pickupEligibility.reason);
   }
 
-  const previousStatus = getBugStatusForIssueStatus(existingIssue.status);
+  const previousStatus = existingIssue.status;
+  const nextStatus = isBug ? BUG_STATUS.IN_PROGRESS : ISSUE_STATUS.IN_PROGRESS;
+  const pickAction = isBug ? "BUG_PICKED" : "STORY_PICKED";
 
-  console.log("Picking bug", {
+  console.log("Picking work item", {
     id: existingIssue._id,
     userId: req.user._id,
   });
@@ -2364,31 +2498,45 @@ const pickIssue = asyncHandler(async (req, res) => {
   const pickedIssue = await Issue.findOneAndUpdate(
     {
       _id: existingIssue._id,
-      type: ISSUE_TYPES.BUG,
       assignee: null,
-      assignedDeveloperId: null,
-      "bugDetails.developerLead": null,
-      status: {
-        $in: AVAILABLE_BUG_QUEUE_STATUSES,
-      },
+      ...(isBug
+        ? {
+            type: ISSUE_TYPES.BUG,
+            assignedDeveloperId: null,
+            "bugDetails.developerLead": null,
+            status: {
+              $in: AVAILABLE_BUG_QUEUE_STATUSES,
+            },
+          }
+        : {
+            type: ISSUE_TYPES.STORY,
+            "bugDetails.addToBucket": true,
+            status: {
+              $nin: [ISSUE_STATUS.DONE, ISSUE_STATUS.CLOSED],
+            },
+          }),
     },
     {
       $set: {
         assignee: req.user._id,
-        assignedDeveloperId: req.user._id,
-        assignedDeveloperName: req.user.name || req.user.email || "Assigned developer",
-        "bugDetails.developerLead": req.user._id,
+        ...(isBug
+          ? {
+              assignedDeveloperId: req.user._id,
+              assignedDeveloperName: req.user.name || req.user.email || "Assigned developer",
+              "bugDetails.developerLead": req.user._id,
+            }
+          : {}),
         "bugDetails.addToBucket": false,
-        status: BUG_STATUS.IN_PROGRESS,
+        status: nextStatus,
         updatedAt: new Date(),
         updatedBy: req.user._id,
         startedAt: new Date(),
       },
       $push: {
         activityLogs: buildActivityLogEntry({
-          action: "BUG_PICKED",
+          action: pickAction,
           from: previousStatus,
-          to: BUG_STATUS.IN_PROGRESS,
+          to: nextStatus,
           by: req.user,
         }),
       },
@@ -2400,13 +2548,14 @@ const pickIssue = asyncHandler(async (req, res) => {
 
   if (!pickedIssue) {
     res.status(409);
-    throw new Error("This bug was already picked or is no longer available");
+    throw new Error("This work item was already picked or is no longer available");
   }
 
   await populateIssueDocument(pickedIssue);
 
-  console.log("Bug picked and saved", {
-    bugId: pickedIssue.displayBugId || pickedIssue._id,
+  console.log("Work item picked and saved", {
+    issueId: pickedIssue.displayBugId || pickedIssue._id,
+    type: pickedIssue.type,
     status: pickedIssue.status,
     bugDetails: pickedIssue.bugDetails,
     assignedTo: pickedIssue.assignee,
@@ -2417,10 +2566,10 @@ const pickIssue = asyncHandler(async (req, res) => {
       issueId: pickedIssue._id,
       projectId: pickedIssue.projectId,
       actorId: req.user._id,
-      eventType: "BUG_STATUS_CHANGED",
+      eventType: isBug ? "BUG_STATUS_CHANGED" : "ISSUE_UPDATED",
       field: "status",
       fromValue: previousStatus,
-      toValue: BUG_STATUS.IN_PROGRESS,
+      toValue: nextStatus,
       meta: {
         title: pickedIssue.title,
         action: "self_pick",
@@ -2441,20 +2590,22 @@ const pickIssue = asyncHandler(async (req, res) => {
     }),
   ]);
 
-  const emailNotification = await sendBugAssignmentNotification({
-    issue: pickedIssue,
-    actorUser: req.user,
-    workspaceId: normalizeWorkspaceId(project.workspaceId || req.user.workspaceId),
-  });
+  const emailNotification = isBug
+    ? await sendBugAssignmentNotification({
+        issue: pickedIssue,
+        actorUser: req.user,
+        workspaceId: normalizeWorkspaceId(project.workspaceId || req.user.workspaceId),
+      })
+    : null;
 
   await emitIssueWorkflowChange({
     issue: pickedIssue,
     req,
-    eventName: "BugPicked",
-    action: "BUG_PICKED",
+    eventName: isBug ? "BugPicked" : "StoryPicked",
+    action: pickAction,
     meta: {
       fromStatus: previousStatus,
-      toStatus: BUG_STATUS.IN_PROGRESS,
+      toStatus: nextStatus,
     },
   });
 
@@ -2927,6 +3078,8 @@ const createIssue = asyncHandler(async (req, res) => {
     sprintId,
     dueAt,
     dependsOnIssueId,
+    parentStoryId,
+    parentTaskId,
   } = req.body;
   const assigneeId = resolveAssigneeInput(req.body);
   const hasEpicInput = hasOwnField(req.body, "epicId");
@@ -2935,8 +3088,9 @@ const createIssue = asyncHandler(async (req, res) => {
   const normalizedType =
     req.user.role === ROLE_TESTER ? ISSUE_TYPES.BUG : getCanonicalIssueType(type, ISSUE_TYPES.TASK);
   const isBug = normalizedType === ISSUE_TYPES.BUG;
+  const isStory = normalizedType === ISSUE_TYPES.STORY;
   const assignLater =
-    isBug &&
+    (isBug || isStory) &&
     Boolean(getBugPayloadValue(req.body, "addToBucket", ["assignLater", "bucket"]));
   const sendToTriage =
     isBug && (Boolean(req.body.sendToTriage) || Boolean(req.body.bugDetails?.sendToTriage));
@@ -2946,7 +3100,7 @@ const createIssue = asyncHandler(async (req, res) => {
         payload: req.body,
         currentStatus: BUG_STATUS.NEW,
       })
-    : status;
+    : status || (isStory ? STORY_STATUS.DRAFT : ISSUE_STATUS.TODO);
   const statusResult = parseIssueStatusInput(
     requestedStatus,
     isBug ? BUG_STATUS.NEW : ISSUE_STATUS.TODO
@@ -2982,9 +3136,12 @@ const createIssue = asyncHandler(async (req, res) => {
     throw new Error(`Type must be ${ISSUE_TYPE_VALUES.join(", ")}`);
   }
 
-  if (req.user.role === "Developer") {
+  if (
+    req.user.role === ROLE_DEVELOPER &&
+    ![ISSUE_TYPES.TASK, ISSUE_TYPES.SUB_TASK].includes(normalizedType)
+  ) {
     res.status(403);
-    throw new Error("Developers cannot create new issues");
+    throw new Error("Developers can create Tasks and Sub-tasks under assigned Stories");
   }
 
   if (req.user.role === "Tester" && normalizedType !== ISSUE_TYPES.BUG) {
@@ -3013,6 +3170,41 @@ const createIssue = asyncHandler(async (req, res) => {
   if (!project) {
     res.status(403);
     throw new Error("You do not have access to that project");
+  }
+
+  const parentStoryResult = await ensureParentStoryForProject({
+    parentStoryId,
+    projectId: project._id,
+  });
+
+  if (parentStoryResult.error) {
+    res.status(parentStoryResult.error.status);
+    throw new Error(parentStoryResult.error.message);
+  }
+
+  const parentStory = parentStoryResult.story;
+
+  if (req.user.role === ROLE_DEVELOPER && !parentStory) {
+    res.status(400);
+    throw new Error("Developers must create Tasks from inside a Story");
+  }
+
+  if (
+    req.user.role === ROLE_DEVELOPER &&
+    parentStory &&
+    String(parentStory?.assignee || "") !== String(req.user._id)
+  ) {
+    res.status(403);
+    throw new Error("Developers can only add Tasks to Stories assigned to them");
+  }
+
+  if (
+    parentStory?.teamId &&
+    teamId &&
+    String(parentStory.teamId) !== String(teamId)
+  ) {
+    res.status(400);
+    throw new Error("Task and Bug team must match the parent Story team");
   }
 
   const workspaceId = normalizeWorkspaceId(req.user.workspaceId);
@@ -3100,13 +3292,13 @@ const createIssue = asyncHandler(async (req, res) => {
       status: "ACTIVE",
     });
 
-    if (activeEpicCount > 0 && !epicId) {
+    if (activeEpicCount > 0 && !epicId && !parentStory?.epicId) {
       res.status(400);
       throw new Error("Epic is required for projects that contain epics");
     }
 
     epicResult = await ensureEpicForProject({
-      epicId: epicId || null,
+      epicId: parentStory?.epicId || epicId || null,
       projectId: project._id,
       requireActive: true,
     });
@@ -3117,7 +3309,7 @@ const createIssue = asyncHandler(async (req, res) => {
     }
 
     sprintResult = await ensureSprintForIssue({
-      sprintId: sprintId || null,
+      sprintId: parentStory?.sprintId || sprintId || null,
       projectId: project._id,
       teamId,
     });
@@ -3142,7 +3334,11 @@ const createIssue = asyncHandler(async (req, res) => {
         developerLead: (assignLater || sendToTriage) ? null : assigneeId || null,
         addToBucket: assignLater,
       })
-    : {};
+    : isStory
+      ? buildBugDetailsDraft(req.body, {}, {
+          addToBucket: assignLater,
+        })
+      : {};
   let bugAssignmentDeveloperUser = null;
 
   if (isBug) {
@@ -3233,10 +3429,28 @@ const createIssue = asyncHandler(async (req, res) => {
     testerOwnerName: forcedTesterOwnerName,
     projectId,
     teamId,
-    epicId: epicResult.epic?._id || null,
-    sprintId: sprintResult.sprint?._id || null,
+    epicId: parentStory?.epicId || epicResult.epic?._id || null,
+    sprintId: parentStory?.sprintId || sprintResult.sprint?._id || null,
     dueAt: dueAtResult.value,
     dependsOnIssueId: dependsOnIssueId || null,
+    dependencyIds: Array.isArray(req.body.dependencyIds) ? req.body.dependencyIds : [],
+    parentStoryId: parentStory?._id || null,
+    parentTaskId: parentTaskId || null,
+    storyPoints: req.body.storyPoints ?? null,
+    acceptanceCriteria: Array.isArray(req.body.acceptanceCriteria)
+      ? req.body.acceptanceCriteria
+      : [],
+    definitionOfDone: req.body.definitionOfDone || "",
+    labels: Array.isArray(req.body.labels) ? req.body.labels : [],
+    timeEstimateMinutes: Number(req.body.timeEstimateMinutes || 0),
+    remainingEstimateMinutes: Number(
+      req.body.remainingEstimateMinutes ?? req.body.timeEstimateMinutes ?? 0
+    ),
+    checklist: Array.isArray(req.body.checklist) ? req.body.checklist : [],
+    linkedBranches: Array.isArray(req.body.linkedBranches) ? req.body.linkedBranches : [],
+    linkedPullRequests: Array.isArray(req.body.linkedPullRequests)
+      ? req.body.linkedPullRequests
+      : [],
     bugDetails,
     planningOrder,
     startedAt: isInProgressIssueStatus(statusResult.value) ? new Date() : null,
@@ -3257,6 +3471,10 @@ const createIssue = asyncHandler(async (req, res) => {
   });
 
   await populateIssueDocument(issue);
+
+  if (parentStory?._id) {
+    await syncStoryProgress(parentStory._id);
+  }
 
   console.log("Bug saved", {
     bugId: issue.displayBugId || issue._id,
@@ -3443,6 +3661,18 @@ const updateIssue = asyncHandler(async (req, res) => {
           "assignee",
           "dueAt",
           "dependsOnIssueId",
+          "dependencyIds",
+          "parentStoryId",
+          "parentTaskId",
+          "storyPoints",
+          "acceptanceCriteria",
+          "definitionOfDone",
+          "labels",
+          "timeEstimateMinutes",
+          "remainingEstimateMinutes",
+          "checklist",
+          "linkedBranches",
+          "linkedPullRequests",
           "bugDetails",
           "severity",
           "testerOwnerId",
@@ -3473,6 +3703,16 @@ const updateIssue = asyncHandler(async (req, res) => {
             "stepsToReproduce",
             "expectedResult",
             "actualResult",
+          ]
+      : isStoryType(issue.type)
+        ? [
+            "status",
+            "acceptanceCriteria",
+            "definitionOfDone",
+            "labels",
+            "timeEstimateMinutes",
+            "remainingEstimateMinutes",
+            "comment",
           ]
       : [
           "status",
@@ -3514,6 +3754,9 @@ const updateIssue = asyncHandler(async (req, res) => {
 
   const workspaceId = normalizeWorkspaceId(req.user.workspaceId);
   const previousSprintId = issue.sprintId ? String(issue.sprintId) : "";
+  const previousParentStoryId = issue.parentStoryId
+    ? String(issue.parentStoryId)
+    : "";
   const previousAssigneeId = issue.assignee ? String(issue.assignee) : "";
   const previousBugDeveloperId = isBugType(issue.type)
     ? getUserIdString(issue.bugDetails?.developerLead)
@@ -3661,6 +3904,7 @@ const updateIssue = asyncHandler(async (req, res) => {
   const hasAssigneeChange = hasAssigneeInput(req.body);
   const hasDueAtChange = hasOwnField(req.body, "dueAt");
   const hasDependencyChange = hasOwnField(req.body, "dependsOnIssueId");
+  const hasParentStoryChange = hasOwnField(req.body, "parentStoryId");
   const nextTeamId = hasTeamChange ? req.body.teamId || null : issue.teamId || null;
   const nextEpicId =
     hasEpicChange || req.body.projectId
@@ -3676,6 +3920,9 @@ const updateIssue = asyncHandler(async (req, res) => {
   const nextDependsOnIssueId = hasDependencyChange
     ? req.body.dependsOnIssueId || null
     : issue.dependsOnIssueId || null;
+  const nextParentStoryId = hasParentStoryChange
+    ? req.body.parentStoryId || null
+    : issue.parentStoryId || null;
   const hasProjectChange =
     Boolean(req.body.projectId) && String(req.body.projectId) !== String(issue.projectId || "");
   const isTeamChanged =
@@ -3901,6 +4148,31 @@ const updateIssue = asyncHandler(async (req, res) => {
     }
   }
 
+  if (
+    hasParentStoryChange ||
+    (hasProjectChange && Boolean(nextParentStoryId)) ||
+    Boolean(issue.parentStoryId)
+  ) {
+    const parentStoryResult = await ensureParentStoryForProject({
+      parentStoryId: nextParentStoryId,
+      projectId: targetProject?._id || issue.projectId,
+    });
+
+    if (parentStoryResult.error) {
+      res.status(parentStoryResult.error.status);
+      throw new Error(parentStoryResult.error.message);
+    }
+
+    if (
+      parentStoryResult.story?.teamId &&
+      nextTeamId &&
+      String(parentStoryResult.story.teamId) !== String(nextTeamId)
+    ) {
+      res.status(400);
+      throw new Error("Task and Bug team must match the parent Story team");
+    }
+  }
+
   if (hasTeamChange) {
     changeEntries.push({
       field: "teamId",
@@ -3957,6 +4229,44 @@ const updateIssue = asyncHandler(async (req, res) => {
     });
     issue.dependsOnIssueId = nextDependsOnIssueId;
   }
+
+  if (hasParentStoryChange) {
+    changeEntries.push({
+      field: "parentStoryId",
+      fromValue: issue.parentStoryId || null,
+      toValue: nextParentStoryId || null,
+    });
+    issue.parentStoryId = nextParentStoryId;
+  }
+
+  const structuredFields = [
+    "dependencyIds",
+    "acceptanceCriteria",
+    "labels",
+    "checklist",
+    "linkedBranches",
+    "linkedPullRequests",
+  ];
+  const scalarDeliveryFields = [
+    "definitionOfDone",
+    "storyPoints",
+    "timeEstimateMinutes",
+    "remainingEstimateMinutes",
+    "parentTaskId",
+  ];
+
+  [...structuredFields, ...scalarDeliveryFields].forEach((field) => {
+    if (!hasOwnField(req.body, field)) {
+      return;
+    }
+
+    changeEntries.push({
+      field,
+      fromValue: issue[field],
+      toValue: req.body[field],
+    });
+    issue[field] = req.body[field];
+  });
 
   if (nextIsBug && nextBugDetails) {
     const previousBugDetails = serializeBugDetails(issue.bugDetails || {});
@@ -4063,7 +4373,22 @@ const updateIssue = asyncHandler(async (req, res) => {
     }
   }
 
+  const storyCompletionBlocker = await validateStoryCompletion(issue);
+
+  if (storyCompletionBlocker) {
+    res.status(409);
+    throw new Error(storyCompletionBlocker);
+  }
+
   await issue.save();
+
+  const storyIdsToSync = new Set(
+    [previousParentStoryId, issue.parentStoryId ? String(issue.parentStoryId) : ""].filter(
+      Boolean
+    )
+  );
+
+  await Promise.all(Array.from(storyIdsToSync).map(syncStoryProgress));
   await populateIssueDocument(issue);
 
   console.log("Bug saved", {
@@ -4265,6 +4590,7 @@ const deleteIssue = asyncHandler(async (req, res) => {
   const userId = getUserIdString(req.user);
   const reporterId = getUserIdString(issue.reporter);
   const isBug = isBugType(issue.type);
+  const isStory = isStoryType(issue.type);
   const isUserAdmin = req.user.role === ROLE_ADMIN;
   const isUserManager = req.user.role === ROLE_MANAGER;
   const isUserTester = req.user.role === ROLE_TESTER;
@@ -4272,7 +4598,9 @@ const deleteIssue = asyncHandler(async (req, res) => {
   const isReportedAndUnpicked = isBug && isBugReportedAndUnpicked(issue);
 
   const canDelete =
-    isUserAdmin || (isBug && isUserManager) || (isUserTester && isTesterOwnerOfBug && isReportedAndUnpicked);
+    isUserAdmin ||
+    ((isBug || isStory) && isUserManager) ||
+    (isUserTester && isTesterOwnerOfBug && isReportedAndUnpicked);
 
   console.log("DELETE BUG DEBUG", {
     issueId: String(issue._id),
@@ -4280,6 +4608,7 @@ const deleteIssue = asyncHandler(async (req, res) => {
     loggedInUser: userId,
     role: req.user.role,
     isBug,
+    isStory,
     isUserAdmin,
     isUserManager,
     isUserTester,
@@ -4295,12 +4624,14 @@ const deleteIssue = asyncHandler(async (req, res) => {
     }
 
     res.status(403);
-    throw new Error("You are not authorized to delete this bug");
+    throw new Error("You are not authorized to delete this work item");
   }
 
   const deletedAt = new Date();
-  const bugId = issue.displayBugId || String(issue._id);
-  const deleteMessage = `Bug deleted by ${req.user.name || req.user.email || "Unknown user"} on ${deletedAt.toISOString()}`;
+  const issueId = issue.displayBugId || String(issue._id);
+  const issueLabel = isStory ? "Story" : isBug ? "Bug" : "Work item";
+  const deleteAction = isBug ? "BUG_DELETED" : isStory ? "STORY_DELETED" : "ISSUE_DELETED";
+  const deleteMessage = `${issueLabel} deleted by ${req.user.name || req.user.email || "Unknown user"} on ${deletedAt.toISOString()}`;
 
   issue.isDeleted = true;
   issue.deletedAt = deletedAt;
@@ -4310,13 +4641,13 @@ const deleteIssue = asyncHandler(async (req, res) => {
   issue.activityLogs = issue.activityLogs || [];
   issue.activityLogs.push(
     buildActivityLogEntry({
-      action: "BUG_DELETED",
+      action: deleteAction,
       from: issue.status,
       to: "DELETED",
       by: req.user,
       time: deletedAt,
       meta: {
-        bugId,
+        issueId,
         title: issue.title,
         creatorId: reporterId,
         creatorName: issue.reporterName || "",
@@ -4333,12 +4664,12 @@ const deleteIssue = asyncHandler(async (req, res) => {
     issueId: issue._id,
     projectId: issue.projectId,
     actorId: req.user._id,
-    eventType: "BUG_DELETED",
+    eventType: deleteAction,
     field: "isDeleted",
     fromValue: false,
     toValue: true,
     meta: {
-      bugId,
+      issueId,
       title: issue.title,
       creatorId: reporterId,
       creatorName: issue.reporterName || "",
@@ -4351,12 +4682,12 @@ const deleteIssue = asyncHandler(async (req, res) => {
   await emitIssueWorkflowChange({
     issue,
     req,
-    eventName: "BugDeleted",
-    action: "BUG_DELETED",
+    eventName: isBug ? "BugDeleted" : isStory ? "StoryDeleted" : "IssueDeleted",
+    action: deleteAction,
     meta: {
       deletedAt,
       deletedBy: userId,
-      bugId,
+      issueId,
     },
   });
 
@@ -4498,6 +4829,7 @@ const markAllNotificationsRead = asyncHandler(async (req, res) => {
 
 module.exports = {
   getIssues,
+  getStories,
   getIssueStats,
   getMyReportedBugs,
   getMyIssues,

@@ -30,6 +30,7 @@ const {
   isPlanningIssueType,
 } = require("../utils/planningIssueTypes");
 const { normalizeWorkspaceId } = require("../utils/workspace");
+const { ISSUE_TYPES } = require("../utils/issueTypes");
 
 const attachmentsRoot = path.resolve(__dirname, "..", "uploads", "issue-attachments");
 fs.mkdirSync(attachmentsRoot, {
@@ -290,7 +291,7 @@ const appendToContainer = (items = [], movingIssue, beforeIssueId, afterIssueId)
 const buildContainerQuery = (projectId, sprintId) => ({
   projectId,
   sprintId: sprintId || null,
-  ...buildPlanningIssueTypeQuery(),
+  type: ISSUE_TYPES.STORY,
 });
 
 const updateIssuePlanning = asyncHandler(async (req, res) => {
@@ -307,6 +308,15 @@ const updateIssuePlanning = asyncHandler(async (req, res) => {
   }
 
   const { issue, project } = accessResult;
+
+  if (
+    (Object.prototype.hasOwnProperty.call(req.body, "sprintId") ||
+      Object.prototype.hasOwnProperty.call(req.body, "planningOrder")) &&
+    issue.type !== ISSUE_TYPES.STORY
+  ) {
+    res.status(400);
+    throw new Error("Sprint planning is performed at Story level");
+  }
   const workspaceId = normalizeWorkspaceId(req.user.workspaceId);
   const previousSprintId = issue.sprintId ? String(issue.sprintId) : "";
   const previousAssigneeId = issue.assignee ? String(issue.assignee) : "";
@@ -465,6 +475,11 @@ const reorderIssuePlanning = asyncHandler(async (req, res) => {
   }
 
   const { issue, project } = accessResult;
+
+  if (issue.type !== ISSUE_TYPES.STORY) {
+    res.status(400);
+    throw new Error("Only Stories can be moved in Sprint Planning");
+  }
   const sprintResult = await ensureSprintForIssue({
     sprintId: destinationSprintId || null,
     projectId: issue.projectId,

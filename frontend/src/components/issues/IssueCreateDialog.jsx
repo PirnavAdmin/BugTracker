@@ -12,8 +12,6 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import {
   BUG_PRIORITY_OPTIONS,
-  BUG_SEVERITY_OPTIONS,
-  BUG_STATUS_OPTIONS,
   ISSUE_STATUS,
   ISSUE_TYPE_OPTIONS,
   getIssueDisplayKey,
@@ -21,6 +19,7 @@ import {
 } from "@/lib/issues";
 import {
   fetchEpics,
+  fetchIssues,
   fetchProjectTeams,
   fetchSprints,
   logTeamSelectionDebug,
@@ -81,6 +80,7 @@ const buildInitialState = ({
   defaultProjectId,
   defaultTeamId,
   defaultType,
+  defaultParentStoryId = "",
 }) => {
   const projectId = resolveProjectSelection(defaultProjectId, projects);
   const project = findProjectById(projects, projectId);
@@ -99,6 +99,12 @@ const buildInitialState = ({
     sprintId: "",
     dueAt: "",
     dependsOnIssueId: "",
+    parentStoryId: defaultParentStoryId,
+    storyPoints: "",
+    acceptanceCriteria: "",
+    definitionOfDone: "",
+    labels: "",
+    timeEstimateMinutes: "",
     bugDetails: {
       severity: "",
       testerOwnerId: "",
@@ -369,6 +375,7 @@ const IssueCreateDialog = ({
   defaultProjectId = "",
   defaultTeamId = "",
   defaultType = "Task",
+  defaultParentStoryId = "",
   lockType = false,
   isPending = false,
   onSubmit,
@@ -384,12 +391,13 @@ const IssueCreateDialog = ({
       defaultProjectId,
       defaultTeamId,
       defaultType: resolvedDefaultType,
+      defaultParentStoryId,
     })
   );
   const [assignEntireTeam, setAssignEntireTeam] = useState(false);
+  const [assignToQueue, setAssignToQueue] = useState(false);
   const [isSequenceSubmitting, setIsSequenceSubmitting] = useState(false);
   const [error, setError] = useState("");
-  const [attachmentFiles, setAttachmentFiles] = useState([]);
   const { role } = useAuth();
   const canManagePlanningFields = hasAdminPanelAccess(role);
 
@@ -427,6 +435,12 @@ const IssueCreateDialog = ({
     queryKey: ["project-sprints", selectedProjectId],
     queryFn: () => fetchSprints({ projectId: selectedProjectId }),
     enabled: open && canManagePlanningFields && Boolean(selectedProjectId),
+    refetchOnMount: "always",
+  });
+  const { data: projectStoriesData = [] } = useQuery({
+    queryKey: ["project-stories", selectedProjectId],
+    queryFn: () => fetchIssues({ projectId: selectedProjectId, type: "Story" }),
+    enabled: open && Boolean(selectedProjectId),
     refetchOnMount: "always",
   });
   const selectedProjectTeams = useMemo(
@@ -513,6 +527,31 @@ const IssueCreateDialog = ({
       ) || null,
     [dependencyOptions, formData.dependsOnIssueId]
   );
+  const storyOptions = useMemo(
+    () =>
+      [...projectStoriesData, ...availableIssues]
+        .filter(
+          (issue, index, issues) =>
+            issues.findIndex(
+              (candidate) => String(candidate._id) === String(issue._id)
+            ) === index
+        )
+        .filter(
+          (issue) =>
+            issue.type === "Story" &&
+            resolveIssueProjectId(issue) === String(formData.projectId)
+        )
+        .map(buildDependencyOption),
+    [availableIssues, formData.projectId, projectStoriesData]
+  );
+  const selectedStoryOption = useMemo(
+    () =>
+      storyOptions.find(
+        (story) => story.value === String(formData.parentStoryId)
+      ) || null,
+    [formData.parentStoryId, storyOptions]
+  );
+  const supportsParentStory = ["Task", "Sub-task", "Bug"].includes(formData.type);
   const activeEpicOptions = useMemo(
     () =>
       (Array.isArray(projectEpicsData) ? projectEpicsData : [])
@@ -555,6 +594,7 @@ const IssueCreateDialog = ({
     [formData.sprintId, sprintOptions]
   );
   const isBugType = formData.type === "Bug";
+  const isStoryType = formData.type === "Story";
   const qaOwnerOptions = useMemo(
     () =>
       projectMemberOptions.filter((option) => option.role === "Tester").length
@@ -610,13 +650,21 @@ const IssueCreateDialog = ({
         defaultProjectId,
         defaultTeamId,
         defaultType: resolvedDefaultType,
+        defaultParentStoryId,
       })
     );
     setAssignEntireTeam(false);
+    setAssignToQueue(false);
     setIsSequenceSubmitting(false);
     setError("");
-    setAttachmentFiles([]);
-  }, [defaultProjectId, defaultTeamId, open, projects, resolvedDefaultType]);
+  }, [
+    defaultParentStoryId,
+    defaultProjectId,
+    defaultTeamId,
+    open,
+    projects,
+    resolvedDefaultType,
+  ]);
 
   useEffect(() => {
     const nextTeamId = availableTeams.some(
@@ -701,8 +749,25 @@ const IssueCreateDialog = ({
     setFormData((current) => ({
       ...current,
       dependsOnIssueId: "",
+      parentStoryId: "",
     }));
   }, [dependencyOptions, formData.dependsOnIssueId]);
+
+  useEffect(() => {
+    if (
+      !formData.parentStoryId ||
+      storyOptions.some(
+        (story) => story.value === String(formData.parentStoryId)
+      )
+    ) {
+      return;
+    }
+
+    setFormData((current) => ({
+      ...current,
+      parentStoryId: "",
+    }));
+  }, [formData.parentStoryId, storyOptions]);
 
   useEffect(() => {
     if (
@@ -733,7 +798,7 @@ const IssueCreateDialog = ({
   }, [formData.sprintId, sprintOptions]);
 
   useEffect(() => {
-    if (!assignEntireTeam) {
+    if (!assignEntireTeam && !assignToQueue) {
       return;
     }
 
@@ -741,7 +806,7 @@ const IssueCreateDialog = ({
       ...current,
       assigneeId: "",
     }));
-  }, [assignEntireTeam]);
+  }, [assignEntireTeam, assignToQueue]);
 
   const blockedMessage = useMemo(() => {
     if (!projects.length) {
@@ -802,16 +867,6 @@ const IssueCreateDialog = ({
       return;
     }
 
-    if (
-      formData.dependsOnIssueId &&
-      !dependencyOptions.some(
-        (issue) => issue.value === String(formData.dependsOnIssueId)
-      )
-    ) {
-      setError("Choose a dependency from the selected project.");
-      return;
-    }
-
     if (canManagePlanningFields) {
       if (activeEpicOptions.length && !formData.epicId) {
         setError("Epic is required for this project.");
@@ -841,33 +896,34 @@ const IssueCreateDialog = ({
     }
 
     if (isBugType) {
-      if (!formData.bugDetails.severity || !formData.priority) {
-        setError("Severity and priority are required for bugs.");
-        return;
-      }
-
-      if (
-        !formData.bugDetails.stepsToReproduce.trim() ||
-        !formData.bugDetails.expectedResult.trim() ||
-        !formData.bugDetails.actualResult.trim()
-      ) {
-        setError(
-          "Steps to Reproduce, Expected Result, and Actual Result are required for bugs."
-        );
+      if (!formData.priority) {
+        setError("Priority is required for bugs.");
         return;
       }
     }
 
     const basePayload = {
       title: formData.title.trim(),
-      description: formData.description.trim(),
+      description: isStoryType ? formData.description.trim() : "",
       projectId: formData.projectId,
       teamId: formData.teamId,
       priority: formData.priority,
       type: formData.type,
-      dueAt: formData.dueAt || null,
-      dependsOnIssueId: formData.dependsOnIssueId || null,
-      status: isBugType ? ISSUE_STATUS.NEW : ISSUE_STATUS.TODO,
+      dueAt: null,
+      dependsOnIssueId: null,
+      parentStoryId: formData.parentStoryId || null,
+      status:
+        isBugType
+          ? ISSUE_STATUS.NEW
+          : formData.type === "Story"
+            ? ISSUE_STATUS.DRAFT
+            : ISSUE_STATUS.TODO,
+      storyPoints: null,
+      acceptanceCriteria: [],
+      definitionOfDone: "",
+      labels: [],
+      timeEstimateMinutes: 0,
+      addToBucket: assignToQueue,
       ...(canManagePlanningFields
         ? {
             epicId: formData.epicId || null,
@@ -877,15 +933,20 @@ const IssueCreateDialog = ({
       ...(isBugType
         ? {
             bugDetails: {
-              severity: formData.bugDetails.severity,
+              severity: formData.bugDetails.severity || "Major",
               testerOwnerId: formData.bugDetails.testerOwnerId || null,
-              developerLeadId: formData.bugDetails.developerLeadId || null,
-              stepsToReproduce: formData.bugDetails.stepsToReproduce.trim(),
-              expectedResult: formData.bugDetails.expectedResult.trim(),
-              actualResult: formData.bugDetails.actualResult.trim(),
+              developerLeadId: assignToQueue ? null : formData.bugDetails.developerLeadId || null,
+              addToBucket: assignToQueue,
+              stepsToReproduce: "",
+              expectedResult: "",
+              actualResult: "",
             },
           }
-        : {}),
+        : {
+            bugDetails: {
+              addToBucket: assignToQueue,
+            },
+          }),
     };
 
     const payloads = assignEntireTeam
@@ -896,7 +957,7 @@ const IssueCreateDialog = ({
       : [
           {
             ...basePayload,
-            assigneeId: formData.assigneeId || null,
+            assigneeId: assignToQueue ? null : formData.assigneeId || null,
           },
         ];
 
@@ -907,22 +968,7 @@ const IssueCreateDialog = ({
       setIsSequenceSubmitting(payloads.length > 1);
 
       for (const payload of payloads) {
-        const createdIssue = await onSubmit(payload);
-
-        if (
-          isBugType &&
-          attachmentFiles.length &&
-          createdIssue?._id &&
-          typeof onUploadAttachment === "function"
-        ) {
-          for (const file of attachmentFiles) {
-            await onUploadAttachment({
-              issueId: createdIssue._id,
-              file,
-            });
-          }
-        }
-
+        await onSubmit(payload);
         createdCount += 1;
       }
 
@@ -947,7 +993,7 @@ const IssueCreateDialog = ({
         <div className="max-h-[90vh] overflow-y-auto overflow-x-visible">
           <DialogHeader className="sticky top-0 z-20 border-b border-slate-200/80 bg-white px-5 py-3.5 sm:px-6">
             <DialogTitle className="text-2xl tracking-tight text-slate-950">
-              Assign task
+              Create work item
             </DialogTitle>
           </DialogHeader>
 
@@ -993,6 +1039,24 @@ const IssueCreateDialog = ({
               </label>
             </div>
 
+            {isStoryType ? (
+              <label className="block space-y-1.5">
+                <span className="text-sm font-semibold text-slate-900">Description</span>
+                <Textarea
+                  className="min-h-[96px] rounded-2xl border-slate-200 text-sm shadow-none focus-visible:border-blue-500 focus-visible:ring-4 focus-visible:ring-blue-500/10"
+                  value={formData.description}
+                  onChange={(event) =>
+                    setFormData((current) => ({
+                      ...current,
+                      description: event.target.value,
+                    }))
+                  }
+                  placeholder="Add context, user value, acceptance notes, or scope details"
+                  disabled={isSubmitPending}
+                />
+              </label>
+            ) : null}
+
             <div className="rounded-[24px] border border-slate-200/80 bg-slate-50/80 p-3 sm:p-3.5 shadow-[0_16px_40px_-32px_rgba(15,23,42,0.35)]">
               <div className="space-y-3">
                 <SectionLabel
@@ -1029,6 +1093,33 @@ const IssueCreateDialog = ({
                       {...baseSelectProps}
                       placeholder="Select team"
                     />
+
+                    <label className="mt-2.5 flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50/70 px-3 py-2.5 text-sm text-amber-900">
+                      <input
+                        type="checkbox"
+                        className="mt-0.5 h-4 w-4 rounded border-amber-300 text-amber-600 focus:ring-amber-500/30"
+                        checked={assignToQueue}
+                        disabled={!formData.teamId || assignEntireTeam || isSubmitPending}
+                        onChange={(event) => {
+                          const checked = event.target.checked;
+                          setAssignToQueue(checked);
+                          if (checked) {
+                            setFormData((current) => ({
+                              ...current,
+                              assigneeId: "",
+                            }));
+                          }
+                        }}
+                      />
+                      <span className="space-y-1">
+                        <span className="block font-medium text-amber-950">
+                          Add to Work Queue
+                        </span>
+                        <span className="block text-amber-800/80">
+                          Developers can pick this up later from the shared queue.
+                        </span>
+                      </span>
+                    </label>
                   </div>
 
                   <div className="space-y-2.5">
@@ -1056,13 +1147,15 @@ const IssueCreateDialog = ({
                           formatOptionLabel={formatAssigneeOptionLabel}
                           isClearable
                           isDisabled={
-                            !formData.teamId || assignEntireTeam || isSubmitPending
+                            !formData.teamId || assignEntireTeam || assignToQueue || isSubmitPending
                           }
                           menuPortalTarget={menuPortalTarget}
                           {...baseSelectProps}
                           placeholder={
                             assignEntireTeam
                               ? "Disabled while team-wide assignment is enabled"
+                              : assignToQueue
+                                ? "Disabled while work queue is enabled"
                               : "Select assignee"
                           }
                           noOptionsMessage={() =>
@@ -1078,7 +1171,7 @@ const IssueCreateDialog = ({
                           type="checkbox"
                           className="mt-0.5 h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500/30"
                           checked={assignEntireTeam}
-                          disabled={!formData.teamId || isSubmitPending}
+                          disabled={!formData.teamId || assignToQueue || isSubmitPending}
                           onChange={(event) => setAssignEntireTeam(event.target.checked)}
                         />
                         <span className="space-y-1">
@@ -1178,268 +1271,30 @@ const IssueCreateDialog = ({
               </div>
             ) : null}
 
-            <div className="space-y-1.5">
-              <SectionLabel title="Description" />
-              <Textarea
-                className="min-h-[112px] rounded-[22px] border-slate-200 shadow-none focus-visible:border-blue-500 focus-visible:ring-4 focus-visible:ring-blue-500/10"
-                value={formData.description}
-                onChange={(event) =>
-                  setFormData((current) => ({
-                    ...current,
-                    description: event.target.value,
-                  }))
-                }
-                placeholder="Add context, acceptance notes, or implementation details."
-                disabled={isSubmitPending}
-              />
-            </div>
-
-            {isBugType ? (
-              <div className="rounded-[24px] border border-rose-100 bg-rose-50/50 p-3.5">
-                <div className="grid gap-3 md:grid-cols-3">
-                  <label className="space-y-1.5">
-                    <span className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">
-                      Severity
-                    </span>
-                    <select
-                      className="field-select rounded-2xl"
-                      value={formData.bugDetails.severity}
-                      onChange={(event) =>
-                        setFormData((current) => ({
-                          ...current,
-                          bugDetails: {
-                            ...current.bugDetails,
-                            severity: event.target.value,
-                          },
-                        }))
-                      }
-                      disabled={isSubmitPending}
-                    >
-                      <option value="">Select severity</option>
-                      {BUG_SEVERITY_OPTIONS.map((severity) => (
-                        <option key={severity} value={severity}>
-                          {severity}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-
-                  <label className="space-y-1.5">
-                    <span className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">
-                      Priority
-                    </span>
-                    <select
-                      className="field-select rounded-2xl"
-                      value={formData.priority}
-                      onChange={(event) =>
-                        setFormData((current) => ({
-                          ...current,
-                          priority: event.target.value,
-                        }))
-                      }
-                      disabled={isSubmitPending}
-                    >
-                      {BUG_PRIORITY_OPTIONS.map((priorityOption) => (
-                        <option key={priorityOption} value={priorityOption}>
-                          {priorityOption}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-
-                  <label className="space-y-1.5">
-                    <span className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">
-                      Status
-                    </span>
-                    <select
-                      className="field-select rounded-2xl"
-                      value={formData.status}
-                      onChange={(event) =>
-                        setFormData((current) => ({
-                          ...current,
-                          status: event.target.value,
-                        }))
-                      }
-                      disabled
-                    >
-                      {BUG_STATUS_OPTIONS.map((option) => (
-                        <option key={option.value} value={option.value}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                </div>
-
-                <div className="mt-3 grid gap-3 md:grid-cols-2">
-                  <label className="space-y-1.5">
-                    <span className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">
-                      Tester / QA Owner
-                    </span>
-                    <select
-                      className="field-select rounded-2xl"
-                      value={formData.bugDetails.testerOwnerId}
-                      onChange={(event) =>
-                        setFormData((current) => ({
-                          ...current,
-                          bugDetails: {
-                            ...current.bugDetails,
-                            testerOwnerId: event.target.value,
-                          },
-                        }))
-                      }
-                      disabled={!formData.teamId || isSubmitPending}
-                    >
-                      <option value="">Unassigned</option>
-                      {qaOwnerOptions.map((option) => (
-                        <option key={option.value} value={option.value}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-
-                  <label className="space-y-1.5">
-                    <span className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">
-                      Developer / Dev Lead
-                    </span>
-                    <select
-                      className="field-select rounded-2xl"
-                      value={formData.bugDetails.developerLeadId}
-                      onChange={(event) =>
-                        setFormData((current) => ({
-                          ...current,
-                          bugDetails: {
-                            ...current.bugDetails,
-                            developerLeadId: event.target.value,
-                          },
-                        }))
-                      }
-                      disabled={!formData.teamId || isSubmitPending}
-                    >
-                      <option value="">Unassigned</option>
-                      {developerLeadOptions.map((option) => (
-                        <option key={option.value} value={option.value}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                </div>
-
-                <div className="mt-3 grid gap-3">
-                  <label className="space-y-1.5">
-                    <span className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">
-                      Steps to Reproduce
-                    </span>
-                    <Textarea
-                      className="min-h-[96px] rounded-[22px] border-slate-200 bg-white shadow-none focus-visible:border-blue-500 focus-visible:ring-4 focus-visible:ring-blue-500/10"
-                      value={formData.bugDetails.stepsToReproduce}
-                      onChange={(event) =>
-                        setFormData((current) => ({
-                          ...current,
-                          bugDetails: {
-                            ...current.bugDetails,
-                            stepsToReproduce: event.target.value,
-                          },
-                        }))
-                      }
-                      disabled={isSubmitPending}
-                    />
-                  </label>
-
-                  <div className="grid gap-3 md:grid-cols-2">
-                    <label className="space-y-1.5">
-                      <span className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">
-                        Expected Result
-                      </span>
-                      <Textarea
-                        className="min-h-[88px] rounded-[22px] border-slate-200 bg-white shadow-none focus-visible:border-blue-500 focus-visible:ring-4 focus-visible:ring-blue-500/10"
-                        value={formData.bugDetails.expectedResult}
-                        onChange={(event) =>
-                          setFormData((current) => ({
-                            ...current,
-                            bugDetails: {
-                              ...current.bugDetails,
-                              expectedResult: event.target.value,
-                            },
-                          }))
-                        }
-                        disabled={isSubmitPending}
-                      />
-                    </label>
-
-                    <label className="space-y-1.5">
-                      <span className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">
-                        Actual Result
-                      </span>
-                      <Textarea
-                        className="min-h-[88px] rounded-[22px] border-slate-200 bg-white shadow-none focus-visible:border-blue-500 focus-visible:ring-4 focus-visible:ring-blue-500/10"
-                        value={formData.bugDetails.actualResult}
-                        onChange={(event) =>
-                          setFormData((current) => ({
-                            ...current,
-                            bugDetails: {
-                              ...current.bugDetails,
-                              actualResult: event.target.value,
-                            },
-                          }))
-                        }
-                        disabled={isSubmitPending}
-                      />
-                    </label>
-                  </div>
-
-                  <label className="space-y-1.5">
-                    <span className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">
-                      Attachments
-                    </span>
-                    <Input
-                      type="file"
-                      multiple
-                      className="h-12 rounded-2xl border-slate-200 bg-white shadow-none file:mr-3 file:rounded-xl file:border-0 file:bg-slate-100 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-slate-700"
-                      onChange={(event) =>
-                        setAttachmentFiles(Array.from(event.target.files || []))
-                      }
-                      disabled={isSubmitPending}
-                    />
-                    {attachmentFiles.length ? (
-                      <p className="text-xs text-slate-500">
-                        {attachmentFiles.length} file
-                        {attachmentFiles.length === 1 ? "" : "s"} selected
-                      </p>
-                    ) : null}
-                  </label>
-                </div>
-              </div>
-            ) : null}
-
             <div className="border-t border-slate-200/80 pt-3">
-              <div className={`grid gap-3 ${isBugType ? "md:grid-cols-1" : "md:grid-cols-2"}`}>
-                {!isBugType ? (
-                  <label className="space-y-1.5">
-                    <span className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">
-                      Priority
-                    </span>
-                    <select
-                      className="field-select rounded-2xl"
-                      value={formData.priority}
-                      onChange={(event) =>
-                        setFormData((current) => ({
-                          ...current,
-                          priority: event.target.value,
-                        }))
-                      }
-                      disabled={isSubmitPending}
-                    >
-                      {ISSUE_PRIORITIES.map((priority) => (
-                        <option key={priority} value={priority}>
-                          {priority}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                ) : null}
+              <div className="grid gap-3 md:grid-cols-2">
+                <label className="space-y-1.5">
+                  <span className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">
+                    Priority
+                  </span>
+                  <select
+                    className="field-select rounded-2xl"
+                    value={formData.priority}
+                    onChange={(event) =>
+                      setFormData((current) => ({
+                        ...current,
+                        priority: event.target.value,
+                      }))
+                    }
+                    disabled={isSubmitPending}
+                  >
+                    {(isBugType ? BUG_PRIORITY_OPTIONS : ISSUE_PRIORITIES).map((priority) => (
+                      <option key={priority} value={priority}>
+                        {priority}
+                      </option>
+                    ))}
+                  </select>
+                </label>
 
                 <label className="space-y-1.5">
                   <span className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">
@@ -1455,7 +1310,9 @@ const IssueCreateDialog = ({
                         status:
                           event.target.value === "Bug"
                             ? ISSUE_STATUS.NEW
-                            : ISSUE_STATUS.TODO,
+                            : event.target.value === "Story"
+                              ? ISSUE_STATUS.DRAFT
+                              : ISSUE_STATUS.TODO,
                         priority:
                           event.target.value === "Bug" && current.priority === "Low"
                             ? "High"
@@ -1474,53 +1331,38 @@ const IssueCreateDialog = ({
               </div>
             </div>
 
-            <div className="grid gap-3 md:grid-cols-2">
-              <label className="space-y-1.5">
-                <span className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">
-                  Due Date
-                </span>
-                <Input
-                  type="datetime-local"
-                  className="h-12 rounded-2xl border-slate-200 shadow-none focus-visible:border-blue-500 focus-visible:ring-4 focus-visible:ring-blue-500/10"
-                  value={formData.dueAt}
-                  onChange={(event) =>
-                    setFormData((current) => ({
-                      ...current,
-                      dueAt: event.target.value,
-                    }))
-                  }
-                  disabled={isSubmitPending}
-                />
-              </label>
-
+            {supportsParentStory ? (
               <div className="space-y-1.5">
                 <span className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">
-                  Dependency
+                  Parent Story (Optional)
                 </span>
                 <Select
-                  options={dependencyOptions}
-                  value={selectedDependencyOption}
-                  onChange={(option) =>
+                  options={storyOptions}
+                  value={selectedStoryOption}
+                  onChange={(option) => {
+                    const story = option?.issue;
+
                     setFormData((current) => ({
                       ...current,
-                      dependsOnIssueId: option?.value || "",
-                    }))
-                  }
+                      parentStoryId: option?.value || "",
+                      teamId: story?.teamId?._id || story?.teamId || current.teamId,
+                      epicId: story?.epicId?._id || story?.epicId || current.epicId,
+                      sprintId:
+                        story?.sprintId?._id || story?.sprintId || current.sprintId,
+                    }));
+                  }}
                   styles={issueSelectStyles}
                   formatOptionLabel={formatDependencyLabel}
+                  isSearchable
                   isClearable
                   isDisabled={!formData.projectId || isSubmitPending}
                   menuPortalTarget={menuPortalTarget}
                   {...baseSelectProps}
-                  placeholder="No dependency"
-                  noOptionsMessage={() =>
-                    formData.projectId
-                      ? "No work items available in this project."
-                      : "Select a project first."
-                  }
+                  placeholder="No parent Story"
+                  noOptionsMessage={() => "No Stories found in this project."}
                 />
               </div>
-            </div>
+            ) : null}
 
             {error ? (
               <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-2.5 text-sm text-rose-700">
@@ -1541,7 +1383,7 @@ const IssueCreateDialog = ({
                 type="submit"
                 disabled={isSubmitPending || Boolean(blockedMessage)}
               >
-                {isSubmitPending ? "Creating..." : "Assign task"}
+                {isSubmitPending ? "Creating..." : "Create"}
               </Button>
             </div>
           </form>

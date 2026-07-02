@@ -137,7 +137,7 @@ const buildActions = ({ actionMode, columnKey, currentUserId, issue, onAction, o
     const actionsByColumn = {
       available: [
         {
-          label: "Pick Bug",
+          label: issue?.type === "Story" ? "Pick Story" : "Pick Bug",
           icon: Play,
           variant: "default",
           onClick: () => onAction?.("pick", issue),

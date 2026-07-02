@@ -129,6 +129,13 @@ const buildDetailDraft = (issue) => ({
   status: isBugIssue(issue) ? normalizeBugStatusForIssue(issue) : normalizeIssueStatus(issue?.status),
   dueAt: toDateTimeLocalValue(issue?.dueAt),
   dependsOnIssueId: resolveIssueDependencyId(issue),
+  storyPoints: issue?.storyPoints ?? "",
+  acceptanceCriteria: Array.isArray(issue?.acceptanceCriteria)
+    ? issue.acceptanceCriteria.map((criterion) => ({ ...criterion }))
+    : [],
+  definitionOfDone: issue?.definitionOfDone || "",
+  labels: Array.isArray(issue?.labels) ? issue.labels.join(", ") : "",
+  timeEstimateMinutes: issue?.timeEstimateMinutes || 0,
   bugDetails: getBugDetailsDraft(issue),
 });
 
@@ -829,6 +836,17 @@ const IssueDetailsDialog = ({
                       status: detailDraft.status,
                       dueAt: detailDraft.dueAt || null,
                       dependsOnIssueId: detailDraft.dependsOnIssueId || null,
+                      storyPoints:
+                        detailDraft.storyPoints === ""
+                          ? null
+                          : Number(detailDraft.storyPoints),
+                      acceptanceCriteria: detailDraft.acceptanceCriteria,
+                      definitionOfDone: detailDraft.definitionOfDone.trim(),
+                      labels: detailDraft.labels
+                        .split(",")
+                        .map((label) => label.trim())
+                        .filter(Boolean),
+                      timeEstimateMinutes: Number(detailDraft.timeEstimateMinutes || 0),
                     };
 
                     if (draftIsBug) {
@@ -1289,6 +1307,104 @@ const IssueDetailsDialog = ({
                     </select>
                   </label>
                 </div>
+
+                {detailDraft.type === "Story" ? (
+                  <div className="space-y-4 rounded-[20px] border border-blue-100 bg-blue-50/40 p-4">
+                    <div className="grid gap-4 sm:grid-cols-3">
+                      <label className="space-y-2">
+                        <span className="text-xs uppercase tracking-[0.22em] text-gray-500">
+                          Story Points
+                        </span>
+                        <Input
+                          type="number"
+                          min="0"
+                          value={detailDraft.storyPoints}
+                          onChange={(event) =>
+                            setDetailDraft((current) => ({
+                              ...current,
+                              storyPoints: event.target.value,
+                            }))
+                          }
+                        />
+                      </label>
+                      <label className="space-y-2">
+                        <span className="text-xs uppercase tracking-[0.22em] text-gray-500">
+                          Estimate (minutes)
+                        </span>
+                        <Input
+                          type="number"
+                          min="0"
+                          value={detailDraft.timeEstimateMinutes}
+                          onChange={(event) =>
+                            setDetailDraft((current) => ({
+                              ...current,
+                              timeEstimateMinutes: event.target.value,
+                            }))
+                          }
+                        />
+                      </label>
+                      <label className="space-y-2">
+                        <span className="text-xs uppercase tracking-[0.22em] text-gray-500">
+                          Labels
+                        </span>
+                        <Input
+                          value={detailDraft.labels}
+                          onChange={(event) =>
+                            setDetailDraft((current) => ({
+                              ...current,
+                              labels: event.target.value,
+                            }))
+                          }
+                        />
+                      </label>
+                    </div>
+
+                    <label className="space-y-2">
+                      <span className="text-xs uppercase tracking-[0.22em] text-gray-500">
+                        Definition of Done
+                      </span>
+                      <Textarea
+                        value={detailDraft.definitionOfDone}
+                        onChange={(event) =>
+                          setDetailDraft((current) => ({
+                            ...current,
+                            definitionOfDone: event.target.value,
+                          }))
+                        }
+                      />
+                    </label>
+
+                    <div className="space-y-2">
+                      <span className="text-xs uppercase tracking-[0.22em] text-gray-500">
+                        Acceptance Criteria
+                      </span>
+                      {detailDraft.acceptanceCriteria.map((criterion, index) => (
+                        <label
+                          key={criterion._id || `${criterion.text}-${index}`}
+                          className="flex items-start gap-3 rounded-xl border border-blue-100 bg-white px-3 py-2"
+                        >
+                          <input
+                            type="checkbox"
+                            className="mt-1 h-4 w-4"
+                            checked={Boolean(criterion.completed)}
+                            onChange={(event) =>
+                              setDetailDraft((current) => ({
+                                ...current,
+                                acceptanceCriteria: current.acceptanceCriteria.map(
+                                  (item, itemIndex) =>
+                                    itemIndex === index
+                                      ? { ...item, completed: event.target.checked }
+                                      : item
+                                ),
+                              }))
+                            }
+                          />
+                          <span className="text-sm text-slate-700">{criterion.text}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
 
                 {!availableTeams.length ? (
                   <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">

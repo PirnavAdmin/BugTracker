@@ -19,6 +19,7 @@ const BacklogToolbar = ({
   teams = [],
   members = [],
   epics = [],
+  sprints = [],
   permissions = {},
   selectedEpic = null,
   onChange,
@@ -30,13 +31,28 @@ const BacklogToolbar = ({
 }) => {
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const advancedRef = useRef(null);
-  const hasSecondaryFilters = Boolean(filters.dateFrom || filters.dateTo);
-  const advancedFilterCount = [filters.dateFrom, filters.dateTo].filter(Boolean).length;
+  const hasSecondaryFilters = Boolean(
+    filters.dateFrom ||
+      filters.dateTo ||
+      filters.sprintId !== "all" ||
+      filters.priority !== "all" ||
+      filters.status !== "all"
+  );
+  const advancedFilterCount = [
+    filters.dateFrom,
+    filters.dateTo,
+    filters.sprintId !== "all",
+    filters.priority !== "all",
+    filters.status !== "all",
+  ].filter(Boolean).length;
   const hasActiveFilters =
     filters.teamId !== "all" ||
     filters.assigneeId !== "all" ||
     filters.search.trim() ||
     filters.epicId !== "all" ||
+    filters.sprintId !== "all" ||
+    filters.priority !== "all" ||
+    filters.status !== "all" ||
     filters.includeCompletedSprints ||
     hasSecondaryFilters;
 
@@ -66,7 +82,7 @@ const BacklogToolbar = ({
   }, [advancedOpen]);
 
   return (
-    <Card className="overflow-visible border-white/70 bg-white/90 shadow-[0_14px_42px_-34px_rgba(15,23,42,0.42)] backdrop-blur-xl">
+    <Card className="relative z-[70] overflow-visible border-white/70 bg-white/90 shadow-[0_14px_42px_-34px_rgba(15,23,42,0.42)] backdrop-blur-xl">
       <CardContent className="space-y-2.5 p-3 sm:p-4">
         <div className="flex flex-col gap-2 xl:flex-row xl:items-center xl:justify-between">
           <div className="flex flex-wrap items-center gap-2">
@@ -235,7 +251,7 @@ const BacklogToolbar = ({
             </Button>
 
             {advancedOpen ? (
-              <div className="absolute right-0 top-full z-[45] mt-2 w-full min-w-[280px] rounded-[22px] border border-white/75 bg-white/96 p-4 shadow-[0_26px_52px_-28px_rgba(15,23,42,0.34)] backdrop-blur-xl xl:w-[320px]">
+              <div className="absolute right-0 top-full z-[45] mt-2 w-full min-w-[280px] rounded-[22px] border border-slate-200 bg-white p-4 shadow-[0_26px_52px_-28px_rgba(15,23,42,0.34)] xl:w-[320px]">
                 <div className="flex items-center justify-between gap-3">
                   <div>
                     <p className="text-sm font-semibold text-slate-950">Advanced Filters</p>
@@ -255,6 +271,64 @@ const BacklogToolbar = ({
                 </div>
 
                 <div className="mt-4 space-y-3">
+                  <label className="space-y-1.5">
+                    <span className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+                      Sprint
+                    </span>
+                    <select
+                      className="field-select h-10 rounded-[16px] px-3 text-sm"
+                      value={filters.sprintId}
+                      onChange={(event) => onChange("sprintId", event.target.value)}
+                    >
+                      <option value="all">All sprints</option>
+                      <option value="backlog">Backlog only</option>
+                      {sprints.map((sprint) => (
+                        <option key={sprint._id} value={sprint._id}>
+                          {sprint.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+
+                  <div className="grid grid-cols-2 gap-2">
+                    <label className="space-y-1.5">
+                      <span className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+                        Priority
+                      </span>
+                      <select
+                        className="field-select h-10 rounded-[16px] px-3 text-sm"
+                        value={filters.priority}
+                        onChange={(event) => onChange("priority", event.target.value)}
+                      >
+                        <option value="all">All</option>
+                        {["Critical", "High", "Medium", "Low"].map((priority) => (
+                          <option key={priority} value={priority}>{priority}</option>
+                        ))}
+                      </select>
+                    </label>
+
+                    <label className="space-y-1.5">
+                      <span className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+                        Status
+                      </span>
+                      <select
+                        className="field-select h-10 rounded-[16px] px-3 text-sm"
+                        value={filters.status}
+                        onChange={(event) => onChange("status", event.target.value)}
+                      >
+                        <option value="all">All</option>
+                        <option value="DRAFT">Draft</option>
+                        <option value="READY">Ready</option>
+                        <option value="SPRINT_BACKLOG">Sprint Backlog</option>
+                        <option value="IN_PROGRESS">In Progress</option>
+                        <option value="TESTING">Testing</option>
+                        <option value="READY_FOR_UAT">Ready for UAT</option>
+                        <option value="DONE">Done</option>
+                        <option value="CLOSED">Closed</option>
+                      </select>
+                    </label>
+                  </div>
+
                   <label className="space-y-1.5">
                     <span className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
                       Created From
@@ -288,9 +362,12 @@ const BacklogToolbar = ({
                     onClick={() => {
                       onChange("dateFrom", "");
                       onChange("dateTo", "");
+                      onChange("sprintId", "all");
+                      onChange("priority", "all");
+                      onChange("status", "all");
                     }}
                   >
-                    Clear Dates
+                    Clear Filters
                   </Button>
                 </div>
               </div>

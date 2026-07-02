@@ -77,11 +77,23 @@ const buildDeveloperBugQueueQuery = ({
   });
 
   const queueConditions = {
-    type: ISSUE_TYPES.BUG,
-    ...buildUnassignedBugCondition(),
-    status: {
-      $in: AVAILABLE_BUG_QUEUE_STATUSES,
-    },
+    $or: [
+      {
+        type: ISSUE_TYPES.BUG,
+        ...buildUnassignedBugCondition(),
+        status: {
+          $in: AVAILABLE_BUG_QUEUE_STATUSES,
+        },
+      },
+      {
+        type: ISSUE_TYPES.STORY,
+        assignee: null,
+        "bugDetails.addToBucket": true,
+        status: {
+          $nin: ["DONE", "CLOSED"],
+        },
+      },
+    ],
   };
 
   const query = combineQueryConditions(visibilityFilter, queueConditions);
@@ -102,11 +114,27 @@ const buildDeveloperBugQueueQuery = ({
   }
 
   if (filters.category) {
-    query["bugDetails.category"] = filters.category;
+    query.$and = [
+      ...(query.$and || []),
+      {
+        $or: [
+          { type: ISSUE_TYPES.STORY },
+          { "bugDetails.category": filters.category },
+        ],
+      },
+    ];
   }
 
   if (filters.moduleName) {
-    query["bugDetails.moduleName"] = filters.moduleName;
+    query.$and = [
+      ...(query.$and || []),
+      {
+        $or: [
+          { type: ISSUE_TYPES.STORY },
+          { "bugDetails.moduleName": filters.moduleName },
+        ],
+      },
+    ];
   }
 
   return query;

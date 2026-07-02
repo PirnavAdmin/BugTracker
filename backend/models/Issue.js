@@ -13,6 +13,23 @@ const { BUG_SEVERITY_VALUES } = require("../utils/bugLifecycle");
 
 const { Schema, model, models } = mongoose;
 
+const checklistItemSchema = new Schema(
+  {
+    text: { type: String, trim: true, required: true },
+    completed: { type: Boolean, default: false },
+    completedAt: { type: Date, default: null },
+  },
+  { versionKey: false }
+);
+
+const acceptanceCriterionSchema = new Schema(
+  {
+    text: { type: String, trim: true, required: true },
+    completed: { type: Boolean, default: false },
+  },
+  { versionKey: false }
+);
+
 const bugDetailsSchema = new Schema(
   {
     moduleName: {
@@ -211,6 +228,24 @@ const issueSchema = new Schema(
       default: null,
       index: true,
     },
+    dependencyIds: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Issue",
+      },
+    ],
+    parentStoryId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Issue",
+      default: null,
+      index: true,
+    },
+    parentTaskId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Issue",
+      default: null,
+      index: true,
+    },
     epicId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Epic",
@@ -232,6 +267,49 @@ const issueSchema = new Schema(
       type: Number,
       default: null,
       min: [0, "Story points cannot be negative"],
+    },
+    acceptanceCriteria: {
+      type: [acceptanceCriterionSchema],
+      default: [],
+    },
+    definitionOfDone: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+    labels: {
+      type: [{ type: String, trim: true }],
+      default: [],
+    },
+    timeEstimateMinutes: {
+      type: Number,
+      min: 0,
+      default: 0,
+    },
+    remainingEstimateMinutes: {
+      type: Number,
+      min: 0,
+      default: 0,
+    },
+    checklist: {
+      type: [checklistItemSchema],
+      default: [],
+    },
+    linkedBranches: {
+      type: [{ type: String, trim: true }],
+      default: [],
+    },
+    linkedPullRequests: {
+      type: [{ type: String, trim: true }],
+      default: [],
+    },
+    storyProgress: {
+      percent: { type: Number, min: 0, max: 100, default: 0 },
+      taskCount: { type: Number, min: 0, default: 0 },
+      completedTaskCount: { type: Number, min: 0, default: 0 },
+      bugCount: { type: Number, min: 0, default: 0 },
+      resolvedBugCount: { type: Number, min: 0, default: 0 },
+      openBlockingBugCount: { type: Number, min: 0, default: 0 },
     },
     bugDetails: {
       type: bugDetailsSchema,
@@ -306,6 +384,8 @@ issueSchema.index({ projectId: 1, teamId: 1, status: 1, priority: 1 });
 issueSchema.index({ projectId: 1, dueAt: 1 });
 issueSchema.index({ projectId: 1, sprintId: 1, planningOrder: 1 });
 issueSchema.index({ projectId: 1, epicId: 1, planningOrder: 1 });
+issueSchema.index({ parentStoryId: 1, type: 1, status: 1 });
+issueSchema.index({ parentTaskId: 1, planningOrder: 1 });
 issueSchema.index({ assignee: 1, sprintId: 1, status: 1 });
 issueSchema.index({ displayBugId: 1 }, { unique: true, sparse: true });
 issueSchema.index({ projectId: 1, displayBugId: 1 });

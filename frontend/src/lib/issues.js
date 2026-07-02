@@ -1,9 +1,16 @@
 export const ISSUE_STATUS = Object.freeze({
+  DRAFT: "DRAFT",
+  READY: "READY",
   TODO: "TODO",
+  SPRINT_BACKLOG: "SPRINT_BACKLOG",
   IN_PROGRESS: "IN_PROGRESS",
   BLOCKED: "BLOCKED",
   REVIEW: "REVIEW",
+  CODE_REVIEW: "CODE_REVIEW",
   QA: "QA",
+  QA_READY: "QA_READY",
+  DEVELOPMENT_COMPLETE: "DEVELOPMENT_COMPLETE",
+  READY_FOR_UAT: "READY_FOR_UAT",
   DONE: "DONE",
   NEW: "NEW",
   TRIAGED: "TRIAGED",
@@ -261,11 +268,19 @@ export const ISSUE_CRITICAL_SEVERITY_VALUES = Object.freeze(["Critical"]);
 
 export const ISSUE_STATUS_OPTIONS = [
   { value: "all", label: "All" },
+  { value: ISSUE_STATUS.DRAFT, label: "Draft" },
+  { value: ISSUE_STATUS.READY, label: "Ready" },
   { value: ISSUE_STATUS.TODO, label: "To Do" },
+  { value: ISSUE_STATUS.SPRINT_BACKLOG, label: "Sprint Backlog" },
   { value: ISSUE_STATUS.IN_PROGRESS, label: "In Progress" },
   { value: ISSUE_STATUS.BLOCKED, label: "Blocked" },
   { value: ISSUE_STATUS.REVIEW, label: "Review" },
+  { value: ISSUE_STATUS.CODE_REVIEW, label: "Code Review" },
   { value: ISSUE_STATUS.QA, label: "QA" },
+  { value: ISSUE_STATUS.QA_READY, label: "QA Ready" },
+  { value: ISSUE_STATUS.DEVELOPMENT_COMPLETE, label: "Development Complete" },
+  { value: ISSUE_STATUS.TESTING, label: "Testing" },
+  { value: ISSUE_STATUS.READY_FOR_UAT, label: "Ready for UAT" },
   { value: ISSUE_STATUS.DONE, label: "Done" },
   ...BUG_STATUS_OPTIONS,
 ];
@@ -279,6 +294,24 @@ export const GENERIC_ISSUE_WORKFLOW_STATUS_OPTIONS = [
   { value: ISSUE_STATUS.BLOCKED, label: "Blocked" },
   { value: ISSUE_STATUS.REVIEW, label: "Review" },
   { value: ISSUE_STATUS.QA, label: "QA" },
+  { value: ISSUE_STATUS.DONE, label: "Done" },
+];
+export const STORY_WORKFLOW_STATUS_OPTIONS = [
+  { value: ISSUE_STATUS.DRAFT, label: "Draft" },
+  { value: ISSUE_STATUS.READY, label: "Ready" },
+  { value: ISSUE_STATUS.SPRINT_BACKLOG, label: "Sprint Backlog" },
+  { value: ISSUE_STATUS.IN_PROGRESS, label: "In Progress" },
+  { value: ISSUE_STATUS.DEVELOPMENT_COMPLETE, label: "Development Complete" },
+  { value: ISSUE_STATUS.TESTING, label: "Testing" },
+  { value: ISSUE_STATUS.READY_FOR_UAT, label: "Ready for UAT" },
+  { value: ISSUE_STATUS.DONE, label: "Done" },
+  { value: ISSUE_STATUS.CLOSED, label: "Closed" },
+];
+export const TASK_WORKFLOW_STATUS_OPTIONS = [
+  { value: ISSUE_STATUS.TODO, label: "To Do" },
+  { value: ISSUE_STATUS.IN_PROGRESS, label: "In Progress" },
+  { value: ISSUE_STATUS.CODE_REVIEW, label: "Code Review" },
+  { value: ISSUE_STATUS.QA_READY, label: "QA Ready" },
   { value: ISSUE_STATUS.DONE, label: "Done" },
 ];
 
@@ -545,10 +578,26 @@ export const isBugIssue = (issueOrType) =>
     ""
   ) === ISSUE_TYPES.BUG;
 
-export const getWorkflowStatusOptionsForIssue = (issueOrType) =>
-  isBugIssue(issueOrType)
-    ? BUG_STATUS_OPTIONS
-    : GENERIC_ISSUE_WORKFLOW_STATUS_OPTIONS;
+export const getWorkflowStatusOptionsForIssue = (issueOrType) => {
+  if (isBugIssue(issueOrType)) {
+    return BUG_STATUS_OPTIONS;
+  }
+
+  const type = normalizeIssueType(
+    typeof issueOrType === "object" ? issueOrType?.type : issueOrType,
+    ""
+  );
+
+  if (type === ISSUE_TYPES.STORY) {
+    return STORY_WORKFLOW_STATUS_OPTIONS;
+  }
+
+  if ([ISSUE_TYPES.TASK, ISSUE_TYPES.SUB_TASK].includes(type)) {
+    return TASK_WORKFLOW_STATUS_OPTIONS;
+  }
+
+  return GENERIC_ISSUE_WORKFLOW_STATUS_OPTIONS;
+};
 
 export const normalizeBugStatusForIssue = (issue) => {
   const lifecycleStatus = normalizeBugLifecycleStatus(issue, "");

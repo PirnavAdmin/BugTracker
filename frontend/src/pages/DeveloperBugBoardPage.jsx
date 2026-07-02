@@ -336,7 +336,7 @@ const DeveloperBugBoardPage = () => {
                 Developer Bug Board
               </CardTitle>
               <CardDescription>
-                Pick available bugs and move only bug lifecycle stages, separate from task and sprint boards.
+                Pick available queue work and move bug lifecycle stages, separate from task and sprint boards.
               </CardDescription>
             </div>
             <Button type="button" variant="outline" disabled={isMyIssuesFetching || isBucketFetching} onClick={refreshBoard}>
@@ -371,7 +371,7 @@ const DeveloperBugBoardPage = () => {
               onChange={(event) => setFilters((current) => ({ ...current, status: event.target.value }))}
             >
               <option value="all">All statuses</option>
-              <option value="available">Available Bugs</option>
+              <option value="available">Available Work</option>
               {BUG_STATUS_OPTIONS.map((option) => (
                 <option key={option.value} value={option.value}>
                   {option.label}
@@ -441,7 +441,7 @@ const DeveloperBugBoardPage = () => {
           ) : (
             <EmptyState
               title="No developer bugs yet"
-              description="Available bugs and your assigned bug work will appear here independently from tasks and sprints."
+              description="Available queue work and your assigned bug work will appear here independently from tasks and sprints."
               icon={<Bug className="h-5 w-5" />}
             />
           )}

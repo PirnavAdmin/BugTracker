@@ -445,7 +445,7 @@ const quickFilterChips = [
 const BUG_CARD_VIEWS = [
   {
     id: "bucket",
-    label: "Bug Bucket",
+    label: "Work Queue",
     description: "Unassigned bugs ready for pickup",
     icon: Layers3,
     metricKey: "bucket",
@@ -1729,7 +1729,7 @@ const AdminBugsPage = () => {
 
           <button className="flex h-8 w-full items-center gap-2 whitespace-nowrap rounded-lg px-2 text-left text-[12px] font-semibold text-slate-700 transition hover:bg-blue-50 hover:text-blue-700" type="button" onClick={() => { handleMoveToTriageBucket(bugIssue); closeActionMenu(); }}>
             <Layers3 className="h-3.5 w-3.5" />
-            Move to Bucket
+            Move to Work Queue
           </button>
           <button className="flex h-8 w-full items-center gap-2 whitespace-nowrap rounded-lg px-2 text-left text-[12px] font-semibold text-slate-700 transition hover:bg-blue-50 hover:text-blue-700" type="button" onClick={() => { setSelectedBug(bugIssue); closeActionMenu(); }}>
             <MessageSquarePlus className="h-3.5 w-3.5" />

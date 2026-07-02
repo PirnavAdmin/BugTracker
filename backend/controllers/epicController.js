@@ -9,11 +9,66 @@ const {
 } = require("../utils/backlogAccess");
 const { PLANNING_ORDER_INCREMENT } = require("../utils/planningOrder");
 const { normalizeWorkspaceId } = require("../utils/workspace");
+const { calculateStoryProgress } = require("../utils/storyWorkflow");
 
 const loadEpicWithProject = async (epicId) =>
   Epic.findById(epicId)
     .populate("projectId", "name workspaceId createdBy manager teamLead")
     .lean();
+
+const addEpicMetrics = async (epics = [], projectId) => {
+  if (!epics.length) {
+    return [];
+  }
+
+  const issues = await Issue.find({
+    projectId,
+    epicId: { $in: epics.map((epic) => epic._id) },
+    isDeleted: { $ne: true },
+  })
+    .select("_id type status epicId parentStoryId storyPoints")
+    .lean();
+  const childrenByStory = issues.reduce((map, issue) => {
+    if (!issue.parentStoryId) {
+      return map;
+    }
+
+    const key = String(issue.parentStoryId);
+    map.set(key, [...(map.get(key) || []), issue]);
+    return map;
+  }, new Map());
+
+  return epics.map((epic) => {
+    const epicIssues = issues.filter(
+      (issue) => String(issue.epicId) === String(epic._id)
+    );
+    const stories = epicIssues.filter((issue) => issue.type === "Story");
+    const progressValues = stories.map((story) =>
+      calculateStoryProgress(childrenByStory.get(String(story._id)) || []).percent
+    );
+
+    return {
+      ...epic,
+      metrics: {
+        progress: progressValues.length
+          ? Math.round(
+              progressValues.reduce((total, value) => total + value, 0) /
+                progressValues.length
+            )
+          : 0,
+        storyCount: stories.length,
+        taskCount: epicIssues.filter((issue) =>
+          ["Task", "Sub-task"].includes(issue.type)
+        ).length,
+        bugCount: epicIssues.filter((issue) => issue.type === "Bug").length,
+        storyPoints: stories.reduce(
+          (total, story) => total + Number(story.storyPoints || 0),
+          0
+        ),
+      },
+    };
+  });
+};
 
 const getEpics = asyncHandler(async (req, res) => {
   const { projectId } = req.query;
@@ -38,13 +93,24 @@ const getEpics = asyncHandler(async (req, res) => {
       planningOrder: 1,
       createdAt: 1,
     })
+    .populate("owner", "name email role")
     .lean();
 
-  res.status(200).json(epics);
+  res.status(200).json(await addEpicMetrics(epics, projectId));
 });
 
 const createEpic = asyncHandler(async (req, res) => {
-  const { projectId, name, description = "", color = "#3B82F6" } = req.body;
+  const {
+    projectId,
+    name,
+    description = "",
+    color = "#3B82F6",
+    owner = null,
+    priority = "Medium",
+    startDate = null,
+    targetDate = null,
+    status = "ACTIVE",
+  } = req.body;
 
   if (!projectId || !mongoose.isValidObjectId(projectId)) {
     res.status(400);
@@ -84,8 +150,12 @@ const createEpic = asyncHandler(async (req, res) => {
     name: String(name).trim(),
     description: typeof description === "string" ? description.trim() : "",
     color: typeof color === "string" && color.trim() ? color.trim() : "#3B82F6",
+    owner: owner || null,
+    priority,
+    startDate: startDate || null,
+    targetDate: targetDate || null,
     planningOrder: (lastEpic?.planningOrder || 0) + PLANNING_ORDER_INCREMENT,
-    status: "ACTIVE",
+    status,
     createdBy: req.user._id,
   });
 
@@ -130,7 +200,16 @@ const updateEpic = asyncHandler(async (req, res) => {
 
   const previousName = epic.name;
 
-  ["name", "description", "color", "status"].forEach((field) => {
+  [
+    "name",
+    "description",
+    "color",
+    "status",
+    "owner",
+    "priority",
+    "startDate",
+    "targetDate",
+  ].forEach((field) => {
     if (typeof req.body[field] !== "undefined") {
       epic[field] =
         typeof req.body[field] === "string" ? req.body[field].trim() : req.body[field];

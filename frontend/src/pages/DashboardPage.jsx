@@ -125,7 +125,7 @@ const TASK_STATUS_META = [
 const BUG_STATUS_CARD_META = [
   {
     key: "bucket",
-    label: "Bug Bucket",
+    label: "Work Queue",
     helper: "Unassigned pickup queue",
     icon: Layers3,
     tone: "cyan",

@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { AlertTriangle, Plus, X } from "lucide-react";
+import { AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -37,14 +37,12 @@ const ProjectComposer = ({
   const [formData, setFormData] = useState({
     name: "",
     description: "",
-    epics: [],
     manager: "",
     teamLead: "",
     status: "Active",
     priority: "Medium",
     themeColor: "#2563EB",
   });
-  const [epicInput, setEpicInput] = useState("");
   const [error, setError] = useState("");
 
   const generatedProjectKey = deriveProjectKey(formData.name);
@@ -81,45 +79,6 @@ const ProjectComposer = ({
     }));
   };
 
-  const appendEpicsFromInput = () => {
-    const nextEpics = epicInput
-      .split(",")
-      .map((value) => value.trim())
-      .filter(Boolean);
-
-    if (!nextEpics.length) {
-      return;
-    }
-
-    setFormData((current) => {
-      const existingEpics = new Map(
-        current.epics.map((epic) => [epic.toLowerCase(), epic])
-      );
-
-      nextEpics.forEach((epic) => {
-        const dedupeKey = epic.toLowerCase();
-
-        if (!existingEpics.has(dedupeKey)) {
-          existingEpics.set(dedupeKey, epic);
-        }
-      });
-
-      return {
-        ...current,
-        epics: Array.from(existingEpics.values()),
-      };
-    });
-
-    setEpicInput("");
-  };
-
-  const handleRemoveEpic = (epicToRemove) => {
-    setFormData((current) => ({
-      ...current,
-      epics: current.epics.filter((epic) => epic !== epicToRemove),
-    }));
-  };
-
   const handleSubmit = async (event) => {
     event.preventDefault();
 
@@ -133,7 +92,7 @@ const ProjectComposer = ({
       await onSubmit({
         name: formData.name.trim(),
         description: formData.description.trim(),
-        epics: formData.epics,
+        epics: [],
         manager: formData.manager || null,
         teamLead: formData.teamLead || null,
         status: formData.status,
@@ -143,14 +102,12 @@ const ProjectComposer = ({
       setFormData({
         name: "",
         description: "",
-        epics: [],
         manager: "",
         teamLead: "",
         status: "Active",
         priority: "Medium",
         themeColor: "#2563EB",
       });
-      setEpicInput("");
     } catch (submitError) {
       setError(
         submitError.response?.data?.message || "Unable to create the project."
@@ -310,67 +267,6 @@ const ProjectComposer = ({
             value={formData.themeColor}
             onChange={handleChange}
           />
-        </div>
-      </div>
-
-      <div className="space-y-3 rounded-2xl border border-slate-200 bg-white/80 p-4 shadow-sm">
-        <div className="flex items-start justify-between gap-3">
-          <div className="space-y-0.5">
-            <p className="text-sm font-medium text-slate-700">
-              Epics (Workstreams)
-            </p>
-            <p className={hintClassName}>
-              Add one or more workstreams, separated by commas if needed.
-            </p>
-          </div>
-          <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-500 shadow-sm">
-            {formData.epics.length}
-          </span>
-        </div>
-
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-          <Input
-            className={`${inputClassName} flex-1`}
-            placeholder="Enter epic and press Add"
-            value={epicInput}
-            onChange={(event) => setEpicInput(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === "Enter") {
-                event.preventDefault();
-                appendEpicsFromInput();
-              }
-            }}
-          />
-          <Button
-            type="button"
-            variant="outline"
-            className="h-11 rounded-xl px-4"
-            onClick={appendEpicsFromInput}
-            disabled={!epicInput.trim()}
-          >
-            <Plus className="h-3.5 w-3.5" />
-            Add Epic
-          </Button>
-        </div>
-
-        <div className="flex min-h-[28px] flex-wrap gap-1.5">
-          {formData.epics.length ? (
-            formData.epics.map((epic) => (
-              <button
-                key={epic}
-                type="button"
-                className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-2.5 py-1 text-xs font-medium text-slate-700 shadow-sm transition hover:border-blue-200 hover:bg-blue-50/60"
-                onClick={() => handleRemoveEpic(epic)}
-              >
-                <span>{epic}</span>
-                <X className="h-3.5 w-3.5 text-slate-400" />
-              </button>
-            ))
-          ) : (
-            <p className={hintClassName}>
-              Added epics will appear here as removable chips.
-            </p>
-          )}
         </div>
       </div>
 
