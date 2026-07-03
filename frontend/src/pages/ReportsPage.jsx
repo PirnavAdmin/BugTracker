@@ -68,7 +68,7 @@ import {
   resolveTeamId,
   resolveUserId,
 } from "@/lib/project-teams";
-import { ROLE_DEVELOPER, ROLE_TESTER } from "@/lib/roles";
+import { ROLE_ADMIN, ROLE_DEVELOPER, ROLE_MANAGER, ROLE_TESTER } from "@/lib/roles";
 import {
   ANALYTICS_FIELD_CLASS,
   ANALYTICS_PANEL_CLASS,
@@ -3458,8 +3458,17 @@ const JiraReportsDashboard = () => {
   const bugSeverityRows = buildGroupedBugRows(bugIssues, BUG_SEVERITY_GROUPS, getBugSeverityValue, { key: "Unspecified", label: "Unspecified", color: "#64748b" });
   const bugPriorityRows = buildGroupedBugRows(bugIssues, BUG_PRIORITY_GROUPS.map((group) => ({ ...group, labels: [group.source] })), getBugPriorityValue, { key: "Unspecified", label: "Unspecified", color: "#64748b" });
   const workloadRows = buildRows(taskIssues, (issue) => issue.assignee?._id, (issue) => resolveUserLabel(issue.assignee)).map((row) => ({ ...row, label: row.name }));
-  const availableTesterRows = members
-    .filter((member) => member.role === ROLE_TESTER)
+  const reportTesters = Array.from(
+    [...members.filter((member) => member.role === ROLE_TESTER), ...bugIssues.map(resolveBugTester)]
+      .filter(Boolean)
+      .reduce((rows, tester) => {
+        const testerId = resolveUserId(tester);
+        if (testerId && !rows.has(testerId)) rows.set(testerId, tester);
+        return rows;
+      }, new Map())
+      .values()
+  );
+  const availableTesterRows = reportTesters
     .map((tester) => {
       const testerId = resolveUserId(tester);
       const testerBugs = bugIssues.filter(
@@ -3863,6 +3872,10 @@ const ReportsPage = () => {
 
   if (role === ROLE_DEVELOPER) {
     return <DeveloperReportsDashboard user={user} />;
+  }
+
+  if (role === ROLE_ADMIN || role === ROLE_MANAGER) {
+    return <JiraReportsDashboard />;
   }
 
   return <JiraReportsDashboard />;
