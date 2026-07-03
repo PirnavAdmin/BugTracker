@@ -2222,7 +2222,7 @@ const getStories = asyncHandler(async (req, res) => {
     ];
   }
 
-  if ([ROLE_DEVELOPER, ROLE_TEAM_LEAD, ROLE_TESTER].includes(req.user.role)) {
+  if ([ROLE_DEVELOPER, ROLE_TESTER].includes(req.user.role)) {
     addAndCondition(query, {
       $or: [
         { assignee: req.user._id },
