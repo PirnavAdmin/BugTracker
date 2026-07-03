@@ -3506,19 +3506,19 @@ const JiraReportsDashboard = () => {
   const exportCurrentReport = () => {
     if (activePage === "qa") {
       exportCsv([
-        ["Tester", "Availability", "Total Bugs", "Tester Tasks", "Total Work", "Active Bugs", "Active Tasks", "In-Progress Tasks", "Done Tasks", "Ready For QA", "Closed Bugs"],
+        ["Tester", "Availability", "Total Work", "Bug - Total", "Bug - Active", "Bug - Ready For QA", "Bug - Closed", "Task - Total", "Task - Active", "Task - In Progress", "Task - Done"],
         ...availableTesterRows.map((tester) => [
           tester.name,
           tester.availability,
-          tester.totalBugs,
-          tester.testerTasks,
           tester.totalWork,
+          tester.totalBugs,
           tester.active,
+          tester.readyForQa,
+          tester.closed,
+          tester.testerTasks,
           tester.activeTasks,
           tester.inProgressTasks,
           tester.doneTasks,
-          tester.readyForQa,
-          tester.closed,
         ]),
       ], activePage);
       return;
@@ -3669,20 +3669,24 @@ const JiraReportsDashboard = () => {
             <JiraSection title="Available Tester Report">
               {availableTesterRows.length ? (
                 <div className="overflow-x-auto">
-                  <table className="w-full min-w-[560px] text-left text-sm">
+                  <table className="w-full min-w-[980px] text-left text-sm">
                     <thead className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-500">
                       <tr>
-                        <th className="px-3 py-2">Tester</th>
-                        <th className="px-3 py-2">Availability</th>
+                        <th className="px-3 py-2" rowSpan="2">Tester</th>
+                        <th className="px-3 py-2" rowSpan="2">Availability</th>
+                        <th className="px-3 py-2 text-right" rowSpan="2">Total Work</th>
+                        <th className="border-l border-slate-200 bg-rose-50/60 px-3 py-2 text-center text-rose-700" colSpan="4">Bug Report</th>
+                        <th className="border-l border-slate-200 bg-blue-50/60 px-3 py-2 text-center text-blue-700" colSpan="4">Task Report</th>
+                      </tr>
+                      <tr>
                         <th className="px-3 py-2 text-right">Total Bugs</th>
-                        <th className="px-3 py-2 text-right">Tester Tasks</th>
-                        <th className="px-3 py-2 text-right">Total Work</th>
                         <th className="px-3 py-2 text-right">Active Bugs</th>
+                        <th className="px-3 py-2 text-right">Ready For QA</th>
+                        <th className="px-3 py-2 text-right">Closed Bugs</th>
+                        <th className="border-l border-slate-200 px-3 py-2 text-right">Total Tasks</th>
                         <th className="px-3 py-2 text-right">Active Tasks</th>
                         <th className="px-3 py-2 text-right">In-Progress Tasks</th>
                         <th className="px-3 py-2 text-right">Done Tasks</th>
-                        <th className="px-3 py-2 text-right">Ready For QA</th>
-                        <th className="px-3 py-2 text-right">Closed</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
@@ -3694,15 +3698,15 @@ const JiraReportsDashboard = () => {
                               {tester.availability}
                             </Badge>
                           </td>
-                          <td className="px-3 py-3 text-right">{tester.totalBugs}</td>
-                          <td className="px-3 py-3 text-right">{tester.testerTasks}</td>
                           <td className="px-3 py-3 text-right font-semibold">{tester.totalWork}</td>
+                          <td className="border-l border-slate-100 px-3 py-3 text-right">{tester.totalBugs}</td>
                           <td className="px-3 py-3 text-right">{tester.active}</td>
+                          <td className="px-3 py-3 text-right">{tester.readyForQa}</td>
+                          <td className="px-3 py-3 text-right">{tester.closed}</td>
+                          <td className="border-l border-slate-100 px-3 py-3 text-right">{tester.testerTasks}</td>
                           <td className="px-3 py-3 text-right">{tester.activeTasks}</td>
                           <td className="px-3 py-3 text-right">{tester.inProgressTasks}</td>
                           <td className="px-3 py-3 text-right">{tester.doneTasks}</td>
-                          <td className="px-3 py-3 text-right">{tester.readyForQa}</td>
-                          <td className="px-3 py-3 text-right">{tester.closed}</td>
                         </tr>
                       ))}
                     </tbody>
