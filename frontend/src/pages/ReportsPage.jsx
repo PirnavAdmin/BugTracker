@@ -449,6 +449,30 @@ const exportCsv = (rows) => {
   URL.revokeObjectURL(url);
 };
 
+const exportExcelTable = (rows, fileName = "report") => {
+  if (typeof document === "undefined") return;
+
+  const escapeHtml = (value) => String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+  const header = rows[0] || [];
+  const body = rows.slice(1);
+  const html = `<!doctype html><html><head><meta charset="utf-8"><style>
+    table{border-collapse:collapse;font-family:Calibri,Arial,sans-serif;font-size:11pt}
+    th,td{border:1px solid #9fbad0;padding:6px 10px;white-space:nowrap}
+    th{background:#4f81bd;color:#fff;font-weight:700;text-align:center}
+  </style></head><body><table><thead><tr>${header.map((cell) => `<th>${escapeHtml(cell)}</th>`).join("")}</tr></thead><tbody>${body.map((row) => `<tr>${row.map((cell) => `<td>${escapeHtml(cell)}</td>`).join("")}</tr>`).join("")}</tbody></table></body></html>`;
+  const blob = new Blob([html], { type: "application/vnd.ms-excel;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `${fileName}-${new Date().toISOString().slice(0, 10)}.xls`;
+  link.click();
+  URL.revokeObjectURL(url);
+};
+
 const getStatusParts = (statusFilter) => {
   const match = STATUS_OPTIONS.find((option) => option.value === statusFilter);
 
@@ -3503,9 +3527,9 @@ const JiraReportsDashboard = () => {
       };
     })
     .sort((left, right) => left.active - right.active || left.name.localeCompare(right.name));
-  const exportCurrentReport = () => {
+  const exportCurrentReport = (format = "csv") => {
     if (activePage === "qa") {
-      exportCsv([
+      const qaExportRows = [
         ["Tester", "Availability", "Total Work", "Bug - Total", "Bug - Active", "Bug - Ready For QA", "Bug - Closed", "Task - Total", "Task - Active", "Task - In Progress", "Task - Done"],
         ...availableTesterRows.map((tester) => [
           tester.name,
@@ -3520,7 +3544,9 @@ const JiraReportsDashboard = () => {
           tester.inProgressTasks,
           tester.doneTasks,
         ]),
-      ], activePage);
+      ];
+      if (format === "excel") exportExcelTable(qaExportRows, "qa-report");
+      else exportCsv(qaExportRows);
       return;
     }
 
@@ -3822,8 +3848,8 @@ const JiraReportsDashboard = () => {
             </div>
             <div className="flex flex-wrap gap-2">
               <EnterpriseActionButton icon={FileText} onClick={() => window.print()}>PDF</EnterpriseActionButton>
-              <EnterpriseActionButton icon={Download} onClick={exportCurrentReport}>Excel</EnterpriseActionButton>
-              <EnterpriseActionButton icon={Download} onClick={exportCurrentReport}>CSV</EnterpriseActionButton>
+              <EnterpriseActionButton icon={Download} onClick={() => exportCurrentReport("excel")}>Excel</EnterpriseActionButton>
+              <EnterpriseActionButton icon={Download} onClick={() => exportCurrentReport("csv")}>CSV</EnterpriseActionButton>
               <EnterpriseActionButton icon={Share2} onClick={shareReport}>Share</EnterpriseActionButton>
               <EnterpriseActionButton icon={RefreshCcw} onClick={() => queryClient.invalidateQueries({ queryKey: ["analytics"] })}>Refresh</EnterpriseActionButton>
               <EnterpriseActionButton icon={Save} onClick={saveFilter}>Save Filter</EnterpriseActionButton>
