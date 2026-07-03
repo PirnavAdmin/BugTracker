@@ -549,6 +549,7 @@ const DashboardPage = () => {
   console.log("Dashboard Open Count", issueStats.open);
   console.log("Dashboard Closed Count", issueStats.closed);
   const trends = analytics.overview?.trends || {};
+  const projects = analytics.projects?.projects || [];
   const teams = analytics.teams?.teams || [];
   const activity = analytics.recentActivity?.activity || [];
   const highestWorkloadTeam = teams[0] || null;
@@ -871,7 +872,18 @@ const DashboardPage = () => {
     );
   }
 
-  const headerKpiCards = kpiCards.filter((c) => c.key === "closed" || c.key === "rate");
+  const headerKpiCards = [
+    {
+      key: "projects",
+      title: "Projects",
+      value: formatCompactNumber(projects.length),
+    },
+    {
+      key: "teams",
+      title: "Active Teams",
+      value: formatCompactNumber(summary.activeTeams),
+    },
+  ];
 
   return (
     <div className="space-y-6">
@@ -882,10 +894,10 @@ const DashboardPage = () => {
               <div>
                 <div className="inline-flex items-center gap-2 rounded-full border border-blue-100 bg-blue-50/50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-blue-600">
                   <Sparkles className="h-3 w-3" />
-                  Admin Overview
+                  Administration
                 </div>
                 <h1 className="mt-1 text-xl font-bold tracking-tight text-slate-950 dark:text-slate-100">
-                  Command Center
+                  Admin Control Center
                 </h1>
               </div>
 
