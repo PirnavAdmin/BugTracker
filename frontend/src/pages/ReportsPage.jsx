@@ -2857,6 +2857,32 @@ const compareCurrentPrevious = (rows = [], key = "completed") => {
   };
 };
 
+const buildDeveloperRankingRows = (developers = [], getValues) =>
+  developers
+    .map((developer) => {
+      const values = getValues(developer);
+      const total = toNumber(values.total);
+      const closed = toNumber(values.closed);
+
+      return {
+        id: developer.id,
+        name: developer.name,
+        total,
+        closed,
+        rate: percent(closed, total),
+        meta: values.meta,
+      };
+    })
+    .filter((row) => row.total > 0)
+    .sort(
+      (left, right) =>
+        right.closed - left.closed ||
+        right.rate - left.rate ||
+        right.total - left.total ||
+        left.name.localeCompare(right.name)
+    )
+    .slice(0, 10);
+
 const JiraKpi = ({ label, value, helper, onClick }) => (
   <button
     type="button"
@@ -2879,6 +2905,40 @@ const JiraPanel = ({ children, className, title, description }) => (
     ) : null}
     <div className="p-4">{children}</div>
   </section>
+);
+
+const PerformanceRankingCard = ({ description, emptyTitle, rows = [], title }) => (
+  <JiraPanel title={title} description={description}>
+    {rows.length ? (
+      <div className="space-y-2">
+        {rows.map((row, index) => (
+          <div
+            className="grid grid-cols-[36px_minmax(0,1fr)_auto] items-center gap-3 rounded-lg border border-slate-200 bg-white px-3 py-2"
+            key={row.id}
+          >
+            <span className="flex h-8 w-8 items-center justify-center rounded-md bg-blue-50 text-sm font-semibold text-blue-700">
+              {index + 1}
+            </span>
+            <span className="min-w-0">
+              <span className="block truncate text-sm font-semibold text-slate-950">{row.name}</span>
+              <span className="block truncate text-xs text-slate-500">{row.meta}</span>
+            </span>
+            <span className="text-right">
+              <span className="block text-sm font-semibold text-slate-950">{row.rate}%</span>
+              <span className="block text-xs text-slate-500">{row.closed}/{row.total}</span>
+            </span>
+          </div>
+        ))}
+      </div>
+    ) : (
+      <AnalyticsEmptyState
+        className="min-h-[180px] border-0 bg-transparent"
+        icon={Users2}
+        title={emptyTitle}
+        description="No developer work is available for the current filters."
+      />
+    )}
+  </JiraPanel>
 );
 
 const JiraSection = ({ children, defaultOpen = true, title }) => {
@@ -3413,9 +3473,21 @@ const JiraReportsDashboard = () => {
   const escapedDefects = bugIssues.filter((issue) => issue.severity === "Critical" && isClosed(issue));
   const qaAccepted = bugIssues.filter((issue) => issue.status !== ISSUE_STATUS.REJECTED && isClosed(issue)).length;
   const groupedBugs = groupBugsByLifecycle(bugIssues);
-  const closedBugPerformanceItems = groupedBugs.closed;
-  const combinedClosedWork = completedTasks.length + closedBugPerformanceItems.length;
-  const combinedWorkTotal = taskIssues.length + bugIssues.length;
+  const taskPerformanceRows = buildDeveloperRankingRows(developerPerformance, (developer) => ({
+    closed: developer.taskMetrics.completed,
+    total: developer.taskMetrics.total,
+    meta: `${developer.taskMetrics.completed} closed tasks`,
+  }));
+  const bugPerformanceRows = buildDeveloperRankingRows(developerPerformance, (developer) => ({
+    closed: developer.bugMetrics.resolved,
+    total: developer.bugMetrics.total,
+    meta: `${developer.bugMetrics.resolved} closed bugs`,
+  }));
+  const combinedPerformanceRows = buildDeveloperRankingRows(developerPerformance, (developer) => ({
+    closed: developer.taskMetrics.completed + developer.bugMetrics.resolved,
+    total: developer.taskMetrics.total + developer.bugMetrics.total,
+    meta: `${developer.taskMetrics.completed} tasks, ${developer.bugMetrics.resolved} bugs closed`,
+  }));
   const activeBugs = [
     ...groupedBugs.reported,
     ...groupedBugs.assigned,
@@ -3497,36 +3569,24 @@ const JiraReportsDashboard = () => {
       return (
         <>
           <div className="grid gap-4 xl:grid-cols-3">
-            <JiraPanel title="Task Report Performance" description="Based on closed tasks in the selected filters.">
-              <button type="button" className="w-full text-left" onClick={() => drillTo("Closed tasks", completedTasks)}>
-                <p className="text-4xl font-semibold text-slate-950">{percent(completedTasks.length, taskIssues.length)}%</p>
-                <p className="mt-1 text-sm text-slate-500">{completedTasks.length}/{taskIssues.length} tasks closed</p>
-              </button>
-              <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                <MiniStat label="Total Tasks" value={formatCompactNumber(taskIssues.length)} />
-                <MiniStat label="Closed" tone="emerald" value={formatCompactNumber(completedTasks.length)} />
-              </div>
-            </JiraPanel>
-            <JiraPanel title="Bug Report Performance" description="Based on closed bugs in the selected filters.">
-              <button type="button" className="w-full text-left" onClick={() => drillTo("Closed bugs", closedBugPerformanceItems)}>
-                <p className="text-4xl font-semibold text-slate-950">{percent(closedBugPerformanceItems.length, bugIssues.length)}%</p>
-                <p className="mt-1 text-sm text-slate-500">{closedBugPerformanceItems.length}/{bugIssues.length} bugs closed</p>
-              </button>
-              <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                <MiniStat label="Total Bugs" value={formatCompactNumber(bugIssues.length)} />
-                <MiniStat label="Closed" tone="emerald" value={formatCompactNumber(closedBugPerformanceItems.length)} />
-              </div>
-            </JiraPanel>
-            <JiraPanel title="Including Both Performance" description="Combined task and bug closure performance.">
-              <button type="button" className="w-full text-left" onClick={() => drillTo("Closed tasks and bugs", [...completedTasks, ...closedBugPerformanceItems])}>
-                <p className="text-4xl font-semibold text-slate-950">{percent(combinedClosedWork, combinedWorkTotal)}%</p>
-                <p className="mt-1 text-sm text-slate-500">{combinedClosedWork}/{combinedWorkTotal} work items closed</p>
-              </button>
-              <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                <MiniStat label="Task Done" tone="blue" value={formatCompactNumber(completedTasks.length)} />
-                <MiniStat label="Bug Closed" tone="rose" value={formatCompactNumber(closedBugPerformanceItems.length)} />
-              </div>
-            </JiraPanel>
+            <PerformanceRankingCard
+              title="Task Report Performance"
+              description="Top 10 performers ranked by closed task count."
+              rows={taskPerformanceRows}
+              emptyTitle="No task performers"
+            />
+            <PerformanceRankingCard
+              title="Bug Report Performance"
+              description="Top 10 performers ranked by closed bug count."
+              rows={bugPerformanceRows}
+              emptyTitle="No bug performers"
+            />
+            <PerformanceRankingCard
+              title="Including Both Performance"
+              description="Top 10 performers ranked by combined task and bug closures."
+              rows={combinedPerformanceRows}
+              emptyTitle="No combined performers"
+            />
           </div>
         </>
       );
