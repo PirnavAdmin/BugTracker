@@ -33,7 +33,7 @@ import {
   resolveTeamId,
   resolveUserId,
 } from "@/lib/project-teams";
-import { hasAdminPanelAccess } from "@/lib/roles";
+import { hasAdminPanelAccess, ROLE_DEVELOPER } from "@/lib/roles";
 import { formatDate, getInitials } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
 
@@ -399,7 +399,7 @@ const IssueCreateDialog = ({
   const [assignToQueue, setAssignToQueue] = useState(false);
   const [isSequenceSubmitting, setIsSequenceSubmitting] = useState(false);
   const [error, setError] = useState("");
-  const { role } = useAuth();
+  const { role, user } = useAuth();
   const canManagePlanningFields = hasAdminPanelAccess(role);
 
   const menuPortalTarget =
@@ -605,6 +605,10 @@ const IssueCreateDialog = ({
   );
   const isBugType = formData.type === "Bug";
   const isStoryType = formData.type === "Story";
+  const isDeveloperStoryTask =
+    role === ROLE_DEVELOPER &&
+    Boolean(formData.parentStoryId) &&
+    ["Task", "Sub-task"].includes(formData.type);
   const supportsDescription = isStoryType || formData.type === "Task" || isBugType;
   const qaOwnerOptions = useMemo(
     () =>
@@ -999,6 +1003,7 @@ const IssueCreateDialog = ({
           }),
     };
 
+    const forcedAssigneeId = isDeveloperStoryTask ? resolveUserId(user) : "";
     const payloads = assignEntireTeam
       ? availableAssignees.map((assignee) => ({
           ...basePayload,
@@ -1007,8 +1012,10 @@ const IssueCreateDialog = ({
       : [
           {
             ...basePayload,
-            assigneeId: assignToQueue ? null : formData.assigneeId || null,
-            assigneeIds: assignToQueue
+            assigneeId: forcedAssigneeId || (assignToQueue ? null : formData.assigneeId || null),
+            assigneeIds: forcedAssigneeId
+              ? [forcedAssigneeId]
+              : assignToQueue
               ? []
               : selectedAssigneeIds.length
                 ? selectedAssigneeIds
@@ -1114,6 +1121,7 @@ const IssueCreateDialog = ({
               </label>
             ) : null}
 
+            {!isDeveloperStoryTask ? (
             <div className="rounded-[24px] border border-slate-200/80 bg-slate-50/80 p-3 sm:p-3.5 shadow-[0_16px_40px_-32px_rgba(15,23,42,0.35)]">
               <div className="space-y-3">
                 <SectionLabel
@@ -1265,6 +1273,7 @@ const IssueCreateDialog = ({
                 </div>
               </div>
             </div>
+            ) : null}
 
             {canManagePlanningFields ? (
               <div className="rounded-[24px] border border-slate-200/80 bg-white p-3 sm:p-3.5 shadow-[0_16px_40px_-32px_rgba(15,23,42,0.28)]">

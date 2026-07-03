@@ -3130,12 +3130,18 @@ const createIssue = asyncHandler(async (req, res) => {
     parentStoryId,
     parentTaskId,
   } = req.body;
-  const requestedAssigneeIds = resolveAssigneeInputs(req.body);
+  const normalizedType = getCanonicalIssueType(type, ISSUE_TYPES.TASK);
+  const isDeveloperStoryTask =
+    req.user.role === ROLE_DEVELOPER &&
+    Boolean(parentStoryId) &&
+    [ISSUE_TYPES.TASK, ISSUE_TYPES.SUB_TASK].includes(normalizedType);
+  const requestedAssigneeIds = isDeveloperStoryTask
+    ? [req.user._id]
+    : resolveAssigneeInputs(req.body);
   const assigneeId = requestedAssigneeIds[0] || null;
   const hasEpicInput = hasOwnField(req.body, "epicId");
   const hasSprintInput = hasOwnField(req.body, "sprintId");
   const canAssignPlanningFields = hasAdminAccess(req.user?.role);
-  const normalizedType = getCanonicalIssueType(type, ISSUE_TYPES.TASK);
   const isBug = normalizedType === ISSUE_TYPES.BUG;
   const isStory = normalizedType === ISSUE_TYPES.STORY;
   const assignLater =
