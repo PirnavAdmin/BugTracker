@@ -3458,11 +3458,25 @@ const JiraReportsDashboard = () => {
   const bugSeverityRows = buildGroupedBugRows(bugIssues, BUG_SEVERITY_GROUPS, getBugSeverityValue, { key: "Unspecified", label: "Unspecified", color: "#64748b" });
   const bugPriorityRows = buildGroupedBugRows(bugIssues, BUG_PRIORITY_GROUPS.map((group) => ({ ...group, labels: [group.source] })), getBugPriorityValue, { key: "Unspecified", label: "Unspecified", color: "#64748b" });
   const workloadRows = buildRows(taskIssues, (issue) => issue.assignee?._id, (issue) => resolveUserLabel(issue.assignee)).map((row) => ({ ...row, label: row.name }));
-  const qaRows = buildRows(
-    bugIssues,
-    (issue) => resolveBugTesterId(issue),
-    (issue) => resolveBugTesterLabel(issue)
-  ).map((row) => ({ ...row, label: row.name }));
+  const availableTesterRows = members
+    .filter((member) => member.role === ROLE_TESTER)
+    .map((tester) => {
+      const testerId = resolveUserId(tester);
+      const testerBugs = bugIssues.filter(
+        (issue) => String(resolveBugTesterId(issue)) === String(testerId)
+      );
+      const active = testerBugs.filter((issue) => !isClosed(issue)).length;
+
+      return {
+        key: testerId,
+        name: resolveUserLabel(tester),
+        active,
+        readyForQa: testerBugs.filter(isReadyForQa).length,
+        closed: testerBugs.filter(isClosed).length,
+        availability: active === 0 ? "Available" : "Assigned",
+      };
+    })
+    .sort((left, right) => left.active - right.active || left.name.localeCompare(right.name));
   const releaseRows = buildRows(allIssues, getIssueReleaseId, getIssueReleaseName).map((row) => ({ ...row, label: row.name }));
   const topDeveloper = developerPerformance[0] || null;
   const completedTasks = taskIssues.filter(isClosed);
@@ -3603,8 +3617,39 @@ const JiraReportsDashboard = () => {
             <JiraKpi label="Reopened" value={formatCompactNumber(reopenedBugs.length)} helper="Quality follow-up" onClick={() => drillTo("Reopened bugs", reopenedBugs)} />
           </div>
           <div className="grid gap-4 xl:grid-cols-2">
-            <JiraSection title="QA Workload">
-              <JiraBarChart data={qaRows} onDrill={(row) => drillTo(row.label, bugIssues.filter((issue) => String(resolveBugTesterId(issue) || "unassigned") === String(row.key)))} />
+            <JiraSection title="Available Tester Report">
+              {availableTesterRows.length ? (
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[560px] text-left text-sm">
+                    <thead className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-500">
+                      <tr>
+                        <th className="px-3 py-2">Tester</th>
+                        <th className="px-3 py-2">Availability</th>
+                        <th className="px-3 py-2 text-right">Active Bugs</th>
+                        <th className="px-3 py-2 text-right">Ready For QA</th>
+                        <th className="px-3 py-2 text-right">Closed</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {availableTesterRows.map((tester) => (
+                        <tr className="hover:bg-slate-50" key={tester.key}>
+                          <td className="px-3 py-3 font-medium text-slate-900">{tester.name}</td>
+                          <td className="px-3 py-3">
+                            <Badge variant={tester.availability === "Available" ? "success" : "secondary"}>
+                              {tester.availability}
+                            </Badge>
+                          </td>
+                          <td className="px-3 py-3 text-right">{tester.active}</td>
+                          <td className="px-3 py-3 text-right">{tester.readyForQa}</td>
+                          <td className="px-3 py-3 text-right">{tester.closed}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <AnalyticsEmptyState icon={Users2} title="No testers available" description="No tester members are assigned to the selected project scope." />
+              )}
             </JiraSection>
             <JiraSection title="QA Resolution Trend">
               <JiraLineChart data={bugTrendRows} lines={[{ key: "completed", color: "#2563eb" }, { key: "reopened", color: "#dc2626" }]} />
