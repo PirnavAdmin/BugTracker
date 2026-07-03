@@ -1207,7 +1207,7 @@ const DashboardPage = () => {
           }
         >
           {bugProjectRows.length ? (
-            <div className="dashboard-scrollbar dashboard-scroll-fade max-h-[500px] space-y-3 overflow-y-auto pr-2">
+            <div className="dashboard-scrollbar h-[500px] space-y-3 overflow-y-scroll overscroll-contain pr-2 [scrollbar-gutter:stable]">
               {bugProjectRows.map((project) => (
                 <ProjectBugCard
                   key={project.projectId || project.name}
@@ -1248,7 +1248,7 @@ const DashboardPage = () => {
           }
         >
           {teamTaskRows.length ? (
-            <div className="space-y-3">
+            <div className="dashboard-scrollbar h-[500px] space-y-3 overflow-y-scroll overscroll-contain pr-2 [scrollbar-gutter:stable]">
               {teamTaskRows.map((row) => {
                 const width = maxTeamTaskOpen
                   ? Math.max(Math.round((row.open / maxTeamTaskOpen) * 100), row.open ? 8 : 0)
