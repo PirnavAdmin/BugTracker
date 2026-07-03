@@ -50,12 +50,17 @@ import useAnalytics, { useDeveloperDashboard } from "@/hooks/use-analytics";
 import { useAuth } from "@/hooks/use-auth";
 import { fetchEpics, fetchProjects, fetchSprints } from "@/lib/api";
 import {
+  BUG_STATUS_OPTIONS,
   BUG_SEVERITY_OPTIONS,
   ISSUE_STATUS,
+  TASK_WORKFLOW_STATUS_OPTIONS,
   ISSUE_TYPES,
   getIssuePriorityVariant,
+  getIssueDisplayKey,
   getIssueStatusLabel,
   getIssueStatusVariant,
+  groupBugsByLifecycle,
+  resolveBugDetails,
 } from "@/lib/issues";
 import {
   getProjectMembers,
@@ -175,6 +180,21 @@ const getBugSeverityValue = (issue) => issue?.severity || issue?.bugDetails?.sev
 const getBugPriorityValue = (issue) => issue?.priority || issue?.bugDetails?.priority || "";
 const resolveUserLabel = (user, fallback = "Unassigned") =>
   user?.name || user?.email || fallback;
+const resolveBugTester = (issue) =>
+  resolveBugDetails(issue)?.testerOwner || issue?.testerOwner || issue?.reporter || null;
+const resolveBugTesterId = (issue) => resolveUserId(resolveBugTester(issue));
+const resolveBugTesterLabel = (issue, fallback = "Unassigned") =>
+  resolveUserLabel(resolveBugTester(issue), issue?.testerOwnerName || issue?.reporterName || fallback);
+const resolveReportOwner = (issue, fallback = "Unassigned") => {
+  if (issue?.type === ISSUE_TYPES.BUG) {
+    return resolveUserLabel(
+      resolveBugDetails(issue)?.developerLead || issue?.developerLead || issue?.assignee,
+      fallback
+    );
+  }
+
+  return resolveUserLabel(issue?.assignee, fallback);
+};
 const isClosed = (issue) => CLOSED_STATUSES.has(issue?.status);
 const isActive = (issue) => ACTIVE_STATUSES.has(issue?.status);
 const isCriticalBug = (issue) =>
@@ -3163,6 +3183,7 @@ const JiraDrilldown = ({ rows = [], title, onClear }) => (
             <th className="px-3 py-2">Title</th>
             <th className="px-3 py-2">Project</th>
             <th className="px-3 py-2">Owner</th>
+            <th className="px-3 py-2">Tester</th>
             <th className="px-3 py-2">Status</th>
             <th className="px-3 py-2">Priority</th>
             <th className="px-3 py-2">Updated</th>
@@ -3171,10 +3192,11 @@ const JiraDrilldown = ({ rows = [], title, onClear }) => (
         <tbody className="divide-y divide-slate-100">
           {rows.slice(0, 100).map((issue) => (
             <tr className="hover:bg-blue-50/40" key={issue._id}>
-              <td className="px-3 py-2 font-mono text-xs font-semibold">{issue.issueId}</td>
+              <td className="px-3 py-2 font-mono text-xs font-semibold">{getIssueDisplayKey(issue)}</td>
               <td className="max-w-[320px] truncate px-3 py-2 font-medium text-slate-950">{issue.title}</td>
               <td className="px-3 py-2">{issue.project?.name || "Unknown"}</td>
-              <td className="px-3 py-2">{resolveUserLabel(issue.developerLead || issue.assignee || issue.reporter)}</td>
+              <td className="px-3 py-2">{resolveReportOwner(issue)}</td>
+              <td className="px-3 py-2">{issue.type === ISSUE_TYPES.BUG ? resolveBugTesterLabel(issue) : "-"}</td>
               <td className="px-3 py-2"><Badge variant={getIssueStatusVariant(issue.status)}>{getIssueStatusLabel(issue.status)}</Badge></td>
               <td className="px-3 py-2">{issue.priority || "None"}</td>
               <td className="px-3 py-2">{formatDateTime(issue.updatedAt || issue.createdAt)}</td>
@@ -3257,7 +3279,7 @@ const JiraReportsDashboard = () => {
     sprintId: filters.sprintId,
     ...statusParts,
   };
-  const taskAnalytics = useAnalytics({ ...analyticsFilters, excludeType: ISSUE_TYPES.BUG }, { includeIssues: true });
+  const taskAnalytics = useAnalytics({ ...analyticsFilters, type: ISSUE_TYPES.TASK }, { includeIssues: true });
   const bugAnalytics = useAnalytics({ ...analyticsFilters, type: ISSUE_TYPES.BUG }, { includeIssues: true });
   const rawTaskIssues = asArray(taskAnalytics.issues?.issues);
   const rawBugIssues = asArray(bugAnalytics.issues?.issues);
@@ -3323,15 +3345,22 @@ const JiraReportsDashboard = () => {
     });
   };
   const drillTo = (title, rows) => setDrilldown({ title, rows });
+  const statusFilterOptions =
+    activePage === "tasks"
+      ? [{ value: "all", label: "All statuses" }, ...TASK_WORKFLOW_STATUS_OPTIONS]
+      : activePage === "bugs" || activePage === "qa"
+        ? [{ value: "all", label: "All statuses" }, ...BUG_STATUS_OPTIONS]
+        : STATUS_OPTIONS;
   const exportRows = (rows, name = activePage) =>
     exportCsv([
-      ["Type", "Key", "Title", "Project", "Owner", "Status", "Priority", "Created", "Closed"],
+      ["Type", "Key", "Title", "Project", "Owner", "Tester", "Status", "Priority", "Created", "Closed"],
       ...rows.map((issue) => [
         issue.type === ISSUE_TYPES.BUG ? "Bug" : "Task",
-        issue.issueId,
+        getIssueDisplayKey(issue),
         issue.title,
         issue.project?.name || "",
-        resolveUserLabel(issue.developerLead || issue.assignee || issue.reporter, ""),
+        resolveReportOwner(issue, ""),
+        issue.type === ISSUE_TYPES.BUG ? resolveBugTesterLabel(issue, "") : "",
         issue.status,
         issue.priority || "",
         issue.createdAt || "",
@@ -3364,25 +3393,37 @@ const JiraReportsDashboard = () => {
   const bugSeverityRows = buildGroupedBugRows(bugIssues, BUG_SEVERITY_GROUPS, getBugSeverityValue, { key: "Unspecified", label: "Unspecified", color: "#64748b" });
   const bugPriorityRows = buildGroupedBugRows(bugIssues, BUG_PRIORITY_GROUPS.map((group) => ({ ...group, labels: [group.source] })), getBugPriorityValue, { key: "Unspecified", label: "Unspecified", color: "#64748b" });
   const workloadRows = buildRows(taskIssues, (issue) => issue.assignee?._id, (issue) => resolveUserLabel(issue.assignee)).map((row) => ({ ...row, label: row.name }));
-  const qaRows = buildRows(bugIssues, (issue) => issue.reporter?._id || issue.testerOwner?._id, (issue) => resolveUserLabel(issue.reporter || issue.testerOwner)).map((row) => ({ ...row, label: row.name }));
+  const qaRows = buildRows(
+    bugIssues,
+    (issue) => resolveBugTesterId(issue),
+    (issue) => resolveBugTesterLabel(issue)
+  ).map((row) => ({ ...row, label: row.name }));
   const releaseRows = buildRows(allIssues, getIssueReleaseId, getIssueReleaseName).map((row) => ({ ...row, label: row.name }));
   const topDeveloper = developerPerformance[0] || null;
   const topDeveloperInsights = buildPerformanceInsights(topDeveloper);
   const completedTasks = taskIssues.filter(isClosed);
+  const inProgressTasks = taskIssues.filter(isActive);
   const closedBugs = bugIssues.filter(isClosed);
   const reopenedBugs = bugIssues.filter((issue) => Number(issue.reopenedCount || 0) > 0 || isReopened(issue));
   const regressionBugs = bugIssues.filter((issue) => /regression/i.test(`${issue.title || ""} ${issue.labels?.join(" ") || ""}`));
   const escapedDefects = bugIssues.filter((issue) => issue.severity === "Critical" && isClosed(issue));
   const qaAccepted = bugIssues.filter((issue) => issue.status !== ISSUE_STATUS.REJECTED && isClosed(issue)).length;
+  const groupedBugs = groupBugsByLifecycle(bugIssues);
+  const activeBugs = [
+    ...groupedBugs.reported,
+    ...groupedBugs.assigned,
+    ...groupedBugs.inProgress,
+    ...groupedBugs.readyForQa,
+    ...groupedBugs.reopened,
+  ];
   const renderPage = () => {
     if (activePage === "tasks") {
       return (
         <>
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-            <JiraKpi label="Completion Rate" value={`${Math.round(taskMetrics.completionRate)}%`} helper={`${taskMetrics.completed}/${taskMetrics.total} tasks`} onClick={() => drillTo("Completed tasks", completedTasks)} />
-            <JiraKpi label="Velocity" value={formatCompactNumber(taskMetrics.velocity)} helper="Delivered story points" onClick={() => drillTo("Delivered tasks", completedTasks)} />
-            <JiraKpi label="Lead Time" value={formatDuration(taskMetrics.leadTimeMs)} helper="Created to closed" onClick={() => drillTo("Lead time tasks", completedTasks)} />
-            <JiraKpi label="WIP" value={taskMetrics.open} helper="Open task work" onClick={() => drillTo("Work in progress", taskIssues.filter((issue) => !isClosed(issue)))} />
+          <div className="grid gap-3 md:grid-cols-3">
+            <JiraKpi label="Total Tasks" value={formatCompactNumber(taskIssues.length)} helper="Task records only" onClick={() => drillTo("All tasks", taskIssues)} />
+            <JiraKpi label="In Progress" value={formatCompactNumber(inProgressTasks.length)} helper="Active task work" onClick={() => drillTo("In progress tasks", inProgressTasks)} />
+            <JiraKpi label="Done" value={formatCompactNumber(completedTasks.length)} helper="Completed tasks" onClick={() => drillTo("Done tasks", completedTasks)} />
           </div>
           <div className="grid gap-4 xl:grid-cols-2">
             <JiraSection title="Burndown / Burnup">
@@ -3413,10 +3454,10 @@ const JiraReportsDashboard = () => {
       return (
         <>
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-            <JiraKpi label="Bug Fix Rate" value={`${Math.round(bugMetrics.fixRate)}%`} helper={`${bugMetrics.resolved}/${bugMetrics.total} bugs`} onClick={() => drillTo("Resolved bugs", closedBugs)} />
-            <JiraKpi label="Bug Leakage" value={`${Math.round(bugMetrics.bugLeakage)}%`} helper={`${reopenedBugs.length} reopened`} onClick={() => drillTo("Reopened bugs", reopenedBugs)} />
-            <JiraKpi label="Defect Density" value={bugMetrics.defectDensity.toFixed(1)} helper="Bugs per delivered points" onClick={() => drillTo("All bugs", bugIssues)} />
-            <JiraKpi label="MTTR" value={formatDuration(bugMetrics.mttrMs)} helper="Mean time to resolve" onClick={() => drillTo("Resolved bugs", closedBugs)} />
+            <JiraKpi label="Reported" value={formatCompactNumber(groupedBugs.reported.length)} helper="Waiting for pickup" onClick={() => drillTo("Reported bugs", groupedBugs.reported)} />
+            <JiraKpi label="Active" value={formatCompactNumber(activeBugs.length)} helper="Open bug workflow" onClick={() => drillTo("Active bugs", activeBugs)} />
+            <JiraKpi label="Ready For QA" value={formatCompactNumber(groupedBugs.readyForQa.length)} helper="Awaiting tester verification" onClick={() => drillTo("Ready For QA", groupedBugs.readyForQa)} />
+            <JiraKpi label="Closed" value={formatCompactNumber(groupedBugs.closed.length)} helper="Verified and closed" onClick={() => drillTo("Closed bugs", groupedBugs.closed)} />
           </div>
           <div className="grid gap-4 xl:grid-cols-2">
             <JiraSection title="Resolution Trends">
@@ -3502,7 +3543,7 @@ const JiraReportsDashboard = () => {
           </div>
           <div className="grid gap-4 xl:grid-cols-2">
             <JiraSection title="QA Workload">
-              <JiraBarChart data={qaRows} onDrill={(row) => drillTo(row.label, bugIssues.filter((issue) => String(issue.reporter?._id || issue.testerOwner?._id || "unassigned") === String(row.key)))} />
+              <JiraBarChart data={qaRows} onDrill={(row) => drillTo(row.label, bugIssues.filter((issue) => String(resolveBugTesterId(issue) || "unassigned") === String(row.key)))} />
             </JiraSection>
             <JiraSection title="QA Resolution Trend">
               <JiraLineChart data={bugTrendRows} lines={[{ key: "completed", color: "#2563eb" }, { key: "reopened", color: "#dc2626" }]} />
@@ -3670,7 +3711,7 @@ const JiraReportsDashboard = () => {
               {BUG_SEVERITY_OPTIONS.map((severity) => <option key={severity} value={severity}>{severity}</option>)}
             </select>
             <select className={ANALYTICS_SELECT_CLASS} value={filters.status} onChange={(event) => updateFilter("status", event.target.value)}>
-              {STATUS_OPTIONS.map((status) => <option key={status.value} value={status.value}>{status.label}</option>)}
+              {statusFilterOptions.map((status) => <option key={status.value} value={status.value}>{status.label}</option>)}
             </select>
             <select className={ANALYTICS_SELECT_CLASS} value={filters.releaseId} onChange={(event) => updateFilter("releaseId", event.target.value)}>
               <option value="all">All releases</option>
