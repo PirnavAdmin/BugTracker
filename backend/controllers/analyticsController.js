@@ -25,7 +25,7 @@ const {
   getProjectIdsForUserThroughTeams,
   mergeProjectTeamIds,
 } = require("../utils/projectRelations");
-const { ROLE_ADMIN, ROLE_DEVELOPER, ROLE_MANAGER, ROLE_TESTER } = require("../utils/roles");
+const { ROLE_ADMIN, ROLE_DEVELOPER, ROLE_MANAGER, ROLE_TEAM_LEAD, ROLE_TESTER } = require("../utils/roles");
 const { applyActiveSprintVisibilityToIssueQuery } = require("../utils/sprintVisibility");
 const { normalizeWorkspaceId } = require("../utils/workspace");
 
@@ -252,7 +252,7 @@ const addPersonalAccess = (match, user) => {
         { reporter: userObjectId },
       ],
     };
-  } else if (user.role === ROLE_DEVELOPER) {
+  } else if ([ROLE_DEVELOPER, ROLE_TEAM_LEAD].includes(user.role)) {
     personalAccessQuery = {
       $or: [
         { assignee: userObjectId },
@@ -583,7 +583,7 @@ const buildAnalyticsMatch = async (req, res) => {
     addPersonalAccess(match, req.user);
   }
 
-  if (req.user.role === ROLE_DEVELOPER) {
+  if ([ROLE_DEVELOPER, ROLE_TEAM_LEAD].includes(req.user.role)) {
     await applyActiveSprintVisibilityToIssueQuery(match, Sprint);
   }
 

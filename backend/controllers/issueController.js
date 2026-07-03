@@ -74,6 +74,7 @@ const {
 const {
   ROLE_ADMIN,
   ROLE_MANAGER,
+  ROLE_TEAM_LEAD,
   ROLE_DEVELOPER,
   ROLE_TESTER,
   hasAdminAccess,
@@ -104,7 +105,7 @@ const isGenericIssueStatus = (status) =>
 const isBugLifecycleStatus = (status) =>
   BUG_STATUS_VALUES.includes(normalizeIssueStatus(status));
 const isQaRole = (role) => role === ROLE_TESTER;
-const isDevRole = (role) => role === ROLE_DEVELOPER;
+const isDevRole = (role) => [ROLE_DEVELOPER, ROLE_TEAM_LEAD].includes(role);
 const isLeadRole = (role) => [ROLE_ADMIN, ROLE_MANAGER].includes(role);
 const ISSUE_PRIORITY_VALUES = ["Critical", "High", "Medium", "Low"];
 const escapeRegExp = (value = "") =>
@@ -2221,7 +2222,7 @@ const getStories = asyncHandler(async (req, res) => {
     ];
   }
 
-  if ([ROLE_DEVELOPER, ROLE_TESTER].includes(req.user.role)) {
+  if ([ROLE_DEVELOPER, ROLE_TEAM_LEAD, ROLE_TESTER].includes(req.user.role)) {
     addAndCondition(query, {
       $or: [
         { assignee: req.user._id },
@@ -3200,6 +3201,14 @@ const createIssue = asyncHandler(async (req, res) => {
     throw new Error("Testers can only report bugs or add Story tasks");
   }
 
+  if (
+    req.user.role === ROLE_TEAM_LEAD &&
+    ![ISSUE_TYPES.STORY, ISSUE_TYPES.TASK, ISSUE_TYPES.SUB_TASK].includes(normalizedType)
+  ) {
+    res.status(403);
+    throw new Error("Team Leads can create Stories, Tasks, and Sub-tasks");
+  }
+
   if (!canAssignPlanningFields && ((hasEpicInput && epicId) || (hasSprintInput && sprintId))) {
     res.status(403);
     throw new Error("Only admins and managers can assign epic or sprint during creation");
@@ -3235,9 +3244,13 @@ const createIssue = asyncHandler(async (req, res) => {
 
   const parentStory = parentStoryResult.story;
 
-  if (req.user.role === ROLE_DEVELOPER && !parentStory) {
+  if (
+    isDevRole(req.user.role) &&
+    [ISSUE_TYPES.TASK, ISSUE_TYPES.SUB_TASK].includes(normalizedType) &&
+    !parentStory
+  ) {
     res.status(400);
-    throw new Error("Developers must create Tasks from inside a Story");
+    throw new Error("Developers and Team Leads must create Tasks from inside a Story");
   }
 
   if (
@@ -3250,7 +3263,8 @@ const createIssue = asyncHandler(async (req, res) => {
   }
 
   if (
-    req.user.role === ROLE_DEVELOPER &&
+    isDevRole(req.user.role) &&
+    [ISSUE_TYPES.TASK, ISSUE_TYPES.SUB_TASK].includes(normalizedType) &&
     parentStory &&
     String(parentStory?.assignee || "") !== String(req.user._id) &&
     !(parentStory.assignees || []).some(
@@ -3258,7 +3272,7 @@ const createIssue = asyncHandler(async (req, res) => {
     )
   ) {
     res.status(403);
-    throw new Error("Developers can only add Tasks to Stories they collaborate on");
+    throw new Error("Developers and Team Leads can only add Tasks to Stories they collaborate on");
   }
 
   if (

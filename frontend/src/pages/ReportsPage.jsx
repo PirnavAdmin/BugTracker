@@ -68,7 +68,7 @@ import {
   resolveTeamId,
   resolveUserId,
 } from "@/lib/project-teams";
-import { ROLE_ADMIN, ROLE_DEVELOPER, ROLE_MANAGER, ROLE_TESTER } from "@/lib/roles";
+import { ROLE_ADMIN, ROLE_DEVELOPER, ROLE_MANAGER, ROLE_TEAM_LEAD, ROLE_TESTER } from "@/lib/roles";
 import {
   ANALYTICS_FIELD_CLASS,
   ANALYTICS_PANEL_CLASS,
@@ -3486,6 +3486,23 @@ const JiraReportsDashboard = () => {
       };
     })
     .sort((left, right) => left.active - right.active || left.name.localeCompare(right.name));
+  const exportCurrentReport = () => {
+    if (activePage === "qa") {
+      exportCsv([
+        ["Tester", "Availability", "Active Bugs", "Ready For QA", "Closed Bugs"],
+        ...availableTesterRows.map((tester) => [
+          tester.name,
+          tester.availability,
+          tester.active,
+          tester.readyForQa,
+          tester.closed,
+        ]),
+      ], activePage);
+      return;
+    }
+
+    exportRows(reportExportIssues, activePage);
+  };
   const releaseRows = buildRows(allIssues, getIssueReleaseId, getIssueReleaseName).map((row) => ({ ...row, label: row.name }));
   const topDeveloper = developerPerformance[0] || null;
   const completedTasks = taskIssues.filter(isClosed);
@@ -3766,8 +3783,8 @@ const JiraReportsDashboard = () => {
             </div>
             <div className="flex flex-wrap gap-2">
               <EnterpriseActionButton icon={FileText} onClick={() => window.print()}>PDF</EnterpriseActionButton>
-              <EnterpriseActionButton icon={Download} onClick={() => exportRows(reportExportIssues, activePage)}>Excel</EnterpriseActionButton>
-              <EnterpriseActionButton icon={Download} onClick={() => exportRows(reportExportIssues, activePage)}>CSV</EnterpriseActionButton>
+              <EnterpriseActionButton icon={Download} onClick={exportCurrentReport}>Excel</EnterpriseActionButton>
+              <EnterpriseActionButton icon={Download} onClick={exportCurrentReport}>CSV</EnterpriseActionButton>
               <EnterpriseActionButton icon={Share2} onClick={shareReport}>Share</EnterpriseActionButton>
               <EnterpriseActionButton icon={RefreshCcw} onClick={() => queryClient.invalidateQueries({ queryKey: ["analytics"] })}>Refresh</EnterpriseActionButton>
               <EnterpriseActionButton icon={Save} onClick={saveFilter}>Save Filter</EnterpriseActionButton>
@@ -3870,7 +3887,7 @@ const ReportsPage = () => {
     return <TesterReportsDashboard user={user} />;
   }
 
-  if (role === ROLE_DEVELOPER) {
+  if (role === ROLE_DEVELOPER || role === ROLE_TEAM_LEAD) {
     return <DeveloperReportsDashboard user={user} />;
   }
 
