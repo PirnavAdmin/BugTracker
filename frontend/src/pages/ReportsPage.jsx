@@ -3453,10 +3453,12 @@ const JiraReportsDashboard = () => {
     if (activePage === "bugs") {
       return (
         <>
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
+            <JiraKpi label="Total Bugs" value={formatCompactNumber(bugIssues.length)} helper="All filtered bugs" onClick={() => drillTo("All bugs", bugIssues)} />
             <JiraKpi label="Reported" value={formatCompactNumber(groupedBugs.reported.length)} helper="Waiting for pickup" onClick={() => drillTo("Reported bugs", groupedBugs.reported)} />
             <JiraKpi label="Active" value={formatCompactNumber(activeBugs.length)} helper="Open bug workflow" onClick={() => drillTo("Active bugs", activeBugs)} />
             <JiraKpi label="Ready For QA" value={formatCompactNumber(groupedBugs.readyForQa.length)} helper="Awaiting tester verification" onClick={() => drillTo("Ready For QA", groupedBugs.readyForQa)} />
+            <JiraKpi label="Reopened" value={formatCompactNumber(reopenedBugs.length)} helper="Returned for follow-up" onClick={() => drillTo("Reopened bugs", reopenedBugs)} />
             <JiraKpi label="Closed" value={formatCompactNumber(groupedBugs.closed.length)} helper="Verified and closed" onClick={() => drillTo("Closed bugs", groupedBugs.closed)} />
           </div>
           <div className="grid gap-4 xl:grid-cols-2">
@@ -3535,11 +3537,12 @@ const JiraReportsDashboard = () => {
     if (activePage === "qa") {
       return (
         <>
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+            <JiraKpi label="Total Bugs" value={formatCompactNumber(bugIssues.length)} helper="All filtered bugs" onClick={() => drillTo("All bugs", bugIssues)} />
             <JiraKpi label="QA Acceptance" value={`${percent(qaAccepted, closedBugs.length)}%`} helper={`${qaAccepted} accepted fixes`} onClick={() => drillTo("QA accepted bugs", closedBugs.filter((issue) => issue.status !== ISSUE_STATUS.REJECTED))} />
             <JiraKpi label="Ready For QA" value={bugIssues.filter(isReadyForQa).length} helper="Awaiting verification" onClick={() => drillTo("Ready for QA", bugIssues.filter(isReadyForQa))} />
             <JiraKpi label="Rejected Fixes" value={bugIssues.filter((issue) => issue.status === ISSUE_STATUS.REJECTED).length} helper="Returned by QA" />
-            <JiraKpi label="Reopened Bugs" value={reopenedBugs.length} helper="Quality follow-up" onClick={() => drillTo("Reopened bugs", reopenedBugs)} />
+            <JiraKpi label="Reopened" value={formatCompactNumber(reopenedBugs.length)} helper="Quality follow-up" onClick={() => drillTo("Reopened bugs", reopenedBugs)} />
           </div>
           <div className="grid gap-4 xl:grid-cols-2">
             <JiraSection title="QA Workload">
