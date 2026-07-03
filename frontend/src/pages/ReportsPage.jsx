@@ -3481,12 +3481,21 @@ const JiraReportsDashboard = () => {
         return assigneeIds.includes(String(testerId));
       });
       const active = testerBugs.filter((issue) => !isClosed(issue)).length;
+      const activeTasks = testerTasks.filter((issue) => !isClosed(issue)).length;
+      const inProgressTasks = testerTasks.filter(
+        (issue) => issue.status === ISSUE_STATUS.IN_PROGRESS
+      ).length;
+      const doneTasks = testerTasks.filter(isClosed).length;
 
       return {
         key: testerId,
         name: resolveUserLabel(tester),
         totalBugs: testerBugs.length,
         testerTasks: testerTasks.length,
+        totalWork: testerBugs.length + testerTasks.length,
+        activeTasks,
+        inProgressTasks,
+        doneTasks,
         active,
         readyForQa: testerBugs.filter(isReadyForQa).length,
         closed: testerBugs.filter(isClosed).length,
@@ -3497,13 +3506,17 @@ const JiraReportsDashboard = () => {
   const exportCurrentReport = () => {
     if (activePage === "qa") {
       exportCsv([
-        ["Tester", "Availability", "Total Bugs", "Tester Tasks", "Active Bugs", "Ready For QA", "Closed Bugs"],
+        ["Tester", "Availability", "Total Bugs", "Tester Tasks", "Total Work", "Active Bugs", "Active Tasks", "In-Progress Tasks", "Done Tasks", "Ready For QA", "Closed Bugs"],
         ...availableTesterRows.map((tester) => [
           tester.name,
           tester.availability,
           tester.totalBugs,
           tester.testerTasks,
+          tester.totalWork,
           tester.active,
+          tester.activeTasks,
+          tester.inProgressTasks,
+          tester.doneTasks,
           tester.readyForQa,
           tester.closed,
         ]),
@@ -3663,7 +3676,11 @@ const JiraReportsDashboard = () => {
                         <th className="px-3 py-2">Availability</th>
                         <th className="px-3 py-2 text-right">Total Bugs</th>
                         <th className="px-3 py-2 text-right">Tester Tasks</th>
+                        <th className="px-3 py-2 text-right">Total Work</th>
                         <th className="px-3 py-2 text-right">Active Bugs</th>
+                        <th className="px-3 py-2 text-right">Active Tasks</th>
+                        <th className="px-3 py-2 text-right">In-Progress Tasks</th>
+                        <th className="px-3 py-2 text-right">Done Tasks</th>
                         <th className="px-3 py-2 text-right">Ready For QA</th>
                         <th className="px-3 py-2 text-right">Closed</th>
                       </tr>
@@ -3679,7 +3696,11 @@ const JiraReportsDashboard = () => {
                           </td>
                           <td className="px-3 py-3 text-right">{tester.totalBugs}</td>
                           <td className="px-3 py-3 text-right">{tester.testerTasks}</td>
+                          <td className="px-3 py-3 text-right font-semibold">{tester.totalWork}</td>
                           <td className="px-3 py-3 text-right">{tester.active}</td>
+                          <td className="px-3 py-3 text-right">{tester.activeTasks}</td>
+                          <td className="px-3 py-3 text-right">{tester.inProgressTasks}</td>
+                          <td className="px-3 py-3 text-right">{tester.doneTasks}</td>
                           <td className="px-3 py-3 text-right">{tester.readyForQa}</td>
                           <td className="px-3 py-3 text-right">{tester.closed}</td>
                         </tr>
