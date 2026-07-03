@@ -3265,6 +3265,11 @@ const JiraReportsDashboard = () => {
   const taskIssues = rawTaskIssues.filter(releaseMatches);
   const bugIssues = rawBugIssues.filter(releaseMatches);
   const allIssues = [...taskIssues, ...bugIssues];
+  const reportExportIssues = activePage === "tasks"
+    ? taskIssues
+    : activePage === "bugs"
+      ? bugIssues
+      : allIssues;
   const taskMetrics = useMemo(() => calculateTaskMetrics(taskIssues), [taskIssues]);
   const bugMetrics = useMemo(() => calculateBugMetrics(bugIssues, taskMetrics.deliveredPoints), [bugIssues, taskMetrics.deliveredPoints]);
   const developerPerformance = useMemo(() => calculateDeveloperPerformance(taskIssues, bugIssues), [bugIssues, taskIssues]);
@@ -3610,8 +3615,8 @@ const JiraReportsDashboard = () => {
             </div>
             <div className="flex flex-wrap gap-2">
               <EnterpriseActionButton icon={FileText} onClick={() => window.print()}>PDF</EnterpriseActionButton>
-              <EnterpriseActionButton icon={Download} onClick={() => exportRows(allIssues, activePage)}>Excel</EnterpriseActionButton>
-              <EnterpriseActionButton icon={Download} onClick={() => exportRows(allIssues, activePage)}>CSV</EnterpriseActionButton>
+              <EnterpriseActionButton icon={Download} onClick={() => exportRows(reportExportIssues, activePage)}>Excel</EnterpriseActionButton>
+              <EnterpriseActionButton icon={Download} onClick={() => exportRows(reportExportIssues, activePage)}>CSV</EnterpriseActionButton>
               <EnterpriseActionButton icon={Share2} onClick={shareReport}>Share</EnterpriseActionButton>
               <EnterpriseActionButton icon={RefreshCcw} onClick={() => queryClient.invalidateQueries({ queryKey: ["analytics"] })}>Refresh</EnterpriseActionButton>
               <EnterpriseActionButton icon={Save} onClick={saveFilter}>Save Filter</EnterpriseActionButton>
