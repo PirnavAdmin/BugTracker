@@ -17,9 +17,7 @@ import {
   PauseCircle,
   RefreshCcw,
   Search,
-  Star,
   TimerReset,
-  Trophy,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import {
@@ -501,49 +499,6 @@ const StatCard = ({ label, value, helper, Icon, className }) => (
     </CardContent>
   </Card>
 );
-
-const clampScore = (value) => Math.min(100, Math.max(0, Math.round(Number(value) || 0)));
-const ratingLabel = (score) =>
-  score >= 85 ? "Excellent" : score >= 70 ? "Good" : score >= 55 ? "Average" : "Needs Improvement";
-
-const RoleRatingCard = ({ metrics, title = "My Performance Rating" }) => {
-  const stars = Math.max(1, Math.min(5, Math.round(metrics.score / 20)));
-
-  return (
-    <div className="flex min-h-11 min-w-[250px] flex-1 items-center gap-3 rounded-2xl border border-slate-200 bg-white/90 px-3 py-2 shadow-sm backdrop-blur-xl transition hover:border-blue-200 hover:shadow-md sm:max-w-[360px]">
-      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-amber-100 bg-amber-50 text-amber-600">
-        <Trophy className="h-4 w-4" />
-      </div>
-      <div className="min-w-0 flex-1">
-        <div className="flex items-center justify-between gap-2">
-          <div className="min-w-0">
-            <p className="truncate text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
-              {title}
-            </p>
-            <p className="truncate text-sm font-semibold text-slate-950">
-              {ratingLabel(metrics.score)} · {metrics.score}/100
-            </p>
-          </div>
-          <div className="flex shrink-0 items-center gap-1">
-            <span className="text-xs font-bold text-slate-700">{stars}/5</span>
-            <Star className="h-3.5 w-3.5 fill-amber-400 text-amber-400" />
-          </div>
-        </div>
-        <div className="mt-1.5 flex flex-wrap gap-1.5 text-[10px]">
-          {metrics.items.map((item) => (
-            <span
-              className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 font-medium text-slate-500"
-              key={item.label}
-            >
-              <span className="font-semibold text-slate-800">{item.value}</span>
-              {item.label}
-            </span>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-};
 
 const BugStatusAnalytics = ({ issues = [] }) => {
   const statusData = useMemo(() => {
@@ -1667,48 +1622,6 @@ const DeveloperDashboardPage = () => {
     () => [...bugIssues, ...taskIssues],
     [bugIssues, taskIssues]
   );
-  const performanceRating = useMemo(() => {
-    const completedTasks = taskIssues.filter(isIssueClosed).length;
-    const taskCompletionRate = taskIssues.length
-      ? Math.round((completedTasks / taskIssues.length) * 100)
-      : 100;
-    const resolvedBugStatuses = new Set([
-      ISSUE_STATUS.READY_FOR_QA,
-      ISSUE_STATUS.TESTING,
-      ISSUE_STATUS.FIXED,
-      ISSUE_STATUS.QA,
-      ISSUE_STATUS.DONE,
-      ISSUE_STATUS.CLOSED,
-    ]);
-    const resolvedBugs = bugIssues.filter((issue) =>
-      resolvedBugStatuses.has(normalizeBugStatusForIssue(issue))
-    ).length;
-    const bugFixRate = bugIssues.length ? Math.round((resolvedBugs / bugIssues.length) * 100) : 100;
-    const reopenedBugs = bugIssues.filter(
-      (issue) => normalizeBugStatusForIssue(issue) === ISSUE_STATUS.REOPEN
-    ).length;
-    const slaIssues = workflowIssues.filter((issue) => issue.dueAt);
-    const slaMet = slaIssues.filter((issue) => {
-      const dueAt = new Date(issue.dueAt).getTime();
-      const finishedAt = issue.closedAt ? new Date(issue.closedAt).getTime() : Date.now();
-
-      return finishedAt <= dueAt;
-    }).length;
-    const slaRate = slaIssues.length ? Math.round((slaMet / slaIssues.length) * 100) : 100;
-    const reopenPenalty = bugIssues.length ? Math.round((reopenedBugs / bugIssues.length) * 100) : 0;
-    const score = clampScore(
-      taskCompletionRate * 0.42 + bugFixRate * 0.32 + slaRate * 0.2 + Math.max(0, 100 - reopenPenalty) * 0.06
-    );
-
-    return {
-      score,
-      items: [
-        { label: "Task Done", value: `${taskCompletionRate}%` },
-        { label: "Bug Fix", value: `${bugFixRate}%` },
-        { label: "SLA", value: `${slaRate}%` },
-      ],
-    };
-  }, [bugIssues, taskIssues, workflowIssues]);
   const stats = useMemo(() => getIssueStatusMetrics(workflowIssues), [workflowIssues]);
   const normalizedFilters = useMemo(
     () => ({
@@ -1864,7 +1777,6 @@ const DeveloperDashboardPage = () => {
           <Flame className="h-4 w-4" />
           Priority Queue
         </Button>
-        <RoleRatingCard metrics={performanceRating} title="Developer Rating" />
         <SprintProgressWidget metrics={sprintProgress} isLoading={isIssuesLoading} />
       </section>
 

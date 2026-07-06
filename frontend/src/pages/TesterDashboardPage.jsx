@@ -14,7 +14,6 @@ import {
   RefreshCcw,
   RotateCcw,
   Search,
-  Star,
   TimerReset,
   Trophy,
 } from "lucide-react";
@@ -336,49 +335,21 @@ const SummaryCard = ({ Icon, className, label, value }) => (
   </Card>
 );
 
-const clampScore = (value) => Math.min(100, Math.max(0, Math.round(Number(value) || 0)));
-const ratingLabel = (score) =>
-  score >= 85 ? "Excellent" : score >= 70 ? "Good" : score >= 55 ? "Average" : "Needs Improvement";
-
-const RoleRatingCard = ({ metrics }) => {
-  const stars = Math.max(1, Math.min(5, Math.round(metrics.score / 20)));
-
-  return (
-    <div className="flex min-h-11 min-w-[260px] flex-1 items-center gap-3 rounded-2xl border border-white/70 bg-[linear-gradient(135deg,rgba(15,23,42,0.96),rgba(79,70,229,0.9),rgba(14,165,233,0.82))] px-4 py-3 text-white shadow-[0_18px_42px_-28px_rgba(79,70,229,0.88)] backdrop-blur-xl max-sm:w-full lg:max-w-[430px]">
-      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-white/20 bg-white/12 text-amber-300">
-        <Trophy className="h-5 w-5" />
-      </div>
-      <div className="min-w-0 flex-1">
-        <div className="flex items-center justify-between gap-3">
-          <div className="min-w-0">
-            <p className="truncate text-xs font-bold uppercase tracking-[0.18em] text-blue-100">
-              Tester Rating
-            </p>
-            <p className="mt-0.5 text-sm font-semibold text-white">
-              {ratingLabel(metrics.score)} · {metrics.score}/100
-            </p>
-          </div>
-          <div className="flex shrink-0 gap-0.5 text-amber-300">
-            {Array.from({ length: 5 }).map((_, index) => (
-              <Star
-                className={cn("h-3.5 w-3.5", index < stars ? "fill-current" : "opacity-30")}
-                key={index}
-              />
-            ))}
-          </div>
-        </div>
-        <div className="mt-2 grid grid-cols-3 gap-2 text-center text-[11px]">
-          {metrics.items.map((item) => (
-            <div className="rounded-xl bg-white/12 px-2 py-1.5" key={item.label}>
-              <p className="font-bold text-white">{item.value}</p>
-              <p className="truncate text-blue-100">{item.label}</p>
-            </div>
-          ))}
-        </div>
-      </div>
+const QaMetricsCard = ({ metrics }) => (
+  <div className="flex min-h-20 min-w-[260px] flex-1 items-center gap-3 rounded-2xl border border-white/70 bg-[linear-gradient(135deg,rgba(15,23,42,0.96),rgba(79,70,229,0.9),rgba(14,165,233,0.82))] px-4 py-3 text-white shadow-[0_18px_42px_-28px_rgba(79,70,229,0.88)] backdrop-blur-xl max-sm:w-full lg:max-w-[430px]">
+    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-white/20 bg-white/12 text-amber-300">
+      <Trophy className="h-5 w-5" />
     </div>
-  );
-};
+    <div className="grid min-w-0 flex-1 grid-cols-3 gap-2 text-center text-xs">
+      {metrics.items.map((item) => (
+        <div className="px-2 py-1.5" key={item.label}>
+          <p className="text-base font-bold text-white">{item.value}</p>
+          <p className="truncate text-blue-100">{item.label}</p>
+        </div>
+      ))}
+    </div>
+  </div>
+);
 
 const ChartCard = ({ children, title }) => (
   <Card className="min-w-0 overflow-hidden rounded-2xl border-white/70 bg-white/88 shadow-[0_20px_56px_-36px_rgba(15,23,42,0.38)] backdrop-blur-xl">
@@ -630,7 +601,7 @@ const TesterDashboardPage = () => {
 
     return metrics;
   }, [visibleIssues]);
-  const testerRating = useMemo(() => {
+  const qaMetrics = useMemo(() => {
     const verified = dashboardMetrics.closed + dashboardMetrics.resolved;
     const verificationRate = dashboardMetrics.total
       ? Math.round((verified / dashboardMetrics.total) * 100)
@@ -638,24 +609,13 @@ const TesterDashboardPage = () => {
     const reopenRate = dashboardMetrics.total
       ? Math.round((dashboardMetrics.reopened / dashboardMetrics.total) * 100)
       : 0;
-    const rejectionRate = dashboardMetrics.total
-      ? Math.round((dashboardMetrics.deferred / dashboardMetrics.total) * 100)
-      : 0;
     const completedRecentTasks = recentTasks.filter((task) =>
       [ISSUE_STATUS.DONE, ISSUE_STATUS.CLOSED].includes(normalizeIssueStatus(task.status))
     ).length;
     const taskCompletionRate = recentTasks.length
       ? Math.round((completedRecentTasks / recentTasks.length) * 100)
       : 100;
-    const score = clampScore(
-      verificationRate * 0.45 +
-        Math.max(0, 100 - reopenRate) * 0.22 +
-        Math.max(0, 100 - rejectionRate) * 0.18 +
-        taskCompletionRate * 0.15
-    );
-
     return {
-      score,
       items: [
         { label: "Verified", value: `${verificationRate}%` },
         { label: "Reopen", value: `${reopenRate}%` },
@@ -781,7 +741,7 @@ const TesterDashboardPage = () => {
 
         <AttachedProjectsTile projects={assignedProjects} />
 
-        <RoleRatingCard metrics={testerRating} />
+        <QaMetricsCard metrics={qaMetrics} />
       </section>
 
       <section className="flex snap-x gap-3 overflow-x-auto pb-2 md:grid md:grid-cols-2 md:gap-4 md:overflow-visible md:pb-0 xl:grid-cols-5 [&>*]:min-w-[220px] [&>*]:snap-start md:[&>*]:min-w-0">
