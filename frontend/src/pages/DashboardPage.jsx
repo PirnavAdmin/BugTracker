@@ -1226,7 +1226,7 @@ const DashboardPage = () => {
         )}
       </section>
 
-      <section className="grid items-start gap-5 xl:grid-cols-[1.2fr_0.8fr]">
+      <section className="grid items-start gap-3 xl:grid-cols-[1.2fr_0.8fr]">
         <AnalyticsPanel
           title="Task Status"
           description="Task workload only: To Do, In Progress, and Done."
@@ -1237,7 +1237,7 @@ const DashboardPage = () => {
           }
         >
           {taskStatusRows.length ? (
-            <div className="space-y-3">
+            <div className="space-y-2">
               {taskStatusRows.map((row) => {
                 const width = maxTaskStatusCount
                   ? Math.max(Math.round((row.count / maxTaskStatusCount) * 100), row.count ? 8 : 0)
@@ -1306,7 +1306,7 @@ const DashboardPage = () => {
           }
         >
           {bugStatusRows.length ? (
-            <div className="dashboard-scrollbar max-h-[300px] space-y-3 overflow-y-auto overscroll-contain pr-2 [scrollbar-gutter:stable]">
+            <div className="dashboard-scrollbar max-h-[300px] space-y-2 overflow-y-auto overscroll-contain pr-2 [scrollbar-gutter:stable]">
               {bugStatusRows.map((row) => {
                 const width = maxBugStatusCount
                   ? Math.max(Math.round((row.count / maxBugStatusCount) * 100), row.count ? 8 : 0)
