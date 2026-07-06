@@ -701,7 +701,7 @@ const AdminGreetingCard = ({
                 {isManager ? "Manager" : "Admin"}
               </span>
             </div>
-            <p className="mt-1 text-sm font-medium text-slate-700">
+            <p className="mt-1 text-sm font-medium text-white">
               {isManager
                 ? "Keep delivery moving and your teams aligned today."
                 : "Your workspace overview is ready. Let’s make today count."}
