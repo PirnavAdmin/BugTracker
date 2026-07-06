@@ -9,12 +9,10 @@ import {
   CheckCircle2,
   FolderKanban,
   Layers3,
-  Plus,
   RefreshCcw,
   Rocket,
   Settings,
   ShieldCheck,
-  Sparkles,
   TimerReset,
   UserPlus,
   Users2,
@@ -295,20 +293,6 @@ const buildTrend = (current, previous, suffix = "vs last week") => {
   };
 };
 
-const QuickActionButton = ({ icon: Icon, title, className, onClick }) => (
-  <button
-    type="button"
-    onClick={onClick}
-    className={cn(
-      "group flex items-center justify-center gap-2 rounded-lg border border-white/50 bg-white/30 px-4 py-3 text-center shadow-sm backdrop-blur-md transition-all duration-200 hover:-translate-y-0.5 hover:bg-white/60 hover:shadow-md",
-      className
-    )}
-  >
-    <Icon className="h-[18px] w-[18px] shrink-0 transition-transform duration-200 group-hover:scale-110" />
-    <span className="text-xs font-bold tracking-tight">{title}</span>
-  </button>
-);
-
 const ProjectBugCard = ({ project, onOpen }) => (
   <button
     type="button"
@@ -470,7 +454,7 @@ const UserDistributionCard = ({ rows, total, isLoading, hasError, onManageUsers 
   );
 };
 
-const AdminQuickActionsCard = ({ actions = [] }) => (
+const AdminQuickActionsCard = ({ actions = [], stats = [] }) => (
   <AnalyticsPanel
     title={
       <span className="flex items-center gap-2">
@@ -498,6 +482,30 @@ const AdminQuickActionsCard = ({ actions = [] }) => (
               action.labelClassName
             )}>
               {action.title}
+            </span>
+          </button>
+        );
+      })}
+    </div>
+    <div className="mt-5 grid grid-cols-2 gap-3 border-t border-slate-200/70 pt-4 dark:border-white/10">
+      {stats.map((stat) => {
+        const Icon = stat.icon;
+
+        return (
+          <button
+            key={stat.key}
+            type="button"
+            onClick={stat.onClick}
+            className="flex min-w-0 items-center gap-3 rounded-lg border border-slate-200/70 bg-white/45 px-4 py-3 text-left transition-colors hover:border-blue-200 hover:bg-white/80 dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10"
+          >
+            <Icon className={cn("h-5 w-5 shrink-0", stat.iconClassName)} />
+            <span className="min-w-0">
+              <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                {stat.title}
+              </span>
+              <span className="block text-xl font-bold leading-tight text-slate-950 dark:text-slate-100">
+                {stat.value}
+              </span>
             </span>
           </button>
         );
@@ -946,6 +954,24 @@ const DashboardPage = () => {
       onClick: () => navigate("/settings/users"),
     },
   ];
+  const adminQuickStats = [
+    {
+      key: "projects",
+      title: "Total Projects",
+      value: formatCompactNumber(projects.length),
+      icon: FolderKanban,
+      iconClassName: "text-blue-600",
+      onClick: () => navigate("/projects"),
+    },
+    {
+      key: "teams",
+      title: "Total Teams",
+      value: formatCompactNumber(teams.length),
+      icon: Users2,
+      iconClassName: "text-violet-600",
+      onClick: () => navigate("/teams"),
+    },
+  ];
   const recentCriticalBugs = useMemo(
     () =>
       bugs
@@ -1073,100 +1099,8 @@ const DashboardPage = () => {
     );
   }
 
-  const headerKpiCards = [
-    {
-      key: "projects",
-      title: "Projects",
-      value: formatCompactNumber(projects.length),
-      icon: FolderKanban,
-      iconClassName: "text-blue-600",
-    },
-    {
-      key: "teams",
-      title: "Active Teams",
-      value: formatCompactNumber(summary.activeTeams),
-      icon: Users2,
-      iconClassName: "text-violet-600",
-    },
-  ];
-
   return (
     <div className="space-y-6">
-      <Card className="overflow-hidden rounded-xl border-white/60 bg-white/40 shadow-sm backdrop-blur-2xl dark:border-white/10 dark:bg-slate-900/40">
-        <CardContent className="p-4">
-          <div className="flex flex-col gap-6 xl:flex-row xl:items-center xl:justify-between">
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:gap-8">
-              <div>
-                <div className="inline-flex items-center gap-2 rounded-full border border-blue-100 bg-blue-50/50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-blue-600">
-                  <Sparkles className="h-3 w-3" />
-                  Administration
-                </div>
-                <h1 className="mt-1 text-xl font-bold tracking-tight text-slate-950 dark:text-slate-100">
-                  Admin Control Center
-                </h1>
-              </div>
-
-              <div className="flex items-center gap-4">
-                {headerKpiCards.map((card) => {
-                  const Icon = card.icon;
-
-                  return (
-                    <div key={card.key} className="flex items-center gap-2.5">
-                      <Icon className={cn("h-5 w-5 shrink-0", card.iconClassName)} />
-                      <div className="flex flex-col">
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
-                          {card.title}
-                        </span>
-                        <span className="text-lg font-bold leading-tight text-slate-900 dark:text-slate-100">
-                          {card.value}
-                        </span>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-5 xl:w-auto">
-              <QuickActionButton
-                icon={Plus}
-                title="Project"
-                className="border-blue-100 text-blue-700"
-                onClick={() => navigate("/projects")}
-              />
-              <QuickActionButton
-                icon={Zap}
-                title="Issue"
-                className="border-amber-100 text-amber-700"
-                onClick={() => navigate("/issues?compose=1")}
-              />
-              <QuickActionButton
-                icon={Users2}
-                title="Teams"
-                className="border-violet-100 text-violet-700"
-                onClick={() => navigate("/projects")}
-              />
-              <QuickActionButton
-                icon={BarChart3}
-                title="Reports"
-                className="border-cyan-100 text-cyan-700"
-                onClick={() => navigate("/reports")}
-              />
-              <QuickActionButton
-                icon={Activity}
-                title="Activity"
-                className="border-emerald-100 text-emerald-700"
-                onClick={() =>
-                  document
-                    .getElementById("dashboard-activity")
-                    ?.scrollIntoView({ behavior: "smooth", block: "start" })
-                }
-              />
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
       <section className="grid gap-5 xl:grid-cols-[1fr_0.95fr]">
         <UserDistributionCard
           rows={userDistributionRows}
@@ -1177,7 +1111,7 @@ const DashboardPage = () => {
             navigate(role ? `/settings/users?role=${encodeURIComponent(role)}` : "/settings/users")
           }
         />
-        <AdminQuickActionsCard actions={adminQuickActions} />
+        <AdminQuickActionsCard actions={adminQuickActions} stats={adminQuickStats} />
       </section>
 
       <section className="grid gap-5 md:grid-cols-3">
