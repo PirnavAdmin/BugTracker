@@ -717,7 +717,6 @@ const DashboardPage = () => {
       };
     });
   }, [issues]);
-  const maxTaskStatusCount = Math.max(...taskStatusRows.map((row) => row.count), 0);
   const now = useMemo(() => new Date(), []);
   const weekStart = useMemo(() => startOfWeek(now), [now]);
   const previousWeekStart = useMemo(() => {
@@ -1226,8 +1225,9 @@ const DashboardPage = () => {
         )}
       </section>
 
-      <section className="grid items-start gap-3 xl:grid-cols-[1.2fr_0.8fr]">
+      <section className="grid items-stretch gap-3 xl:grid-cols-[0.65fr_1.35fr]">
         <AnalyticsPanel
+          className="h-full"
           title="Task Status"
           description="Task workload only: To Do, In Progress, and Done."
           action={
@@ -1237,20 +1237,15 @@ const DashboardPage = () => {
           }
         >
           {taskStatusRows.length ? (
-            <div className="space-y-2">
-              {taskStatusRows.map((row) => {
-                const width = maxTaskStatusCount
-                  ? Math.max(Math.round((row.count / maxTaskStatusCount) * 100), row.count ? 8 : 0)
-                  : 0;
-
-                return (
+            <div className="space-y-3">
+              {taskStatusRows.map((row) => (
                   <button
                     key={row.key}
                     type="button"
                     onClick={() => navigateToIssues({ status: row.key })}
                     className={cn(
                       ANALYTICS_SUBPANEL_CLASS,
-                      "grid w-full gap-3 px-3 py-2 text-left md:grid-cols-[180px_minmax(0,1fr)_90px] md:items-center"
+                      "flex min-h-[82px] w-full items-center justify-between gap-3 px-4 py-3 text-left"
                     )}
                   >
                     <div className="flex min-w-0 items-center gap-3">
@@ -1267,24 +1262,14 @@ const DashboardPage = () => {
                         <p className="text-xs text-slate-500">{row.helper}</p>
                       </div>
                     </div>
-                    <div className="h-1.5 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
-                      <div
-                        className={cn(
-                          "h-full rounded-full transition-all duration-500",
-                          row.className || statusTone[row.key] || "bg-slate-400"
-                        )}
-                        style={{ width: `${width}%` }}
-                      />
-                    </div>
-                    <div className="text-left md:text-right">
+                    <div className="shrink-0 text-right">
                       <p className="text-lg font-semibold text-slate-950 dark:text-slate-100">
                         {row.count}
                       </p>
                       <p className="text-xs text-slate-500">issues</p>
                     </div>
                   </button>
-                );
-              })}
+              ))}
             </div>
           ) : (
             <AnalyticsEmptyState
@@ -1296,7 +1281,7 @@ const DashboardPage = () => {
         </AnalyticsPanel>
 
         <AnalyticsPanel
-          className="self-start"
+          className="h-full"
           title="Bug Status"
           description="Bug lifecycle cards synced with the admin Bugs page."
           action={
@@ -1306,7 +1291,7 @@ const DashboardPage = () => {
           }
         >
           {bugStatusRows.length ? (
-            <div className="dashboard-scrollbar max-h-[300px] space-y-2 overflow-y-auto overscroll-contain pr-2 [scrollbar-gutter:stable]">
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {bugStatusRows.map((row) => {
                 const width = maxBugStatusCount
                   ? Math.max(Math.round((row.count / maxBugStatusCount) * 100), row.count ? 8 : 0)
@@ -1319,7 +1304,7 @@ const DashboardPage = () => {
                     onClick={() => navigateToBugs(row.routeParams)}
                     className={cn(
                       ANALYTICS_SUBPANEL_CLASS,
-                      "grid w-full gap-3 px-3 py-2 text-left md:grid-cols-[180px_minmax(0,1fr)_90px] md:items-center"
+                      "flex min-h-[148px] w-full flex-col px-4 py-4 text-left"
                     )}
                   >
                     <div className="flex min-w-0 items-center gap-3">
@@ -1331,17 +1316,19 @@ const DashboardPage = () => {
                         <p className="text-xs text-slate-500">{row.helper}</p>
                       </div>
                     </div>
-                    <div className="h-1.5 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
-                      <div
-                        className={cn("h-full rounded-full transition-all duration-500", row.className)}
-                        style={{ width: `${width}%` }}
-                      />
-                    </div>
-                    <div className="text-left md:text-right">
+                    <div className="mt-auto flex items-end gap-3 pt-4">
+                      <div className="mb-1 h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
+                        <div
+                          className={cn("h-full rounded-full transition-all duration-500", row.className)}
+                          style={{ width: `${width}%` }}
+                        />
+                      </div>
+                      <div className="shrink-0 text-right">
                       <p className="text-lg font-semibold text-slate-950 dark:text-slate-100">
                         {row.count}
                       </p>
                       <p className="text-xs text-slate-500">bugs</p>
+                      </div>
                     </div>
                   </button>
                 );
