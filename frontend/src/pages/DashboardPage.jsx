@@ -663,7 +663,7 @@ const GreetingBeachScene = ({ timeOfDay, reduceMotion }) => {
   return (
     <div
       aria-hidden="true"
-      className="pointer-events-none absolute inset-y-0 right-0 w-full overflow-hidden opacity-80 sm:w-[74%] lg:opacity-100"
+      className="pointer-events-none absolute inset-0 overflow-hidden opacity-90 lg:opacity-100"
     >
       <svg
         className="h-full w-full"
@@ -768,7 +768,7 @@ const GreetingBeachScene = ({ timeOfDay, reduceMotion }) => {
         <path d="M525 220 Q670 174 900 176 V220Z" fill="url(#greeting-sand)" opacity="0.96" />
         <path d="M565 220 Q690 187 900 188" fill="none" stroke="white" strokeWidth="4" opacity="0.62" />
       </svg>
-      <div className="absolute inset-0 bg-gradient-to-r from-white via-white/75 to-transparent" />
+      <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(255,255,255,0.42)_0%,rgba(255,255,255,0.16)_38%,rgba(255,255,255,0.02)_70%,transparent_100%)]" />
     </div>
   );
 };
@@ -812,7 +812,7 @@ const AdminGreetingCard = ({
           >
             <Sparkles className="h-5 w-5" />
           </motion.div>
-          <div className="min-w-0">
+          <div className="min-w-0 [text-shadow:0_1px_12px_rgba(255,255,255,0.9)]">
             <div className="flex flex-wrap items-center gap-2">
               <h1 className="text-xl font-semibold tracking-tight text-slate-950 sm:text-2xl">
                 {greeting},{" "}
