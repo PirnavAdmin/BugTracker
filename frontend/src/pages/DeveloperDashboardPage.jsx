@@ -1418,6 +1418,13 @@ const DeveloperDashboardPage = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { user } = useAuth();
+  const currentHour = new Date().getHours();
+  const greeting = currentHour < 12
+    ? "Good morning"
+    : currentHour < 17
+      ? "Good afternoon"
+      : "Good evening";
+  const developerName = String(user?.name || "Developer").trim().split(/\s+/)[0];
   const [activeTab, setActiveTab] = useState("bugs");
   const [filters, setFilters] = useState(defaultFilters);
   const [selectedIssue, setSelectedIssue] = useState(null);
@@ -1751,6 +1758,14 @@ const DeveloperDashboardPage = () => {
   return (
     <div className="page-wrapper space-y-5">
       <section className="flex flex-wrap items-center gap-3 rounded-[26px] border border-white/70 bg-white/78 p-3 shadow-sm backdrop-blur-xl">
+        <div className="min-w-[240px] flex-1 px-3 py-1">
+          <p className="text-xl font-semibold tracking-tight text-slate-950">
+            {greeting}, {developerName}
+          </p>
+          <p className="mt-1 text-sm text-slate-500">
+            Welcome back. Here’s what’s happening with your work today.
+          </p>
+        </div>
         <div className="ml-auto flex flex-wrap items-center justify-end gap-3">
           <Button
             className="h-11 rounded-2xl"
