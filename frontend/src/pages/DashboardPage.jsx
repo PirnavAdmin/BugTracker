@@ -1,24 +1,20 @@
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
-import { Cell, Pie, PieChart, ResponsiveContainer } from "recharts";
 import {
   Activity,
   AlertTriangle,
   BarChart3,
   Bug,
   CheckCircle2,
-  FileText,
   FolderKanban,
   Layers3,
   Plus,
   RefreshCcw,
   Rocket,
-  Settings,
   ShieldCheck,
   Sparkles,
   TimerReset,
-  UserPlus,
   Users2,
   Zap,
 } from "lucide-react";
@@ -384,121 +380,125 @@ const PriorityDistribution = ({ rows, total }) => (
   </AnalyticsPanel>
 );
 
-const UserDistributionCard = ({ rows, total, isLoading, hasError, onManageUsers }) => (
-  <AnalyticsPanel
-    title="User Distribution"
-    description="Workspace users grouped by active role."
-    action={
-      <Button variant="ghost" size="sm" className="h-8 text-xs font-bold" onClick={() => onManageUsers()}>
-        Manage Users
-      </Button>
-    }
-  >
-    {isLoading ? (
-      <div className="grid gap-4 md:grid-cols-[180px_minmax(0,1fr)] md:items-center">
-        <Skeleton className="mx-auto h-36 w-36 rounded-full" />
-        <div className="space-y-2">
-          {USER_ROLE_DISTRIBUTION_META.slice(0, 4).map((item) => (
-            <Skeleton key={item.key} className="h-8 rounded-lg" />
-          ))}
-        </div>
-      </div>
-    ) : hasError ? (
-      <AnalyticsEmptyState
-        icon={Users2}
-        title="Unable to load users"
-        description="User distribution will appear once membership data is available."
-      />
-    ) : total ? (
-      <div className="grid gap-4 md:grid-cols-[180px_minmax(0,1fr)] md:items-center">
-        <div className="relative mx-auto h-40 w-40">
-          <ResponsiveContainer width="100%" height="100%">
-            <PieChart>
-              <Pie
-                data={rows.filter((row) => row.count > 0)}
-                dataKey="count"
-                innerRadius={46}
-                outerRadius={68}
-                paddingAngle={3}
-                stroke="rgba(255,255,255,0.85)"
-                strokeWidth={3}
-              >
-                {rows.filter((row) => row.count > 0).map((row) => (
-                  <Cell key={row.key} fill={row.color} />
-                ))}
-              </Pie>
-            </PieChart>
-          </ResponsiveContainer>
-          <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center text-center">
-            <span className="text-2xl font-bold text-slate-950 dark:text-slate-100">
-              {formatCompactNumber(total)}
-            </span>
-            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
-              Total Users
-            </span>
+const UserDistributionCard = ({ rows, total, isLoading, hasError, onManageUsers }) => {
+  let segmentStart = 0;
+  const donutBackground = `conic-gradient(${rows
+    .filter((row) => row.count > 0)
+    .map((row) => {
+      const segmentEnd = segmentStart + (row.count / total) * 360;
+      const segment = `${row.color} ${segmentStart}deg ${segmentEnd}deg`;
+      segmentStart = segmentEnd;
+      return segment;
+    })
+    .join(", ")})`;
+
+  return (
+    <AnalyticsPanel
+      title="User Distribution"
+      description="Workspace users grouped by active role."
+      action={
+        <Button variant="ghost" size="sm" className="h-8 text-xs font-bold" onClick={() => onManageUsers()}>
+          Manage Users
+        </Button>
+      }
+    >
+      {isLoading ? (
+        <div className="grid gap-4 md:grid-cols-[180px_minmax(0,1fr)] md:items-center">
+          <Skeleton className="mx-auto h-36 w-36 rounded-full" />
+          <div className="space-y-2">
+            {USER_ROLE_DISTRIBUTION_META.slice(0, 4).map((item) => (
+              <Skeleton key={item.key} className="h-8 rounded-lg" />
+            ))}
           </div>
         </div>
+      ) : hasError ? (
+        <AnalyticsEmptyState
+          icon={Users2}
+          title="Unable to load users"
+          description="User distribution will appear once membership data is available."
+        />
+      ) : total ? (
+        <div className="grid gap-5 md:grid-cols-[180px_minmax(0,1fr)] md:items-center">
+          <div
+            className="relative mx-auto h-40 w-40 shrink-0 rounded-full shadow-[0_12px_30px_-18px_rgba(15,23,42,0.65)]"
+            style={{ background: donutBackground }}
+            role="img"
+            aria-label={`${total} users distributed across ${rows.filter((row) => row.count > 0).length} roles`}
+          >
+            <div className="absolute inset-[19px] flex flex-col items-center justify-center rounded-full border border-white/80 bg-white text-center shadow-inner dark:border-white/10 dark:bg-slate-950">
+              <span className="text-2xl font-bold text-slate-950 dark:text-slate-100">
+                {formatCompactNumber(total)}
+              </span>
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                Total Users
+              </span>
+            </div>
+          </div>
 
-        <div className="space-y-2">
-          {rows.map((row) => (
-            <button
-              key={row.key}
-              type="button"
-              onClick={() => onManageUsers(row.key)}
-              className="grid w-full grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-3 rounded-lg border border-slate-100 bg-white/50 px-3 py-2 text-left transition-colors hover:bg-slate-50 dark:border-white/10 dark:bg-white/5"
-            >
-              <span className="flex min-w-0 items-center gap-2">
-                <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: row.color }} />
-                <span className="truncate text-xs font-bold text-slate-800 dark:text-slate-100">
-                  {row.label}
+          <div className="space-y-2">
+            {rows.map((row) => (
+              <button
+                key={row.key}
+                type="button"
+                onClick={() => onManageUsers(row.key)}
+                className="grid w-full grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-3 rounded-lg border border-slate-100 bg-white/50 px-3 py-2 text-left transition-colors hover:bg-slate-50 dark:border-white/10 dark:bg-white/5"
+              >
+                <span className="flex min-w-0 items-center gap-2">
+                  <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: row.color }} />
+                  <span className="truncate text-xs font-bold text-slate-800 dark:text-slate-100">
+                    {row.label}
+                  </span>
                 </span>
-              </span>
-              <span className="text-xs font-bold text-slate-600 dark:text-slate-300">
-                {row.count}
-              </span>
-              <span className="w-9 text-right text-[10px] font-bold text-slate-400">
-                {row.percentage}%
-              </span>
-            </button>
-          ))}
+                <span className="text-xs font-bold text-slate-600 dark:text-slate-300">
+                  {row.count}
+                </span>
+                <span className="w-9 text-right text-[10px] font-bold text-slate-400">
+                  {row.percentage}%
+                </span>
+              </button>
+            ))}
+          </div>
         </div>
-      </div>
-    ) : (
-      <AnalyticsEmptyState
-        icon={Users2}
-        title="No users yet"
-        description="Invite workspace members to populate this chart."
-      />
-    )}
-  </AnalyticsPanel>
-);
+      ) : (
+        <AnalyticsEmptyState
+          icon={Users2}
+          title="No users yet"
+          description="Invite workspace members to populate this chart."
+        />
+      )}
+    </AnalyticsPanel>
+  );
+};
 
-const AdminQuickActionsCard = ({ actions = [] }) => (
+const AdminMetricsCard = ({ metrics = [] }) => (
   <AnalyticsPanel
-    title="Quick Actions"
-    description="Common admin tasks for workspace setup and review."
+    title="Workspace Metrics"
+    description="A live view of delivery capacity and workload."
   >
     <div className="grid gap-3 sm:grid-cols-2">
-      {actions.map((action) => {
-        const Icon = action.icon;
+      {metrics.map((metric) => {
+        const Icon = metric.icon;
 
         return (
           <button
-            key={action.key}
+            key={metric.key}
             type="button"
-            onClick={action.onClick}
-            className="group flex min-h-[58px] items-center gap-3 rounded-xl border border-slate-100 bg-white/55 px-3 py-3 text-left shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-blue-100 hover:bg-white/80 hover:shadow-md dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10"
+            onClick={metric.onClick}
+            className="group flex min-h-[76px] items-center gap-3 rounded-lg border border-slate-100 bg-white/55 px-4 py-3 text-left transition-colors hover:border-slate-200 hover:bg-white/80 dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10"
           >
-            <span className={cn("flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-white shadow-sm", action.className)}>
+            <span className={cn("flex h-10 w-10 shrink-0 items-center justify-center rounded-lg", metric.className)}>
               <Icon className="h-4 w-4" />
             </span>
-            <span className="min-w-0">
-              <span className="block truncate text-xs font-bold text-slate-900 dark:text-slate-100">
-                {action.title}
+            <span className="min-w-0 flex-1">
+              <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                {metric.title}
               </span>
-              <span className="mt-0.5 block truncate text-[10px] font-medium text-slate-500">
-                {action.helper}
+              <span className="mt-0.5 block truncate text-[11px] font-medium text-slate-500">
+                {metric.helper}
               </span>
+            </span>
+            <span className="shrink-0 text-xl font-bold text-slate-950 dark:text-slate-100">
+              {metric.value}
             </span>
           </button>
         );
@@ -902,57 +902,42 @@ const DashboardPage = () => {
       };
     });
   }, [users]);
-  const quickActionCards = [
+  const adminMetrics = [
     {
-      key: "create-project",
-      title: "Create Project",
-      helper: "Start workspace delivery",
-      icon: Plus,
-      className: "bg-blue-600",
+      key: "projects",
+      title: "Projects",
+      value: formatCompactNumber(projects.length),
+      helper: "Tracked workspaces",
+      icon: FolderKanban,
+      className: "bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300",
       onClick: () => navigate("/projects"),
     },
     {
-      key: "add-user",
-      title: "Add User",
-      helper: "Invite a teammate",
-      icon: UserPlus,
-      className: "bg-emerald-600",
-      onClick: () => navigate("/settings/users?panel=invite"),
-    },
-    {
-      key: "manage-teams",
-      title: "Manage Teams",
-      helper: "Organize ownership",
+      key: "active-teams",
+      title: "Active Teams",
+      value: formatCompactNumber(summary.activeTeams),
+      helper: `${teams.length} teams in reports`,
       icon: Users2,
-      className: "bg-violet-600",
+      className: "bg-violet-50 text-violet-700 dark:bg-violet-950/40 dark:text-violet-300",
       onClick: () => navigate("/projects"),
     },
     {
-      key: "system-settings",
-      title: "System Settings",
-      helper: "Workspace controls",
-      icon: Settings,
-      className: "bg-cyan-600",
-      onClick: () => navigate("/settings/users"),
+      key: "open-issues",
+      title: "Open Issues",
+      value: formatCompactNumber(issueStats.open),
+      helper: `${issueStats.highPriority} high priority`,
+      icon: AlertTriangle,
+      className: "bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300",
+      onClick: () => navigateToIssues({ filter: "open" }),
     },
     {
-      key: "view-reports",
-      title: "View Reports",
-      helper: "Delivery analytics",
-      icon: BarChart3,
-      className: "bg-amber-600",
+      key: "resolution-rate",
+      title: "Resolution Rate",
+      value: `${summary.resolutionRate || 0}%`,
+      helper: `${formatDuration(summary.avgResolutionTimeMs)} average`,
+      icon: CheckCircle2,
+      className: "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300",
       onClick: () => navigate("/reports"),
-    },
-    {
-      key: "audit-logs",
-      title: "Audit Logs",
-      helper: "Recent activity feed",
-      icon: FileText,
-      className: "bg-rose-600",
-      onClick: () =>
-        document
-          .getElementById("dashboard-activity")
-          ?.scrollIntoView({ behavior: "smooth", block: "start" }),
     },
   ];
   const recentCriticalBugs = useMemo(
@@ -1171,7 +1156,7 @@ const DashboardPage = () => {
             navigate(role ? `/settings/users?role=${encodeURIComponent(role)}` : "/settings/users")
           }
         />
-        <AdminQuickActionsCard actions={quickActionCards} />
+        <AdminMetricsCard metrics={adminMetrics} />
       </section>
 
       <section className="grid gap-5 md:grid-cols-3">
