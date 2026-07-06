@@ -654,7 +654,10 @@ const TesterDashboardPage = () => {
 
         <div className="min-w-[240px] flex-1 px-3 py-1 lg:text-right">
           <p className="text-xl font-semibold tracking-tight text-slate-950">
-            {greeting}, {testerName}
+            {greeting},{" "}
+            <span className="inline-flex rounded-lg bg-gradient-to-r from-indigo-600 to-violet-500 px-2.5 py-0.5 text-white shadow-[0_8px_20px_-10px_rgba(99,102,241,0.9)]">
+              {testerName}
+            </span>
           </p>
           <p className="mt-1 text-sm text-slate-500">
             Welcome back. Here’s what’s happening with your QA work today.

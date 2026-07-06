@@ -1,9 +1,11 @@
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
+import { motion, useReducedMotion } from "framer-motion";
 import {
   Activity,
   AlertTriangle,
+  ArrowUpRight,
   BarChart3,
   Bug,
   CheckCircle2,
@@ -13,6 +15,7 @@ import {
   Rocket,
   Settings,
   ShieldCheck,
+  Sparkles,
   TimerReset,
   UserPlus,
   Users2,
@@ -34,6 +37,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useAuth } from "@/hooks/use-auth";
+import { ROLE_MANAGER } from "@/lib/roles";
 import {
   ISSUE_STATUS,
   ISSUE_TYPES,
@@ -644,6 +649,109 @@ const TriageBoardWidget = ({ bugs, onOpen, onNavigate }) => {
   );
 };
 
+const AdminGreetingCard = ({
+  user,
+  openIssues = 0,
+  activeTeams = 0,
+  onViewReports,
+}) => {
+  const reduceMotion = useReducedMotion();
+  const currentHour = new Date().getHours();
+  const greeting =
+    currentHour < 12
+      ? "Good morning"
+      : currentHour < 17
+        ? "Good afternoon"
+        : "Good evening";
+  const firstName = String(user?.name || user?.role || "Admin")
+    .trim()
+    .split(/\s+/)[0];
+  const isManager = user?.role === ROLE_MANAGER;
+
+  return (
+    <motion.section
+      initial={reduceMotion ? false : { opacity: 0, y: 16, scale: 0.99 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      transition={{ duration: 0.55, ease: [0.22, 1, 0.36, 1] }}
+      className="relative isolate overflow-hidden rounded-[28px] border border-blue-100/80 bg-[linear-gradient(110deg,rgba(255,255,255,0.96)_0%,rgba(239,246,255,0.96)_52%,rgba(238,242,255,0.94)_100%)] px-5 py-5 shadow-[0_24px_65px_-42px_rgba(37,99,235,0.65)] sm:px-7"
+    >
+      <motion.div
+        aria-hidden="true"
+        className="absolute -right-10 -top-20 h-52 w-52 rounded-full bg-blue-300/25 blur-3xl"
+        animate={
+          reduceMotion
+            ? undefined
+            : { x: [0, -18, 0], y: [0, 14, 0], scale: [1, 1.08, 1] }
+        }
+        transition={{ duration: 7, repeat: Infinity, ease: "easeInOut" }}
+      />
+      <motion.div
+        aria-hidden="true"
+        className="absolute -bottom-24 left-[42%] h-44 w-44 rounded-full bg-violet-300/20 blur-3xl"
+        animate={reduceMotion ? undefined : { x: [0, 24, 0], opacity: [0.35, 0.7, 0.35] }}
+        transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
+      />
+
+      <div className="relative flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+        <div className="flex min-w-0 items-center gap-4">
+          <motion.div
+            aria-hidden="true"
+            className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-600 text-white shadow-[0_16px_30px_-14px_rgba(37,99,235,0.9)]"
+            animate={reduceMotion ? undefined : { rotate: [0, 4, -4, 0] }}
+            transition={{ duration: 4.5, repeat: Infinity, ease: "easeInOut" }}
+          >
+            <Sparkles className="h-5 w-5" />
+          </motion.div>
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className="text-xl font-semibold tracking-tight text-slate-950 sm:text-2xl">
+                {greeting},{" "}
+                <span className="bg-gradient-to-r from-blue-600 to-violet-600 bg-clip-text font-bold text-transparent">
+                  {firstName}
+                </span>
+              </h1>
+              <span className="rounded-full border border-blue-200/80 bg-white/80 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.14em] text-blue-700 shadow-sm">
+                {isManager ? "Manager" : "Admin"}
+              </span>
+            </div>
+            <p className="mt-1 text-sm text-slate-500">
+              {isManager
+                ? "Keep delivery moving and your teams aligned today."
+                : "Your workspace overview is ready. Let’s make today count."}
+            </p>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-3 lg:justify-end">
+          <div className="flex items-center gap-5 rounded-2xl border border-white/90 bg-white/70 px-4 py-2.5 shadow-sm backdrop-blur-sm">
+            <div>
+              <p className="text-lg font-bold leading-none text-slate-900">{openIssues}</p>
+              <p className="mt-1 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                Open issues
+              </p>
+            </div>
+            <div className="h-8 w-px bg-slate-200" />
+            <div>
+              <p className="text-lg font-bold leading-none text-slate-900">{activeTeams}</p>
+              <p className="mt-1 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                Active teams
+              </p>
+            </div>
+          </div>
+          <Button
+            className="h-11 rounded-2xl bg-slate-950 px-5 text-white shadow-[0_14px_28px_-18px_rgba(15,23,42,0.8)] hover:bg-blue-700"
+            onClick={onViewReports}
+            type="button"
+          >
+            View reports
+            <ArrowUpRight className="h-4 w-4" />
+          </Button>
+        </div>
+      </div>
+    </motion.section>
+  );
+};
+
 const DashboardLoading = () => (
   <div className="space-y-6">
     <Skeleton className="h-[120px] rounded-xl bg-slate-100/50" />
@@ -657,6 +765,7 @@ const DashboardLoading = () => (
 
 const DashboardPage = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const analytics = useAnalytics();
   const {
     data: issuesData = [],
@@ -1100,6 +1209,13 @@ const DashboardPage = () => {
 
   return (
     <div className="space-y-6">
+      <AdminGreetingCard
+        user={user}
+        openIssues={issueStats.open}
+        activeTeams={summary.activeTeams || teams.length}
+        onViewReports={() => navigate("/reports")}
+      />
+
       <section className="grid gap-5 xl:grid-cols-[1fr_0.95fr]">
         <UserDistributionCard
           rows={userDistributionRows}

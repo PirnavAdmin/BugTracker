@@ -1760,7 +1760,10 @@ const DeveloperDashboardPage = () => {
       <section className="flex flex-wrap items-center gap-3 rounded-[26px] border border-white/70 bg-white/78 p-3 shadow-sm backdrop-blur-xl">
         <div className="min-w-[240px] flex-1 px-3 py-1">
           <p className="text-xl font-semibold tracking-tight text-slate-950">
-            {greeting}, {developerName}
+            {greeting},{" "}
+            <span className="inline-flex rounded-lg bg-gradient-to-r from-blue-600 to-cyan-500 px-2.5 py-0.5 text-white shadow-[0_8px_20px_-10px_rgba(37,99,235,0.9)]">
+              {developerName}
+            </span>
           </p>
           <p className="mt-1 text-sm text-slate-500">
             Welcome back. Here’s what’s happening with your work today.
