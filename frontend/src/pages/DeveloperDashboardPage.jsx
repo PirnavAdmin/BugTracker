@@ -439,7 +439,7 @@ const SprintProgressWidget = ({ metrics, isLoading }) => {
 
   return (
     <div
-      className="group flex h-16 min-w-[240px] flex-1 flex-col justify-center rounded-[22px] border border-cyan-100/80 bg-[linear-gradient(135deg,rgba(255,255,255,0.86),rgba(239,246,255,0.78),rgba(236,254,255,0.68))] px-4 py-2 shadow-[0_16px_34px_-26px_rgba(14,165,233,0.78)] backdrop-blur-xl transition-all duration-300 hover:-translate-y-0.5 hover:border-cyan-200 hover:shadow-[0_18px_38px_-24px_rgba(14,165,233,0.9)] sm:ml-auto sm:max-w-[340px]"
+      className="group flex h-16 min-w-[240px] flex-1 flex-col justify-center rounded-[22px] border border-cyan-100/80 bg-[linear-gradient(135deg,rgba(255,255,255,0.86),rgba(239,246,255,0.78),rgba(236,254,255,0.68))] px-4 py-2 shadow-[0_16px_34px_-26px_rgba(14,165,233,0.78)] backdrop-blur-xl transition-all duration-300 hover:-translate-y-0.5 hover:border-cyan-200 hover:shadow-[0_18px_38px_-24px_rgba(14,165,233,0.9)] sm:max-w-[340px]"
       title="Sprint completion based on assigned tasks."
     >
       {isLoading ? (
@@ -1751,32 +1751,34 @@ const DeveloperDashboardPage = () => {
   return (
     <div className="page-wrapper space-y-5">
       <section className="flex flex-wrap items-center gap-3 rounded-[26px] border border-white/70 bg-white/78 p-3 shadow-sm backdrop-blur-xl">
-        <Button
-          className="h-11 rounded-2xl"
-          type="button"
-          variant="outline"
-          onClick={() => navigate("/tasks")}
-        >
-          <ClipboardList className="h-4 w-4" />
-          View Tasks
-        </Button>
-        <Button
-          className="h-11 rounded-2xl"
-          type="button"
-          variant="outline"
-          onClick={() => navigate("/reports")}
-        >
-          <BarChart3 className="h-4 w-4" />
-          Reports
-        </Button>
-        <Button
-          className="h-11 rounded-2xl bg-[linear-gradient(90deg,#E11D48_0%,#F97316_55%,#EAB308_100%)] text-white shadow-[0_14px_28px_-18px_rgba(225,29,72,0.8)] hover:brightness-105"
-          type="button"
-          onClick={() => setIsPriorityOpen(true)}
-        >
-          <Flame className="h-4 w-4" />
-          Priority Queue
-        </Button>
+        <div className="ml-auto flex flex-wrap items-center justify-end gap-3">
+          <Button
+            className="h-11 rounded-2xl"
+            type="button"
+            variant="outline"
+            onClick={() => navigate("/tasks")}
+          >
+            <ClipboardList className="h-4 w-4" />
+            View Tasks
+          </Button>
+          <Button
+            className="h-11 rounded-2xl"
+            type="button"
+            variant="outline"
+            onClick={() => navigate("/reports")}
+          >
+            <BarChart3 className="h-4 w-4" />
+            Reports
+          </Button>
+          <Button
+            className="h-11 rounded-2xl bg-[linear-gradient(90deg,#E11D48_0%,#F97316_55%,#EAB308_100%)] text-white shadow-[0_14px_28px_-18px_rgba(225,29,72,0.8)] hover:brightness-105"
+            type="button"
+            onClick={() => setIsPriorityOpen(true)}
+          >
+            <Flame className="h-4 w-4" />
+            Priority Queue
+          </Button>
+        </div>
         <SprintProgressWidget metrics={sprintProgress} isLoading={isIssuesLoading} />
       </section>
 
