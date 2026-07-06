@@ -775,7 +775,7 @@ const DashboardPage = () => {
       icon: Bug,
       tone: "blue",
       trend: buildTrend(bugMetrics.thisWeek, bugMetrics.previousWeek),
-      onClick: () => navigateToBugs(),
+      onClick: () => navigateToBugs({ view: "total" }),
     },
   ];
   const taskKpiCards = taskStatusRows.map((item) => ({
