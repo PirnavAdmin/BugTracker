@@ -12,9 +12,11 @@ import {
   Plus,
   RefreshCcw,
   Rocket,
+  Settings,
   ShieldCheck,
   Sparkles,
   TimerReset,
+  UserPlus,
   Users2,
   Zap,
 } from "lucide-react";
@@ -298,13 +300,11 @@ const QuickActionButton = ({ icon: Icon, title, className, onClick }) => (
     type="button"
     onClick={onClick}
     className={cn(
-      "group flex items-center justify-center gap-2 rounded-xl border border-white/50 bg-white/30 px-3 py-2 text-center shadow-sm backdrop-blur-md transition-all duration-200 hover:bg-white/60 hover:shadow-md",
+      "group flex items-center justify-center gap-2 rounded-lg border border-white/50 bg-white/30 px-4 py-3 text-center shadow-sm backdrop-blur-md transition-all duration-200 hover:-translate-y-0.5 hover:bg-white/60 hover:shadow-md",
       className
     )}
   >
-    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white/50 text-current shadow-sm transition-transform duration-200 group-hover:scale-110">
-      <Icon className="h-4 w-4" />
-    </span>
+    <Icon className="h-[18px] w-[18px] shrink-0 transition-transform duration-200 group-hover:scale-110" />
     <span className="text-xs font-bold tracking-tight">{title}</span>
   </button>
 );
@@ -470,35 +470,34 @@ const UserDistributionCard = ({ rows, total, isLoading, hasError, onManageUsers 
   );
 };
 
-const AdminMetricsCard = ({ metrics = [] }) => (
+const AdminQuickActionsCard = ({ actions = [] }) => (
   <AnalyticsPanel
-    title="Workspace Metrics"
-    description="A live view of delivery capacity and workload."
+    title={
+      <span className="flex items-center gap-2">
+        <Zap className="h-4 w-4 text-violet-600" />
+        Quick Actions
+      </span>
+    }
   >
-    <div className="grid gap-3 sm:grid-cols-2">
-      {metrics.map((metric) => {
-        const Icon = metric.icon;
+    <div className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
+      {actions.map((action) => {
+        const Icon = action.icon;
 
         return (
           <button
-            key={metric.key}
+            key={action.key}
             type="button"
-            onClick={metric.onClick}
-            className="group flex min-h-[76px] items-center gap-3 rounded-lg border border-slate-100 bg-white/55 px-4 py-3 text-left transition-colors hover:border-slate-200 hover:bg-white/80 dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10"
+            onClick={action.onClick}
+            className="group flex min-h-[48px] items-center gap-3 rounded-lg border border-slate-200/70 bg-white/55 px-3 py-2 text-left shadow-sm transition-all hover:border-blue-200 hover:bg-white/90 hover:shadow-md dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10"
           >
-            <span className={cn("flex h-10 w-10 shrink-0 items-center justify-center rounded-lg", metric.className)}>
+            <span className={cn("flex h-8 w-8 shrink-0 items-center justify-center rounded-lg", action.className)}>
               <Icon className="h-4 w-4" />
             </span>
-            <span className="min-w-0 flex-1">
-              <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-500">
-                {metric.title}
-              </span>
-              <span className="mt-0.5 block truncate text-[11px] font-medium text-slate-500">
-                {metric.helper}
-              </span>
-            </span>
-            <span className="shrink-0 text-xl font-bold text-slate-950 dark:text-slate-100">
-              {metric.value}
+            <span className={cn(
+              "truncate text-xs font-semibold text-slate-800 dark:text-slate-100",
+              action.labelClassName
+            )}>
+              {action.title}
             </span>
           </button>
         );
@@ -902,42 +901,49 @@ const DashboardPage = () => {
       };
     });
   }, [users]);
-  const adminMetrics = [
+  const adminQuickActions = [
     {
-      key: "projects",
-      title: "Projects",
-      value: formatCompactNumber(projects.length),
-      helper: "Tracked workspaces",
+      key: "create-project",
+      title: "Create Project",
       icon: FolderKanban,
       className: "bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300",
       onClick: () => navigate("/projects"),
     },
     {
-      key: "active-teams",
-      title: "Active Teams",
-      value: formatCompactNumber(summary.activeTeams),
-      helper: `${teams.length} teams in reports`,
-      icon: Users2,
+      key: "log-issue",
+      title: "Log Issue",
+      icon: Zap,
+      className: "bg-orange-50 text-orange-600 dark:bg-orange-950/40 dark:text-orange-300",
+      labelClassName: "text-orange-700 dark:text-orange-300",
+      onClick: () => navigate("/issues?compose=1"),
+    },
+    {
+      key: "invite-user",
+      title: "Invite User",
+      icon: UserPlus,
       className: "bg-violet-50 text-violet-700 dark:bg-violet-950/40 dark:text-violet-300",
-      onClick: () => navigate("/projects"),
+      onClick: () => navigate("/settings/users?panel=invite"),
     },
     {
-      key: "open-issues",
-      title: "Open Issues",
-      value: formatCompactNumber(issueStats.open),
-      helper: `${issueStats.highPriority} high priority`,
-      icon: AlertTriangle,
-      className: "bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300",
-      onClick: () => navigateToIssues({ filter: "open" }),
-    },
-    {
-      key: "resolution-rate",
-      title: "Resolution Rate",
-      value: `${summary.resolutionRate || 0}%`,
-      helper: `${formatDuration(summary.avgResolutionTimeMs)} average`,
-      icon: CheckCircle2,
-      className: "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300",
+      key: "view-reports",
+      title: "View Reports",
+      icon: BarChart3,
+      className: "bg-cyan-50 text-cyan-700 dark:bg-cyan-950/40 dark:text-cyan-300",
       onClick: () => navigate("/reports"),
+    },
+    {
+      key: "team-activity",
+      title: "Team Activity",
+      icon: Activity,
+      className: "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300",
+      onClick: () => navigate("/admin/team-activity"),
+    },
+    {
+      key: "system-settings",
+      title: "System Settings",
+      icon: Settings,
+      className: "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300",
+      onClick: () => navigate("/settings/users"),
     },
   ];
   const recentCriticalBugs = useMemo(
@@ -1072,11 +1078,15 @@ const DashboardPage = () => {
       key: "projects",
       title: "Projects",
       value: formatCompactNumber(projects.length),
+      icon: FolderKanban,
+      iconClassName: "text-blue-600",
     },
     {
       key: "teams",
       title: "Active Teams",
       value: formatCompactNumber(summary.activeTeams),
+      icon: Users2,
+      iconClassName: "text-violet-600",
     },
   ];
 
@@ -1097,12 +1107,23 @@ const DashboardPage = () => {
               </div>
 
               <div className="flex items-center gap-4">
-                {headerKpiCards.map((card) => (
-                  <div key={card.key} className="flex flex-col">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">{card.title}</span>
-                    <span className="text-lg font-bold text-slate-900 dark:text-slate-100">{card.value}</span>
-                  </div>
-                ))}
+                {headerKpiCards.map((card) => {
+                  const Icon = card.icon;
+
+                  return (
+                    <div key={card.key} className="flex items-center gap-2.5">
+                      <Icon className={cn("h-5 w-5 shrink-0", card.iconClassName)} />
+                      <div className="flex flex-col">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                          {card.title}
+                        </span>
+                        <span className="text-lg font-bold leading-tight text-slate-900 dark:text-slate-100">
+                          {card.value}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
 
@@ -1156,7 +1177,7 @@ const DashboardPage = () => {
             navigate(role ? `/settings/users?role=${encodeURIComponent(role)}` : "/settings/users")
           }
         />
-        <AdminMetricsCard metrics={adminMetrics} />
+        <AdminQuickActionsCard actions={adminQuickActions} />
       </section>
 
       <section className="grid gap-5 md:grid-cols-3">
