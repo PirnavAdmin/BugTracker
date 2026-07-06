@@ -667,7 +667,7 @@ const GreetingBeachScene = ({ timeOfDay, reduceMotion }) => {
     >
       <svg
         className="h-full w-full"
-        preserveAspectRatio="xMidYMid slice"
+        preserveAspectRatio="none"
         viewBox="0 0 900 220"
       >
         <defs>
@@ -683,13 +683,6 @@ const GreetingBeachScene = ({ timeOfDay, reduceMotion }) => {
             <stop offset="0%" stopColor="#fef3c7" />
             <stop offset="100%" stopColor="#fdba74" />
           </linearGradient>
-          <filter id="greeting-sun-glow" x="-100%" y="-100%" width="300%" height="300%">
-            <feGaussianBlur stdDeviation="10" result="blur" />
-            <feMerge>
-              <feMergeNode in="blur" />
-              <feMergeNode in="SourceGraphic" />
-            </feMerge>
-          </filter>
         </defs>
 
         <rect width="900" height="220" fill={`url(#greeting-sky-${timeOfDay})`} />
@@ -700,51 +693,6 @@ const GreetingBeachScene = ({ timeOfDay, reduceMotion }) => {
             <path d="M360 112 H900" stroke="#fed7aa" strokeWidth="2" opacity="0.38" />
           </>
         )}
-
-        <motion.circle
-          cx="650"
-          cy={sunStartY}
-          r={isEvening ? 31 : 27}
-          fill={sunColor}
-          filter="url(#greeting-sun-glow)"
-          initial={reduceMotion ? false : { cy: sunStartY, opacity: 0.4 }}
-          animate={{ cy: sunEndY, opacity: 1 }}
-          transition={{ duration: isEvening ? 4.5 : 3.2, ease: "easeInOut" }}
-        />
-        <motion.ellipse
-          cx="650"
-          cy="147"
-          rx="48"
-          ry="5"
-          fill={sunColor}
-          opacity="0.3"
-          animate={reduceMotion ? undefined : { rx: [38, 58, 38], opacity: [0.18, 0.42, 0.18] }}
-          transition={{ duration: 3.8, repeat: Infinity, ease: "easeInOut" }}
-        />
-
-        <motion.g
-          initial={{ x: reduceMotion ? 250 : 80 }}
-          animate={{ x: reduceMotion ? 250 : 980 }}
-          transition={{ duration: 18, repeat: Infinity, ease: "linear" }}
-          fill="white"
-          opacity={isEvening ? 0.55 : 0.82}
-        >
-          <ellipse cx="0" cy="52" rx="54" ry="14" />
-          <circle cx="-23" cy="45" r="18" />
-          <circle cx="14" cy="42" r="24" />
-          <circle cx="42" cy="49" r="15" />
-        </motion.g>
-        <motion.g
-          initial={{ x: reduceMotion ? 610 : 400 }}
-          animate={{ x: reduceMotion ? 610 : 980 }}
-          transition={{ duration: 24, repeat: Infinity, ease: "linear" }}
-          fill="white"
-          opacity={isEvening ? 0.38 : 0.62}
-        >
-          <ellipse cx="0" cy="88" rx="38" ry="10" />
-          <circle cx="-14" cy="82" r="13" />
-          <circle cx="11" cy="80" r="17" />
-        </motion.g>
 
         <path d="M0 143 Q130 132 260 143 T520 143 T780 143 T1040 143 V220 H0Z" fill={`url(#greeting-ocean-${timeOfDay})`} />
         <motion.path
@@ -768,6 +716,50 @@ const GreetingBeachScene = ({ timeOfDay, reduceMotion }) => {
         <path d="M525 220 Q670 174 900 176 V220Z" fill="url(#greeting-sand)" opacity="0.96" />
         <path d="M565 220 Q690 187 900 188" fill="none" stroke="white" strokeWidth="4" opacity="0.62" />
       </svg>
+
+      <motion.div
+        className="absolute h-14 w-36 drop-shadow-[0_7px_8px_rgba(59,130,246,0.16)]"
+        initial={{ left: reduceMotion ? "24%" : "7%" }}
+        animate={{ left: reduceMotion ? "24%" : "104%" }}
+        transition={{ duration: 19, repeat: Infinity, ease: "linear" }}
+        style={{ top: "8%" }}
+      >
+        <svg viewBox="0 0 160 64" className="h-full w-full">
+          <path
+            d="M25 55C11 55 2 47 2 36c0-11 9-19 21-19 4 0 8 1 11 3C40 8 51 1 65 1c18 0 31 10 35 25 4-3 10-5 16-5 13 0 23 8 25 19 10 1 17 7 17 15H25Z"
+            fill="rgba(255,255,255,0.92)"
+            stroke="rgba(191,219,254,0.9)"
+            strokeWidth="2"
+          />
+        </svg>
+      </motion.div>
+      <motion.div
+        className="absolute h-11 w-28 opacity-75 drop-shadow-[0_6px_7px_rgba(59,130,246,0.14)]"
+        initial={{ left: reduceMotion ? "62%" : "43%" }}
+        animate={{ left: reduceMotion ? "62%" : "104%" }}
+        transition={{ duration: 27, repeat: Infinity, ease: "linear" }}
+        style={{ top: "37%" }}
+      >
+        <svg viewBox="0 0 160 64" className="h-full w-full">
+          <path
+            d="M25 55C11 55 2 47 2 36c0-11 9-19 21-19 4 0 8 1 11 3C40 8 51 1 65 1c18 0 31 10 35 25 4-3 10-5 16-5 13 0 23 8 25 19 10 1 17 7 17 15H25Z"
+            fill="white"
+            stroke="rgba(219,234,254,0.95)"
+            strokeWidth="2"
+          />
+        </svg>
+      </motion.div>
+
+      <motion.div
+        className="absolute left-[70%] h-12 w-12 rounded-full shadow-[0_0_32px_12px_rgba(253,224,71,0.38)]"
+        style={{ backgroundColor: sunColor }}
+        initial={{
+          top: reduceMotion ? `${(sunEndY / 220) * 100}%` : `${(sunStartY / 220) * 100}%`,
+          opacity: reduceMotion ? 1 : 0.45,
+        }}
+        animate={{ top: `${(sunEndY / 220) * 100}%`, opacity: 1 }}
+        transition={{ duration: isEvening ? 4.5 : 3.2, ease: "easeInOut" }}
+      />
       <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(255,255,255,0.42)_0%,rgba(255,255,255,0.16)_38%,rgba(255,255,255,0.02)_70%,transparent_100%)]" />
     </div>
   );
