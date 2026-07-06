@@ -1,5 +1,5 @@
 import { useDeferredValue, useEffect, useMemo, useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createPortal } from "react-dom";
 import { useSearchParams } from "react-router-dom";
 import {
@@ -932,7 +932,7 @@ const AdminBugsPage = () => {
         search: debouncedSearch.trim(),
         sortBy,
     }),
-    keepPreviousData: true,
+    placeholderData: keepPreviousData,
   });
   const { data: cardSummaryData = null } = useQuery({
     queryKey: [
@@ -962,7 +962,7 @@ const AdminBugsPage = () => {
         search: debouncedSearch.trim(),
         sortBy,
       }),
-    keepPreviousData: true,
+    placeholderData: keepPreviousData,
   });
 
   const bugs = useMemo(
@@ -1001,10 +1001,10 @@ const AdminBugsPage = () => {
   }, [toast?.id]);
 
   useEffect(() => {
-    if (page > pagination.totalPages) {
+    if (bugsData?.pagination && page > pagination.totalPages) {
       setPage(pagination.totalPages);
     }
-  }, [page, pagination.totalPages]);
+  }, [bugsData?.pagination, page, pagination.totalPages]);
 
   useEffect(() => {
     if (!projects.length) {
