@@ -65,6 +65,7 @@ import {
 } from "@/lib/bug-workflow-cache";
 import IssueDetailsDialog from "@/components/issues/IssueDetailsDialog";
 import NotificationCard from "@/components/dashboard/NotificationCard";
+import GreetingBeachScene from "@/components/dashboard/GreetingBeachScene";
 import EmptyState from "@/components/shared/EmptyState";
 import { Button } from "@/components/ui/button";
 import {
@@ -1424,6 +1425,7 @@ const DeveloperDashboardPage = () => {
     : currentHour < 17
       ? "Good afternoon"
       : "Good evening";
+  const timeOfDay = currentHour < 12 ? "morning" : currentHour < 17 ? "afternoon" : "evening";
   const developerName = String(user?.name || "Developer").trim().split(/\s+/)[0];
   const [activeTab, setActiveTab] = useState("bugs");
   const [filters, setFilters] = useState(defaultFilters);
@@ -1757,8 +1759,9 @@ const DeveloperDashboardPage = () => {
 
   return (
     <div className="page-wrapper space-y-5">
-      <section className="flex flex-wrap items-center gap-3 rounded-[26px] border border-white/70 bg-white/78 p-3 shadow-sm backdrop-blur-xl">
-        <div className="min-w-[240px] flex-1 px-3 py-1">
+      <section className="relative isolate flex flex-wrap items-center gap-3 overflow-hidden rounded-[26px] border border-blue-100/80 bg-white p-3 shadow-[0_24px_65px_-42px_rgba(37,99,235,0.65)]">
+        <GreetingBeachScene timeOfDay={timeOfDay} />
+        <div className="relative z-10 min-w-[240px] flex-1 px-3 py-1 [text-shadow:0_1px_12px_rgba(255,255,255,0.9)]">
           <p className="text-xl font-semibold tracking-tight text-slate-950">
             {greeting},{" "}
             <span className="inline-flex rounded-lg bg-gradient-to-r from-blue-600 to-cyan-500 px-2.5 py-0.5 text-white shadow-[0_8px_20px_-10px_rgba(37,99,235,0.9)]">
@@ -1769,7 +1772,7 @@ const DeveloperDashboardPage = () => {
             Welcome back. Here’s what’s happening with your work today.
           </p>
         </div>
-        <div className="ml-auto flex flex-wrap items-center justify-end gap-3">
+        <div className="relative z-10 ml-auto flex flex-wrap items-center justify-end gap-3">
           <Button
             className="h-11 rounded-2xl"
             type="button"
@@ -1797,7 +1800,9 @@ const DeveloperDashboardPage = () => {
             Priority Queue
           </Button>
         </div>
-        <SprintProgressWidget metrics={sprintProgress} isLoading={isIssuesLoading} />
+        <div className="relative z-10">
+          <SprintProgressWidget metrics={sprintProgress} isLoading={isIssuesLoading} />
+        </div>
       </section>
 
       <BugBucketPanel

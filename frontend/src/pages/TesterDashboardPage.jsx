@@ -52,6 +52,7 @@ import { readStoredSession } from "@/lib/session";
 import { getChatSocket } from "@/lib/socket";
 import EmptyState from "@/components/shared/EmptyState";
 import NotificationCard from "@/components/dashboard/NotificationCard";
+import GreetingBeachScene from "@/components/dashboard/GreetingBeachScene";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -398,6 +399,7 @@ const TesterDashboardPage = () => {
     : currentHour < 17
       ? "Good afternoon"
       : "Good evening";
+  const timeOfDay = currentHour < 12 ? "morning" : currentHour < 17 ? "afternoon" : "evening";
   const testerName = String(user?.name || "Tester").trim().split(/\s+/)[0];
   const testerId = String(user?._id || user?.id || "");
   const isTester = user?.role === ROLE_TESTER;
@@ -631,8 +633,9 @@ const TesterDashboardPage = () => {
 
   return (
     <div className="space-y-5">
-      <section className="flex flex-wrap items-center gap-3 rounded-[28px] border border-white/70 bg-white/82 p-3 shadow-[0_22px_58px_-38px_rgba(15,23,42,0.36)] backdrop-blur-xl lg:flex-nowrap">
-        <div className="relative w-full min-w-0 shrink-0 sm:flex-1 lg:w-[420px] lg:flex-none xl:w-[460px]">
+      <section className="relative isolate flex flex-wrap items-center gap-3 overflow-hidden rounded-[28px] border border-blue-100/80 bg-white p-3 shadow-[0_24px_65px_-42px_rgba(37,99,235,0.65)] lg:flex-nowrap">
+        <GreetingBeachScene timeOfDay={timeOfDay} />
+        <div className="relative z-10 w-full min-w-0 shrink-0 sm:flex-1 lg:w-[420px] lg:flex-none xl:w-[460px]">
           <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
           <Input
             aria-label="Search bugs"
@@ -644,7 +647,7 @@ const TesterDashboardPage = () => {
         </div>
 
         <Button
-          className="interactive-button h-11 w-full shrink-0 rounded-2xl border border-indigo-300/30 bg-[linear-gradient(90deg,#2563EB_0%,#6366F1_55%,#8B5CF6_100%)] px-4 text-white shadow-[0_14px_28px_-18px_rgba(99,102,241,0.82)] hover:brightness-105 sm:w-auto sm:px-5"
+          className="interactive-button relative z-10 h-11 w-full shrink-0 rounded-2xl border border-indigo-300/30 bg-[linear-gradient(90deg,#2563EB_0%,#6366F1_55%,#8B5CF6_100%)] px-4 text-white shadow-[0_14px_28px_-18px_rgba(99,102,241,0.82)] hover:brightness-105 sm:w-auto sm:px-5"
           onClick={() => navigate("/bugs?view=report")}
           type="button"
         >
@@ -652,7 +655,7 @@ const TesterDashboardPage = () => {
           New Bug
         </Button>
 
-        <div className="min-w-[240px] flex-1 px-3 py-1 lg:text-right">
+        <div className="relative z-10 min-w-[240px] flex-1 px-3 py-1 [text-shadow:0_1px_12px_rgba(255,255,255,0.9)] lg:text-right">
           <p className="text-xl font-semibold tracking-tight text-slate-950">
             {greeting},{" "}
             <span className="inline-flex rounded-lg bg-gradient-to-r from-indigo-600 to-violet-500 px-2.5 py-0.5 text-white shadow-[0_8px_20px_-10px_rgba(99,102,241,0.9)]">
