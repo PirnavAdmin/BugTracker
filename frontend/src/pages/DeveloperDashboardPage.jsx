@@ -1768,7 +1768,7 @@ const DeveloperDashboardPage = () => {
               {developerName}
             </span>
           </p>
-          <p className="mt-1 text-sm font-medium text-slate-700">
+          <p className="mt-1 inline-flex rounded-lg bg-white/80 px-2 py-1 text-sm font-semibold text-slate-900 shadow-sm backdrop-blur-sm">
             Welcome back. Here’s what’s happening with your work today.
           </p>
         </div>
