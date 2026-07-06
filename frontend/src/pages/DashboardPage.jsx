@@ -1,9 +1,11 @@
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
+import { motion, useReducedMotion } from "framer-motion";
 import {
   Activity,
   AlertTriangle,
+  ArrowUpRight,
   BarChart3,
   Bug,
   CheckCircle2,
@@ -13,6 +15,7 @@ import {
   Rocket,
   Settings,
   ShieldCheck,
+  Sparkles,
   TimerReset,
   UserPlus,
   Users2,
@@ -34,6 +37,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useAuth } from "@/hooks/use-auth";
+import { ROLE_MANAGER } from "@/lib/roles";
 import {
   ISSUE_STATUS,
   ISSUE_TYPES,
@@ -644,6 +649,219 @@ const TriageBoardWidget = ({ bugs, onOpen, onNavigate }) => {
   );
 };
 
+const GreetingBeachScene = ({ timeOfDay, reduceMotion }) => {
+  const isMorning = timeOfDay === "morning";
+  const isEvening = timeOfDay === "evening";
+  const skyTop = isMorning ? "#fef3c7" : isEvening ? "#7c3aed" : "#bfdbfe";
+  const skyBottom = isMorning ? "#fda4af" : isEvening ? "#fb7185" : "#ecfeff";
+  const oceanTop = isEvening ? "#4338ca" : "#38bdf8";
+  const oceanBottom = isEvening ? "#312e81" : "#0ea5e9";
+  const sunColor = isEvening ? "#fb923c" : "#fde047";
+  const sunStartY = isMorning ? 122 : isEvening ? 45 : 35;
+  const sunEndY = isMorning ? 48 : isEvening ? 118 : 35;
+
+  return (
+    <div
+      aria-hidden="true"
+      className="pointer-events-none absolute inset-y-0 right-0 w-full overflow-hidden opacity-80 sm:w-[74%] lg:opacity-100"
+    >
+      <svg
+        className="h-full w-full"
+        preserveAspectRatio="xMidYMid slice"
+        viewBox="0 0 900 220"
+      >
+        <defs>
+          <linearGradient id={`greeting-sky-${timeOfDay}`} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={skyTop} />
+            <stop offset="100%" stopColor={skyBottom} />
+          </linearGradient>
+          <linearGradient id={`greeting-ocean-${timeOfDay}`} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={oceanTop} />
+            <stop offset="100%" stopColor={oceanBottom} />
+          </linearGradient>
+          <linearGradient id="greeting-sand" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0%" stopColor="#fef3c7" />
+            <stop offset="100%" stopColor="#fdba74" />
+          </linearGradient>
+          <filter id="greeting-sun-glow" x="-100%" y="-100%" width="300%" height="300%">
+            <feGaussianBlur stdDeviation="10" result="blur" />
+            <feMerge>
+              <feMergeNode in="blur" />
+              <feMergeNode in="SourceGraphic" />
+            </feMerge>
+          </filter>
+        </defs>
+
+        <rect width="900" height="220" fill={`url(#greeting-sky-${timeOfDay})`} />
+
+        {isEvening && (
+          <>
+            <circle cx="650" cy="80" r="66" fill="#fb7185" opacity="0.16" />
+            <path d="M360 112 H900" stroke="#fed7aa" strokeWidth="2" opacity="0.38" />
+          </>
+        )}
+
+        <motion.circle
+          cx="650"
+          cy={sunStartY}
+          r={isEvening ? 31 : 27}
+          fill={sunColor}
+          filter="url(#greeting-sun-glow)"
+          initial={reduceMotion ? false : { cy: sunStartY, opacity: 0.4 }}
+          animate={{ cy: sunEndY, opacity: 1 }}
+          transition={{ duration: isEvening ? 4.5 : 3.2, ease: "easeInOut" }}
+        />
+        <motion.ellipse
+          cx="650"
+          cy="147"
+          rx="48"
+          ry="5"
+          fill={sunColor}
+          opacity="0.3"
+          animate={reduceMotion ? undefined : { rx: [38, 58, 38], opacity: [0.18, 0.42, 0.18] }}
+          transition={{ duration: 3.8, repeat: Infinity, ease: "easeInOut" }}
+        />
+
+        <motion.g
+          initial={{ x: reduceMotion ? 250 : 80 }}
+          animate={{ x: reduceMotion ? 250 : 980 }}
+          transition={{ duration: 18, repeat: Infinity, ease: "linear" }}
+          fill="white"
+          opacity={isEvening ? 0.55 : 0.82}
+        >
+          <ellipse cx="0" cy="52" rx="54" ry="14" />
+          <circle cx="-23" cy="45" r="18" />
+          <circle cx="14" cy="42" r="24" />
+          <circle cx="42" cy="49" r="15" />
+        </motion.g>
+        <motion.g
+          initial={{ x: reduceMotion ? 610 : 400 }}
+          animate={{ x: reduceMotion ? 610 : 980 }}
+          transition={{ duration: 24, repeat: Infinity, ease: "linear" }}
+          fill="white"
+          opacity={isEvening ? 0.38 : 0.62}
+        >
+          <ellipse cx="0" cy="88" rx="38" ry="10" />
+          <circle cx="-14" cy="82" r="13" />
+          <circle cx="11" cy="80" r="17" />
+        </motion.g>
+
+        <path d="M0 143 Q130 132 260 143 T520 143 T780 143 T1040 143 V220 H0Z" fill={`url(#greeting-ocean-${timeOfDay})`} />
+        <motion.path
+          d="M0 153 Q80 143 160 153 T320 153 T480 153 T640 153 T800 153 T960 153"
+          fill="none"
+          stroke="white"
+          strokeWidth="3"
+          opacity="0.72"
+          animate={reduceMotion ? undefined : { x: [-45, 18, -45] }}
+          transition={{ duration: 5, repeat: Infinity, ease: "easeInOut" }}
+        />
+        <motion.path
+          d="M0 171 Q65 164 130 171 T260 171 T390 171 T520 171 T650 171 T780 171 T910 171"
+          fill="none"
+          stroke="#cffafe"
+          strokeWidth="2"
+          opacity="0.6"
+          animate={reduceMotion ? undefined : { x: [20, -35, 20] }}
+          transition={{ duration: 6.5, repeat: Infinity, ease: "easeInOut" }}
+        />
+        <path d="M525 220 Q670 174 900 176 V220Z" fill="url(#greeting-sand)" opacity="0.96" />
+        <path d="M565 220 Q690 187 900 188" fill="none" stroke="white" strokeWidth="4" opacity="0.62" />
+      </svg>
+      <div className="absolute inset-0 bg-gradient-to-r from-white via-white/75 to-transparent" />
+    </div>
+  );
+};
+
+const AdminGreetingCard = ({
+  user,
+  openIssues = 0,
+  activeTeams = 0,
+  onViewReports,
+}) => {
+  const reduceMotion = useReducedMotion();
+  const currentHour = new Date().getHours();
+  const timeOfDay = currentHour < 12 ? "morning" : currentHour < 17 ? "afternoon" : "evening";
+  const greeting =
+    currentHour < 12
+      ? "Good morning"
+      : currentHour < 17
+        ? "Good afternoon"
+        : "Good evening";
+  const firstName = String(user?.name || user?.role || "Admin")
+    .trim()
+    .split(/\s+/)[0];
+  const isManager = user?.role === ROLE_MANAGER;
+
+  return (
+    <motion.section
+      initial={reduceMotion ? false : { opacity: 0, y: 16, scale: 0.99 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      transition={{ duration: 0.55, ease: [0.22, 1, 0.36, 1] }}
+      className="relative isolate overflow-hidden rounded-[28px] border border-blue-100/80 bg-white px-5 py-5 shadow-[0_24px_65px_-42px_rgba(37,99,235,0.65)] sm:px-7"
+    >
+      <GreetingBeachScene timeOfDay={timeOfDay} reduceMotion={reduceMotion} />
+
+      <div className="relative flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+        <div className="flex min-w-0 items-center gap-4">
+          <motion.div
+            aria-hidden="true"
+            className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-600 text-white shadow-[0_16px_30px_-14px_rgba(37,99,235,0.9)]"
+            animate={reduceMotion ? undefined : { rotate: [0, 4, -4, 0] }}
+            transition={{ duration: 4.5, repeat: Infinity, ease: "easeInOut" }}
+          >
+            <Sparkles className="h-5 w-5" />
+          </motion.div>
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className="text-xl font-semibold tracking-tight text-slate-950 sm:text-2xl">
+                {greeting},{" "}
+                <span className="bg-gradient-to-r from-blue-600 to-violet-600 bg-clip-text font-bold text-transparent">
+                  {firstName}
+                </span>
+              </h1>
+              <span className="rounded-full border border-blue-200/80 bg-white/80 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.14em] text-blue-700 shadow-sm">
+                {isManager ? "Manager" : "Admin"}
+              </span>
+            </div>
+            <p className="mt-1 text-sm text-slate-500">
+              {isManager
+                ? "Keep delivery moving and your teams aligned today."
+                : "Your workspace overview is ready. Let’s make today count."}
+            </p>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-3 lg:justify-end">
+          <div className="flex items-center gap-5 rounded-2xl border border-white/90 bg-white/70 px-4 py-2.5 shadow-sm backdrop-blur-sm">
+            <div>
+              <p className="text-lg font-bold leading-none text-slate-900">{openIssues}</p>
+              <p className="mt-1 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                Open issues
+              </p>
+            </div>
+            <div className="h-8 w-px bg-slate-200" />
+            <div>
+              <p className="text-lg font-bold leading-none text-slate-900">{activeTeams}</p>
+              <p className="mt-1 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                Active teams
+              </p>
+            </div>
+          </div>
+          <Button
+            className="h-11 rounded-2xl bg-slate-950 px-5 text-white shadow-[0_14px_28px_-18px_rgba(15,23,42,0.8)] hover:bg-blue-700"
+            onClick={onViewReports}
+            type="button"
+          >
+            View reports
+            <ArrowUpRight className="h-4 w-4" />
+          </Button>
+        </div>
+      </div>
+    </motion.section>
+  );
+};
+
 const DashboardLoading = () => (
   <div className="space-y-6">
     <Skeleton className="h-[120px] rounded-xl bg-slate-100/50" />
@@ -657,6 +875,7 @@ const DashboardLoading = () => (
 
 const DashboardPage = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const analytics = useAnalytics();
   const {
     data: issuesData = [],
@@ -1100,6 +1319,13 @@ const DashboardPage = () => {
 
   return (
     <div className="space-y-6">
+      <AdminGreetingCard
+        user={user}
+        openIssues={issueStats.open}
+        activeTeams={summary.activeTeams || teams.length}
+        onViewReports={() => navigate("/reports")}
+      />
+
       <section className="grid gap-5 xl:grid-cols-[1fr_0.95fr]">
         <UserDistributionCard
           rows={userDistributionRows}
