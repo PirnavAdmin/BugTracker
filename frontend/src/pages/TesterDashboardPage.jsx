@@ -15,7 +15,6 @@ import {
   RotateCcw,
   Search,
   TimerReset,
-  Trophy,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import {
@@ -116,32 +115,6 @@ const STATUS_CHART_META = [
     gradient: "from-cyan-500 to-teal-500",
     Icon: PauseCircle,
     track: "bg-cyan-100",
-  },
-];
-
-const PROJECT_CHIP_ACCENTS = [
-  {
-    dot: "bg-blue-500",
-    className: "border-blue-200/70 bg-blue-50/82 text-blue-700 hover:bg-blue-100/82",
-  },
-  {
-    dot: "bg-emerald-500",
-    className:
-      "border-emerald-200/70 bg-emerald-50/82 text-emerald-700 hover:bg-emerald-100/82",
-  },
-  {
-    dot: "bg-violet-500",
-    className:
-      "border-violet-200/70 bg-violet-50/82 text-violet-700 hover:bg-violet-100/82",
-  },
-  {
-    dot: "bg-amber-500",
-    className:
-      "border-amber-200/70 bg-amber-50/82 text-amber-700 hover:bg-amber-100/82",
-  },
-  {
-    dot: "bg-cyan-500",
-    className: "border-cyan-200/70 bg-cyan-50/82 text-cyan-700 hover:bg-cyan-100/82",
   },
 ];
 
@@ -282,34 +255,6 @@ const DashboardIconButton = ({ children, className, ...props }) => (
   </Button>
 );
 
-const AttachedProjectsTile = ({ projects = [] }) => (
-  <div className="flex min-h-11 min-w-0 flex-1 items-center gap-2 overflow-hidden rounded-2xl border border-white/70 bg-white/78 px-3 shadow-sm backdrop-blur-xl max-sm:w-full max-sm:flex-wrap sm:h-11">
-    <span className="shrink-0 text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
-      Attached Projects :
-    </span>
-
-    <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2 overflow-x-auto py-1 sm:flex-nowrap">
-      {projects.map((project, index) => {
-        const accent = PROJECT_CHIP_ACCENTS[index % PROJECT_CHIP_ACCENTS.length];
-
-        return (
-          <span
-            className={cn(
-              "inline-flex h-7 max-w-[150px] shrink-0 items-center gap-1.5 rounded-full border px-2.5 text-xs font-semibold shadow-sm transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_12px_24px_-18px_rgba(15,23,42,0.42)]",
-              accent.className
-            )}
-            key={project._id}
-            title={project.name}
-          >
-            <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", accent.dot)} />
-            <span className="truncate">{project.name || "Project"}</span>
-          </span>
-        );
-      })}
-    </div>
-  </div>
-);
-
 const SummaryCard = ({ Icon, className, label, value }) => (
   <Card className="group overflow-hidden border-white/70 bg-white/86 shadow-[0_18px_48px_-34px_rgba(15,23,42,0.34)] backdrop-blur-xl transition duration-300 hover:-translate-y-1 hover:border-blue-100 hover:shadow-[0_24px_54px_-30px_rgba(37,99,235,0.32)]">
     <CardContent className="relative overflow-hidden p-4">
@@ -333,22 +278,6 @@ const SummaryCard = ({ Icon, className, label, value }) => (
       </div>
     </CardContent>
   </Card>
-);
-
-const QaMetricsCard = ({ metrics }) => (
-  <div className="flex min-h-20 min-w-[260px] flex-1 items-center gap-3 rounded-2xl border border-white/70 bg-[linear-gradient(135deg,rgba(15,23,42,0.96),rgba(79,70,229,0.9),rgba(14,165,233,0.82))] px-4 py-3 text-white shadow-[0_18px_42px_-28px_rgba(79,70,229,0.88)] backdrop-blur-xl max-sm:w-full lg:max-w-[430px]">
-    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-white/20 bg-white/12 text-amber-300">
-      <Trophy className="h-5 w-5" />
-    </div>
-    <div className="grid min-w-0 flex-1 grid-cols-3 gap-2 text-center text-xs">
-      {metrics.items.map((item) => (
-        <div className="px-2 py-1.5" key={item.label}>
-          <p className="text-base font-bold text-white">{item.value}</p>
-          <p className="truncate text-blue-100">{item.label}</p>
-        </div>
-      ))}
-    </div>
-  </div>
 );
 
 const ChartCard = ({ children, title }) => (
@@ -463,6 +392,13 @@ const TesterDashboardPage = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { user } = useAuth();
+  const currentHour = new Date().getHours();
+  const greeting = currentHour < 12
+    ? "Good morning"
+    : currentHour < 17
+      ? "Good afternoon"
+      : "Good evening";
+  const testerName = String(user?.name || "Tester").trim().split(/\s+/)[0];
   const testerId = String(user?._id || user?.id || "");
   const isTester = user?.role === ROLE_TESTER;
   const [searchTerm, setSearchTerm] = useState("");
@@ -601,29 +537,6 @@ const TesterDashboardPage = () => {
 
     return metrics;
   }, [visibleIssues]);
-  const qaMetrics = useMemo(() => {
-    const verified = dashboardMetrics.closed + dashboardMetrics.resolved;
-    const verificationRate = dashboardMetrics.total
-      ? Math.round((verified / dashboardMetrics.total) * 100)
-      : 100;
-    const reopenRate = dashboardMetrics.total
-      ? Math.round((dashboardMetrics.reopened / dashboardMetrics.total) * 100)
-      : 0;
-    const completedRecentTasks = recentTasks.filter((task) =>
-      [ISSUE_STATUS.DONE, ISSUE_STATUS.CLOSED].includes(normalizeIssueStatus(task.status))
-    ).length;
-    const taskCompletionRate = recentTasks.length
-      ? Math.round((completedRecentTasks / recentTasks.length) * 100)
-      : 100;
-    return {
-      items: [
-        { label: "Verified", value: `${verificationRate}%` },
-        { label: "Reopen", value: `${reopenRate}%` },
-        { label: "QA Tasks", value: `${taskCompletionRate}%` },
-      ],
-    };
-  }, [dashboardMetrics, recentTasks]);
-
   const statusChartData = useMemo(
     () =>
       STATUS_CHART_META.map((item) => ({
@@ -739,9 +652,14 @@ const TesterDashboardPage = () => {
           New Bug
         </Button>
 
-        <AttachedProjectsTile projects={assignedProjects} />
-
-        <QaMetricsCard metrics={qaMetrics} />
+        <div className="min-w-[240px] flex-1 px-3 py-1 lg:text-right">
+          <p className="text-xl font-semibold tracking-tight text-slate-950">
+            {greeting}, {testerName}
+          </p>
+          <p className="mt-1 text-sm text-slate-500">
+            Welcome back. Here’s what’s happening with your QA work today.
+          </p>
+        </div>
       </section>
 
       <section className="flex snap-x gap-3 overflow-x-auto pb-2 md:grid md:grid-cols-2 md:gap-4 md:overflow-visible md:pb-0 xl:grid-cols-5 [&>*]:min-w-[220px] [&>*]:snap-start md:[&>*]:min-w-0">
