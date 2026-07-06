@@ -1226,7 +1226,7 @@ const DashboardPage = () => {
         )}
       </section>
 
-      <section className="grid gap-5 xl:grid-cols-[1.2fr_0.8fr]">
+      <section className="grid items-start gap-5 xl:grid-cols-[1.2fr_0.8fr]">
         <AnalyticsPanel
           title="Task Status"
           description="Task workload only: To Do, In Progress, and Done."
@@ -1296,6 +1296,7 @@ const DashboardPage = () => {
         </AnalyticsPanel>
 
         <AnalyticsPanel
+          className="self-start"
           title="Bug Status"
           description="Bug lifecycle cards synced with the admin Bugs page."
           action={
@@ -1305,7 +1306,7 @@ const DashboardPage = () => {
           }
         >
           {bugStatusRows.length ? (
-            <div className="space-y-3">
+            <div className="dashboard-scrollbar max-h-[300px] space-y-3 overflow-y-auto overscroll-contain pr-2 [scrollbar-gutter:stable]">
               {bugStatusRows.map((row) => {
                 const width = maxBugStatusCount
                   ? Math.max(Math.round((row.count / maxBugStatusCount) * 100), row.count ? 8 : 0)
