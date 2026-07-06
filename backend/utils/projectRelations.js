@@ -346,7 +346,10 @@ const buildProjectAccessQuery = async (user) => {
   }
 
   const userId = user.id || user._id;
-  const teamProjectIds = await getProjectIdsForUserThroughTeams(userId, workspaceId);
+  const [teamProjectIds, directProjectIds] = await Promise.all([
+    getProjectIdsForUserThroughTeams(userId, workspaceId),
+    ProjectMember.find({ userId }).distinct("projectId"),
+  ]);
   const accessConditions = [
     { createdBy: userId },
     { manager: userId },
@@ -359,6 +362,14 @@ const buildProjectAccessQuery = async (user) => {
     accessConditions.push({
       _id: {
         $in: teamProjectIds,
+      },
+    });
+  }
+
+  if (directProjectIds.length) {
+    accessConditions.push({
+      _id: {
+        $in: directProjectIds,
       },
     });
   }
