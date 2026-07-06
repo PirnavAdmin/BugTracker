@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import {
   deleteManagedUser,
   fetchManagedUsers,
@@ -51,6 +51,7 @@ const USER_FILTER_KEY_ALL = "all";
 
 const UserSettingsPage = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const queryClient = useQueryClient();
   const redirectTimeoutRef = useRef(null);
   const workspaceSenderNoteRef = useRef("");
@@ -113,6 +114,25 @@ const UserSettingsPage = () => {
 
     setActiveSettingsItem(defaultSettingsItem);
   }, [activeSettingsItem, defaultSettingsItem, settingsItems]);
+
+  useEffect(() => {
+    if (!canManageWorkspaceUsers) {
+      return;
+    }
+
+    const searchParams = new URLSearchParams(location.search);
+    const requestedPanel = searchParams.get("panel");
+    const requestedRole = searchParams.get("role");
+
+    if (requestedPanel && settingsItems.some((item) => item.id === requestedPanel)) {
+      setActiveSettingsItem(requestedPanel);
+    }
+
+    if (requestedRole) {
+      setActiveUserFilter(requestedRole);
+      setActiveSettingsItem("users");
+    }
+  }, [canManageWorkspaceUsers, location.search, settingsItems]);
 
   const {
     data: users = [],
