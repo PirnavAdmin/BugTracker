@@ -715,7 +715,7 @@ const IssueDetailsDialog = ({
         className={cn(
           compactDrawer
             ? "issue-detail-drawer grid grid-rows-[auto_minmax(0,1fr)] gap-0 overflow-hidden"
-            : "left-0 top-0 z-[60] grid h-[100dvh] w-screen max-w-none translate-x-0 translate-y-0 grid-rows-[auto_minmax(0,1fr)] gap-0 overflow-hidden rounded-none border-0 bg-white p-0 shadow-2xl sm:left-1/2 sm:top-20 sm:h-[88vh] sm:max-h-[calc(100vh-5.5rem)] sm:w-[92vw] sm:max-w-[1400px] sm:-translate-x-1/2 sm:rounded-3xl sm:border sm:border-white/80 lg:top-24 lg:max-h-[calc(100vh-7rem)]",
+            : "left-0 top-0 z-[60] grid h-[100dvh] w-screen max-w-none translate-x-0 translate-y-0 grid-rows-[auto_minmax(0,1fr)] gap-0 overflow-hidden rounded-none border-0 bg-white p-0 shadow-2xl sm:left-1/2 sm:top-3 sm:h-[calc(100dvh-1.5rem)] sm:max-h-[calc(100dvh-1.5rem)] sm:w-[92vw] sm:max-w-[1400px] sm:-translate-x-1/2 sm:rounded-3xl sm:border sm:border-white/80 lg:top-3 lg:max-h-[calc(100dvh-1.5rem)]",
           contentClassName
         )}
       >
