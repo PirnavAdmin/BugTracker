@@ -170,6 +170,10 @@ const addAndCondition = (query, condition) => {
 
 const buildHighPriorityCondition = buildHighPriorityIssueCondition;
 
+const isTeamProgressRequest = (req) =>
+  req.user?.role === ROLE_TEAM_LEAD &&
+  ["true", "1"].includes(String(req.query.teamProgress || "").trim().toLowerCase());
+
 const getAccessibleProjectIds = async (user) => {
   const workspaceId = normalizeWorkspaceId(user.workspaceId);
 
@@ -2098,6 +2102,57 @@ const buildIssueQueryFromRequest = async (
 
   if (forceOwnAssignee) {
     addPersonalIssueAccessQuery(query, req.user);
+    return query;
+  }
+
+  if (isTeamProgressRequest(req)) {
+    const userTeamIds = await getWorkspaceTeamIdsForUser(req.user);
+    const storyIds = userTeamIds.length
+      ? await Issue.find({
+          ...ACTIVE_ISSUE_QUERY,
+          type: ISSUE_TYPES.STORY,
+          projectId: query.projectId,
+          teamId: {
+            $in: userTeamIds,
+          },
+        }).distinct("_id")
+      : [];
+    const teamProgressConditions = [
+      ...(userTeamIds.length
+        ? [
+            {
+              teamId: {
+                $in: userTeamIds,
+              },
+            },
+          ]
+        : []),
+      ...(storyIds.length
+        ? [
+            {
+              parentStoryId: {
+                $in: storyIds,
+              },
+            },
+          ]
+        : []),
+      ...getPersonalIssueAccessConditions(req.user),
+    ];
+
+    if (
+      !query.type ||
+      query.type === ISSUE_TYPES.TASK ||
+      query.type === ISSUE_TYPES.SUB_TASK
+    ) {
+      query.type = {
+        $in: [ISSUE_TYPES.TASK, ISSUE_TYPES.SUB_TASK],
+      };
+    }
+
+    addAndCondition(query, {
+      $or: teamProgressConditions,
+    });
+
     return query;
   }
 

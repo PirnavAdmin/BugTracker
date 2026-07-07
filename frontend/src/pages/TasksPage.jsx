@@ -76,7 +76,7 @@ const TasksPage = () => {
     error: teamTasksError,
   } = useQuery({
     queryKey: ["issues", "team-lead", "tasks", user?._id || user?.id || ""],
-    queryFn: () => fetchIssues({ type: ISSUE_TYPES.TASK }),
+    queryFn: () => fetchIssues({ type: ISSUE_TYPES.TASK, teamProgress: true }),
     enabled: isTeamLead,
   });
 
