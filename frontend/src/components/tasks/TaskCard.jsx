@@ -1,7 +1,7 @@
 import { useDraggable } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
-import { CalendarDays, FolderKanban, GripVertical, LoaderCircle } from "lucide-react";
-import { getIssueDisplayKey, getIssuePriorityVariant } from "@/lib/issues";
+import { CalendarDays, FolderKanban, GripVertical, LoaderCircle, UserCircle2 } from "lucide-react";
+import { getIssueDisplayKey, getIssuePriorityVariant, resolveIssueAssignee } from "@/lib/issues";
 import { cn, formatDateTime } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 
@@ -81,6 +81,7 @@ const TaskCardSurface = ({
   style,
 }) => {
   const dueAtLabel = formatDueAt(issue.dueAt);
+  const assignee = resolveIssueAssignee(issue);
 
   return (
     <article
@@ -147,6 +148,13 @@ const TaskCardSurface = ({
           <FolderKanban className="h-4 w-4 shrink-0 text-slate-400" />
           <span className="truncate font-medium text-slate-800">
             {issue.projectId?.name || "Unknown project"}
+          </span>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <UserCircle2 className="h-4 w-4 shrink-0 text-slate-400" />
+          <span className="truncate font-medium text-slate-800">
+            {assignee?.name || "Unassigned"}
           </span>
         </div>
 
