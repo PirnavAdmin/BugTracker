@@ -687,6 +687,24 @@ const serializeIssueRef = (issue, extra = {}) => {
           name: issue.epicId.name || "Untitled epic",
         }
       : null,
+    story: issue.parentStoryId
+      ? {
+          _id: resolveObjectId(issue.parentStoryId),
+          title: issue.parentStoryId.title || "Untitled story",
+          issueKey: issue.parentStoryId.issueKey || "",
+          displayBugId: issue.parentStoryId.displayBugId || "",
+          reporter:
+            issue.parentStoryId.reporter &&
+            typeof issue.parentStoryId.reporter === "object"
+              ? {
+                  _id: issue.parentStoryId.reporter._id,
+                  name: issue.parentStoryId.reporter.name,
+                  email: issue.parentStoryId.reporter.email,
+                  role: issue.parentStoryId.reporter.role,
+                }
+              : null,
+        }
+      : null,
     sprint: issue.sprintId
       ? {
           _id: resolveObjectId(issue.sprintId),
@@ -1993,6 +2011,11 @@ const getIssueAnalyticsRows = asyncHandler(async (req, res) => {
     .populate("reporter", "name email role")
     .populate("bugDetails.developerLead", "name email role")
     .populate("bugDetails.testerOwner", "name email role")
+    .populate({
+      path: "parentStoryId",
+      select: "title reporter issueKey displayBugId",
+      populate: { path: "reporter", select: "name email role" },
+    })
     .populate("epicId", "name")
     .populate("sprintId", "name state")
     .lean();

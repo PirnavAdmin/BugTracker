@@ -186,12 +186,24 @@ const resolveBugTester = (issue) =>
 const resolveBugTesterId = (issue) => resolveUserId(resolveBugTester(issue));
 const resolveBugTesterLabel = (issue, fallback = "Unassigned") =>
   resolveUserLabel(resolveBugTester(issue), issue?.testerOwnerName || issue?.reporterName || fallback);
+const resolveStoryCreator = (issue, fallback = "Unassigned") => {
+  const story = issue?.story || issue?.parentStoryId;
+  const reporter = story?.reporter && typeof story.reporter === "object"
+    ? story.reporter
+    : null;
+  return resolveUserLabel(reporter || null, story?.reporterName || fallback);
+};
+
 const resolveReportOwner = (issue, fallback = "Unassigned") => {
   if (issue?.type === ISSUE_TYPES.BUG) {
     return resolveUserLabel(
       resolveBugDetails(issue)?.developerLead || issue?.developerLead || issue?.assignee,
       fallback
     );
+  }
+
+  if (issue?.story || issue?.parentStoryId) {
+    return resolveStoryCreator(issue, fallback);
   }
 
   return resolveUserLabel(issue?.assignee, fallback);
@@ -2762,6 +2774,9 @@ const OrganizationReportsDashboard = () => {
                   <th className="px-3 py-3">ID</th>
                   <th className="px-3 py-3">Title</th>
                   <th className="px-3 py-3">Project</th>
+                  <th className="px-3 py-3">Epic</th>
+                  <th className="px-3 py-3">Story</th>
+                  <th className="px-3 py-3">Sprint</th>
                   <th className="px-3 py-3">Tester</th>
                   <th className="px-3 py-3">Owner</th>
                   <th className="px-3 py-3">Status</th>
@@ -2777,8 +2792,11 @@ const OrganizationReportsDashboard = () => {
                     <td className="px-3 py-3 font-mono text-xs font-semibold">{getIssueDisplayKey(issue)}</td>
                     <td className="max-w-[280px] truncate px-3 py-3 font-semibold text-slate-950">{issue.title}</td>
                     <td className="px-3 py-3">{issue.project?.name || "Unknown"}</td>
+                    <td className="px-3 py-3">{issue.epic?.name || ""}</td>
+                    <td className="px-3 py-3">{getIssueDisplayKey(issue.story || issue.parentStoryId) || issue.story?.title || issue.parentStoryId?.title || ""}</td>
+                    <td className="px-3 py-3">{issue.sprint?.name || ""}</td>
                     <td className="px-3 py-3 font-medium text-slate-600">{resolveUserLabel(issue.reporter || issue.testerOwner)}</td>
-                    <td className="px-3 py-3 font-medium text-slate-600">{resolveUserLabel(issue.developerLead || issue.assignee)}</td>
+                    <td className="px-3 py-3 font-medium text-slate-600">{resolveReportOwner(issue)}</td>
                     <td className="px-3 py-3"><Badge variant={getIssueStatusVariant(issue.status)}>{issue.status}</Badge></td>
                     <td className="px-3 py-3"><Badge variant={getIssuePriorityVariant(issue.priority)}>{issue.priority}</Badge></td>
                     <td className="px-3 py-3">{formatDateTime(issue.createdAt)}</td>
@@ -3556,12 +3574,15 @@ const JiraReportsDashboard = () => {
         : STATUS_OPTIONS;
   const exportRows = (rows, name = activePage) =>
     exportCsv([
-      ["Type", "Key", "Title", "Project", "Owner", "Tester", "Status", "Priority", "Created", "Closed"],
+      ["Type", "Key", "Title", "Project", "Epic", "Story", "Sprint", "Owner", "Tester", "Status", "Priority", "Created", "Closed"],
       ...rows.map((issue) => [
         issue.type === ISSUE_TYPES.BUG ? "Bug" : "Task",
         getIssueDisplayKey(issue),
         issue.title,
         issue.project?.name || "",
+        issue.epic?.name || "",
+        getIssueDisplayKey(issue.story || issue.parentStoryId) || issue.story?.title || issue.parentStoryId?.title || "",
+        issue.sprint?.name || "",
         resolveReportOwner(issue, ""),
         issue.type === ISSUE_TYPES.BUG ? resolveBugTesterLabel(issue, "") : "",
         issue.status,
