@@ -2798,7 +2798,6 @@ const REPORT_PAGES = [
   { key: "developers", label: "Developer Reports" },
   { key: "qa", label: "QA Reports" },
   { key: "releases", label: "Release Reports" },
-  { key: "performance", label: "Performance Dashboard" },
 ];
 
 const REPORT_PAGE_KEYS = new Set(REPORT_PAGES.map((page) => page.key));
