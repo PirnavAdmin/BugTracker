@@ -420,6 +420,12 @@ const IssueDetailsDialog = ({
     },
   });
 
+  const { data: worklogs = [] } = useQuery({
+    queryKey: ["issue", issue?._id, "worklogs"],
+    queryFn: () => fetchIssueWorklogs(issue._id),
+    enabled: Boolean(issue?._id),
+  });
+
   const handleSubmitComment = async (event) => {
     event.preventDefault();
 
@@ -454,11 +460,6 @@ const IssueDetailsDialog = ({
     testerOwner?.name || issue.testerOwnerName || issue.reporterName || "Unassigned";
   const reporterName = issue.reporter?.name || issue.reporterName || "Unknown reporter";
   const reporterRole = issue.reporter?.role || "Tester";
-  const { data: worklogs = [] } = useQuery({
-    queryKey: ["issue", issue?._id, "worklogs"],
-    queryFn: () => fetchIssueWorklogs(issue._id),
-    enabled: Boolean(issue?._id),
-  });
   const issueEpicName = issue.epicId?.name || "Unassigned";
   const issueSprintName = issue.sprintId?.name || "Backlog";
   const issueSprintGoal = issue.sprintId?.goal || "No sprint goal";
