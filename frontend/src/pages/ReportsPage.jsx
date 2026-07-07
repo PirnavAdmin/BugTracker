@@ -622,6 +622,13 @@ const getReportDatePreset = (preset, now = new Date()) => {
   };
 };
 
+const REPORT_DATE_PRESETS = [
+  { value: "today", label: "Today", icon: CalendarDays },
+  { value: "week", label: "Last Week", icon: TimerReset },
+  { value: "month", label: "Month", icon: BarChart3 },
+  { value: "custom", label: "Calendar", icon: CalendarClock },
+];
+
 const toLocalDayBoundaryIso = (value, end = false) => {
   if (!value) {
     return "";
@@ -4078,13 +4085,30 @@ const JiraReportsDashboard = () => {
               <option value="month">Current vs Previous Month</option>
               <option value="release">Current vs Previous Release</option>
             </select>
-            <select className={ANALYTICS_SELECT_CLASS} value={datePreset} onChange={(event) => updateDatePreset(event.target.value)}>
-              <option value="today">Today</option>
-              <option value="week">Week</option>
-              <option value="month">Month</option>
-              <option value="quarterly">Quarterly</option>
-              <option value="custom">Custom</option>
-            </select>
+            <div className="flex min-w-0 flex-wrap items-center gap-1.5 rounded-2xl border border-slate-200 bg-slate-50/80 p-1 md:col-span-2 xl:col-span-2">
+              {REPORT_DATE_PRESETS.map((preset) => {
+                const PresetIcon = preset.icon;
+                const isActive = datePreset === preset.value;
+
+                return (
+                  <button
+                    key={preset.value}
+                    type="button"
+                    className={cn(
+                      "inline-flex h-10 min-w-0 flex-1 items-center justify-center gap-2 rounded-xl px-3 text-sm font-semibold transition",
+                      isActive
+                        ? "bg-white text-blue-700 shadow-sm ring-1 ring-blue-200"
+                        : "text-slate-600 hover:bg-white hover:text-slate-950"
+                    )}
+                    onClick={() => updateDatePreset(preset.value)}
+                    aria-pressed={isActive}
+                  >
+                    <PresetIcon className="h-4 w-4 shrink-0" />
+                    <span className="truncate">{preset.label}</span>
+                  </button>
+                );
+              })}
+            </div>
             {datePreset === "custom" ? (
               <>
                 <DateField label="Date from" value={filters.dateFrom} onChange={(event) => updateFilter("dateFrom", event.target.value)} />

@@ -2035,8 +2035,14 @@ const buildIssueQueryFromRequest = async (
       User.find(userSearchQuery).distinct("_id"),
     ]);
 
+    const directIssueIdConditions = mongoose.isValidObjectId(rawSearch)
+      ? [{ _id: rawSearch }]
+      : [];
+
     mergeOrConditions(query, [
+        ...directIssueIdConditions,
         { displayBugId: searchExpression },
+        { issueKey: searchExpression },
         { title: searchExpression },
         { description: searchExpression },
         { reporterName: searchExpression },

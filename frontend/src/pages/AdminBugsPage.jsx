@@ -1,4 +1,4 @@
-import { useDeferredValue, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createPortal } from "react-dom";
 import { useSearchParams } from "react-router-dom";
@@ -828,7 +828,6 @@ const AdminBugsPage = () => {
     dateTo: searchParams.get("dateTo") || "",
     search: searchParams.get("search") || "",
   });
-  const deferredSearch = useDeferredValue(filters.search);
   const [debouncedSearch, setDebouncedSearch] = useState(filters.search);
 
   const {
@@ -1155,8 +1154,6 @@ const AdminBugsPage = () => {
   }, [bugs, isBugsLoading, searchParamString, selectedBug?._id]);
 
   const filteredBugs = useMemo(() => {
-    const searchTerm = deferredSearch.trim().toLowerCase();
-
     return bugs.filter((bugIssue) => {
       const bugDetails = resolveBugDetails(bugIssue);
       const reporter = getReporter(bugIssue);
@@ -1211,27 +1208,9 @@ const AdminBugsPage = () => {
         return false;
       }
 
-      if (!searchTerm) {
-        return true;
-      }
-
-      return [
-        getIssueDisplayKey(bugIssue),
-        bugIssue.title,
-        bugIssue.description,
-        reporter?.name,
-        reporter?.email,
-        developer?.name,
-        developer?.email,
-        bugDetails.severity,
-        bugDetails.moduleName,
-        bugDetails.category,
-        bugDetails.affectedPlatform,
-      ]
-        .filter(Boolean)
-        .some((value) => String(value).toLowerCase().includes(searchTerm));
+      return true;
     });
-  }, [bugs, deferredSearch, filters.developerId, filters.filter, filters.lifecycle, filters.severity, filters.testerId]);
+  }, [bugs, filters.developerId, filters.filter, filters.lifecycle, filters.severity, filters.testerId]);
 
   const metrics = useMemo(
     () => ({
@@ -1461,7 +1440,9 @@ const AdminBugsPage = () => {
 
   const updateFilter = (key, value) => {
     setPage(1);
-    setActiveCardView("");
+    if (key !== "search") {
+      setActiveCardView("");
+    }
     if (searchParams.has("page")) {
       const nextParams = new URLSearchParams(searchParams);
       nextParams.delete("page");
