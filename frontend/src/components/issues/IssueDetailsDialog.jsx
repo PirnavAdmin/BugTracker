@@ -51,6 +51,7 @@ import {
   getProjectTeams,
   resolveUserId,
 } from "@/lib/project-teams";
+import { ROLE_TEAM_LEAD } from "@/lib/roles";
 import { cn, formatDate, formatDateTime, formatTime, getInitials } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -181,6 +182,13 @@ const IssueDetailsDialog = ({
     () => getProjectTeamMembers(selectedProject, detailDraft.teamId),
     [detailDraft.teamId, selectedProject]
   );
+  const taskAssignableAssignees = useMemo(
+    () =>
+      role === ROLE_TEAM_LEAD && ["Task", "Sub-task"].includes(detailDraft.type)
+        ? availableAssignees.filter((assignee) => assignee.role === "Developer")
+        : availableAssignees,
+    [availableAssignees, detailDraft.type, role]
+  );
   const dependencyOptions = useMemo(
     () =>
       availableIssues
@@ -298,7 +306,7 @@ const IssueDetailsDialog = ({
 
   useEffect(() => {
     const assigneeIds = new Set(
-      availableAssignees.map((assignee) => resolveUserId(assignee))
+      taskAssignableAssignees.map((assignee) => resolveUserId(assignee))
     );
 
     if (!detailDraft.assigneeId || assigneeIds.has(String(detailDraft.assigneeId))) {
@@ -309,7 +317,7 @@ const IssueDetailsDialog = ({
       ...current,
       assigneeId: "",
     }));
-  }, [availableAssignees, detailDraft.assigneeId]);
+  }, [detailDraft.assigneeId, taskAssignableAssignees]);
 
   useEffect(() => {
     const assigneeIds = new Set(
@@ -1138,7 +1146,7 @@ const IssueDetailsDialog = ({
                       disabled={!detailDraft.teamId}
                     >
                       <option value="">Unassigned</option>
-                      {availableAssignees.map((assignee) => (
+                      {taskAssignableAssignees.map((assignee) => (
                         <option key={assignee._id} value={assignee._id}>
                           {assignee.name} ({assignee.role})
                         </option>
@@ -1749,7 +1757,7 @@ const IssueDetailsDialog = ({
                     disabled={!canEditAssignee || isUpdatingCurrentIssue || !issue.teamId?._id}
                   >
                     <option value="">Unassigned</option>
-                    {availableAssignees.map((assignee) => (
+                    {taskAssignableAssignees.map((assignee) => (
                       <option key={assignee._id} value={assignee._id}>
                         {assignee.name} ({assignee.role})
                       </option>

@@ -38,7 +38,12 @@ import ToastNotice from "@/components/shared/ToastNotice";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/hooks/use-auth";
-import { canCreateIssues, canDeleteIssues, hasAdminPanelAccess } from "@/lib/roles";
+import {
+  canAssignIssues,
+  canCreateIssues,
+  canDeleteIssues,
+  hasAdminPanelAccess,
+} from "@/lib/roles";
 
 const WORK_ITEM_TYPE_OPTIONS = [ISSUE_TYPES.TASK];
 const isValidWorkItemType = (value) => WORK_ITEM_TYPE_OPTIONS.includes(value);
@@ -232,6 +237,7 @@ const IssuesPage = () => {
   const [toast, setToast] = useState(null);
   const deferredSearch = useDeferredValue(filters.search);
   const isAdminView = hasAdminPanelAccess(role);
+  const canAssignIssue = canAssignIssues(role);
   const canCreateIssue = canCreateIssues(role);
   const canDeleteIssue = canDeleteIssues(role);
 
@@ -912,7 +918,7 @@ const IssuesPage = () => {
         deletingId={deleteIssueMutation.isPending ? deleteIssueMutation.variables : ""}
         canEditCoreDetails={isAdminView}
         canEditPriority={isAdminView}
-        canEditAssignee={isAdminView}
+        canEditAssignee={canAssignIssue}
         canDeleteIssue={canDeleteIssue}
       />
 

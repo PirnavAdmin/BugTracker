@@ -107,6 +107,10 @@ const isBugLifecycleStatus = (status) =>
 const isQaRole = (role) => role === ROLE_TESTER;
 const isDevRole = (role) => [ROLE_DEVELOPER, ROLE_TEAM_LEAD].includes(role);
 const isLeadRole = (role) => [ROLE_ADMIN, ROLE_MANAGER].includes(role);
+const canAssignTaskWork = (user, type) =>
+  isAdmin(user) ||
+  (user?.role === ROLE_TEAM_LEAD &&
+    [ISSUE_TYPES.TASK, ISSUE_TYPES.SUB_TASK].includes(getCanonicalIssueType(type, "")));
 const ISSUE_PRIORITY_VALUES = ["Critical", "High", "Medium", "Low"];
 const escapeRegExp = (value = "") =>
   value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -3251,12 +3255,12 @@ const createIssue = asyncHandler(async (req, res) => {
   const parentStory = parentStoryResult.story;
 
   if (
-    isDevRole(req.user.role) &&
+    req.user.role === ROLE_DEVELOPER &&
     [ISSUE_TYPES.TASK, ISSUE_TYPES.SUB_TASK].includes(normalizedType) &&
     !parentStory
   ) {
     res.status(400);
-    throw new Error("Developers and Team Leads must create Tasks from inside a Story");
+    throw new Error("Developers must create Tasks from inside a Story");
   }
 
   if (
@@ -3269,7 +3273,7 @@ const createIssue = asyncHandler(async (req, res) => {
   }
 
   if (
-    isDevRole(req.user.role) &&
+    req.user.role === ROLE_DEVELOPER &&
     [ISSUE_TYPES.TASK, ISSUE_TYPES.SUB_TASK].includes(normalizedType) &&
     parentStory &&
     String(parentStory?.assignee || "") !== String(req.user._id) &&
@@ -3278,7 +3282,7 @@ const createIssue = asyncHandler(async (req, res) => {
     )
   ) {
     res.status(403);
-    throw new Error("Developers and Team Leads can only add Tasks to Stories they collaborate on");
+    throw new Error("Developers can only add Tasks to Stories they collaborate on");
   }
 
   if (
@@ -3322,16 +3326,19 @@ const createIssue = asyncHandler(async (req, res) => {
   if (requestedAssigneeIds.length && !assignLater && !sendToTriage) {
     const canTesterAssignBugDeveloper =
       req.user.role === ROLE_TESTER && isBug;
+    const canTeamLeadAssignTask =
+      req.user.role === ROLE_TEAM_LEAD && canAssignTaskWork(req.user, normalizedType);
 
     if (
       !isAdmin(req.user) &&
+      !canTeamLeadAssignTask &&
       !canTesterAssignBugDeveloper &&
       requestedAssigneeIds.some(
         (requestedAssigneeId) => String(requestedAssigneeId) !== String(req.user._id)
       )
     ) {
       res.status(403);
-      throw new Error("Only admins can assign work to other users");
+      throw new Error("Only admins and team leads can assign work to other users");
     }
 
     for (const requestedAssigneeId of requestedAssigneeIds) {
@@ -3344,6 +3351,14 @@ const createIssue = asyncHandler(async (req, res) => {
       if (assigneeResult.error) {
         res.status(assigneeResult.error.status);
         throw new Error(assigneeResult.error.message);
+      }
+
+      if (
+        canTeamLeadAssignTask &&
+        assigneeResult.assignee?.role !== ROLE_DEVELOPER
+      ) {
+        res.status(400);
+        throw new Error("Team Leads can assign tasks only to developers");
       }
     }
   }
@@ -3723,12 +3738,15 @@ const updateIssue = asyncHandler(async (req, res) => {
   }
 
   const hasProjectLeadershipAccess = canManageProjectPlanning(req.user, targetProject);
+  const hasTeamLeadTaskAssignmentAccess =
+    canAssignTaskWork(req.user, issue.type) && Boolean(targetProject);
 
   if (!isAdmin(req.user)) {
     const canTesterEditReportedBug = canTesterModifyReportedBug(issue, req.user);
 
     if (
       !hasProjectLeadershipAccess &&
+      !hasTeamLeadTaskAssignmentAccess &&
       !hasDirectIssueAccess
     ) {
       res.status(403);
@@ -3783,6 +3801,13 @@ const updateIssue = asyncHandler(async (req, res) => {
           "statusChangeComment",
           "comment",
         ]
+      : hasTeamLeadTaskAssignmentAccess
+        ? [
+            "assigneeId",
+            "assignee",
+            "assigneeIds",
+            "assignees",
+          ]
       : canTesterEditReportedBug
         ? [
             "title",
@@ -4123,6 +4148,9 @@ const updateIssue = asyncHandler(async (req, res) => {
   console.log("Updating bug", { id: req.params.id, updates: req.body });
 
   if (shouldValidateAssigneeTeamMembership) {
+    const canTeamLeadAssignExistingTask =
+      req.user.role === ROLE_TEAM_LEAD && canAssignTaskWork(req.user, issue.type);
+
     console.log("[issues] validating assignee team membership", {
       issueId: String(issue._id),
       assigneeId: String(nextAssigneeId || ""),
@@ -4148,6 +4176,14 @@ const updateIssue = asyncHandler(async (req, res) => {
 
         res.status(assigneeResult.error.status);
         throw new Error(assigneeResult.error.message);
+      }
+
+      if (
+        canTeamLeadAssignExistingTask &&
+        assigneeResult.assignee?.role !== ROLE_DEVELOPER
+      ) {
+        res.status(400);
+        throw new Error("Team Leads can assign tasks only to developers");
       }
     }
   }
@@ -4307,9 +4343,9 @@ const updateIssue = asyncHandler(async (req, res) => {
   }
 
   if (hasAssigneeChange) {
-    if (!isAdmin(req.user)) {
+    if (!canAssignTaskWork(req.user, issue.type)) {
       res.status(403);
-      throw new Error("Only admins can reassign issues");
+      throw new Error("Only admins and team leads can reassign tasks");
     }
 
     const previousAssigneeId = issue.assignee || null;

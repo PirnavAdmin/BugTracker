@@ -7,6 +7,7 @@ import { PresenceProvider } from "@/context/PresenceContext";
 import { useAuth } from "@/hooks/use-auth";
 import {
   ADMIN_PANEL_ROLES,
+  canAssignIssues,
   getDashboardPathByRole,
   ROLE_ADMIN,
   ROLE_DEVELOPER,
@@ -140,7 +141,7 @@ const BugsRoute = () => {
 const TasksRoute = () => {
   const { role } = useAuth();
 
-  return ADMIN_PANEL_ROLES.includes(role) ? <IssuesPage /> : <TasksPage />;
+  return canAssignIssues(role) ? <IssuesPage /> : <TasksPage />;
 };
 
 const App = () => (

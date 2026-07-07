@@ -33,7 +33,7 @@ import {
   resolveTeamId,
   resolveUserId,
 } from "@/lib/project-teams";
-import { hasAdminPanelAccess, ROLE_DEVELOPER } from "@/lib/roles";
+import { hasAdminPanelAccess, ROLE_DEVELOPER, ROLE_TEAM_LEAD } from "@/lib/roles";
 import { formatDate, getInitials } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
 
@@ -496,9 +496,16 @@ const IssueCreateDialog = ({
     () => getProjectTeamMembers(selectedProjectWithTeams, formData.teamId),
     [formData.teamId, selectedProjectWithTeams]
   );
+  const taskAssignableAssignees = useMemo(
+    () =>
+      role === ROLE_TEAM_LEAD && ["Task", "Sub-task"].includes(formData.type)
+        ? availableAssignees.filter((assignee) => assignee.role === "Developer")
+        : availableAssignees,
+    [availableAssignees, formData.type, role]
+  );
   const assigneeOptions = useMemo(
-    () => availableAssignees.map(buildAssigneeOption),
-    [availableAssignees]
+    () => taskAssignableAssignees.map(buildAssigneeOption),
+    [taskAssignableAssignees]
   );
   const selectedAssigneeOption = useMemo(
     () =>
@@ -708,7 +715,7 @@ const IssueCreateDialog = ({
 
   useEffect(() => {
     const assigneeIds = new Set(
-      availableAssignees.map((assignee) => resolveUserId(assignee))
+      taskAssignableAssignees.map((assignee) => resolveUserId(assignee))
     );
 
     const selectedAssigneeIds = Array.isArray(formData.assigneeIds)
@@ -729,7 +736,7 @@ const IssueCreateDialog = ({
         assigneeIds.has(String(assigneeId))
       ),
     }));
-  }, [availableAssignees, formData.assigneeId, formData.assigneeIds]);
+  }, [formData.assigneeId, formData.assigneeIds, taskAssignableAssignees]);
 
   useEffect(() => {
     const assigneeIds = new Set(assigneeOptions.map((assignee) => assignee.value));
@@ -887,7 +894,7 @@ const IssueCreateDialog = ({
     if (
       !assignEntireTeam &&
       formData.assigneeId &&
-      !availableAssignees.some(
+      !taskAssignableAssignees.some(
         (assignee) => resolveUserId(assignee) === String(formData.assigneeId)
       )
     ) {
@@ -903,7 +910,7 @@ const IssueCreateDialog = ({
       !assignEntireTeam &&
       selectedAssigneeIds.some(
         (assigneeId) =>
-          !availableAssignees.some(
+          !taskAssignableAssignees.some(
             (assignee) => resolveUserId(assignee) === String(assigneeId)
           )
       )
@@ -935,8 +942,8 @@ const IssueCreateDialog = ({
       }
     }
 
-    if (assignEntireTeam && !availableAssignees.length) {
-      setError("The selected team does not have any members to assign.");
+    if (assignEntireTeam && !taskAssignableAssignees.length) {
+      setError("The selected team does not have any developers to assign.");
       return;
     }
 
@@ -1005,7 +1012,7 @@ const IssueCreateDialog = ({
 
     const forcedAssigneeId = isDeveloperStoryTask ? resolveUserId(user) : "";
     const payloads = assignEntireTeam
-      ? availableAssignees.map((assignee) => ({
+      ? taskAssignableAssignees.map((assignee) => ({
           ...basePayload,
           assigneeId: resolveUserId(assignee),
         }))
@@ -1237,7 +1244,9 @@ const IssueCreateDialog = ({
                           }
                           noOptionsMessage={() =>
                             formData.teamId
-                              ? "No teammates available in this team."
+                              ? role === ROLE_TEAM_LEAD && ["Task", "Sub-task"].includes(formData.type)
+                                ? "No developers available in this team."
+                                : "No teammates available in this team."
                               : "Select a team first."
                           }
                         />
@@ -1256,16 +1265,16 @@ const IssueCreateDialog = ({
                             Assign to entire team
                           </span>
                           <span className="block text-slate-500">
-                            When enabled, this creates one work item for each teammate.
+                            When enabled, this creates one work item for each available assignee.
                           </span>
                         </span>
                       </label>
 
                       {assignEntireTeam ? (
                         <div className="rounded-2xl border border-blue-100 bg-blue-50/80 px-3 py-2.5 text-sm text-blue-900">
-                          {availableAssignees.length
-                            ? `This work item will be created for ${availableAssignees.length} team member${availableAssignees.length === 1 ? "" : "s"}.`
-                            : "This team does not have any members available yet."}
+                          {taskAssignableAssignees.length
+                            ? `This work item will be created for ${taskAssignableAssignees.length} assignee${taskAssignableAssignees.length === 1 ? "" : "s"}.`
+                            : "This team does not have any assignees available yet."}
                         </div>
                       ) : null}
                     </div>
