@@ -185,7 +185,9 @@ const IssueDetailsDialog = ({
   const taskAssignableAssignees = useMemo(
     () =>
       role === ROLE_TEAM_LEAD && ["Task", "Sub-task"].includes(detailDraft.type)
-        ? availableAssignees.filter((assignee) => assignee.role === "Developer")
+        ? availableAssignees.filter((assignee) =>
+            ["Developer", ROLE_TEAM_LEAD].includes(assignee.role)
+          )
         : availableAssignees,
     [availableAssignees, detailDraft.type, role]
   );

@@ -212,8 +212,7 @@ export const getPageMeta = (pathname, role) => {
 
 export const canManageUsers = (role) => hasAdminPanelAccess(role);
 export const canManageProjects = (role) => hasAdminPanelAccess(role);
-export const canAssignIssues = (role) =>
-  hasAdminPanelAccess(role) || role === ROLE_TEAM_LEAD;
+export const canAssignIssues = (role) => hasAdminPanelAccess(role);
 export const canDeleteIssues = (role) => hasAdminPanelAccess(role);
 export const canCreateIssues = (role) =>
-  canAssignIssues(role) || role === ROLE_TESTER;
+  hasAdminPanelAccess(role) || role === ROLE_TESTER;

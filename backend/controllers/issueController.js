@@ -3355,10 +3355,10 @@ const createIssue = asyncHandler(async (req, res) => {
 
       if (
         canTeamLeadAssignTask &&
-        assigneeResult.assignee?.role !== ROLE_DEVELOPER
+        ![ROLE_DEVELOPER, ROLE_TEAM_LEAD].includes(assigneeResult.assignee?.role)
       ) {
         res.status(400);
-        throw new Error("Team Leads can assign tasks only to developers");
+        throw new Error("Team Leads can assign tasks only to developers or team leads");
       }
     }
   }
@@ -4180,10 +4180,10 @@ const updateIssue = asyncHandler(async (req, res) => {
 
       if (
         canTeamLeadAssignExistingTask &&
-        assigneeResult.assignee?.role !== ROLE_DEVELOPER
+        ![ROLE_DEVELOPER, ROLE_TEAM_LEAD].includes(assigneeResult.assignee?.role)
       ) {
         res.status(400);
-        throw new Error("Team Leads can assign tasks only to developers");
+        throw new Error("Team Leads can assign tasks only to developers or team leads");
       }
     }
   }

@@ -9,6 +9,7 @@ const TaskKanbanColumn = ({
   activeIssueId = "",
   updatingId = "",
   onSelectIssue,
+  readOnly = false,
 }) => {
   const { isOver, setNodeRef } = useDroppable({
     id: column.key,
@@ -49,6 +50,7 @@ const TaskKanbanColumn = ({
               issue={issue}
               isUpdating={updatingId === issue._id}
               onSelectIssue={onSelectIssue}
+              readOnly={readOnly}
             />
           ))
         ) : (

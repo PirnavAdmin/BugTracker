@@ -12,6 +12,7 @@ const TaskCard = ({
   isOverlay = false,
   isUpdating = false,
   onSelectIssue,
+  readOnly = false,
 }) => {
   if (isOverlay) {
     return (
@@ -20,6 +21,7 @@ const TaskCard = ({
         isOverlay
         isUpdating={isUpdating}
         onSelectIssue={onSelectIssue}
+        readOnly={readOnly}
       />
     );
   }
@@ -29,11 +31,12 @@ const TaskCard = ({
       issue={issue}
       isUpdating={isUpdating}
       onSelectIssue={onSelectIssue}
+      readOnly={readOnly}
     />
   );
 };
 
-const DraggableTaskCard = ({ issue, isUpdating, onSelectIssue }) => {
+const DraggableTaskCard = ({ issue, isUpdating, onSelectIssue, readOnly }) => {
   const {
     attributes,
     listeners,
@@ -45,7 +48,7 @@ const DraggableTaskCard = ({ issue, isUpdating, onSelectIssue }) => {
     data: {
       issue,
     },
-    disabled: isUpdating,
+    disabled: isUpdating || readOnly,
   });
 
   return (
@@ -58,8 +61,9 @@ const DraggableTaskCard = ({ issue, isUpdating, onSelectIssue }) => {
         transform: CSS.Translate.toString(transform),
       }}
       dragAttributes={attributes}
-      dragListeners={listeners}
+      dragListeners={readOnly ? {} : listeners}
       onSelectIssue={onSelectIssue}
+      readOnly={readOnly}
     />
   );
 };
@@ -73,6 +77,7 @@ const TaskCardSurface = ({
   issue,
   nodeRef,
   onSelectIssue,
+  readOnly = false,
   style,
 }) => {
   const dueAtLabel = formatDueAt(issue.dueAt);
@@ -86,7 +91,8 @@ const TaskCardSurface = ({
         "group relative rounded-[16px] border border-slate-200 bg-white p-4 text-left shadow-sm transition duration-200 ease-out hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-[0_18px_40px_-30px_rgba(37,99,235,0.34)]",
         isDragging && "opacity-40",
         isOverlay && "rotate-[0.5deg] shadow-[0_24px_54px_-28px_rgba(15,23,42,0.58)]",
-        isUpdating && "pointer-events-none opacity-70"
+        isUpdating && "pointer-events-none opacity-70",
+        readOnly && "cursor-pointer hover:translate-y-0"
       )}
       role="button"
       tabIndex={isOverlay ? -1 : 0}
@@ -129,9 +135,11 @@ const TaskCardSurface = ({
           </h3>
         </div>
 
-        <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-slate-400 transition group-hover:border-blue-200 group-hover:text-blue-500">
-          <GripVertical className="h-4 w-4" />
-        </span>
+        {!readOnly ? (
+          <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-slate-400 transition group-hover:border-blue-200 group-hover:text-blue-500">
+            <GripVertical className="h-4 w-4" />
+          </span>
+        ) : null}
       </div>
 
       <div className="mt-4 space-y-2.5 text-xs text-slate-600">
