@@ -182,6 +182,10 @@ const IssueDetailsDialog = ({
     () => getProjectTeamMembers(selectedProject, detailDraft.teamId),
     [detailDraft.teamId, selectedProject]
   );
+  const developerLeadOptions = useMemo(() => {
+    const developers = availableAssignees.filter((assignee) => assignee.role === ROLE_DEVELOPER);
+    return developers.length ? developers : availableAssignees;
+  }, [availableAssignees]);
   const taskAssignableAssignees = useMemo(
     () =>
       role === ROLE_TEAM_LEAD && ["Task", "Sub-task"].includes(detailDraft.type)
