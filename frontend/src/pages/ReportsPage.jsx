@@ -1887,7 +1887,7 @@ const OrganizationReportsDashboard = () => {
     () =>
       taskAttentionRows.concat(bugAttentionRows).slice(0, 10).map((issue, index) => ({
         id: issue._id,
-        name: issue.title || issue.issueId || `Item ${index + 1}`,
+        name: issue.title || getIssueDisplayKey(issue) || `Item ${index + 1}`,
         offset: index * 5,
         duration: issue.storyPoints ? Math.min(Number(issue.storyPoints) * 8, 70) : 18 + index * 3,
       })),
@@ -2087,7 +2087,7 @@ const OrganizationReportsDashboard = () => {
       ["Workflow", "ID", "Title", "Project", "Team", "Tester", "Owner", "Status", "Priority", "Severity", "Created", "Resolution ms"],
       ...workflowIssues.map((issue) => [
         issue.type === ISSUE_TYPES.BUG ? "Bug" : "Task",
-        issue.issueId,
+        getIssueDisplayKey(issue),
         issue.title,
         issue.project?.name || "",
         issue.team?.name || "",
@@ -2774,7 +2774,7 @@ const OrganizationReportsDashboard = () => {
                 {workflowIssues.slice(0, 250).map((issue) => (
                   <tr key={issue._id} className="hover:bg-blue-50/50">
                     <td className="px-3 py-3"><Badge variant={issue.type === ISSUE_TYPES.BUG ? "danger" : "default"}>{issue.type === ISSUE_TYPES.BUG ? "Bug" : "Task"}</Badge></td>
-                    <td className="px-3 py-3 font-mono text-xs font-semibold">{issue.issueId}</td>
+                    <td className="px-3 py-3 font-mono text-xs font-semibold">{getIssueDisplayKey(issue)}</td>
                     <td className="max-w-[280px] truncate px-3 py-3 font-semibold text-slate-950">{issue.title}</td>
                     <td className="px-3 py-3">{issue.project?.name || "Unknown"}</td>
                     <td className="px-3 py-3 font-medium text-slate-600">{resolveUserLabel(issue.reporter || issue.testerOwner)}</td>
