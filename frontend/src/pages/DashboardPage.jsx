@@ -57,7 +57,7 @@ import {
   resolveIssueProjectId,
   resolveIssueTeamId,
 } from "@/lib/issues";
-import { getTaskBoardStatus } from "@/components/tasks/taskBoardStatus";
+import { TASK_BOARD_STATUS, getTaskBoardStatus } from "@/components/tasks/taskBoardStatus";
 import { cn, formatDateTime, getInitials } from "@/lib/utils";
 
 const statusTone = {
@@ -108,12 +108,12 @@ const USER_ROLE_DISTRIBUTION_META = [
 
 const TASK_STATUS_META = [
   {
-    key: ISSUE_STATUS.TODO,
+    key: TASK_BOARD_STATUS.OPEN,
     label: "To Do",
     helper: "Ready for pickup",
     className: "bg-slate-400",
     icon: Layers3,
-    routeParams: { status: ISSUE_STATUS.TODO },
+    routeParams: { status: TASK_BOARD_STATUS.OPEN },
     tone: "blue",
   },
   {
