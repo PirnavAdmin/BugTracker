@@ -52,12 +52,12 @@ import {
   getHighPriorityIssues,
   getOpenIssues,
   getReopenedIssues,
-  normalizeIssueStatus,
   normalizeBugStatusForIssue,
   resolveBugDetails,
   resolveIssueProjectId,
   resolveIssueTeamId,
 } from "@/lib/issues";
+import { getTaskBoardStatus } from "@/components/tasks/taskBoardStatus";
 import { cn, formatDateTime, getInitials } from "@/lib/utils";
 
 const statusTone = {
@@ -255,20 +255,6 @@ const isBugBucketItem = (bug) => {
     ].includes(status)
   );
 };
-const getTaskDashboardStatus = (issue) => {
-  const status = normalizeIssueStatus(issue?.status, "");
-
-  if ([ISSUE_STATUS.DONE, ISSUE_STATUS.CLOSED, ISSUE_STATUS.RESOLVED].includes(status)) {
-    return ISSUE_STATUS.DONE;
-  }
-
-  if (status === ISSUE_STATUS.IN_PROGRESS) {
-    return ISSUE_STATUS.IN_PROGRESS;
-  }
-
-  return ISSUE_STATUS.TODO;
-};
-
 const startOfDay = (date) => {
   const value = new Date(date);
   value.setHours(0, 0, 0, 0);
@@ -784,6 +770,10 @@ const DashboardPage = () => {
     () => (Array.isArray(issuesData) ? issuesData : []),
     [issuesData]
   );
+  const taskIssues = useMemo(
+    () => issues.filter((issue) => issue.type === ISSUE_TYPES.TASK),
+    [issues]
+  );
   const bugs = useMemo(() => (Array.isArray(bugsData) ? bugsData : []), [bugsData]);
   const users = useMemo(() => (Array.isArray(usersData) ? usersData : []), [usersData]);
   const summary = analytics.overview?.summary || {};
@@ -801,10 +791,10 @@ const DashboardPage = () => {
   const activity = analytics.recentActivity?.activity || [];
   const highestWorkloadTeam = teams[0] || null;
   const taskStatusRows = useMemo(() => {
-    const total = issues.length;
+    const total = taskIssues.length;
 
     return TASK_STATUS_META.map((item) => {
-      const count = issues.filter((issue) => getTaskDashboardStatus(issue) === item.key).length;
+      const count = taskIssues.filter((issue) => getTaskBoardStatus(issue) === item.key).length;
 
       return {
         ...item,
@@ -812,7 +802,7 @@ const DashboardPage = () => {
         percentage: total ? Math.round((count / total) * 100) : 0,
       };
     });
-  }, [issues]);
+  }, [taskIssues]);
   const now = useMemo(() => new Date(), []);
   const weekStart = useMemo(() => startOfWeek(now), [now]);
   const previousWeekStart = useMemo(() => {
@@ -966,7 +956,7 @@ const DashboardPage = () => {
   const teamTaskRows = useMemo(() => {
     const rowsByTeam = new Map();
 
-    issues.forEach((issue) => {
+    taskIssues.forEach((issue) => {
       const teamId = resolveIssueTeamId(issue);
       const rowKey = teamId || "unassigned";
       const row = rowsByTeam.get(rowKey) || {
@@ -976,7 +966,7 @@ const DashboardPage = () => {
         inProgress: 0,
         done: 0,
       };
-      const status = getTaskDashboardStatus(issue);
+      const status = getTaskBoardStatus(issue);
 
       row.total += 1;
       row.inProgress += status === ISSUE_STATUS.IN_PROGRESS ? 1 : 0;
@@ -989,7 +979,7 @@ const DashboardPage = () => {
     return Array.from(rowsByTeam.values())
       .sort((left, right) => right.open - left.open || right.total - left.total)
       .slice(0, 6);
-  }, [issues]);
+  }, [taskIssues]);
   const maxTeamTaskOpen = Math.max(...teamTaskRows.map((row) => row.open), 0);
   const userDistributionRows = useMemo(() => {
     const total = users.length;
@@ -1496,7 +1486,7 @@ const DashboardPage = () => {
           action={
             teamTaskRows.length ? (
               <Badge className="border-white/60 bg-white/72 text-slate-600">
-                {issues.length} tasks
+                {taskIssues.length} tasks
               </Badge>
             ) : null
           }
