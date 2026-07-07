@@ -51,7 +51,7 @@ import {
   getProjectTeams,
   resolveUserId,
 } from "@/lib/project-teams";
-import { ROLE_DEVELOPER, ROLE_TEAM_LEAD, ROLE_TESTER } from "@/lib/roles";
+import { ROLE_DEVELOPER, ROLE_TEAM_LEAD } from "@/lib/roles";
 import { cn, formatDate, formatDateTime, formatTime, getInitials } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -182,14 +182,6 @@ const IssueDetailsDialog = ({
     () => getProjectTeamMembers(selectedProject, detailDraft.teamId),
     [detailDraft.teamId, selectedProject]
   );
-  const testerOwnerOptions = useMemo(() => {
-    const testers = availableAssignees.filter((assignee) => assignee.role === ROLE_TESTER);
-    return testers.length ? testers : availableAssignees;
-  }, [availableAssignees]);
-  const developerLeadOptions = useMemo(() => {
-    const developers = availableAssignees.filter((assignee) => assignee.role === ROLE_DEVELOPER);
-    return developers.length ? developers : availableAssignees;
-  }, [availableAssignees]);
   const taskAssignableAssignees = useMemo(
     () =>
       role === ROLE_TEAM_LEAD && ["Task", "Sub-task"].includes(detailDraft.type)
@@ -959,32 +951,6 @@ const IssueDetailsDialog = ({
                           {BUG_SEVERITY_OPTIONS.map((severity) => (
                             <option key={severity} value={severity}>
                               {severity}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
-
-                      <label className="space-y-2">
-                        <span className="text-xs uppercase tracking-[0.22em] text-gray-500">
-                          Tester / QA Owner
-                        </span>
-                        <select
-                          className="field-select"
-                          value={detailDraft.bugDetails.testerOwnerId}
-                          onChange={(event) =>
-                            setDetailDraft((current) => ({
-                              ...current,
-                              bugDetails: {
-                                ...current.bugDetails,
-                                testerOwnerId: event.target.value,
-                              },
-                            }))
-                          }
-                        >
-                          <option value="">Unassigned</option>
-                          {testerOwnerOptions.map((assignee) => (
-                            <option key={assignee._id} value={assignee._id}>
-                              {assignee.name} ({assignee.role})
                             </option>
                           ))}
                         </select>
