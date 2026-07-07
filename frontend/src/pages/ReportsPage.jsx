@@ -91,6 +91,7 @@ import {
   calculateBugMetrics,
   calculateDeveloperPerformance,
   calculateTaskMetrics,
+  clamp,
   metricLabel,
 } from "@/lib/enterprise-report-metrics";
 
@@ -687,7 +688,7 @@ const DashboardSuiteNav = ({ active }) => {
     "QA",
     "Release",
     "Project",
-    "Executive",
+    "Performance",
   ];
 
   return (
@@ -2133,7 +2134,7 @@ const OrganizationReportsDashboard = () => {
               <p className="text-xs font-semibold uppercase tracking-[0.24em] text-blue-600">Reports Dashboard</p>
               <h1 className="mt-0.5 text-xl font-semibold text-slate-950 sm:text-2xl">Workflow Analytics Command Center</h1>
               <p className="mt-0.5 text-sm text-slate-500">
-                Task flow and bug flow are measured independently with a combined executive view.
+                Task flow and bug flow are measured independently with a combined performance view.
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
@@ -2253,7 +2254,7 @@ const OrganizationReportsDashboard = () => {
         <KpiCard accent="emerald" icon={CheckCircle2} label="Quality Score" value={`${Math.round(enterpriseBugMetrics.qualityScore)}/100`} helper={`${Math.round(enterpriseBugMetrics.slaCompliance)}% SLA, ${Math.round(enterpriseBugMetrics.defectDensity)} defect density`} onClick={() => drillTo("bugs")} />
       </section>
 
-      <section id="reports-executive" className="grid gap-5 xl:grid-cols-3">
+      <section id="reports-performance" className="grid gap-5 xl:grid-cols-3">
         <EnterpriseChartPanel kind="burndown" title="Burndown" description="Remaining scope against ideal delivery trend." data={enterpriseChartRows} />
         <EnterpriseChartPanel kind="burnup" title="Burnup" description="Completed work compared with total scope." data={enterpriseChartRows} />
         <EnterpriseChartPanel kind="cfd" title="Cumulative Flow Diagram" description="To do, active, and done flow stability." data={enterpriseChartRows} />
@@ -2797,7 +2798,7 @@ const REPORT_PAGES = [
   { key: "developers", label: "Developer Reports" },
   { key: "qa", label: "QA Reports" },
   { key: "releases", label: "Release Reports" },
-  { key: "executive", label: "Executive Dashboard" },
+  { key: "performance", label: "Performance Dashboard" },
 ];
 
 const REPORT_PAGE_KEYS = new Set(REPORT_PAGES.map((page) => page.key));
@@ -2882,6 +2883,137 @@ const buildDeveloperRankingRows = (developers = [], getValues) =>
         left.name.localeCompare(right.name)
     )
     .slice(0, 10);
+
+const PERFORMANCE_SCORE_WEIGHTS = [
+  {
+    key: "taskCompletion",
+    category: "Task Completion",
+    weight: 30,
+    description: "Percentage of assigned tasks completed.",
+    formula: "(Completed Tasks / Assigned Tasks) x 100",
+  },
+  {
+    key: "bugResolution",
+    category: "Bug Resolution",
+    weight: 25,
+    description: "Number of bugs resolved successfully.",
+    formula: "(Resolved Bugs / Assigned Bugs) x 100",
+  },
+  {
+    key: "onTimeDelivery",
+    category: "On-Time Delivery",
+    weight: 20,
+    description: "Tasks completed before the due date.",
+    formula: "(Tasks Completed On Time / Completed Tasks) x 100",
+  },
+  {
+    key: "bugQuality",
+    category: "Bug Quality",
+    weight: 15,
+    description: "Bugs reopened, code quality, and fix effectiveness.",
+    formula: "100 - (Reopened Bugs / Resolved Bugs x 100)",
+  },
+  {
+    key: "productivity",
+    category: "Productivity",
+    weight: 10,
+    description: "Overall work output based on completed work.",
+    formula: "Based on completed tasks and bugs during the review period",
+  },
+];
+
+const PerformanceReportCardWidget = ({ rows = [] }) => (
+  <JiraPanel
+    title="Bug Tracker Performance Report Card"
+    description="Metric card used for the dashboard score weights."
+  >
+    <div
+      aria-label="Bug Tracker Performance Report Card"
+      role="img"
+      className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm"
+    >
+      <div className="border-b border-slate-200 bg-slate-50 px-4 py-3">
+        <h3 className="text-lg font-semibold text-slate-950">Bug Tracker Performance Report Card</h3>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[720px] text-left text-sm">
+          <thead className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-500">
+            <tr>
+              <th className="px-4 py-3">Performance Category</th>
+              <th className="px-4 py-3 text-right">Weight</th>
+              <th className="px-4 py-3">Description</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100">
+            {rows.map((row) => (
+              <tr key={row.key}>
+                <td className="px-4 py-3 font-medium text-slate-950">{row.category}</td>
+                <td className="px-4 py-3 text-right font-semibold text-slate-900">{row.weight}%</td>
+                <td className="px-4 py-3 text-slate-600">{row.description}</td>
+              </tr>
+            ))}
+            <tr className="bg-slate-50">
+              <td className="px-4 py-3 font-semibold text-slate-950">Total</td>
+              <td className="px-4 py-3 text-right font-semibold text-slate-950">100%</td>
+              <td className="px-4 py-3" />
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </JiraPanel>
+);
+
+const PerformanceFormulaWidget = ({ rows = [] }) => (
+  <JiraPanel
+    title="Automatic Calculation from Bug Tracker"
+    description="Live formulas used to calculate the weighted performance score."
+  >
+    <div className="overflow-x-auto">
+      <table className="w-full min-w-[680px] text-left text-sm">
+        <thead className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-500">
+          <tr>
+            <th className="px-3 py-2">Metric</th>
+            <th className="px-3 py-2">Formula</th>
+            <th className="px-3 py-2 text-right">Current</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-slate-100">
+          {rows.map((row) => (
+            <tr key={row.key}>
+              <td className="px-3 py-3 font-medium text-slate-950">{row.category}</td>
+              <td className="px-3 py-3 text-slate-600">{row.formula}</td>
+              <td className="px-3 py-3 text-right font-semibold text-slate-950">{Math.round(row.score)}%</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  </JiraPanel>
+);
+
+const PerformanceWeightWidget = ({ rows = [] }) => (
+  <JiraPanel
+    title="Weighted Score Breakdown"
+    description="Each metric contributes according to the configured report-card weight."
+  >
+    <div className="space-y-3">
+      {rows.map((row) => (
+        <div key={row.key}>
+          <div className="mb-1.5 flex items-center justify-between gap-3 text-sm">
+            <span className="font-medium text-slate-900">{row.category}</span>
+            <span className="text-xs font-semibold text-slate-500">
+              {Math.round(row.score)}% x {row.weight}%
+            </span>
+          </div>
+          <div className="h-2.5 overflow-hidden rounded-full bg-slate-100">
+            <div className="h-full rounded-full bg-blue-600" style={{ width: `${clamp(row.score)}%` }} />
+          </div>
+        </div>
+      ))}
+    </div>
+  </JiraPanel>
+);
 
 const JiraKpi = ({ label, value, helper, onClick }) => (
   <button
@@ -3558,6 +3690,33 @@ const JiraReportsDashboard = () => {
     ...groupedBugs.readyForQa,
     ...groupedBugs.reopened,
   ];
+  const completedTasksOnTime = completedTasks.filter((issue) => {
+    const closedAt = issue?.closedAt ? new Date(issue.closedAt).getTime() : NaN;
+    const dueAt = issue?.dueAt ? new Date(issue.dueAt).getTime() : NaN;
+
+    return Number.isFinite(closedAt) && Number.isFinite(dueAt) && closedAt <= dueAt;
+  });
+  const performanceMetricRows = PERFORMANCE_SCORE_WEIGHTS.map((metric) => {
+    const scoreByMetric = {
+      taskCompletion: taskMetrics.completionRate,
+      bugResolution: bugMetrics.fixRate,
+      onTimeDelivery: percent(completedTasksOnTime.length, completedTasks.length),
+      bugQuality: closedBugs.length
+        ? clamp(100 - (reopenedBugs.length / closedBugs.length) * 100)
+        : 100,
+      productivity: percent(completedTasks.length + closedBugs.length, taskIssues.length + bugIssues.length),
+    };
+    const score = clamp(scoreByMetric[metric.key]);
+
+    return {
+      ...metric,
+      score,
+      contribution: (score * metric.weight) / 100,
+    };
+  });
+  const performanceScore = Math.round(
+    performanceMetricRows.reduce((sum, metric) => sum + metric.contribution, 0)
+  );
   const renderPage = () => {
     if (activePage === "tasks") {
       return (
@@ -3769,21 +3928,48 @@ const JiraReportsDashboard = () => {
       );
     }
 
-    if (activePage === "executive") {
+    if (activePage === "performance") {
       return (
         <>
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-            <JiraKpi label="Delivery Health" value={`${Math.round(taskMetrics.completionRate)}%`} helper="Task completion only" onClick={() => drillTo("Task delivery", taskIssues)} />
-            <JiraKpi label="Quality Health" value={`${Math.round(100 - bugMetrics.bugLeakage)}%`} helper="Bug leakage inverse" onClick={() => drillTo("Quality signals", bugIssues)} />
-            <JiraKpi label="Velocity" value={taskMetrics.velocity} helper={`${taskComparison.delta}% vs previous ${comparisonMode}`} />
-            <JiraKpi label="Fix Rate" value={`${Math.round(bugMetrics.fixRate)}%`} helper={`${bugComparison.delta}% vs previous ${comparisonMode}`} />
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+            <JiraKpi label="Performance Score" value={`${performanceScore}/100`} helper="Weighted report-card score" />
+            <JiraKpi label="Task Completion" value={`${Math.round(taskMetrics.completionRate)}%`} helper={`${completedTasks.length}/${taskIssues.length} tasks`} onClick={() => drillTo("Task completion", taskIssues)} />
+            <JiraKpi label="Bug Resolution" value={`${Math.round(bugMetrics.fixRate)}%`} helper={`${closedBugs.length}/${bugIssues.length} bugs`} onClick={() => drillTo("Bug resolution", bugIssues)} />
+            <JiraKpi label="On-Time Delivery" value={`${percent(completedTasksOnTime.length, completedTasks.length)}%`} helper={`${completedTasksOnTime.length} tasks on time`} onClick={() => drillTo("On-time completed tasks", completedTasksOnTime)} />
+            <JiraKpi label="Bug Quality" value={`${Math.round(performanceMetricRows.find((row) => row.key === "bugQuality")?.score || 0)}%`} helper={`${reopenedBugs.length} reopened bugs`} onClick={() => drillTo("Reopened bugs", reopenedBugs)} />
           </div>
           <div className="grid gap-4 xl:grid-cols-2">
-            <JiraSection title="Task Delivery Trend">
-              <JiraLineChart data={taskTrendRows} lines={[{ key: "completed", color: "#2563eb" }]} />
+            <PerformanceReportCardWidget rows={performanceMetricRows} />
+            <PerformanceFormulaWidget rows={performanceMetricRows} />
+            <PerformanceWeightWidget rows={performanceMetricRows} />
+            <JiraSection title="Performance Trend">
+              <JiraLineChart
+                data={taskTrendRows.map((row, index) => ({
+                  label: row.label,
+                  tasks: row.completed,
+                  bugs: bugTrendRows[index]?.completed || 0,
+                  reopened: bugTrendRows[index]?.reopened || 0,
+                }))}
+                lines={[
+                  { key: "tasks", label: "Completed tasks", color: "#2563eb" },
+                  { key: "bugs", label: "Resolved bugs", color: "#10b981" },
+                  { key: "reopened", label: "Reopened bugs", color: "#f97316" },
+                ]}
+              />
             </JiraSection>
-            <JiraSection title="Bug Resolution Trend">
-              <JiraLineChart data={bugTrendRows} lines={[{ key: "completed", color: "#dc2626" }, { key: "reopened", color: "#f97316" }]} />
+            <PerformanceRankingCard
+              title="Top Combined Performers"
+              description="Ranked by completed tasks and resolved bugs for the selected period."
+              rows={combinedPerformanceRows}
+              emptyTitle="No performance rows"
+            />
+            <JiraSection title="Productivity Summary">
+              <div className="grid gap-3 sm:grid-cols-2">
+                <MiniStat label="Completed Tasks" tone="blue" value={completedTasks.length} />
+                <MiniStat label="Resolved Bugs" tone="emerald" value={closedBugs.length} />
+                <MiniStat label="Reopened Bugs" tone="rose" value={reopenedBugs.length} />
+                <MiniStat label="Review Period Output" tone="violet" value={completedTasks.length + closedBugs.length} />
+              </div>
             </JiraSection>
           </div>
         </>
