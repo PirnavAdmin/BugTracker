@@ -21,17 +21,17 @@ const TaskKanbanColumn = ({
     <section
       ref={setNodeRef}
       className={cn(
-        "flex h-[820px] flex-col rounded-[16px] border bg-slate-50/80 p-4 transition duration-200 ease-out",
+        "flex h-[500px] flex-col rounded-[16px] border bg-slate-50/80 p-3 transition duration-200 ease-out lg:h-[560px]",
         column.borderClassName,
         column.surfaceClassName,
         isOver && column.activeClassName
       )}
     >
-      <div className="mb-4 flex items-start justify-between gap-3">
+      <div className="mb-3 flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
             <span className={cn("h-2.5 w-2.5 rounded-full", column.accentClassName)} />
-            <h2 className="text-sm font-semibold text-slate-950">{column.label}</h2>
+            <h2 className="truncate text-sm font-semibold text-slate-950">{column.label}</h2>
           </div>
           <p className="mt-1 text-xs font-medium text-slate-500">{column.helper}</p>
         </div>
