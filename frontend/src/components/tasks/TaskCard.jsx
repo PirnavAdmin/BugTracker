@@ -83,7 +83,7 @@ const TaskCardSurface = ({
       style={style}
       aria-busy={isUpdating}
       className={cn(
-        "dashboard-scrollbar group relative max-h-[128px] overflow-y-scroll rounded-[14px] border border-slate-200 bg-white p-3 pr-2 text-left shadow-sm transition duration-200 ease-out [scrollbar-gutter:stable] hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-[0_18px_40px_-30px_rgba(37,99,235,0.34)]",
+        "group relative rounded-[16px] border border-slate-200 bg-white p-4 text-left shadow-sm transition duration-200 ease-out hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-[0_18px_40px_-30px_rgba(37,99,235,0.34)]",
         isDragging && "opacity-40",
         isOverlay && "rotate-[0.5deg] shadow-[0_24px_54px_-28px_rgba(15,23,42,0.58)]",
         isUpdating && "pointer-events-none opacity-70"
@@ -110,31 +110,31 @@ const TaskCardSurface = ({
       {...dragAttributes}
       {...dragListeners}
     >
-      <div className="flex items-start justify-between gap-2.5">
+      <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-1.5">
-            <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
               {getIssueDisplayKey(issue)}
             </span>
             <Badge
-              className="px-2.5 py-0.5 text-[11px]"
+              className="px-2.5 py-1 text-[11px]"
               variant={getIssuePriorityVariant(issue.priority)}
             >
               {issue.priority}
             </Badge>
           </div>
 
-          <h3 className="mt-2 line-clamp-2 text-sm font-semibold leading-5 text-slate-950 transition group-hover:text-blue-700">
+          <h3 className="mt-3 line-clamp-2 text-sm font-semibold leading-5 text-slate-950 transition group-hover:text-blue-700">
             {issue.title}
           </h3>
         </div>
 
-        <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-[10px] border border-slate-200 bg-slate-50 text-slate-400 transition group-hover:border-blue-200 group-hover:text-blue-500">
+        <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-slate-400 transition group-hover:border-blue-200 group-hover:text-blue-500">
           <GripVertical className="h-4 w-4" />
         </span>
       </div>
 
-      <div className="mt-3 space-y-2 text-xs text-slate-600">
+      <div className="mt-4 space-y-2.5 text-xs text-slate-600">
         <div className="flex items-center gap-2">
           <FolderKanban className="h-4 w-4 shrink-0 text-slate-400" />
           <span className="truncate font-medium text-slate-800">
