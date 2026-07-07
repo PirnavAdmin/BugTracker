@@ -5,7 +5,7 @@ import { getIssueDisplayKey, getIssuePriorityVariant, resolveIssueAssignee } fro
 import { cn, formatDateTime } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 
-const formatDueAt = (value) => (value ? formatDateTime(value) : "");
+const formatCreatedAt = (value) => (value ? formatDateTime(value) : "");
 
 const TaskCard = ({
   issue,
@@ -80,7 +80,7 @@ const TaskCardSurface = ({
   readOnly = false,
   style,
 }) => {
-  const dueAtLabel = formatDueAt(issue.dueAt);
+  const createdAtLabel = formatCreatedAt(issue.createdAt);
   const assignee = resolveIssueAssignee(issue);
 
   return (
@@ -158,10 +158,10 @@ const TaskCardSurface = ({
           </span>
         </div>
 
-        {dueAtLabel ? (
+        {createdAtLabel ? (
           <div className="flex items-center gap-2">
             <CalendarDays className="h-4 w-4 shrink-0 text-slate-400" />
-            <span>{dueAtLabel}</span>
+            <span>{createdAtLabel}</span>
           </div>
         ) : null}
       </div>
