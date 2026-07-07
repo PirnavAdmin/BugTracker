@@ -21,7 +21,7 @@ const TaskKanbanColumn = ({
     <section
       ref={setNodeRef}
       className={cn(
-        "flex min-h-[420px] flex-col rounded-[16px] border bg-slate-50/80 p-4 transition duration-200 ease-out",
+        "flex h-[820px] flex-col rounded-[16px] border bg-slate-50/80 p-4 transition duration-200 ease-out",
         column.borderClassName,
         column.surfaceClassName,
         isOver && column.activeClassName
@@ -41,7 +41,7 @@ const TaskKanbanColumn = ({
         </Badge>
       </div>
 
-      <div className="flex flex-1 flex-col gap-3">
+      <div className="dashboard-scrollbar flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto pr-1">
         {issues.length ? (
           issues.map((issue) => (
             <TaskCard
