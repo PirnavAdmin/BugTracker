@@ -34,30 +34,6 @@ export const TASK_BOARD_COLUMNS = [
     badgeClassName: "border-violet-200 bg-violet-50 text-violet-700",
   },
   {
-    key: TASK_BOARD_STATUS.CODE_REVIEW,
-    label: "Code Review",
-    helper: "Awaiting review",
-    countLabel: "review",
-    accentClassName: "bg-blue-500",
-    borderClassName: "border-blue-200",
-    surfaceClassName: "bg-blue-50/70",
-    activeClassName:
-      "border-blue-300 bg-blue-50 shadow-[0_22px_48px_-32px_rgba(59,130,246,0.4)]",
-    badgeClassName: "border-blue-200 bg-blue-50 text-blue-700",
-  },
-  {
-    key: TASK_BOARD_STATUS.QA_READY,
-    label: "QA Ready",
-    helper: "Ready for testing",
-    countLabel: "QA ready",
-    accentClassName: "bg-cyan-500",
-    borderClassName: "border-cyan-200",
-    surfaceClassName: "bg-cyan-50/70",
-    activeClassName:
-      "border-cyan-300 bg-cyan-50 shadow-[0_22px_48px_-32px_rgba(6,182,212,0.4)]",
-    badgeClassName: "border-cyan-200 bg-cyan-50 text-cyan-700",
-  },
-  {
     key: TASK_BOARD_STATUS.DONE,
     label: "Done",
     helper: "Closed work",
@@ -98,14 +74,6 @@ export const getTaskBoardStatus = (issueOrStatus) => {
 
   if (CLOSED_WORKFLOW_STATUSES.has(status)) {
     return TASK_BOARD_STATUS.DONE;
-  }
-
-  if (status === ISSUE_STATUS.CODE_REVIEW) {
-    return TASK_BOARD_STATUS.CODE_REVIEW;
-  }
-
-  if (status === ISSUE_STATUS.QA_READY) {
-    return TASK_BOARD_STATUS.QA_READY;
   }
 
   if (ACTIVE_WORKFLOW_STATUSES.has(status)) {

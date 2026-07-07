@@ -132,7 +132,7 @@ const TaskKanbanBoard = ({
       onDragEnd={handleDragEnd}
       onDragCancel={handleDragCancel}
     >
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
         {columns.map((column) => (
           <TaskKanbanColumn
             key={column.key}
