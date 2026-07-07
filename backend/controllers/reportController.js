@@ -38,6 +38,36 @@ const OPEN_STATUSES = [
   BUG_STATUS.REOPEN,
 ];
 
+const getDisplayKey = (issue) => {
+  if (!issue || typeof issue !== "object") {
+    return "";
+  }
+
+  const displayBugId =
+    typeof issue.displayBugId === "string" ? issue.displayBugId.trim() : "";
+  if (displayBugId) {
+    return displayBugId;
+  }
+
+  const explicitKey =
+    typeof issue.issueKey === "string" ? issue.issueKey.trim() : "";
+  if (explicitKey) {
+    return explicitKey;
+  }
+
+  const projectName = issue.projectId?.name || issue.project?.name || "";
+  const projectKey = projectName
+    .trim()
+    .split(/[^a-zA-Z0-9]+/)
+    .filter(Boolean)
+    .map((word) => word[0]?.toUpperCase() || "")
+    .join("")
+    .slice(0, 4) || "WORK";
+  const suffix = String(issue._id || "").slice(-5).toUpperCase();
+
+  return suffix ? `${projectKey}-${suffix}` : `${projectKey}-NEW`;
+};
+
 const TODO_STATUSES = [
   ISSUE_STATUS.TODO,
   BUG_STATUS.NEW,
@@ -362,15 +392,22 @@ const getDeveloperDashboardAnalytics = asyncHandler(async (req, res) => {
 
   const recentHistory = await IssueHistory.find({
     actorId: userId,
-  }).sort({ createdAt: -1 }).limit(15).populate("issueId", "title type displayBugId").lean();
+  })
+    .sort({ createdAt: -1 })
+    .limit(15)
+    .populate("issueId", "title type displayBugId issueKey")
+    .lean();
 
-  const recentActivity = recentHistory.map(h => ({
+  const recentActivity = recentHistory.map((h) => ({
     id: h._id,
-    action: h.eventType === "BUG_STATUS_CHANGED" || h.field === "status" ? `Moved to ${h.toValue}` : h.eventType,
+    action:
+      h.eventType === "BUG_STATUS_CHANGED" || h.field === "status"
+        ? `Moved to ${h.toValue}`
+        : h.eventType,
     issueTitle: h.issueId?.title,
-    issueId: h.issueId?.displayBugId || h.issueId?._id,
+    issueId: getDisplayKey(h.issueId),
     type: h.issueId?.type,
-    createdAt: h.createdAt
+    createdAt: h.createdAt,
   }));
 
   const moduleStats = analyticsResult.moduleStats.map(m => ({

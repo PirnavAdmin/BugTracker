@@ -997,7 +997,7 @@ const TesterReportsDashboard = ({ user }) => {
               <tbody className="divide-y divide-slate-100">
                 {bugIssues.slice(0, 80).map((bug) => (
                   <tr key={bug._id} className="hover:bg-blue-50/50">
-                    <td className="px-3 py-3 font-mono text-xs font-semibold">{bug.issueId}</td>
+                    <td className="px-3 py-3 font-mono text-xs font-semibold">{getIssueDisplayKey(bug)}</td>
                     <td className="px-3 py-3">{bug.project?.name || "Unknown"}</td>
                     <td className="px-3 py-3"><Badge variant="warning">{bug.severity || "Not set"}</Badge></td>
                     <td className="px-3 py-3"><Badge variant={getIssueStatusVariant(bug.status)}>{bug.status}</Badge></td>
