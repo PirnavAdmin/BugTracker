@@ -59,7 +59,7 @@ import {
   getIssueDisplayKey,
   getIssueStatusLabel,
   getIssueStatusVariant,
-  groupBugsByLifecycle,
+  normalizeBugStatusForIssue,
   resolveBugDetails,
 } from "@/lib/issues";
 import {
@@ -165,6 +165,14 @@ const ACTIVE_STATUSES = new Set([
   ISSUE_STATUS.FIXED,
   ISSUE_STATUS.REOPEN,
 ]);
+const BUG_WORK_QUEUE_STATUSES = new Set([
+  ISSUE_STATUS.NEW,
+  ISSUE_STATUS.TRIAGED,
+  ISSUE_STATUS.AVAILABLE_QUEUE,
+  ISSUE_STATUS.NEEDS_TRIAGE,
+  ISSUE_STATUS.OPEN,
+  ISSUE_STATUS.REOPEN,
+]);
 
 const asArray = (value) => (Array.isArray(value) ? value : []);
 const toNumber = (value) => {
@@ -210,9 +218,23 @@ const resolveReportOwner = (issue, fallback = "Unassigned") => {
 };
 const isClosed = (issue) => CLOSED_STATUSES.has(issue?.status);
 const isActive = (issue) => ACTIVE_STATUSES.has(issue?.status);
+const isDeletedIssue = (issue) => Boolean(issue?.isDeleted || issue?.deletedAt);
 const isCriticalBug = (issue) =>
   ["Blocker", "Critical"].includes(issue?.severity) ||
   ["Critical", "High"].includes(issue?.priority);
+const getNormalizedBugStatus = (issue) => normalizeBugStatusForIssue(issue);
+const resolveBugDeveloperId = (issue) =>
+  resolveUserId(
+    resolveBugDetails(issue)?.developerLead ||
+      issue?.developerLead ||
+      issue?.assignedDeveloperId ||
+      issue?.assignee
+  );
+const isBugWorkQueue = (issue) =>
+  BUG_WORK_QUEUE_STATUSES.has(getNormalizedBugStatus(issue)) && !resolveBugDeveloperId(issue);
+const isBugAssigned = (issue) => getNormalizedBugStatus(issue) === ISSUE_STATUS.ASSIGNED;
+const isBugInProgress = (issue) => getNormalizedBugStatus(issue) === ISSUE_STATUS.IN_PROGRESS;
+const isBugClosed = (issue) => CLOSED_STATUSES.has(getNormalizedBugStatus(issue));
 const isReadyForQa = (issue) =>
   [
     ISSUE_STATUS.QA,
@@ -221,8 +243,8 @@ const isReadyForQa = (issue) =>
     "READY_FOR_VERIFICATION",
     ISSUE_STATUS.TESTING,
     ISSUE_STATUS.FIXED,
-  ].includes(issue?.status);
-const isReopened = (issue) => issue?.status === ISSUE_STATUS.REOPEN;
+  ].includes(getNormalizedBugStatus(issue));
+const isReopened = (issue) => getNormalizedBugStatus(issue) === ISSUE_STATUS.REOPEN;
 const isOverdue = (issue) =>
   Boolean(issue?.dueAt) && !isClosed(issue) && new Date(issue.dueAt) < new Date();
 const getTeamKey = (issue) => issue?.team?._id || "unassigned";
@@ -3623,8 +3645,8 @@ const JiraReportsDashboard = () => {
   const rawTaskIssues = asArray(taskAnalytics.issues?.issues);
   const rawBugIssues = asArray(bugAnalytics.issues?.issues);
   const releaseMatches = (issue) => filters.releaseId === "all" || getIssueReleaseId(issue) === filters.releaseId;
-  const taskIssues = rawTaskIssues.filter(releaseMatches);
-  const bugIssues = rawBugIssues.filter(releaseMatches);
+  const taskIssues = rawTaskIssues.filter((issue) => !isDeletedIssue(issue) && releaseMatches(issue));
+  const bugIssues = rawBugIssues.filter((issue) => !isDeletedIssue(issue) && releaseMatches(issue));
   const allIssues = [...taskIssues, ...bugIssues];
   const reportExportIssues = activePage === "tasks"
     ? taskIssues
@@ -3826,7 +3848,12 @@ const JiraReportsDashboard = () => {
   const regressionBugs = bugIssues.filter((issue) => /regression/i.test(`${issue.title || ""} ${issue.labels?.join(" ") || ""}`));
   const escapedDefects = bugIssues.filter((issue) => issue.severity === "Critical" && isClosed(issue));
   const qaAccepted = bugIssues.filter((issue) => issue.status !== ISSUE_STATUS.REJECTED && isClosed(issue)).length;
-  const groupedBugs = groupBugsByLifecycle(bugIssues);
+  const workQueueBugs = bugIssues.filter(isBugWorkQueue);
+  const assignedBugs = bugIssues.filter(isBugAssigned);
+  const inProgressBugs = bugIssues.filter(isBugInProgress);
+  const readyForQaBugs = bugIssues.filter(isReadyForQa);
+  const currentReopenedBugs = bugIssues.filter(isReopened);
+  const closedReportBugs = bugIssues.filter(isBugClosed);
   const taskPerformanceRows = buildDeveloperRankingRows(developerPerformance, (developer) => ({
     closed: developer.taskMetrics.completed,
     total: developer.taskMetrics.total,
@@ -3842,13 +3869,6 @@ const JiraReportsDashboard = () => {
     total: developer.taskMetrics.total + developer.bugMetrics.total,
     meta: `${developer.taskMetrics.completed} tasks, ${developer.bugMetrics.resolved} bugs closed`,
   }));
-  const activeBugs = [
-    ...groupedBugs.reported,
-    ...groupedBugs.assigned,
-    ...groupedBugs.inProgress,
-    ...groupedBugs.readyForQa,
-    ...groupedBugs.reopened,
-  ];
   const completedTasksOnTime = completedTasks.filter((issue) => {
     const closedAt = issue?.closedAt ? new Date(issue.closedAt).getTime() : NaN;
     const dueAt = issue?.dueAt ? new Date(issue.dueAt).getTime() : NaN;
@@ -3916,13 +3936,14 @@ const JiraReportsDashboard = () => {
     if (activePage === "bugs") {
       return (
         <>
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-7">
+            <JiraKpi label="Work Queue" value={formatCompactNumber(workQueueBugs.length)} helper="Unassigned bugs ready for pickup" onClick={() => drillTo("Work queue bugs", workQueueBugs)} />
+            <JiraKpi label="Assigned Bugs" value={formatCompactNumber(assignedBugs.length)} helper="Assigned to developers" onClick={() => drillTo("Assigned bugs", assignedBugs)} />
+            <JiraKpi label="Closed Bugs" value={formatCompactNumber(closedReportBugs.length)} helper="Verified and closed" onClick={() => drillTo("Closed bugs", closedReportBugs)} />
+            <JiraKpi label="In Progress" value={formatCompactNumber(inProgressBugs.length)} helper="Active bug fixes" onClick={() => drillTo("In progress bugs", inProgressBugs)} />
+            <JiraKpi label="Ready For QA" value={formatCompactNumber(readyForQaBugs.length)} helper="Awaiting tester verification" onClick={() => drillTo("Ready For QA", readyForQaBugs)} />
+            <JiraKpi label="Reopen" value={formatCompactNumber(currentReopenedBugs.length)} helper="Returned for follow-up" onClick={() => drillTo("Reopened bugs", currentReopenedBugs)} />
             <JiraKpi label="Total Bugs" value={formatCompactNumber(bugIssues.length)} helper="All filtered bugs" onClick={() => drillTo("All bugs", bugIssues)} />
-            <JiraKpi label="Reported" value={formatCompactNumber(groupedBugs.reported.length)} helper="Waiting for pickup" onClick={() => drillTo("Reported bugs", groupedBugs.reported)} />
-            <JiraKpi label="Active" value={formatCompactNumber(activeBugs.length)} helper="Open bug workflow" onClick={() => drillTo("Active bugs", activeBugs)} />
-            <JiraKpi label="Ready For QA" value={formatCompactNumber(groupedBugs.readyForQa.length)} helper="Awaiting tester verification" onClick={() => drillTo("Ready For QA", groupedBugs.readyForQa)} />
-            <JiraKpi label="Reopened" value={formatCompactNumber(reopenedBugs.length)} helper="Returned for follow-up" onClick={() => drillTo("Reopened bugs", reopenedBugs)} />
-            <JiraKpi label="Closed" value={formatCompactNumber(groupedBugs.closed.length)} helper="Verified and closed" onClick={() => drillTo("Closed bugs", groupedBugs.closed)} />
           </div>
           {renderDrilldownPanel()}
           {!hasDrilldown ? (
