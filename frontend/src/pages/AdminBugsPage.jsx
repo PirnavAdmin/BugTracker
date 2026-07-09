@@ -2727,14 +2727,6 @@ const AdminBugsPage = () => {
         deletingId={deleteIssueMutation.isPending ? deleteIssueMutation.variables : ""}
         issue={selectedBug}
         onDeleteIssue={async (issueId) => {
-          const confirmed = window.confirm(
-            "Delete this bug? This will remove it from active bug lists."
-          );
-
-          if (!confirmed) {
-            return false;
-          }
-
           await deleteIssueMutation.mutateAsync(issueId);
           return true;
         }}

@@ -29,6 +29,7 @@ import {
   getTaskBoardStatus,
 } from "@/components/tasks/taskBoardStatus";
 import EmptyState from "@/components/shared/EmptyState";
+import ToastNotice from "@/components/shared/ToastNotice";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -46,6 +47,7 @@ const TasksPage = () => {
   const [selectedIssue, setSelectedIssue] = useState(null);
   const [taskScope, setTaskScope] = useState("mine");
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  const [toast, setToast] = useState(null);
   const isTeamLead = role === ROLE_TEAM_LEAD;
   const canDeleteTask = canDeleteIssues(role);
   const statusFilter = useMemo(() => {
@@ -172,7 +174,19 @@ const TasksPage = () => {
       setSelectedIssue((current) =>
         String(current?._id || "") === String(deletedIssueId) ? null : current
       );
+      setToast({
+        id: `delete-success-${Date.now()}`,
+        type: "success",
+        message: "Task deleted successfully.",
+      });
       invalidateTaskWorkspaceQueries();
+    },
+    onError: (error) => {
+      setToast({
+        id: `delete-error-${Date.now()}`,
+        type: "error",
+        message: error.response?.data?.message || "Unable to delete this task.",
+      });
     },
   });
 
@@ -332,6 +346,8 @@ const TasksPage = () => {
           onUploadAttachment={uploadIssueAttachment}
         />
       ) : null}
+
+      <ToastNotice toast={toast} onDismiss={() => setToast(null)} />
     </div>
   );
 };

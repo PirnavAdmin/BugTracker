@@ -472,6 +472,14 @@ const IssueDetailsDialog = ({
   const canShowDeleteAction = canDeleteIssue && typeof onDeleteIssue === "function";
   const deleteLabel = isBug ? "Delete Bug" : "Delete Task";
   const handleDeleteIssue = async () => {
+    const confirmed = window.confirm(
+      `Delete this ${isBug ? "bug" : "task"}? This action cannot be undone.`
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
     const result = await onDeleteIssue(issue._id);
 
     if (result !== false) {
