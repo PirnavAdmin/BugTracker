@@ -309,12 +309,13 @@ const TesterBugsPage = () => {
   const handleStatusChange = (issue, status) => {
     const currentStatus = normalizeBugStatusForIssue(issue);
     const canTesterMove =
-      [ISSUE_STATUS.READY_FOR_QA, ISSUE_STATUS.FIXED, ISSUE_STATUS.TESTING, ISSUE_STATUS.QA].includes(
+      (([ISSUE_STATUS.READY_FOR_QA, ISSUE_STATUS.FIXED, ISSUE_STATUS.TESTING, ISSUE_STATUS.QA].includes(
         currentStatus
-      ) && [ISSUE_STATUS.CLOSED, ISSUE_STATUS.REOPEN].includes(status);
+      ) && [ISSUE_STATUS.CLOSED, ISSUE_STATUS.REOPEN].includes(status)) ||
+        (currentStatus === ISSUE_STATUS.REJECTED && status === ISSUE_STATUS.REOPEN));
 
     if (!canTesterMove) {
-      showToast("warning", "Tester updates are limited to closing or reopening bugs from Ready For QA.");
+      showToast("warning", "Tester updates are limited to closing or reopening bugs from Ready For QA, or reopening rejected bugs.");
       return Promise.reject(new Error("Unsupported tester bug transition"));
     }
 

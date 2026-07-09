@@ -232,6 +232,18 @@ const buildActions = ({ actionMode, columnKey, currentUserId, issue, onAction, o
         openAction,
       ];
     }
+
+    if (columnKey === "rejected") {
+      return [
+        {
+          label: "Reopen",
+          icon: RotateCcw,
+          variant: "default",
+          onClick: () => onAction?.("reopen", issue),
+        },
+        openAction,
+      ];
+    }
   }
 
   return [openAction];
