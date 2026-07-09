@@ -8,6 +8,7 @@ const Epic = require("../models/Epic");
 const Issue = require("../models/Issue");
 const IssueAttachment = require("../models/IssueAttachment");
 const IssueHistory = require("../models/IssueHistory");
+const ProjectMember = require("../models/ProjectMember");
 const IssueWorklog = require("../models/IssueWorklog");
 const Sprint = require("../models/Sprint");
 const TeamMember = require("../models/TeamMember");
@@ -103,7 +104,12 @@ const ensurePlanningAccessForIssue = async (user, issueId) => {
   };
 };
 
-const ensureAssigneeBelongsToTeam = async ({ assigneeId, teamId, workspaceId }) => {
+const ensureAssigneeBelongsToTeam = async ({
+  assigneeId,
+  teamId,
+  projectId,
+  workspaceId,
+}) => {
   if (!assigneeId) {
     return {
       assignee: null,
@@ -144,18 +150,29 @@ const ensureAssigneeBelongsToTeam = async ({ assigneeId, teamId, workspaceId }) 
     };
   }
 
-  const teamMembership = await TeamMember.findOne({
-    teamId,
-    userId: assigneeId,
-  })
-    .select("_id")
-    .lean();
+  const [teamMembership, directProjectMembership] = await Promise.all([
+    TeamMember.findOne({
+      teamId,
+      userId: assigneeId,
+    })
+      .select("_id")
+      .lean(),
+    projectId
+      ? ProjectMember.findOne({
+          projectId,
+          userId: assigneeId,
+        })
+          .select("_id")
+          .lean()
+      : null,
+  ]);
 
-  if (!teamMembership) {
+  if (!teamMembership && !directProjectMembership) {
     return {
       error: {
         status: 400,
-        message: "Selected assignee is not a member of the selected team",
+        message:
+          "Selected assignee is not a member of the selected team or directly assigned to this project",
       },
     };
   }
@@ -355,6 +372,7 @@ const updateIssuePlanning = asyncHandler(async (req, res) => {
     const assigneeResult = await ensureAssigneeBelongsToTeam({
       assigneeId: req.body.assigneeId || null,
       teamId: issue.teamId,
+      projectId: issue.projectId,
       workspaceId,
     });
 

@@ -4,6 +4,7 @@ const Epic = require("../models/Epic");
 const Issue = require("../models/Issue");
 const IssueHistory = require("../models/IssueHistory");
 const Project = require("../models/Project");
+const ProjectMember = require("../models/ProjectMember");
 const ProjectTeam = require("../models/ProjectTeam");
 const Sprint = require("../models/Sprint");
 const Team = require("../models/Team");
@@ -1162,6 +1163,7 @@ const ensureIssueTeamForProject = async ({
 const ensureAssigneeBelongsToTeam = async ({
   assigneeId,
   teamId,
+  projectId,
   workspaceId,
 }) => {
   if (!assigneeId || assigneeId === "" || assigneeId === "Unassigned") {
@@ -1202,18 +1204,29 @@ const ensureAssigneeBelongsToTeam = async ({
     };
   }
 
-  const teamMembership = await TeamMember.findOne({
-    teamId,
-    userId: assigneeId,
-  })
-    .select("_id")
-    .lean();
+  const [teamMembership, directProjectMembership] = await Promise.all([
+    TeamMember.findOne({
+      teamId,
+      userId: assigneeId,
+    })
+      .select("_id")
+      .lean(),
+    projectId
+      ? ProjectMember.findOne({
+          projectId,
+          userId: assigneeId,
+        })
+          .select("_id")
+          .lean()
+      : null,
+  ]);
 
-  if (!teamMembership) {
+  if (!teamMembership && !directProjectMembership) {
     return {
       error: {
         status: 400,
-        message: "Selected assignee is not a member of the selected team",
+        message:
+          "Selected assignee is not a member of the selected team or directly assigned to this project",
       },
     };
   }
@@ -1226,6 +1239,7 @@ const ensureAssigneeBelongsToTeam = async ({
 const ensureBugOwnerBelongsToTeam = async ({
   userId,
   teamId,
+  projectId,
   workspaceId,
   label,
 }) => {
@@ -1238,6 +1252,7 @@ const ensureBugOwnerBelongsToTeam = async ({
   const result = await ensureAssigneeBelongsToTeam({
     assigneeId: userId,
     teamId,
+    projectId,
     workspaceId,
   });
 
@@ -3415,6 +3430,7 @@ const createIssue = asyncHandler(async (req, res) => {
       const assigneeResult = await ensureAssigneeBelongsToTeam({
         assigneeId: requestedAssigneeId,
         teamId,
+        projectId,
         workspaceId,
       });
 
@@ -3537,6 +3553,7 @@ const createIssue = asyncHandler(async (req, res) => {
       ensureBugOwnerBelongsToTeam({
         userId: bugDetails.developerLead,
         teamId,
+        projectId,
         workspaceId,
         label: "developer lead",
       }),
@@ -4233,6 +4250,7 @@ const updateIssue = asyncHandler(async (req, res) => {
       const assigneeResult = await ensureAssigneeBelongsToTeam({
         assigneeId: requestedAssigneeId,
         teamId: nextTeamId,
+        projectId: targetProject?._id || issue.projectId,
         workspaceId,
       });
 
@@ -4293,6 +4311,7 @@ const updateIssue = asyncHandler(async (req, res) => {
       const developerLeadResult = await ensureBugOwnerBelongsToTeam({
         userId: nextBugDetails.developerLead,
         teamId: nextTeamId,
+        projectId: targetProject?._id || issue.projectId,
         workspaceId,
         label: "Developer",
       });
