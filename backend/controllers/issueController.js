@@ -932,6 +932,18 @@ const getBugStatusForIssueStatus = (status) => {
 };
 
 const getRequestedBugStatus = ({ payload = {}, currentStatus = BUG_STATUS.NEW }) => {
+  const developerLeadId = getBugPayloadValue(payload, "developerLeadId", [
+    "developerLead",
+    "devLeadId",
+    "devLead",
+    "assigneeId",
+    "assignee",
+  ]);
+  const addToBucket = Boolean(
+    getBugPayloadValue(payload, "addToBucket", ["assignLater", "bucket"])
+  );
+  const sendToTriage = Boolean(payload.sendToTriage) || Boolean(payload.bugDetails?.sendToTriage);
+
   if (Boolean(payload.sendToTriage) || Boolean(payload.bugDetails?.sendToTriage)) {
     return BUG_STATUS.NEEDS_TRIAGE;
   }
@@ -941,18 +953,6 @@ const getRequestedBugStatus = ({ payload = {}, currentStatus = BUG_STATUS.NEW })
   }
 
   if (!hasOwnField(payload, "status")) {
-    const developerLeadId = getBugPayloadValue(payload, "developerLeadId", [
-      "developerLead",
-      "devLeadId",
-      "devLead",
-      "assigneeId",
-      "assignee",
-    ]);
-    const addToBucket = Boolean(
-      getBugPayloadValue(payload, "addToBucket", ["assignLater", "bucket"])
-    );
-    const sendToTriage = Boolean(payload.sendToTriage) || Boolean(payload.bugDetails?.sendToTriage);
-
     if (developerLeadId && !addToBucket && !sendToTriage) {
       return BUG_STATUS.ASSIGNED;
     }
@@ -963,6 +963,17 @@ const getRequestedBugStatus = ({ payload = {}, currentStatus = BUG_STATUS.NEW })
   const normalizedStatus = normalizeIssueStatus(payload.status, "");
 
   if (BUG_STATUS_VALUES.includes(normalizedStatus)) {
+    if (
+      developerLeadId &&
+      !addToBucket &&
+      !sendToTriage &&
+      [BUG_STATUS.NEW, BUG_STATUS.OPEN, BUG_STATUS.TRIAGED, BUG_STATUS.NEEDS_TRIAGE].includes(
+        normalizedStatus
+      )
+    ) {
+      return BUG_STATUS.ASSIGNED;
+    }
+
     return normalizedStatus;
   }
 
@@ -973,7 +984,11 @@ const getRequestedBugStatus = ({ payload = {}, currentStatus = BUG_STATUS.NEW })
   if (normalizedStatus === ISSUE_STATUS.IN_PROGRESS) {
     const currentBugStatus = getBugStatusForIssueStatus(currentStatus);
 
-    return currentBugStatus === BUG_STATUS.NEW ? BUG_STATUS.ASSIGNED : BUG_STATUS.IN_PROGRESS;
+    return [BUG_STATUS.NEW, BUG_STATUS.OPEN, BUG_STATUS.TRIAGED, BUG_STATUS.NEEDS_TRIAGE].includes(
+      currentBugStatus
+    )
+      ? BUG_STATUS.ASSIGNED
+      : BUG_STATUS.IN_PROGRESS;
   }
 
   if (normalizedStatus === ISSUE_STATUS.DONE) {
