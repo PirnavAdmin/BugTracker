@@ -669,7 +669,7 @@ const IssuesPage = () => {
 
   const deleteIssueMutation = useMutation({
     mutationFn: deleteIssue,
-    onSuccess: async (_response, deletedIssueId) => {
+    onSuccess: (_response, deletedIssueId) => {
       syncIssueWorkspaceLists(deletedIssueId, "remove");
       syncIssueDependencyOptions(deletedIssueId, "remove");
       setSelectedIssue((current) =>
@@ -680,7 +680,7 @@ const IssuesPage = () => {
         type: "success",
         message: "Work item deleted successfully.",
       });
-      await invalidateIssueWorkspaceQueries();
+      invalidateIssueWorkspaceQueries();
     },
     onError: (error) => {
       setToast({

@@ -1368,14 +1368,14 @@ const AdminBugsPage = () => {
 
   const deleteIssueMutation = useMutation({
     mutationFn: deleteIssue,
-    onSuccess: async () => {
+    onSuccess: () => {
       setSelectedBug(null);
       setToast({
         id: `delete-success-${Date.now()}`,
         type: "success",
         message: "Bug deleted successfully.",
       });
-      await Promise.all([
+      Promise.all([
         queryClient.invalidateQueries({ queryKey: ["bugs"] }),
         queryClient.invalidateQueries({ queryKey: ["issues"] }),
         queryClient.invalidateQueries({ queryKey: ["reports"] }),

@@ -167,12 +167,12 @@ const TasksPage = () => {
 
   const deleteIssueMutation = useMutation({
     mutationFn: deleteIssue,
-    onSuccess: async (_response, deletedIssueId) => {
+    onSuccess: (_response, deletedIssueId) => {
       removeIssueFromCachedLists(deletedIssueId);
       setSelectedIssue((current) =>
         String(current?._id || "") === String(deletedIssueId) ? null : current
       );
-      await invalidateTaskWorkspaceQueries();
+      invalidateTaskWorkspaceQueries();
     },
   });
 

@@ -576,10 +576,7 @@ const TesterBugsPage = () => {
       <IssueDetailsDialog
         deletingId={deleteIssueMutation.isPending ? deleteIssueMutation.variables : ""}
         issue={selectedIssue}
-        onDeleteIssue={async (id) => {
-          setDeleteCandidate(selectedIssue || { _id: id });
-          return false;
-        }}
+        onDeleteIssue={(id) => deleteIssueMutation.mutateAsync(id)}
         onOpenChange={(open) => {
           if (!open) {
             setSelectedIssue(null);
