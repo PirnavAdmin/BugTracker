@@ -151,6 +151,11 @@ const buildActions = ({ actionMode, columnKey, currentUserId, issue, onAction, o
           variant: "default",
           onClick: () => onAction?.("start", issue),
         },
+        {
+          label: "Reject",
+          icon: Trash2,
+          onClick: () => onAction?.("reject", issue),
+        },
         openAction,
       ],
       inProgress: [
@@ -164,6 +169,11 @@ const buildActions = ({ actionMode, columnKey, currentUserId, issue, onAction, o
           label: "Add Notes",
           icon: ClipboardPenLine,
           onClick: () => onAction?.("notes", issue),
+        },
+        {
+          label: "Reject",
+          icon: Trash2,
+          onClick: () => onAction?.("reject", issue),
         },
         openAction,
       ],

@@ -38,7 +38,16 @@ import IssueDetailsDialog from "@/components/issues/IssueDetailsDialog";
 import EmptyState from "@/components/shared/EmptyState";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Textarea } from "@/components/ui/textarea";
 
 const getSeverity = (issue) => resolveBugDetails(issue)?.severity || "Not set";
 const getModuleName = (issue) => resolveBugDetails(issue)?.moduleName || "Unmapped module";
@@ -64,6 +73,8 @@ const DeveloperBugBoardPage = () => {
   const queryClient = useQueryClient();
   const [searchParams] = useSearchParams();
   const [selectedIssue, setSelectedIssue] = useState(null);
+  const [rejectIssue, setRejectIssue] = useState(null);
+  const [rejectReason, setRejectReason] = useState("");
   const [statusError, setStatusError] = useState("");
   const [filters, setFilters] = useState({
     search: "",
@@ -204,6 +215,26 @@ const DeveloperBugBoardPage = () => {
       }, {}),
     [filteredIssues]
   );
+  const boardStatusOptions = useMemo(() => {
+    const options = new Map();
+
+    DEVELOPER_BUG_COLUMNS
+      .filter((column) => column.key !== "available")
+      .forEach((column) => {
+        const value = column.statuses?.[0];
+
+        if (!value || options.has(value)) {
+          return;
+        }
+
+        options.set(value, {
+          value,
+          label: column.label === "Closed Bugs" ? "Closed" : column.label,
+        });
+      });
+
+    return Array.from(options.values());
+  }, []);
 
   const statusMutation = useMutation({
     mutationFn: ({ id, payload }) => updateIssue({ id, payload }),
@@ -241,6 +272,12 @@ const DeveloperBugBoardPage = () => {
     },
   });
 
+  const openRejectDialog = (issue) => {
+    setStatusError("");
+    setRejectIssue(issue);
+    setRejectReason("");
+  };
+
   const handleStatusChange = (issue, status, nextColumnKey) => {
     const currentColumnKey = getBugColumnKey(issue, DEVELOPER_BUG_COLUMNS);
 
@@ -268,6 +305,11 @@ const DeveloperBugBoardPage = () => {
       return Promise.reject(new Error("Cannot move bug to available"));
     }
 
+    if (nextColumnKey === "rejected" || status === ISSUE_STATUS.REJECTED) {
+      openRejectDialog(issue);
+      return Promise.reject(new Error("Rejected requires a reason"));
+    }
+
     return statusMutation.mutateAsync({
       id: issue._id,
       payload: {
@@ -284,6 +326,10 @@ const DeveloperBugBoardPage = () => {
           id: issue._id,
           payload: { status: ISSUE_STATUS.IN_PROGRESS },
         }),
+      reject: () => {
+        openRejectDialog(issue);
+        return Promise.resolve();
+      },
       readyForQa: () =>
         statusMutation.mutateAsync({
           id: issue._id,
@@ -304,6 +350,32 @@ const DeveloperBugBoardPage = () => {
     };
 
     return actionMap[action]?.() || Promise.resolve(setSelectedIssue(issue));
+  };
+
+  const handleRejectSubmit = async (event) => {
+    event.preventDefault();
+
+    const reason = rejectReason.trim();
+
+    if (!rejectIssue?._id || !reason) {
+      setStatusError("Rejected requires a reason.");
+      return;
+    }
+
+    try {
+      await statusMutation.mutateAsync({
+        id: rejectIssue._id,
+        payload: {
+          status: ISSUE_STATUS.REJECTED,
+          rejectionReason: reason,
+          statusChangeComment: reason,
+        },
+      });
+      setRejectIssue(null);
+      setRejectReason("");
+    } catch (error) {
+      // Mutation handler already surfaces the error banner.
+    }
   };
 
   const refreshBoard = () => {
@@ -474,7 +546,69 @@ const DeveloperBugBoardPage = () => {
           getBugColumnKey(selectedIssue || {}, DEVELOPER_BUG_COLUMNS) === "available"
         }
         canDeleteIssue={false}
+        statusOptionsOverride={boardStatusOptions}
       />
+
+      <Dialog
+        open={Boolean(rejectIssue)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setRejectIssue(null);
+            setRejectReason("");
+          }
+        }}
+      >
+        <DialogContent className="max-w-xl">
+          <DialogHeader className="pr-10">
+            <DialogTitle>Reject Bug</DialogTitle>
+            <DialogDescription>
+              Add the rejection reason before moving this bug to the rejected column.
+            </DialogDescription>
+          </DialogHeader>
+          <form className="space-y-4" onSubmit={handleRejectSubmit}>
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                Bug
+              </p>
+              <p className="mt-2 text-sm font-semibold text-slate-950">
+                {rejectIssue?.title || "Selected bug"}
+              </p>
+              <p className="mt-1 text-xs text-slate-500">
+                {rejectIssue ? getIssueDisplayKey(rejectIssue) : ""}
+              </p>
+            </div>
+            <label className="block space-y-2">
+              <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                Rejection Reason
+              </span>
+              <Textarea
+                autoFocus
+                placeholder="Explain why this bug is being rejected"
+                value={rejectReason}
+                onChange={(event) => setRejectReason(event.target.value)}
+              />
+            </label>
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  setRejectIssue(null);
+                  setRejectReason("");
+                }}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                disabled={statusMutation.isPending || !rejectReason.trim()}
+              >
+                {statusMutation.isPending ? "Saving..." : "Reject Bug"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

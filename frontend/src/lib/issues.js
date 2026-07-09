@@ -444,7 +444,9 @@ export const normalizeBugLifecycleStatus = (
       : "";
   const rawStatus =
     typeof issueOrStatus === "object" ? issueOrStatus?.status : issueOrStatus;
-  const token = normalizeStatusToken(explicitLifecycle || rawStatus);
+  const rawToken = normalizeStatusToken(rawStatus);
+  const explicitToken = normalizeStatusToken(explicitLifecycle);
+  const token = rawToken || explicitToken;
 
   if (BUG_LIFECYCLE_STATUS_VALUES.includes(token)) {
     return token;

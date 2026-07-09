@@ -167,6 +167,7 @@ const IssueDetailsDialog = ({
   canEditPriority = true,
   canEditAssignee = true,
   canDeleteIssue = true,
+  statusOptionsOverride = null,
   compactDrawer = false,
   contentClassName = "",
 }) => {
@@ -468,7 +469,10 @@ const IssueDetailsDialog = ({
   const issueKey = getIssueDisplayKey(issue);
   const isBug = isBugIssue(issue);
   const currentBugStatus = normalizeBugStatusForIssue(issue);
-  const statusOptions = getWorkflowStatusOptionsForIssue({ type: detailDraft.type });
+  const statusOptions =
+    statusOptionsOverride?.length
+      ? statusOptionsOverride
+      : getWorkflowStatusOptionsForIssue({ type: detailDraft.type });
   const bugDetails = resolveBugDetails(issue);
   const testerOwner = bugDetails.testerOwner;
   const developerLead = bugDetails.developerLead;
