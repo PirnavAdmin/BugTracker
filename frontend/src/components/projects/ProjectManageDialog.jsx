@@ -326,15 +326,32 @@ const ProjectManageDialog = ({
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent
           className={projectDialogContentClass(
-            "grid max-h-[calc(100svh-6.25rem)] w-[92vw] max-w-[1100px] grid-rows-[auto_minmax(0,1fr)] rounded-[24px] sm:max-h-[calc(100vh-120px)]"
+            "grid h-[calc(100svh-2rem)] w-[calc(100vw-2rem)] max-w-[1500px] grid-rows-[auto_minmax(0,1fr)] rounded-[24px] !top-4 max-sm:!top-2 max-sm:h-[calc(100svh-1rem)] max-sm:w-[calc(100vw-1rem)]"
           )}
         >
-          <DialogHeader className={projectDialogHeaderClass()}>
-            <DialogTitle>Manage Project</DialogTitle>
-            <DialogDescription>{project.name}</DialogDescription>
+          <DialogHeader className={projectDialogHeaderClass("pr-16")}>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <DialogTitle>Manage Project</DialogTitle>
+                <DialogDescription>{project.name}</DialogDescription>
+              </div>
+              <Button
+                type="button"
+                className="h-10 rounded-xl sm:mr-1"
+                disabled={!canManageProject || isUpdatingProject}
+                onClick={handleSaveDetails}
+              >
+                {isUpdatingProject ? (
+                  <LoaderCircle className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Check className="h-4 w-4" />
+                )}
+                Save Changes
+              </Button>
+            </div>
           </DialogHeader>
 
-          <div className={projectDialogBodyClass("space-y-5 py-5")}>
+          <div className={projectDialogBodyClass("space-y-4 py-4")}>
             {!canManageProject ? (
               <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
                 Project structure is read-only for this role.
@@ -342,26 +359,13 @@ const ProjectManageDialog = ({
             ) : null}
 
             <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-              <div className="flex flex-col gap-3 border-b border-slate-200 pb-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="border-b border-slate-200 pb-3">
                 <div>
                   <h3 className="text-sm font-semibold text-slate-950">Details</h3>
                   <p className="mt-1 text-xs text-slate-500">
                     Name, status, priority, and ownership.
                   </p>
                 </div>
-                <Button
-                  type="button"
-                  className="h-10 rounded-xl"
-                  disabled={!canManageProject || isUpdatingProject}
-                  onClick={handleSaveDetails}
-                >
-                  {isUpdatingProject ? (
-                    <LoaderCircle className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <Check className="h-4 w-4" />
-                  )}
-                  Save Changes
-                </Button>
               </div>
 
               <div className="mt-4 grid gap-3 lg:grid-cols-[minmax(0,1fr)_180px_180px_140px]">
