@@ -62,6 +62,7 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -180,6 +181,7 @@ const IssueDetailsDialog = ({
   const [previewImageUrl, setPreviewImageUrl] = useState("");
   const [previewError, setPreviewError] = useState("");
   const [previewLoadingId, setPreviewLoadingId] = useState("");
+  const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
 
   const selectedProject = useMemo(
     () => findProjectById(projects, detailDraft.projectId),
@@ -233,6 +235,7 @@ const IssueDetailsDialog = ({
     setActiveDetailTab("discussion");
     setPreviewAttachment(null);
     setPreviewError("");
+    setIsDeleteConfirmOpen(false);
   }, [issue]);
 
   useEffect(() => {
@@ -472,18 +475,21 @@ const IssueDetailsDialog = ({
   const canShowDeleteAction = canDeleteIssue && typeof onDeleteIssue === "function";
   const deleteLabel = isBug ? "Delete Bug" : "Delete Task";
   const handleDeleteIssue = async () => {
-    const confirmed = window.confirm(
-      `Delete this ${isBug ? "bug" : "task"}? This action cannot be undone.`
-    );
+    setIsDeleteConfirmOpen(true);
+  };
+  const handleConfirmDeleteIssue = async () => {
+    try {
+      setDetailsError("");
+      const result = await onDeleteIssue(issue._id);
 
-    if (!confirmed) {
-      return;
-    }
-
-    const result = await onDeleteIssue(issue._id);
-
-    if (result !== false) {
-      onOpenChange(false);
+      if (result !== false) {
+        setIsDeleteConfirmOpen(false);
+        onOpenChange(false);
+      }
+    } catch (error) {
+      setDetailsError(
+        error.response?.data?.message || `Unable to delete this ${isBug ? "bug" : "task"}.`
+      );
     }
   };
   const commentComposer = (
@@ -742,6 +748,7 @@ const IssueDetailsDialog = ({
   );
 
   return (
+    <>
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         overlayClassName="z-50 bg-black/40 backdrop-blur-sm"
@@ -1989,6 +1996,40 @@ const IssueDetailsDialog = ({
         </div>
       </DialogContent>
     </Dialog>
+    <Dialog open={isDeleteConfirmOpen} onOpenChange={setIsDeleteConfirmOpen}>
+      <DialogContent className="z-[80] max-w-md rounded-2xl p-6" overlayClassName="z-[70] bg-black/45 backdrop-blur-sm">
+        <DialogHeader>
+          <DialogTitle>Delete {isBug ? "bug" : "task"}?</DialogTitle>
+          <DialogDescription>
+            This will permanently delete {issueKey} from the active list. This action cannot be undone.
+          </DialogDescription>
+        </DialogHeader>
+        <DialogFooter>
+          <Button
+            type="button"
+            variant="outline"
+            disabled={deletingId === issue._id}
+            onClick={() => setIsDeleteConfirmOpen(false)}
+          >
+            Cancel
+          </Button>
+          <Button
+            type="button"
+            variant="destructive"
+            disabled={deletingId === issue._id}
+            onClick={handleConfirmDeleteIssue}
+          >
+            {deletingId === issue._id ? (
+              <LoaderCircle className="h-4 w-4 animate-spin" />
+            ) : (
+              <Trash2 className="h-4 w-4" />
+            )}
+            {deletingId === issue._id ? "Deleting..." : deleteLabel}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+    </>
   );
 };
 

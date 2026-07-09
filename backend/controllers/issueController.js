@@ -4909,7 +4909,7 @@ const deleteIssue = asyncHandler(async (req, res) => {
     success: true,
     message: isBug ? "Bug deleted successfully" : "Issue deleted successfully",
     deletedId: issue._id,
-    bugId,
+    bugId: issueId,
     deletedAt,
     deletedBy: userId,
   });
