@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import {
   createIssue,
+  deleteIssue,
   fetchIssues,
   fetchProjects,
   uploadIssueAttachment,
@@ -19,7 +20,7 @@ import { useAuth } from "@/hooks/use-auth";
 import {
   ISSUE_TYPES,
 } from "@/lib/issues";
-import { ROLE_TEAM_LEAD } from "@/lib/roles";
+import { ROLE_TEAM_LEAD, canDeleteIssues } from "@/lib/roles";
 import IssueCreateDialog from "@/components/issues/IssueCreateDialog";
 import IssueDetailsDialog from "@/components/issues/IssueDetailsDialog";
 import TaskKanbanBoard from "@/components/tasks/TaskKanbanBoard";
@@ -46,6 +47,7 @@ const TasksPage = () => {
   const [taskScope, setTaskScope] = useState("mine");
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const isTeamLead = role === ROLE_TEAM_LEAD;
+  const canDeleteTask = canDeleteIssues(role);
   const statusFilter = useMemo(() => {
     const value = String(searchParams.get("status") || "all").trim().toUpperCase();
 
@@ -102,8 +104,37 @@ const TasksPage = () => {
 
     if (nextIssue) {
       setSelectedIssue(nextIssue);
+      return;
     }
+
+    setSelectedIssue(null);
   }, [activeTaskIssues, selectedIssue]);
+
+  const removeIssueFromCachedLists = (issueId) => {
+    queryClient
+      .getQueriesData({
+        queryKey: ["issues"],
+      })
+      .forEach(([queryKey, currentData]) => {
+        if (!Array.isArray(currentData)) {
+          return;
+        }
+
+        queryClient.setQueryData(
+          queryKey,
+          currentData.filter((issue) => String(issue._id) !== String(issueId))
+        );
+      });
+  };
+
+  const invalidateTaskWorkspaceQueries = async () => {
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ["issues"] }),
+      queryClient.invalidateQueries({ queryKey: ["tasks"] }),
+      queryClient.invalidateQueries({ queryKey: ["reports"] }),
+      queryClient.invalidateQueries({ queryKey: ["analytics"] }),
+    ]);
+  };
 
   const visibleTaskIssues = useMemo(
     () =>
@@ -115,31 +146,33 @@ const TasksPage = () => {
 
   const updateIssueMutation = useMutation({
     mutationFn: updateIssue,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["issues"] });
-      queryClient.invalidateQueries({ queryKey: ["tasks"] });
-      queryClient.invalidateQueries({ queryKey: ["reports"] });
-      queryClient.invalidateQueries({ queryKey: ["analytics"] });
+    onSuccess: async () => {
+      await invalidateTaskWorkspaceQueries();
     },
   });
 
   const updateTaskStatusMutation = useMutation({
     mutationFn: updateTaskStatus,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["issues"] });
-      queryClient.invalidateQueries({ queryKey: ["tasks"] });
-      queryClient.invalidateQueries({ queryKey: ["reports"] });
-      queryClient.invalidateQueries({ queryKey: ["analytics"] });
+    onSuccess: async () => {
+      await invalidateTaskWorkspaceQueries();
     },
   });
 
   const createIssueMutation = useMutation({
     mutationFn: createIssue,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["issues"] });
-      queryClient.invalidateQueries({ queryKey: ["tasks"] });
-      queryClient.invalidateQueries({ queryKey: ["reports"] });
-      queryClient.invalidateQueries({ queryKey: ["analytics"] });
+    onSuccess: async () => {
+      await invalidateTaskWorkspaceQueries();
+    },
+  });
+
+  const deleteIssueMutation = useMutation({
+    mutationFn: deleteIssue,
+    onSuccess: async (_response, deletedIssueId) => {
+      removeIssueFromCachedLists(deletedIssueId);
+      setSelectedIssue((current) =>
+        String(current?._id || "") === String(deletedIssueId) ? null : current
+      );
+      await invalidateTaskWorkspaceQueries();
     },
   });
 
@@ -261,9 +294,9 @@ const TasksPage = () => {
       )}
 
       <IssueDetailsDialog
-        deletingId=""
+        deletingId={deleteIssueMutation.isPending ? deleteIssueMutation.variables : ""}
         issue={selectedIssue}
-        onDeleteIssue={async () => {}}
+        onDeleteIssue={(id) => deleteIssueMutation.mutateAsync(id)}
         onOpenChange={(open) => {
           if (!open) {
             setSelectedIssue(null);
@@ -278,7 +311,7 @@ const TasksPage = () => {
         canEditStatus={!isTeamProgressView}
         canEditPriority={false}
         canEditAssignee={false}
-        canDeleteIssue={false}
+        canDeleteIssue={canDeleteTask && !isTeamProgressView}
       />
 
       {isTeamLead ? (
