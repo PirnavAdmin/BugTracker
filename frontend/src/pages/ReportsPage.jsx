@@ -1,6 +1,6 @@
 import { Suspense, lazy, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { NavLink, Navigate, useNavigate, useParams } from "react-router-dom";
+import { NavLink, Navigate, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import {
   AlertTriangle,
   AreaChart as AreaChartIcon,
@@ -2826,6 +2826,92 @@ const REPORT_PAGES = [
 ];
 
 const REPORT_PAGE_KEYS = new Set(REPORT_PAGES.map((page) => page.key));
+const REPORT_NAV_STORAGE_KEY = "jira-report-last-path";
+const DEFAULT_REPORT_DATE_PRESET = "month";
+const DEFAULT_REPORT_COMPARISON_MODE = "sprint";
+const REPORT_FILTER_KEYS = [
+  "projectId",
+  "sprintId",
+  "teamId",
+  "developerId",
+  "testerId",
+  "priority",
+  "severity",
+  "status",
+  "releaseId",
+  "dateFrom",
+  "dateTo",
+];
+const REPORT_DEFAULT_FILTER_VALUES = {
+  projectId: "all",
+  sprintId: "all",
+  teamId: "all",
+  developerId: "all",
+  testerId: "all",
+  priority: "all",
+  severity: "all",
+  status: "all",
+  releaseId: "all",
+};
+
+const buildDefaultJiraReportFilters = () => ({
+  ...REPORT_DEFAULT_FILTER_VALUES,
+  ...getReportDatePreset(DEFAULT_REPORT_DATE_PRESET),
+});
+
+const isValidReportDatePreset = (value) =>
+  REPORT_DATE_PRESETS.some((preset) => preset.value === value);
+
+const readJiraReportStateFromSearchParams = (searchParams) => {
+  const datePreset = isValidReportDatePreset(searchParams.get("datePreset"))
+    ? searchParams.get("datePreset")
+    : DEFAULT_REPORT_DATE_PRESET;
+  const filters = {
+    ...REPORT_DEFAULT_FILTER_VALUES,
+    ...getReportDatePreset(datePreset),
+  };
+
+  REPORT_FILTER_KEYS.forEach((key) => {
+    const value = searchParams.get(key);
+
+    if (value !== null) {
+      filters[key] = value;
+    }
+  });
+
+  return {
+    comparisonMode: searchParams.get("comparison") || DEFAULT_REPORT_COMPARISON_MODE,
+    datePreset,
+    filters,
+  };
+};
+
+const buildJiraReportSearchParams = (filters, datePreset, comparisonMode) => {
+  const defaults = buildDefaultJiraReportFilters();
+  const nextParams = new URLSearchParams();
+
+  REPORT_FILTER_KEYS.forEach((key) => {
+    const value = filters?.[key] || "";
+    const isCustomDateField =
+      datePreset === "custom" && ["dateFrom", "dateTo"].includes(key);
+
+    if (value && (isCustomDateField || String(value) !== String(defaults[key] || ""))) {
+      nextParams.set(key, value);
+    }
+  });
+
+  if (datePreset !== DEFAULT_REPORT_DATE_PRESET) {
+    nextParams.set("datePreset", datePreset);
+  }
+
+  if (comparisonMode !== DEFAULT_REPORT_COMPARISON_MODE) {
+    nextParams.set("comparison", comparisonMode);
+  }
+
+  return nextParams;
+};
+
+const appendSearchToPath = (path, search) => (search ? `${path}?${search}` : path);
 
 const getIssueReleaseId = (issue) =>
   String(issue?.release?._id || issue?.releaseId || issue?.fixVersion?._id || issue?.version?._id || "");
@@ -3427,23 +3513,60 @@ const JiraDrilldown = ({ rows = [], title, onClear }) => (
 const JiraReportsDashboard = () => {
   const { reportKey = "overview" } = useParams();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const queryClient = useQueryClient();
   const activePage = reportKey || "overview";
-  const [comparisonMode, setComparisonMode] = useState("sprint");
-  const [datePreset, setDatePreset] = useState("month");
+  const initialReportState = useRef(null);
+
+  if (!initialReportState.current) {
+    initialReportState.current = readJiraReportStateFromSearchParams(searchParams);
+  }
+
+  const [comparisonMode, setComparisonMode] = useState(
+    initialReportState.current.comparisonMode
+  );
+  const [datePreset, setDatePreset] = useState(initialReportState.current.datePreset);
   const [drilldown, setDrilldown] = useState(null);
-  const [filters, setFilters] = useState(() => ({
-    projectId: "all",
-    sprintId: "all",
-    teamId: "all",
-    developerId: "all",
-    testerId: "all",
-    priority: "all",
-    severity: "all",
-    status: "all",
-    releaseId: "all",
-    ...getReportDatePreset("month"),
-  }));
+  const [filters, setFilters] = useState(initialReportState.current.filters);
+  const reportSearch = useMemo(
+    () => buildJiraReportSearchParams(filters, datePreset, comparisonMode).toString(),
+    [comparisonMode, datePreset, filters]
+  );
+  const reportPath = (pageKey = activePage) =>
+    appendSearchToPath(pageKey === "overview" ? "/reports" : `/reports/${pageKey}`, reportSearch);
+
+  useEffect(() => {
+    if (!REPORT_PAGE_KEYS.has(activePage)) {
+      return;
+    }
+
+    localStorage.setItem(REPORT_NAV_STORAGE_KEY, reportPath(activePage));
+  }, [activePage, reportSearch]);
+
+  useEffect(() => {
+    const nextState = readJiraReportStateFromSearchParams(searchParams);
+    const nextSearch = buildJiraReportSearchParams(
+      nextState.filters,
+      nextState.datePreset,
+      nextState.comparisonMode
+    ).toString();
+
+    if (nextSearch === reportSearch) {
+      return;
+    }
+
+    setDrilldown(null);
+    setComparisonMode(nextState.comparisonMode);
+    setDatePreset(nextState.datePreset);
+    setFilters(nextState.filters);
+  }, [reportSearch, searchParams]);
+
+  const replaceReportSearch = (nextFilters, nextDatePreset, nextComparisonMode) => {
+    setSearchParams(
+      buildJiraReportSearchParams(nextFilters, nextDatePreset, nextComparisonMode),
+      { replace: true }
+    );
+  };
 
   const { data: projects = [], isLoading: projectsLoading, error: projectsError } = useQuery({
     queryKey: ["projects", "jira-reports-options"],
@@ -3532,38 +3655,42 @@ const JiraReportsDashboard = () => {
   const error = projectsError || taskAnalytics.error || bugAnalytics.error;
   const updateFilter = (key, value) => {
     setDrilldown(null);
-    setFilters((current) => ({
-      ...current,
+    const nextFilters = {
+      ...filters,
       [key]: value,
       ...(key === "projectId" ? { sprintId: "all", teamId: "all", developerId: "all", testerId: "all" } : {}),
-    }));
+    };
+    setFilters(nextFilters);
+    replaceReportSearch(nextFilters, datePreset, comparisonMode);
   };
   const updateDatePreset = (preset) => {
     setDatePreset(preset);
     setDrilldown(null);
 
     if (preset !== "custom") {
-      setFilters((current) => ({
-        ...current,
+      const nextFilters = {
+        ...filters,
         ...getReportDatePreset(preset),
-      }));
+      };
+      setFilters(nextFilters);
+      replaceReportSearch(nextFilters, preset, comparisonMode);
+      return;
     }
+
+    replaceReportSearch(filters, preset, comparisonMode);
+  };
+  const updateComparisonMode = (value) => {
+    setComparisonMode(value);
+    replaceReportSearch(filters, datePreset, value);
   };
   const resetFilters = () => {
+    const nextFilters = buildDefaultJiraReportFilters();
+
     setDrilldown(null);
-    setDatePreset("month");
-    setFilters({
-      projectId: "all",
-      sprintId: "all",
-      teamId: "all",
-      developerId: "all",
-      testerId: "all",
-      priority: "all",
-      severity: "all",
-      status: "all",
-      releaseId: "all",
-      ...getReportDatePreset("month"),
-    });
+    setDatePreset(DEFAULT_REPORT_DATE_PRESET);
+    setComparisonMode(DEFAULT_REPORT_COMPARISON_MODE);
+    setFilters(nextFilters);
+    replaceReportSearch(nextFilters, DEFAULT_REPORT_DATE_PRESET, DEFAULT_REPORT_COMPARISON_MODE);
   };
   const drillTo = (title, rows) => setDrilldown({ title, rows });
   const statusFilterOptions =
@@ -4006,10 +4133,10 @@ const JiraReportsDashboard = () => {
     return (
       <>
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-          <JiraKpi label="Task Completion" value={`${Math.round(taskMetrics.completionRate)}%`} helper={`${taskMetrics.completed}/${taskMetrics.total} tasks`} onClick={() => navigate("/reports/tasks")} />
-          <JiraKpi label="Bug Fix Rate" value={`${Math.round(bugMetrics.fixRate)}%`} helper={`${bugMetrics.resolved}/${bugMetrics.total} bugs`} onClick={() => navigate("/reports/bugs")} />
-          <JiraKpi label="Sprint Velocity" value={taskMetrics.velocity} helper="Task points delivered" onClick={() => navigate("/reports/sprints")} />
-          <JiraKpi label="Top Developer" value={topDeveloper ? `${topDeveloper.score}/100` : "--"} helper={topDeveloper?.name || "No developer data"} onClick={() => navigate("/reports/developers")} />
+          <JiraKpi label="Task Completion" value={`${Math.round(taskMetrics.completionRate)}%`} helper={`${taskMetrics.completed}/${taskMetrics.total} tasks`} onClick={() => navigate(reportPath("tasks"))} />
+          <JiraKpi label="Bug Fix Rate" value={`${Math.round(bugMetrics.fixRate)}%`} helper={`${bugMetrics.resolved}/${bugMetrics.total} bugs`} onClick={() => navigate(reportPath("bugs"))} />
+          <JiraKpi label="Sprint Velocity" value={taskMetrics.velocity} helper="Task points delivered" onClick={() => navigate(reportPath("sprints"))} />
+          <JiraKpi label="Top Developer" value={topDeveloper ? `${topDeveloper.score}/100` : "--"} helper={topDeveloper?.name || "No developer data"} onClick={() => navigate(reportPath("developers"))} />
         </div>
         <div className="grid gap-4 xl:grid-cols-2">
           <JiraSection title="Task Trend">
@@ -4055,7 +4182,7 @@ const JiraReportsDashboard = () => {
                 )}
                 end={page.key === "overview"}
                 key={page.key}
-                to={page.key === "overview" ? "/reports" : `/reports/${page.key}`}
+                to={reportPath(page.key)}
               >
                 {page.label}
               </NavLink>
@@ -4101,7 +4228,7 @@ const JiraReportsDashboard = () => {
               <option value="all">All releases</option>
               {releaseOptions.map((release) => <option key={release.id} value={release.id}>{release.name}</option>)}
             </select>
-            <select className={ANALYTICS_SELECT_CLASS} value={comparisonMode} onChange={(event) => setComparisonMode(event.target.value)}>
+            <select className={ANALYTICS_SELECT_CLASS} value={comparisonMode} onChange={(event) => updateComparisonMode(event.target.value)}>
               <option value="sprint">Current vs Previous Sprint</option>
               <option value="month">Current vs Previous Month</option>
               <option value="release">Current vs Previous Release</option>

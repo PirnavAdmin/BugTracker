@@ -44,6 +44,22 @@ const iconMap = {
 const navItemClassName =
   "group inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium transition duration-200 ease-out whitespace-nowrap";
 
+const REPORT_NAV_STORAGE_KEY = "jira-report-last-path";
+
+const resolveNavigationHref = (item, location) => {
+  if (item.icon !== "reports" || typeof window === "undefined") {
+    return item.href;
+  }
+
+  if (location.pathname.startsWith("/reports")) {
+    return `${location.pathname}${location.search}`;
+  }
+
+  const storedHref = window.localStorage.getItem(REPORT_NAV_STORAGE_KEY);
+
+  return storedHref?.startsWith("/reports") ? storedHref : item.href;
+};
+
 const Navbar = () => {
   const location = useLocation();
   const { user, logout } = useAuth();
@@ -124,11 +140,12 @@ const Navbar = () => {
           <nav className="hidden items-center gap-1 lg:flex">
             {navigation.map((item) => {
               const Icon = iconMap[item.icon] || LayoutDashboard;
+              const href = resolveNavigationHref(item, location);
 
               return (
                 <NavLink
                   key={item.href}
-                  to={item.href}
+                  to={href}
                   className={({ isActive }) =>
                     cn(
                       navItemClassName,
@@ -213,11 +230,12 @@ const Navbar = () => {
                 <nav className="space-y-2">
                   {navigation.map((item) => {
                     const Icon = iconMap[item.icon] || LayoutDashboard;
+                    const href = resolveNavigationHref(item, location);
 
                     return (
                       <NavLink
                         key={item.href}
-                        to={item.href}
+                        to={href}
                         onClick={() => setIsMenuOpen(false)}
                         className={({ isActive }) =>
                           cn(
