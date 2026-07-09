@@ -931,7 +931,29 @@ const getBugStatusForIssueStatus = (status) => {
   return BUG_STATUS.NEW;
 };
 
-const getRequestedBugStatus = ({ payload = {}, currentStatus = BUG_STATUS.NEW }) => {
+const getEffectiveBugTransitionStatus = (status, issue = null) => {
+  const normalizedStatus = getBugStatusForIssueStatus(status);
+  const hasAssignedDeveloper = Boolean(
+    issue?.assignee || issue?.assignedDeveloperId || issue?.bugDetails?.developerLead
+  );
+
+  if (
+    hasAssignedDeveloper &&
+    [BUG_STATUS.NEW, BUG_STATUS.OPEN, BUG_STATUS.TRIAGED, BUG_STATUS.NEEDS_TRIAGE].includes(
+      normalizedStatus
+    )
+  ) {
+    return BUG_STATUS.ASSIGNED;
+  }
+
+  return normalizedStatus;
+};
+
+const getRequestedBugStatus = ({
+  payload = {},
+  currentStatus = BUG_STATUS.NEW,
+  issue = null,
+}) => {
   const developerLeadId = getBugPayloadValue(payload, "developerLeadId", [
     "developerLead",
     "devLeadId",
@@ -939,6 +961,10 @@ const getRequestedBugStatus = ({ payload = {}, currentStatus = BUG_STATUS.NEW })
     "assigneeId",
     "assignee",
   ]);
+  const hasExistingAssignedDeveloper = Boolean(
+    issue?.assignee || issue?.assignedDeveloperId || issue?.bugDetails?.developerLead
+  );
+  const hasAssignedDeveloper = Boolean(developerLeadId) || hasExistingAssignedDeveloper;
   const addToBucket = Boolean(
     getBugPayloadValue(payload, "addToBucket", ["assignLater", "bucket"])
   );
@@ -964,7 +990,7 @@ const getRequestedBugStatus = ({ payload = {}, currentStatus = BUG_STATUS.NEW })
 
   if (BUG_STATUS_VALUES.includes(normalizedStatus)) {
     if (
-      developerLeadId &&
+      hasAssignedDeveloper &&
       !addToBucket &&
       !sendToTriage &&
       [BUG_STATUS.NEW, BUG_STATUS.OPEN, BUG_STATUS.TRIAGED, BUG_STATUS.NEEDS_TRIAGE].includes(
@@ -982,13 +1008,18 @@ const getRequestedBugStatus = ({ payload = {}, currentStatus = BUG_STATUS.NEW })
   }
 
   if (normalizedStatus === ISSUE_STATUS.IN_PROGRESS) {
-    const currentBugStatus = getBugStatusForIssueStatus(currentStatus);
+    const currentBugStatus = getEffectiveBugTransitionStatus(currentStatus, issue);
 
-    return [BUG_STATUS.NEW, BUG_STATUS.OPEN, BUG_STATUS.TRIAGED, BUG_STATUS.NEEDS_TRIAGE].includes(
-      currentBugStatus
-    )
-      ? BUG_STATUS.ASSIGNED
-      : BUG_STATUS.IN_PROGRESS;
+    if (
+      hasAssignedDeveloper &&
+      [BUG_STATUS.NEW, BUG_STATUS.OPEN, BUG_STATUS.TRIAGED, BUG_STATUS.NEEDS_TRIAGE].includes(
+        currentBugStatus
+      )
+    ) {
+      return BUG_STATUS.IN_PROGRESS;
+    }
+
+    return currentBugStatus === BUG_STATUS.NEW ? BUG_STATUS.ASSIGNED : BUG_STATUS.IN_PROGRESS;
   }
 
   if (normalizedStatus === ISSUE_STATUS.DONE) {
@@ -3984,7 +4015,7 @@ const updateIssue = asyncHandler(async (req, res) => {
     ? getUserIdString(issue.bugDetails?.developerLead)
     : "";
   const previousBugStatus = isBugType(issue.type)
-    ? getBugStatusForIssueStatus(issue.status)
+    ? getEffectiveBugTransitionStatus(issue.status, issue)
     : "";
   const changeEntries = [];
 
@@ -4024,11 +4055,12 @@ const updateIssue = asyncHandler(async (req, res) => {
     ? getRequestedBugStatus({
         payload: req.body,
         currentStatus: issue.status,
+        issue,
       })
     : req.body.status;
   const nextStatusResult = parseIssueStatusInput(
     requestedUpdateStatus,
-    nextIsBug ? getBugStatusForIssueStatus(issue.status) : issue.status
+    nextIsBug ? getEffectiveBugTransitionStatus(issue.status, issue) : issue.status
   );
   const nextPriority = hasOwnField(req.body, "priority")
     ? nextIsBug
@@ -4047,7 +4079,7 @@ const updateIssue = asyncHandler(async (req, res) => {
   }
 
   const nextStatus = nextStatusResult.value;
-  const currentBugStatus = getBugStatusForIssueStatus(issue.status);
+  const currentBugStatus = getEffectiveBugTransitionStatus(issue.status, issue);
 
   if (nextIsBug && !isBugLifecycleStatus(nextStatus)) {
     res.status(400);
