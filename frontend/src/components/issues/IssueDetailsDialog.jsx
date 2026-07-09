@@ -807,9 +807,9 @@ const IssueDetailsDialog = ({
           </DialogDescription>
         </DialogHeader>
 
-        <div className={cn("min-h-0 overflow-hidden", compactDrawer && "overflow-y-auto overscroll-contain scroll-smooth px-4 py-4")}>
-        <div className={cn("grid h-full min-h-0 grid-cols-1 overflow-hidden lg:grid-cols-[minmax(0,65%)_minmax(0,35%)]", compactDrawer && "h-auto gap-4 overflow-visible lg:grid-cols-1")}>
-          <section className={cn("min-h-0 space-y-6 overflow-y-auto overscroll-contain bg-white p-4 sm:p-6", compactDrawer && "overflow-visible p-0")}>
+        <div className={cn("min-h-0 min-w-0 overflow-hidden", compactDrawer && "overflow-y-auto overscroll-contain scroll-smooth px-4 py-4")}>
+        <div className={cn("grid h-full min-h-0 min-w-0 grid-cols-1 overflow-hidden lg:grid-cols-[minmax(0,65%)_minmax(0,35%)]", compactDrawer && "h-auto gap-4 overflow-visible lg:grid-cols-1")}>
+          <section className={cn("min-h-0 min-w-0 space-y-6 overflow-y-auto overscroll-contain bg-white p-4 sm:p-6", compactDrawer && "overflow-visible p-0")}>
             <div className="rounded-[28px] border border-slate-200/80 bg-gradient-to-br from-slate-50 to-white p-5 shadow-[0_18px_50px_-42px_rgba(15,23,42,0.5)]">
               <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">
                 Description
@@ -1913,7 +1913,7 @@ const IssueDetailsDialog = ({
 
           </section>
 
-          <section className={cn("min-h-0 overflow-y-auto overscroll-contain border-t border-slate-200 bg-slate-50 p-4 sm:p-6 lg:border-l lg:border-t-0", compactDrawer && "rounded-2xl border border-gray-200 p-3")}>
+          <section className={cn("min-h-0 min-w-0 overflow-y-auto overscroll-contain border-t border-slate-200 bg-slate-50 p-4 sm:p-6 lg:border-l lg:border-t-0", compactDrawer && "rounded-2xl border border-gray-200 p-3")}>
             {compactDrawer ? (
               <>
                 <div className="mb-3 grid grid-cols-2 gap-1 rounded-xl border border-slate-200 bg-white p-1 sm:grid-cols-4">
