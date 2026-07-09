@@ -3725,6 +3725,11 @@ const JiraReportsDashboard = () => {
   };
   const saveFilter = () => localStorage.setItem("jira-report-filters", JSON.stringify({ filters, comparisonMode, activePage }));
   const scheduleReport = () => localStorage.setItem("jira-report-schedule", JSON.stringify({ filters, comparisonMode, activePage, cadence: "weekly" }));
+  const hasDrilldown = Boolean(drilldown);
+  const renderDrilldownPanel = () =>
+    drilldown ? (
+      <JiraDrilldown rows={drilldown.rows} title={drilldown.title} onClear={() => setDrilldown(null)} />
+    ) : null;
 
   if (error) {
     return (
@@ -3880,6 +3885,8 @@ const JiraReportsDashboard = () => {
             <JiraKpi label="In Progress" value={formatCompactNumber(inProgressTasks.length)} helper="Active task work" onClick={() => drillTo("In progress tasks", inProgressTasks)} />
             <JiraKpi label="Done" value={formatCompactNumber(completedTasks.length)} helper="Completed tasks" onClick={() => drillTo("Done tasks", completedTasks)} />
           </div>
+          {renderDrilldownPanel()}
+          {!hasDrilldown ? (
           <div className="grid gap-4 xl:grid-cols-2">
             <JiraSection title="Burndown / Burnup">
               <JiraLineChart data={taskTrendRows} lines={[{ key: "created", color: "#94a3b8" }, { key: "completed", color: "#2563eb" }]} onDrill={(row) => drillTo(`Tasks on ${row.label}`, taskIssues.filter((issue) => issue.createdAt?.startsWith(row.label) || issue.closedAt?.startsWith(row.label)))} />
@@ -3901,6 +3908,7 @@ const JiraReportsDashboard = () => {
               </div>
             </JiraSection>
           </div>
+          ) : null}
         </>
       );
     }
@@ -3916,6 +3924,8 @@ const JiraReportsDashboard = () => {
             <JiraKpi label="Reopened" value={formatCompactNumber(reopenedBugs.length)} helper="Returned for follow-up" onClick={() => drillTo("Reopened bugs", reopenedBugs)} />
             <JiraKpi label="Closed" value={formatCompactNumber(groupedBugs.closed.length)} helper="Verified and closed" onClick={() => drillTo("Closed bugs", groupedBugs.closed)} />
           </div>
+          {renderDrilldownPanel()}
+          {!hasDrilldown ? (
           <div className="grid gap-4 xl:grid-cols-2">
             <JiraSection title="Resolution Trends">
               <JiraLineChart data={bugTrendRows} lines={[{ key: "created", color: "#94a3b8" }, { key: "completed", color: "#dc2626" }, { key: "reopened", color: "#f97316" }]} onDrill={(row) => drillTo(`Bugs on ${row.label}`, bugIssues.filter((issue) => issue.createdAt?.startsWith(row.label) || issue.closedAt?.startsWith(row.label)))} />
@@ -3937,6 +3947,7 @@ const JiraReportsDashboard = () => {
               </div>
             </JiraSection>
           </div>
+          ) : null}
         </>
       );
     }
@@ -3978,6 +3989,8 @@ const JiraReportsDashboard = () => {
             <JiraKpi label="Rejected Fixes" value={bugIssues.filter((issue) => issue.status === ISSUE_STATUS.REJECTED).length} helper="Returned by QA" />
             <JiraKpi label="Reopened" value={formatCompactNumber(reopenedBugs.length)} helper="Quality follow-up" onClick={() => drillTo("Reopened bugs", reopenedBugs)} />
           </div>
+          {renderDrilldownPanel()}
+          {!hasDrilldown ? (
           <div className="grid gap-4 xl:grid-cols-2">
             <JiraSection title="Available Tester Report">
               {availableTesterRows.length ? (
@@ -4033,6 +4046,7 @@ const JiraReportsDashboard = () => {
               <JiraLineChart data={bugTrendRows} lines={[{ key: "completed", color: "#2563eb" }, { key: "reopened", color: "#dc2626" }]} />
             </JiraSection>
           </div>
+          ) : null}
         </>
       );
     }
@@ -4046,6 +4060,8 @@ const JiraReportsDashboard = () => {
             <JiraKpi label="Scope Change" value={taskMetrics.total - completedTasks.length} helper="Open work" />
             <JiraKpi label="Sprint SLA" value={`${Math.round(taskMetrics.slaCompliance)}%`} helper="Task SLA only" />
           </div>
+          {renderDrilldownPanel()}
+          {!hasDrilldown ? (
           <div className="grid gap-4 xl:grid-cols-2">
             <JiraSection title="Sprint Burnup">
               <JiraLineChart data={taskTrendRows} lines={[{ key: "created", color: "#94a3b8" }, { key: "completed", color: "#2563eb" }]} />
@@ -4054,6 +4070,7 @@ const JiraReportsDashboard = () => {
               <JiraBarChart data={taskStatusRows.map((row) => ({ ...row, label: row.name }))} onDrill={(row) => drillTo(row.label, taskIssues.filter((issue) => String(issue.status || "unassigned") === String(row.key)))} />
             </JiraSection>
           </div>
+          ) : null}
         </>
       );
     }
@@ -4067,6 +4084,8 @@ const JiraReportsDashboard = () => {
             <JiraKpi label="Closed Bugs" value={closedBugs.length} helper="Bug release readiness" />
             <JiraKpi label="Open Critical Bugs" value={bugMetrics.criticalOpen} helper="Release blocker signal" onClick={() => drillTo("Critical bugs", bugIssues.filter(isCriticalBug))} />
           </div>
+          {renderDrilldownPanel()}
+          {!hasDrilldown ? (
           <div className="grid gap-4 xl:grid-cols-2">
             <JiraSection title="Release Distribution">
               <JiraBarChart data={releaseRows} onDrill={(row) => drillTo(row.label, allIssues.filter((issue) => String(getIssueReleaseId(issue) || "unassigned") === String(row.key)))} />
@@ -4078,6 +4097,7 @@ const JiraReportsDashboard = () => {
               </div>
             </JiraSection>
           </div>
+          ) : null}
         </>
       );
     }
@@ -4092,6 +4112,8 @@ const JiraReportsDashboard = () => {
             <JiraKpi label="On-Time Delivery" value={`${percent(completedTasksOnTime.length, completedTasks.length)}%`} helper={`${completedTasksOnTime.length} tasks on time`} onClick={() => drillTo("On-time completed tasks", completedTasksOnTime)} />
             <JiraKpi label="Bug Quality" value={`${Math.round(performanceMetricRows.find((row) => row.key === "bugQuality")?.score || 0)}%`} helper={`${reopenedBugs.length} reopened bugs`} onClick={() => drillTo("Reopened bugs", reopenedBugs)} />
           </div>
+          {renderDrilldownPanel()}
+          {!hasDrilldown ? (
           <div className="grid gap-4 xl:grid-cols-2">
             <PerformanceReportCardWidget rows={performanceMetricRows} />
             <PerformanceFormulaWidget rows={performanceMetricRows} />
@@ -4126,6 +4148,7 @@ const JiraReportsDashboard = () => {
               </div>
             </JiraSection>
           </div>
+          ) : null}
         </>
       );
     }
@@ -4267,10 +4290,6 @@ const JiraReportsDashboard = () => {
         </div>
 
         {renderPage()}
-
-        {drilldown ? (
-          <JiraDrilldown rows={drilldown.rows} title={drilldown.title} onClear={() => setDrilldown(null)} />
-        ) : null}
       </div>
     </div>
   );
