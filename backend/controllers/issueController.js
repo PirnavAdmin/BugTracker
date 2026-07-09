@@ -1,4 +1,6 @@
 const mongoose = require("mongoose");
+const multer = require("multer");
+const XLSX = require("xlsx");
 const Comment = require("../models/Comment");
 const Epic = require("../models/Epic");
 const Issue = require("../models/Issue");
@@ -99,6 +101,14 @@ const {
   summarizeBugQueryFilters,
 } = require("../utils/bugQueueQuery");
 
+const taskImportStorage = multer.memoryStorage();
+const uploadTaskImportMiddleware = multer({
+  storage: taskImportStorage,
+  limits: {
+    fileSize: 5 * 1024 * 1024,
+  },
+}).single("file");
+
 const isAdmin = (user) => hasAdminAccess(user?.role);
 const isBugType = (type) => getCanonicalIssueType(type, "") === ISSUE_TYPES.BUG;
 const isGenericIssueStatus = (status) =>
@@ -119,7 +129,182 @@ const canAssignBugWork = (user, type) =>
 const ISSUE_PRIORITY_VALUES = ["Critical", "High", "Medium", "Low"];
 const escapeRegExp = (value = "") =>
   value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+const normalizeImportKey = (value = "") =>
+  String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "");
 const getComparableUserId = (user) => String(user?._id || user?.id || user || "");
+
+const TASK_IMPORT_FIELD_ALIASES = Object.freeze({
+  title: ["title"],
+  project: ["project", "projectname"],
+  description: ["description", "desc"],
+  team: ["team", "teamname"],
+  assignee: ["assignee", "assigneename", "assignedto", "owner"],
+  dueDate: ["duedate", "due", "duedateyyyyMMdd"],
+});
+
+const getTaskImportValue = (row = {}, field) => {
+  const aliases = TASK_IMPORT_FIELD_ALIASES[field] || [];
+
+  const matchedEntry = Object.entries(row).find(([key]) =>
+    aliases.includes(normalizeImportKey(key))
+  );
+
+  return matchedEntry ? matchedEntry[1] : "";
+};
+
+const parseSpreadsheetDate = (value) => {
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return value;
+  }
+
+  if (typeof value === "number") {
+    const parsedDate = XLSX.SSF.parse_date_code(value);
+
+    if (parsedDate) {
+      return new Date(
+        parsedDate.y,
+        Math.max(parsedDate.m - 1, 0),
+        parsedDate.d,
+        parsedDate.H || 0,
+        parsedDate.M || 0,
+        parsedDate.S || 0
+      );
+    }
+  }
+
+  const trimmedValue = String(value || "").trim();
+
+  if (!trimmedValue) {
+    return null;
+  }
+
+  const parsedTime = Date.parse(trimmedValue);
+
+  if (Number.isNaN(parsedTime)) {
+    return null;
+  }
+
+  return new Date(parsedTime);
+};
+
+const TASK_IMPORT_REQUIRED_FIELDS = Object.freeze([
+  "title",
+  "project",
+  "description",
+  "team",
+  "assignee",
+  "dueDate",
+]);
+
+const TASK_IMPORT_SAMPLE_HEADERS = Object.freeze([
+  "Title",
+  "Project",
+  "Description",
+  "Team",
+  "Assignee",
+  "Due Date",
+]);
+
+const escapeCsvValue = (value) => `"${String(value || "").replace(/"/g, '""')}"`;
+
+const resolveImportText = (value) => String(value || "").trim();
+
+const buildExactMatchRegex = (value = "") => new RegExp(`^${escapeRegExp(value)}$`, "i");
+
+const resolveTaskImportProject = async ({ workspaceId, projectName }) => {
+  const trimmedProjectName = resolveImportText(projectName);
+
+  if (!trimmedProjectName) {
+    return null;
+  }
+
+  return Project.findOne({
+    workspaceId: normalizeWorkspaceId(workspaceId),
+    name: buildExactMatchRegex(trimmedProjectName),
+  });
+};
+
+const resolveTaskImportTeam = async ({ workspaceId, teamName, project }) => {
+  const trimmedTeamName = resolveImportText(teamName);
+
+  if (!trimmedTeamName || !project?._id) {
+    return null;
+  }
+
+  const attachedTeamIds = await getProjectTeamIds(project._id, project);
+
+  if (!attachedTeamIds.length) {
+    return null;
+  }
+
+  return Team.findOne({
+    _id: {
+      $in: attachedTeamIds,
+    },
+    workspaceId: normalizeWorkspaceId(workspaceId),
+    name: buildExactMatchRegex(trimmedTeamName),
+  })
+    .select("_id name workspaceId")
+    .lean();
+};
+
+const resolveTaskImportAssignee = async ({ workspaceId, assigneeInput }) => {
+  const trimmedAssigneeInput = resolveImportText(assigneeInput);
+
+  if (!trimmedAssigneeInput) {
+    return {
+      error: "Assignee is required",
+    };
+  }
+
+  const workspaceQuery = {
+    workspaceId: normalizeWorkspaceId(workspaceId),
+  };
+
+  if (trimmedAssigneeInput.includes("@")) {
+    const assigneeByEmail = await User.findOne({
+      ...workspaceQuery,
+      email: buildExactMatchRegex(trimmedAssigneeInput),
+    })
+      .select("_id name email role workspaceId")
+      .lean();
+
+    return assigneeByEmail
+      ? { assignee: assigneeByEmail }
+      : { error: `Assignee "${trimmedAssigneeInput}" was not found in this workspace` };
+  }
+
+  const matchingUsers = await User.find({
+    ...workspaceQuery,
+    name: buildExactMatchRegex(trimmedAssigneeInput),
+  })
+    .select("_id name email role workspaceId")
+    .lean();
+
+  if (!matchingUsers.length) {
+    return {
+      error: `Assignee "${trimmedAssigneeInput}" was not found in this workspace`,
+    };
+  }
+
+  if (matchingUsers.length > 1) {
+    return {
+      error: `Assignee "${trimmedAssigneeInput}" matched multiple users. Use the assignee email instead.`,
+    };
+  }
+
+  return {
+    assignee: matchingUsers[0],
+  };
+};
+
+const buildTaskImportErrorCsv = (errors = []) =>
+  ["Row,Message", ...errors.map((item) => `${item.row},${escapeCsvValue(item.message)}`)].join(
+    "\n"
+  );
 
 const isAssignedToUser = (issue, userId) =>
   Boolean(userId) &&
@@ -2272,6 +2457,243 @@ const buildIssueQueryFromRequest = async (
 
   return query;
 };
+
+const downloadTaskImportSample = asyncHandler(async (req, res) => {
+  if (!hasAdminAccess(req.user?.role)) {
+    res.status(403);
+    throw new Error("Only admin users can download the task import sample.");
+  }
+
+  const workbook = XLSX.utils.book_new();
+  const worksheet = XLSX.utils.aoa_to_sheet([
+    TASK_IMPORT_SAMPLE_HEADERS,
+    [
+      "Improve login page validation",
+      "Bug Tracking Testing",
+      "Add clearer inline validation messages for required login fields.",
+      "BTT - Implementation Team",
+      "developer@example.com",
+      "2026-07-15",
+    ],
+  ]);
+
+  worksheet["!cols"] = [
+    { wch: 36 },
+    { wch: 28 },
+    { wch: 52 },
+    { wch: 28 },
+    { wch: 32 },
+    { wch: 16 },
+  ];
+
+  XLSX.utils.book_append_sheet(workbook, worksheet, "Tasks");
+
+  const fileBuffer = XLSX.write(workbook, {
+    type: "buffer",
+    bookType: "xlsx",
+  });
+
+  res.setHeader(
+    "Content-Type",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+  );
+  res.setHeader(
+    "Content-Disposition",
+    'attachment; filename="task-import-template.xlsx"'
+  );
+
+  res.status(200).send(fileBuffer);
+});
+
+const importTasksFromSpreadsheet = asyncHandler(async (req, res) => {
+  if (!hasAdminAccess(req.user?.role)) {
+    res.status(403);
+    throw new Error("Only admin users can bulk import tasks.");
+  }
+
+  if (!req.file?.buffer) {
+    res.status(400);
+    throw new Error("Upload an Excel file to import tasks.");
+  }
+
+  const workbook = XLSX.read(req.file.buffer, {
+    type: "buffer",
+    cellDates: true,
+  });
+  const firstSheetName = workbook.SheetNames?.[0];
+
+  if (!firstSheetName) {
+    res.status(400);
+    throw new Error("The uploaded Excel file does not contain any sheets.");
+  }
+
+  const worksheet = workbook.Sheets[firstSheetName];
+  const rows = XLSX.utils.sheet_to_json(worksheet, {
+    defval: "",
+    raw: true,
+  });
+
+  if (!rows.length) {
+    res.status(400);
+    throw new Error("The uploaded Excel file does not contain any task rows.");
+  }
+
+  const firstRow = rows[0] || {};
+  const missingHeaders = TASK_IMPORT_REQUIRED_FIELDS.filter(
+    (field) => !Object.keys(firstRow).some((key) =>
+      TASK_IMPORT_FIELD_ALIASES[field].includes(normalizeImportKey(key))
+    )
+  );
+
+  if (missingHeaders.length) {
+    res.status(400);
+    throw new Error(
+      `The uploaded sheet is missing the required headers: ${missingHeaders
+        .map((field) => TASK_IMPORT_SAMPLE_HEADERS[TASK_IMPORT_REQUIRED_FIELDS.indexOf(field)])
+        .join(", ")}`
+    );
+  }
+
+  const workspaceId = normalizeWorkspaceId(req.user.workspaceId);
+  const reporterName = req.user?.name || req.user?.email || "";
+  const successIssues = [];
+  const errors = [];
+
+  for (let index = 0; index < rows.length; index += 1) {
+    const row = rows[index] || {};
+    const rowNumber = index + 2;
+
+    try {
+      const title = resolveImportText(getTaskImportValue(row, "title"));
+      const projectName = resolveImportText(getTaskImportValue(row, "project"));
+      const description = resolveImportText(getTaskImportValue(row, "description"));
+      const teamName = resolveImportText(getTaskImportValue(row, "team"));
+      const assigneeInput = resolveImportText(getTaskImportValue(row, "assignee"));
+      const dueDateInput = getTaskImportValue(row, "dueDate");
+
+      const missingValues = [];
+
+      if (!title) missingValues.push("Title");
+      if (!projectName) missingValues.push("Project");
+      if (!description) missingValues.push("Description");
+      if (!teamName) missingValues.push("Team");
+      if (!assigneeInput) missingValues.push("Assignee");
+      if (!resolveImportText(dueDateInput)) missingValues.push("Due Date");
+
+      if (missingValues.length) {
+        throw new Error(
+          `${missingValues.join(", ")} ${missingValues.length === 1 ? "is" : "are"} required`
+        );
+      }
+
+      const project = await resolveTaskImportProject({
+        workspaceId,
+        projectName,
+      });
+
+      if (!project) {
+        throw new Error(`Project "${projectName}" was not found in this workspace`);
+      }
+
+      const team = await resolveTaskImportTeam({
+        workspaceId,
+        teamName,
+        project,
+      });
+
+      if (!team) {
+        throw new Error(
+          `Team "${teamName}" was not found or is not attached to project "${project.name}"`
+        );
+      }
+
+      const assigneeResolution = await resolveTaskImportAssignee({
+        workspaceId,
+        assigneeInput,
+      });
+
+      if (assigneeResolution.error) {
+        throw new Error(assigneeResolution.error);
+      }
+
+      const assigneeResult = await ensureAssigneeBelongsToTeam({
+        assigneeId: assigneeResolution.assignee._id,
+        teamId: team._id,
+        projectId: project._id,
+        workspaceId,
+      });
+
+      if (assigneeResult.error) {
+        throw new Error(assigneeResult.error.message);
+      }
+
+      const parsedSpreadsheetDate = parseSpreadsheetDate(dueDateInput);
+
+      if (!parsedSpreadsheetDate) {
+        throw new Error("Due Date must be a valid Excel or date value");
+      }
+
+      const dueAtResult = parseOptionalDateInput(parsedSpreadsheetDate, "due date");
+
+      if (dueAtResult.error || !dueAtResult.value) {
+        throw new Error(dueAtResult.error?.message || "Due Date is required");
+      }
+
+      const planningOrder = await getNextPlanningOrder(Issue, {
+        projectId: project._id,
+        sprintId: null,
+      });
+      const displayBugId = await getNextIssueDisplayId({
+        Project,
+        Issue,
+        project,
+      });
+
+      const issue = await Issue.create({
+        title,
+        description,
+        displayBugId,
+        type: ISSUE_TYPES.TASK,
+        status: ISSUE_STATUS.TODO,
+        priority: "Medium",
+        assignee: assigneeResolution.assignee._id,
+        assignees: [assigneeResolution.assignee._id],
+        reporter: req.user._id,
+        reporterName,
+        projectId: project._id,
+        teamId: team._id,
+        dueAt: dueAtResult.value,
+        timeEstimateMinutes: 0,
+        remainingEstimateMinutes: 0,
+        planningOrder,
+        updatedBy: req.user._id,
+      });
+
+      const populatedIssue = await populateIssueDocument(issue);
+      successIssues.push(serializeIssue(populatedIssue));
+    } catch (error) {
+      errors.push({
+        row: rowNumber,
+        message: error.message || "Unable to import this row",
+      });
+    }
+  }
+
+  const successCount = successIssues.length;
+  const failedCount = errors.length;
+
+  res.status(200).json({
+    message:
+      failedCount > 0
+        ? `Imported ${successCount} task${successCount === 1 ? "" : "s"} with ${failedCount} skipped row${failedCount === 1 ? "" : "s"}.`
+        : `Imported ${successCount} task${successCount === 1 ? "" : "s"} successfully.`,
+    successCount,
+    failedCount,
+    issues: successIssues,
+    errors,
+    errorCsv: failedCount ? buildTaskImportErrorCsv(errors) : "",
+  });
+});
 
 const getIssues = asyncHandler(async (req, res) => {
   const query = await buildIssueQueryFromRequest(req, res);
@@ -5144,6 +5566,9 @@ module.exports = {
   getMyIssues,
   getBugBucket,
   pickIssue,
+  downloadTaskImportSample,
+  importTasksFromSpreadsheet,
+  uploadTaskImportMiddleware,
   getRecentIssueActivity,
   getNotifications,
   getUnreadNotificationCount,
