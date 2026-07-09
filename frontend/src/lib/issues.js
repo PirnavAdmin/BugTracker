@@ -34,6 +34,7 @@ export const BUG_LIFECYCLE_STATUS = Object.freeze({
   IN_PROGRESS: "IN_PROGRESS",
   READY_FOR_QA: "READY_FOR_QA",
   REOPENED: "REOPENED",
+  REJECTED: "REJECTED",
   CLOSED: "CLOSED",
 });
 
@@ -469,6 +470,10 @@ export const normalizeBugLifecycleStatus = (
     return BUG_LIFECYCLE_STATUS.REOPENED;
   }
 
+  if (token === "REJECTED") {
+    return BUG_LIFECYCLE_STATUS.REJECTED;
+  }
+
   if (["CLOSED", "DONE", "RESOLVED"].includes(token)) {
     return BUG_LIFECYCLE_STATUS.CLOSED;
   }
@@ -652,6 +657,7 @@ export const groupBugsByLifecycle = (issues = []) =>
         [BUG_LIFECYCLE_STATUS.IN_PROGRESS]: "inProgress",
         [BUG_LIFECYCLE_STATUS.READY_FOR_QA]: "readyForQa",
         [BUG_LIFECYCLE_STATUS.REOPENED]: "reopened",
+        [BUG_LIFECYCLE_STATUS.REJECTED]: "rejected",
         [BUG_LIFECYCLE_STATUS.CLOSED]: "closed",
       };
       const key = keyByStatus[lifecycleStatus] || "reported";
@@ -665,6 +671,7 @@ export const groupBugsByLifecycle = (issues = []) =>
       inProgress: [],
       readyForQa: [],
       reopened: [],
+      rejected: [],
       closed: [],
     }
   );

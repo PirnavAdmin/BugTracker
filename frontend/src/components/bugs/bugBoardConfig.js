@@ -55,6 +55,17 @@ export const TESTER_BUG_COLUMNS = [
     badgeClassName: "border-cyan-200 bg-cyan-50 text-cyan-700",
   },
   {
+    key: "rejected",
+    label: "Rejected",
+    helper: "Rejected or invalid bugs",
+    statuses: [ISSUE_STATUS.REJECTED],
+    accentClassName: "bg-rose-500",
+    borderClassName: "border-rose-100",
+    surfaceClassName: "bg-rose-50/55",
+    activeClassName: "ring-2 ring-rose-300/60",
+    badgeClassName: "border-rose-200 bg-rose-50 text-rose-700",
+  },
+  {
     key: "closed",
     label: "Closed",
     helper: "Verified and closed",
@@ -124,6 +135,17 @@ export const DEVELOPER_BUG_COLUMNS = [
     badgeClassName: "border-amber-200 bg-amber-50 text-amber-700",
   },
   {
+    key: "rejected",
+    label: "Rejected",
+    helper: "Rejected bugs",
+    statuses: [ISSUE_STATUS.REJECTED],
+    accentClassName: "bg-rose-500",
+    borderClassName: "border-rose-100",
+    surfaceClassName: "bg-rose-50/55",
+    activeClassName: "ring-2 ring-rose-300/60",
+    badgeClassName: "border-rose-200 bg-rose-50 text-rose-700",
+  },
+  {
     key: "closed",
     label: "Closed Bugs",
     helper: "Verified and closed",
@@ -144,6 +166,7 @@ const getTesterBugColumnKey = (issue, columns) => {
     [BUG_LIFECYCLE_STATUS.IN_PROGRESS]: "inProgress",
     [BUG_LIFECYCLE_STATUS.READY_FOR_QA]: "readyForQa",
     [BUG_LIFECYCLE_STATUS.REOPENED]: "inProgress",
+    [BUG_LIFECYCLE_STATUS.REJECTED]: "rejected",
     [BUG_LIFECYCLE_STATUS.CLOSED]: "closed",
   };
   const columnKey = keyByStatus[lifecycleStatus] || "";
@@ -208,6 +231,7 @@ export const getBugStatusForColumn = (columnKey, role = "tester") => {
       inProgress: ISSUE_STATUS.IN_PROGRESS,
       readyForQa: ISSUE_STATUS.READY_FOR_QA,
       reopened: ISSUE_STATUS.IN_PROGRESS,
+      rejected: ISSUE_STATUS.REJECTED,
     };
 
     return statusByColumn[columnKey] || "";

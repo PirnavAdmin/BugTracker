@@ -247,6 +247,7 @@ const TesterBugsPage = () => {
         groupedFilteredIssues.readyForQa.length +
         groupedFilteredIssues.reopened.length,
       qa: groupedFilteredIssues.readyForQa.length,
+      rejected: groupedFilteredIssues.rejected.length,
       closed: groupedFilteredIssues.closed.length,
     }),
     [groupedFilteredIssues]
@@ -447,11 +448,12 @@ const TesterBugsPage = () => {
           </div>
         </CardHeader>
         <CardContent className="space-y-3 p-4 sm:p-5">
-          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
             {[
               ["Reported", reviewStats.reported],
               ["Active", reviewStats.active],
               ["Ready For QA", reviewStats.qa],
+              ["Rejected", reviewStats.rejected],
               ["Closed", reviewStats.closed],
             ].map(([label, value]) => (
               <div key={label} className="rounded-lg border border-slate-200 bg-slate-50/80 px-4 py-3">

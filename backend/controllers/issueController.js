@@ -112,6 +112,10 @@ const canAssignTaskWork = (user, type) =>
   isAdmin(user) ||
   (user?.role === ROLE_TEAM_LEAD &&
     [ISSUE_TYPES.TASK, ISSUE_TYPES.SUB_TASK].includes(getCanonicalIssueType(type, "")));
+const canAssignBugWork = (user, type) =>
+  isAdmin(user) ||
+  (user?.role === ROLE_TEAM_LEAD &&
+    getCanonicalIssueType(type, "") === ISSUE_TYPES.BUG);
 const ISSUE_PRIORITY_VALUES = ["Critical", "High", "Medium", "Low"];
 const escapeRegExp = (value = "") =>
   value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -3873,6 +3877,8 @@ const updateIssue = asyncHandler(async (req, res) => {
   const hasProjectLeadershipAccess = canManageProjectPlanning(req.user, targetProject);
   const hasTeamLeadTaskAssignmentAccess =
     canAssignTaskWork(req.user, issue.type) && Boolean(targetProject);
+  const hasTeamLeadBugAssignmentAccess =
+    canAssignBugWork(req.user, issue.type) && Boolean(targetProject);
 
   if (!isAdmin(req.user)) {
     const canTesterEditReportedBug = canTesterModifyReportedBug(issue, req.user);
@@ -3880,6 +3886,7 @@ const updateIssue = asyncHandler(async (req, res) => {
     if (
       !hasProjectLeadershipAccess &&
       !hasTeamLeadTaskAssignmentAccess &&
+      !hasTeamLeadBugAssignmentAccess &&
       !hasDirectIssueAccess
     ) {
       res.status(403);
@@ -3941,6 +3948,16 @@ const updateIssue = asyncHandler(async (req, res) => {
             "assigneeIds",
             "assignees",
           ]
+      : hasTeamLeadBugAssignmentAccess
+        ? [
+            "assigneeId",
+            "assignee",
+            "developerLeadId",
+            "developerLead",
+            "assignedDeveloperId",
+            "devLeadId",
+            "devLead",
+          ]
       : canTesterEditReportedBug
         ? [
             "title",
@@ -3978,6 +3995,8 @@ const updateIssue = asyncHandler(async (req, res) => {
       throw new Error(
         canTesterEditReportedBug
           ? "You can only edit reported bug details before developer pickup"
+          : hasTeamLeadBugAssignmentAccess
+            ? "Team Leads can assign work-queue bugs only to their team developers"
           : "Your role can only update issue status"
       );
     }
@@ -4284,6 +4303,8 @@ const updateIssue = asyncHandler(async (req, res) => {
   if (shouldValidateAssigneeTeamMembership) {
     const canTeamLeadAssignExistingTask =
       req.user.role === ROLE_TEAM_LEAD && canAssignTaskWork(req.user, issue.type);
+    const canTeamLeadAssignExistingBug =
+      req.user.role === ROLE_TEAM_LEAD && canAssignBugWork(req.user, issue.type);
 
     console.log("[issues] validating assignee team membership", {
       issueId: String(issue._id),
@@ -4314,11 +4335,15 @@ const updateIssue = asyncHandler(async (req, res) => {
       }
 
       if (
-        canTeamLeadAssignExistingTask &&
+        (canTeamLeadAssignExistingTask || canTeamLeadAssignExistingBug) &&
         ![ROLE_DEVELOPER, ROLE_TEAM_LEAD].includes(assigneeResult.assignee?.role)
       ) {
         res.status(400);
-        throw new Error("Team Leads can assign tasks only to developers or team leads");
+        throw new Error(
+          canTeamLeadAssignExistingBug
+            ? "Team Leads can assign bugs only to developers or team leads"
+            : "Team Leads can assign tasks only to developers or team leads"
+        );
       }
     }
   }

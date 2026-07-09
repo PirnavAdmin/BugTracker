@@ -208,6 +208,19 @@ const IssueDetailsDialog = ({
         : availableAssignees,
     [availableAssignees, detailDraft.type, role]
   );
+  const assigneeOptions = useMemo(() => {
+    if (role !== ROLE_TEAM_LEAD) {
+      return taskAssignableAssignees;
+    }
+
+    if (detailDraft.type === "Bug") {
+      return availableAssignees.filter((assignee) =>
+        [ROLE_DEVELOPER, ROLE_TEAM_LEAD].includes(assignee.role)
+      );
+    }
+
+    return taskAssignableAssignees;
+  }, [availableAssignees, detailDraft.type, role, taskAssignableAssignees]);
   const dependencyOptions = useMemo(
     () =>
       availableIssues
@@ -326,7 +339,7 @@ const IssueDetailsDialog = ({
 
   useEffect(() => {
     const assigneeIds = new Set(
-      taskAssignableAssignees.map((assignee) => resolveUserId(assignee))
+      assigneeOptions.map((assignee) => resolveUserId(assignee))
     );
 
     if (!detailDraft.assigneeId || assigneeIds.has(String(detailDraft.assigneeId))) {
@@ -337,7 +350,7 @@ const IssueDetailsDialog = ({
       ...current,
       assigneeId: "",
     }));
-  }, [detailDraft.assigneeId, taskAssignableAssignees]);
+  }, [assigneeOptions, detailDraft.assigneeId]);
 
   useEffect(() => {
     const assigneeIds = new Set(
@@ -1849,7 +1862,7 @@ const IssueDetailsDialog = ({
                     disabled={!canEditAssignee || isUpdatingCurrentIssue || !issue.teamId?._id}
                   >
                     <option value="">Unassigned</option>
-                    {taskAssignableAssignees.map((assignee) => (
+                    {assigneeOptions.map((assignee) => (
                       <option key={assignee._id} value={assignee._id}>
                         {assignee.name} ({assignee.role})
                       </option>

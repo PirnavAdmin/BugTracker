@@ -23,6 +23,7 @@ import {
 } from "@/lib/issues";
 import { useAuth } from "@/hooks/use-auth";
 import { useBugWorkflowRealtime } from "@/hooks/useBugWorkflowRealtime";
+import { ROLE_TEAM_LEAD } from "@/lib/roles";
 import {
   getDeveloperBugBucketQueryFilters,
   getDeveloperBugBucketQueryKey,
@@ -72,6 +73,7 @@ const DeveloperBugBoardPage = () => {
     projectId: "all",
   });
   const userId = String(user?._id || user?.id || "");
+  const canTeamLeadAssignFromQueue = user?.role === ROLE_TEAM_LEAD;
   const myIssuesQueryKey = useMemo(() => ["issues", "my", userId, "developer-bug-board"], [userId]);
   const bucketQueryKey = useMemo(() => getDeveloperBugBucketQueryKey(userId), [userId]);
 
@@ -252,6 +254,11 @@ const DeveloperBugBoardPage = () => {
       return Promise.reject(new Error("Closed bugs are read-only"));
     }
 
+    if (currentColumnKey === "rejected") {
+      setStatusError("Rejected bugs are read-only for developers.");
+      return Promise.reject(new Error("Rejected bugs are read-only"));
+    }
+
     if (currentColumnKey === "available" && nextColumnKey === "assigned") {
       return pickMutation.mutateAsync(issue);
     }
@@ -346,7 +353,7 @@ const DeveloperBugBoardPage = () => {
           </div>
         </CardHeader>
         <CardContent className="space-y-4 p-4 sm:p-5">
-          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-6">
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-7">
             {DEVELOPER_BUG_COLUMNS.map((column) => (
               <div key={column.key} className="rounded-lg border border-slate-200 bg-slate-50/80 px-4 py-3">
                 <p className="truncate text-[11px] font-semibold uppercase text-slate-500">{column.label}</p>
@@ -462,7 +469,10 @@ const DeveloperBugBoardPage = () => {
         projects={projects}
         updatingId={statusMutation.isPending ? statusMutation.variables?.id : ""}
         canEditPriority={false}
-        canEditAssignee={false}
+        canEditAssignee={
+          canTeamLeadAssignFromQueue &&
+          getBugColumnKey(selectedIssue || {}, DEVELOPER_BUG_COLUMNS) === "available"
+        }
         canDeleteIssue={false}
       />
     </div>

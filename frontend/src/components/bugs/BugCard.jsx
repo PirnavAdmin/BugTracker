@@ -100,7 +100,7 @@ const DraggableBugCard = ({
 }) => {
   const isDragDisabled =
     isUpdating ||
-    (actionMode === "developer" && ["readyForQa", "closed"].includes(columnKey));
+    (actionMode === "developer" && ["readyForQa", "closed", "rejected"].includes(columnKey));
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: issue._id,
     data: { issue },
@@ -169,6 +169,7 @@ const buildActions = ({ actionMode, columnKey, currentUserId, issue, onAction, o
       ],
       readyForQa: [openAction],
       closed: [openAction],
+      rejected: [openAction],
       reopened: [
         {
           label: "Resume Work",
@@ -341,6 +342,12 @@ const BugCardSurface = ({
       {actionMode === "developer" && columnKey === "closed" ? (
         <p className="mt-3 rounded-lg border border-emerald-100 bg-emerald-50 px-3 py-2 text-xs font-medium text-emerald-700">
           Closed by QA.
+        </p>
+      ) : null}
+
+      {columnKey === "rejected" ? (
+        <p className="mt-3 rounded-lg border border-rose-100 bg-rose-50 px-3 py-2 text-xs font-medium text-rose-700">
+          This bug was rejected and is now read-only on the board.
         </p>
       ) : null}
 
