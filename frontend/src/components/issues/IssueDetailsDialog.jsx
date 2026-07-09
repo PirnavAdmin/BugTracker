@@ -19,6 +19,7 @@ import {
   fetchIssueAttachments,
   fetchIssueHistory,
   fetchAttachmentBlob,
+  fetchIssueWorklogs,
   resolveApiAssetUrl,
   uploadIssueAttachment,
   downloadAttachment,
@@ -86,6 +87,16 @@ const toDateTimeLocalValue = (value) => {
 };
 
 const formatDueAt = (value) => (value ? formatDateTime(value) : "No due date");
+const formatMinutes = (minutes) => {
+  if (typeof minutes !== "number" || Number.isNaN(minutes)) {
+    return "Not set";
+  }
+
+  const hours = Math.floor(minutes / 60);
+  const remaining = minutes % 60;
+
+  return `${hours}h ${remaining}m`;
+};
 const ATTACHMENT_ACCEPT =
   "image/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.log,.csv,.json,.xml,.zip";
 const DETAIL_PANEL_TABS = [
@@ -409,6 +420,12 @@ const IssueDetailsDialog = ({
     },
   });
 
+  const { data: worklogs = [] } = useQuery({
+    queryKey: ["issue", issue?._id, "worklogs"],
+    queryFn: () => fetchIssueWorklogs(issue._id),
+    enabled: Boolean(issue?._id),
+  });
+
   const handleSubmitComment = async (event) => {
     event.preventDefault();
 
@@ -443,6 +460,14 @@ const IssueDetailsDialog = ({
     testerOwner?.name || issue.testerOwnerName || issue.reporterName || "Unassigned";
   const reporterName = issue.reporter?.name || issue.reporterName || "Unknown reporter";
   const reporterRole = issue.reporter?.role || "Tester";
+  const issueEpicName = issue.epicId?.name || "Unassigned";
+  const issueSprintName = issue.sprintId?.name || "Backlog";
+  const issueSprintGoal = issue.sprintId?.goal || "No sprint goal";
+  const storyOwnerName = issue.reporter?.name || issue.reporterName || "Unknown";
+  const issueLoggedMinutes = worklogs.reduce(
+    (sum, worklog) => sum + Number(worklog.minutes || 0),
+    0
+  );
   const canChangeStatusForRole = Boolean(role) && canEditStatus;
   const canShowDeleteAction = canDeleteIssue && typeof onDeleteIssue === "function";
   const deleteLabel = isBug ? "Delete Bug" : "Delete Task";
@@ -1480,6 +1505,78 @@ const IssueDetailsDialog = ({
                 ) : (
                   <p className="mt-2 text-sm font-semibold text-gray-900">No dependency</p>
                 )}
+              </div>
+
+              <div className="rounded-[24px] border border-gray-200 bg-white p-4 shadow-sm">
+                <p className="text-xs uppercase tracking-[0.22em] text-gray-500">
+                  Epic
+                </p>
+                <p className="mt-2 text-sm font-semibold text-gray-900">
+                  {issueEpicName}
+                </p>
+              </div>
+
+              <div className="rounded-[24px] border border-gray-200 bg-white p-4 shadow-sm">
+                <p className="text-xs uppercase tracking-[0.22em] text-gray-500">
+                  Sprint
+                </p>
+                <p className="mt-2 text-sm font-semibold text-gray-900">
+                  {issueSprintName}
+                </p>
+              </div>
+
+              <div className="rounded-[24px] border border-gray-200 bg-white p-4 shadow-sm">
+                <p className="text-xs uppercase tracking-[0.22em] text-gray-500">
+                  Sprint Goal
+                </p>
+                <p className="mt-2 text-sm font-semibold text-gray-900">
+                  {issueSprintGoal}
+                </p>
+              </div>
+
+              <div className="rounded-[24px] border border-gray-200 bg-white p-4 shadow-sm">
+                <p className="text-xs uppercase tracking-[0.22em] text-gray-500">
+                  Story Owner
+                </p>
+                <p className="mt-2 text-sm font-semibold text-gray-900">
+                  {storyOwnerName}
+                </p>
+              </div>
+
+              <div className="rounded-[24px] border border-gray-200 bg-white p-4 shadow-sm">
+                <p className="text-xs uppercase tracking-[0.22em] text-gray-500">
+                  Story Points
+                </p>
+                <p className="mt-2 text-sm font-semibold text-gray-900">
+                  {issue.storyPoints != null ? issue.storyPoints : "Not set"}
+                </p>
+              </div>
+
+              <div className="rounded-[24px] border border-gray-200 bg-white p-4 shadow-sm">
+                <p className="text-xs uppercase tracking-[0.22em] text-gray-500">
+                  Estimated Time
+                </p>
+                <p className="mt-2 text-sm font-semibold text-gray-900">
+                  {formatMinutes(issue.timeEstimateMinutes)}
+                </p>
+              </div>
+
+              <div className="rounded-[24px] border border-gray-200 bg-white p-4 shadow-sm">
+                <p className="text-xs uppercase tracking-[0.22em] text-gray-500">
+                  Logged Time
+                </p>
+                <p className="mt-2 text-sm font-semibold text-gray-900">
+                  {formatMinutes(issueLoggedMinutes)}
+                </p>
+              </div>
+
+              <div className="rounded-[24px] border border-gray-200 bg-white p-4 shadow-sm">
+                <p className="text-xs uppercase tracking-[0.22em] text-gray-500">
+                  Remaining Time
+                </p>
+                <p className="mt-2 text-sm font-semibold text-gray-900">
+                  {formatMinutes(issue.remainingEstimateMinutes)}
+                </p>
               </div>
             </div>
 
