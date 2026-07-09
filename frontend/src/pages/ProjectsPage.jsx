@@ -648,7 +648,7 @@ const ProjectsPage = () => {
       <Dialog open={isCreateTeamDialogOpen} onOpenChange={setIsCreateTeamDialogOpen}>
         <DialogContent
           className={projectDialogContentClass(
-            "grid w-[96vw] max-w-[1280px] grid-rows-[auto_minmax(0,1fr)] rounded-[24px] sm:max-h-[calc(100vh-56px)]"
+            "!top-[1rem] max-h-[calc(100svh-2rem)] grid w-[96vw] max-w-[1280px] grid-rows-[auto_minmax(0,1fr)] rounded-[24px] sm:!top-[1.5rem] sm:max-h-[calc(100vh-3rem)]"
           )}
         >
           <DialogHeader className={projectDialogHeaderClass()}>

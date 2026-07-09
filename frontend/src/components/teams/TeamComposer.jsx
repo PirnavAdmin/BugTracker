@@ -27,6 +27,8 @@ const TeamComposer = ({
   variant = "card",
 }) => {
   const isModal = variant === "modal";
+  const menuPortalTarget =
+    typeof document !== "undefined" && isModal ? document.body : undefined;
   const [formData, setFormData] = useState({
     name: "",
     description: "",
@@ -173,9 +175,18 @@ const TeamComposer = ({
               isDisabled={!memberOptions.length || isPending}
               closeMenuOnSelect={false}
               hideSelectedOptions={false}
+              menuPortalTarget={menuPortalTarget}
+              menuPosition={isModal ? "fixed" : "absolute"}
+              menuPlacement="auto"
               options={memberOptions}
               value={selectedMemberOptions}
-              styles={memberSelectStyles}
+              styles={{
+                ...memberSelectStyles,
+                menuPortal: (base) => ({
+                  ...base,
+                  zIndex: 9999,
+                }),
+              }}
               formatOptionLabel={formatMemberOptionLabel}
               onChange={handleMemberSelectionChange}
               placeholder={
