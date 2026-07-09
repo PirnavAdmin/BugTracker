@@ -755,7 +755,7 @@ const IssueDetailsDialog = ({
         className={cn(
           compactDrawer
             ? "issue-detail-drawer grid grid-rows-[auto_minmax(0,1fr)] gap-0 overflow-hidden"
-            : "left-0 top-0 z-[60] grid h-[100dvh] w-screen max-w-none translate-x-0 translate-y-0 grid-rows-[auto_minmax(0,1fr)] gap-0 overflow-hidden rounded-none border-0 bg-white p-0 shadow-2xl sm:left-1/2 sm:top-3 sm:h-[calc(100dvh-1.5rem)] sm:max-h-[calc(100dvh-1.5rem)] sm:w-[92vw] sm:max-w-[1400px] sm:-translate-x-1/2 sm:rounded-3xl sm:border sm:border-white/80 lg:top-3 lg:max-h-[calc(100dvh-1.5rem)]",
+            : "left-0 top-0 z-[60] grid h-[100dvh] w-screen max-w-none translate-x-0 translate-y-0 grid-rows-[auto_minmax(0,1fr)] gap-0 overflow-hidden rounded-none border-0 bg-white p-0 shadow-2xl sm:left-1/2 sm:top-3 sm:h-[calc(100dvh-1.5rem)] sm:max-h-[calc(100dvh-1.5rem)] sm:w-[96vw] sm:max-w-[1520px] sm:-translate-x-1/2 sm:rounded-3xl sm:border sm:border-white/80 lg:top-3 lg:max-h-[calc(100dvh-1.5rem)]",
           contentClassName
         )}
       >
@@ -799,7 +799,7 @@ const IssueDetailsDialog = ({
               </Badge>
             ) : null}
           </div>
-          <DialogTitle className={cn("min-w-0 truncate pr-4 text-lg leading-7 sm:text-xl", compactDrawer && "pr-0 text-base leading-6")}>
+          <DialogTitle className={cn("min-w-0 max-w-full pr-4 text-lg leading-7 break-words sm:text-xl", compactDrawer && "pr-0 text-base leading-6")}>
             {issue.title}
           </DialogTitle>
           <DialogDescription className="sr-only">
@@ -808,7 +808,7 @@ const IssueDetailsDialog = ({
         </DialogHeader>
 
         <div className={cn("min-h-0 min-w-0 overflow-hidden", compactDrawer && "overflow-y-auto overscroll-contain scroll-smooth px-4 py-4")}>
-        <div className={cn("grid h-full min-h-0 min-w-0 grid-cols-1 overflow-hidden lg:grid-cols-[minmax(0,65%)_minmax(0,35%)]", compactDrawer && "h-auto gap-4 overflow-visible lg:grid-cols-1")}>
+        <div className={cn("grid h-full min-h-0 min-w-0 grid-cols-1 overflow-hidden lg:grid-cols-[minmax(0,1fr)_minmax(360px,420px)] xl:grid-cols-[minmax(0,1fr)_minmax(380px,460px)]", compactDrawer && "h-auto gap-4 overflow-visible lg:grid-cols-1")}>
           <section className={cn("min-h-0 min-w-0 space-y-6 overflow-y-auto overscroll-contain bg-white p-4 sm:p-6", compactDrawer && "overflow-visible p-0")}>
             <div className="rounded-[28px] border border-slate-200/80 bg-gradient-to-br from-slate-50 to-white p-5 shadow-[0_18px_50px_-42px_rgba(15,23,42,0.5)]">
               <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">
