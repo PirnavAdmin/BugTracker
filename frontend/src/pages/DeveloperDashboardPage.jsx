@@ -172,8 +172,6 @@ const developerBugTransitions = {
 const taskStatusOptions = [
   { value: ISSUE_STATUS.TODO, label: "To Do" },
   { value: ISSUE_STATUS.IN_PROGRESS, label: "In Progress" },
-  { value: ISSUE_STATUS.REVIEW, label: "Review" },
-  { value: ISSUE_STATUS.QA, label: "Testing" },
   { value: ISSUE_STATUS.DONE, label: "Done" },
 ];
 

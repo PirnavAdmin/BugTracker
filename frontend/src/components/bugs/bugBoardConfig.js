@@ -173,16 +173,29 @@ export const getBugColumnKey = (issue, columns) => {
   }
 
   const hasAvailableColumn = columns.some((column) => column.key === "available");
+  const hasAssignedColumn = columns.some((column) => column.key === "assigned");
   const isUnassigned =
     !issue?.assignee &&
     !issue?.assignedDeveloperId &&
     !resolveBugDetails(issue)?.developerLead;
+  const hasAssignedDeveloper =
+    Boolean(issue?.assignee) ||
+    Boolean(issue?.assignedDeveloperId) ||
+    Boolean(resolveBugDetails(issue)?.developerLead);
+  const status = normalizeBugStatusForIssue(issue);
+
+  if (
+    hasAssignedColumn &&
+    hasAssignedDeveloper &&
+    [ISSUE_STATUS.NEW, ISSUE_STATUS.OPEN, ISSUE_STATUS.TRIAGED, ISSUE_STATUS.ASSIGNED].includes(status)
+  ) {
+    return "assigned";
+  }
 
   if (hasAvailableColumn && isUnassigned && issue?.pickupEligibility) {
     return "available";
   }
 
-  const status = normalizeBugStatusForIssue(issue);
   const matchedColumn = columns.find((column) => column.statuses.includes(status));
 
   return matchedColumn?.key || "";

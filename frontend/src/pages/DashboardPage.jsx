@@ -21,7 +21,7 @@ import {
   Users2,
   Zap,
 } from "lucide-react";
-import { fetchBugs, fetchIssues, fetchManagedUsers } from "@/lib/api";
+import { fetchBugs, fetchIssues, fetchManagedUsers, fetchProjects, fetchTeams } from "@/lib/api";
 import useAnalytics from "@/hooks/use-analytics";
 import {
   ANALYTICS_PANEL_CLASS,
@@ -766,6 +766,20 @@ const DashboardPage = () => {
     queryKey: ["managed-users", "admin-dashboard-overview"],
     queryFn: fetchManagedUsers,
   });
+  const {
+    data: allProjectsData = [],
+    isLoading: isProjectsCountLoading,
+  } = useQuery({
+    queryKey: ["projects", "admin-dashboard-counts"],
+    queryFn: fetchProjects,
+  });
+  const {
+    data: allTeamsData = [],
+    isLoading: isTeamsCountLoading,
+  } = useQuery({
+    queryKey: ["teams", "admin-dashboard-counts"],
+    queryFn: () => fetchTeams(),
+  });
   const issues = useMemo(
     () => (Array.isArray(issuesData) ? issuesData : []),
     [issuesData]
@@ -776,6 +790,14 @@ const DashboardPage = () => {
   );
   const bugs = useMemo(() => (Array.isArray(bugsData) ? bugsData : []), [bugsData]);
   const users = useMemo(() => (Array.isArray(usersData) ? usersData : []), [usersData]);
+  const allProjects = useMemo(
+    () => (Array.isArray(allProjectsData) ? allProjectsData : []),
+    [allProjectsData]
+  );
+  const allTeams = useMemo(
+    () => (Array.isArray(allTeamsData) ? allTeamsData : []),
+    [allTeamsData]
+  );
   const summary = analytics.overview?.summary || {};
   const issueStats = {
     total: issues.length,
@@ -1043,7 +1065,7 @@ const DashboardPage = () => {
     {
       key: "projects",
       title: "Total Projects",
-      value: formatCompactNumber(projects.length),
+      value: formatCompactNumber(allProjects.length),
       icon: FolderKanban,
       iconClassName: "text-blue-600",
       onClick: () => navigate("/projects"),
@@ -1051,7 +1073,7 @@ const DashboardPage = () => {
     {
       key: "teams",
       title: "Total Teams",
-      value: formatCompactNumber(teams.length),
+      value: formatCompactNumber(allTeams.length),
       icon: Users2,
       iconClassName: "text-violet-600",
       onClick: () => navigate("/teams"),
@@ -1168,7 +1190,7 @@ const DashboardPage = () => {
     },
   ];
 
-  if (analytics.isLoading || isIssuesLoading) {
+  if (analytics.isLoading || isIssuesLoading || isProjectsCountLoading || isTeamsCountLoading) {
     return <DashboardLoading />;
   }
 
