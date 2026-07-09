@@ -176,6 +176,18 @@ const getResolutionEta = (issue) => {
 const isReopenedBug = (issue) =>
   normalizeBugStatusForIssue(issue) === ISSUE_STATUS.REOPEN;
 
+const BUG_WORK_QUEUE_STATUSES = new Set([
+  ISSUE_STATUS.NEW,
+  ISSUE_STATUS.NEEDS_TRIAGE,
+  ISSUE_STATUS.TRIAGED,
+  ISSUE_STATUS.AVAILABLE_QUEUE,
+  ISSUE_STATUS.OPEN,
+]);
+
+const isWorkQueueBug = (issue) =>
+  BUG_WORK_QUEUE_STATUSES.has(normalizeBugStatusForIssue(issue)) &&
+  !resolveUserId(getBugDeveloper(issue));
+
 const isReadyForQa = (issue) =>
   [ISSUE_STATUS.READY_FOR_QA, ISSUE_STATUS.TESTING, ISSUE_STATUS.FIXED, ISSUE_STATUS.QA].includes(
     normalizeBugStatusForIssue(issue)
@@ -500,6 +512,15 @@ const TOTAL_BUGS_VIEW = {
   icon: Bug,
   metricKey: "total",
   tone: "bg-slate-100 text-slate-700",
+};
+
+const OTHER_BUGS_VIEW = {
+  id: "other",
+  label: "Other Bugs",
+  description: "Bugs outside the main workflow buckets",
+  icon: AlertTriangle,
+  metricKey: "other",
+  tone: "bg-amber-50 text-amber-700",
 };
 
 const getBugCardView = (value) =>
@@ -1213,24 +1234,39 @@ const AdminBugsPage = () => {
   }, [bugs, filters.developerId, filters.filter, filters.lifecycle, filters.severity, filters.testerId]);
 
   const metrics = useMemo(
-    () => ({
-      total: cardSummary?.total ?? summary?.total ?? pagination.total,
-      bucket:
+    () => {
+      const total = cardSummary?.total ?? summary?.total ?? pagination.total;
+      const bucket =
         cardSummary?.bucket ??
         summary?.bucket ??
-        visibleBugs.filter((bugIssue) => !resolveUserId(getBugDeveloper(bugIssue))).length,
-      assigned: cardSummary?.assigned ?? summary?.assigned ?? visibleBugs.filter((bugIssue) => normalizeBugStatusForIssue(bugIssue) === ISSUE_STATUS.ASSIGNED).length,
-      open: cardSummary?.open ?? summary?.open ?? visibleBugs.filter((bugIssue) => !isClosedBug(bugIssue)).length,
-      critical: cardSummary?.critical ?? summary?.critical ?? getCriticalIssues(visibleBugs).length,
-      unassigned:
+        visibleBugs.filter(isWorkQueueBug).length;
+      const assigned = cardSummary?.assigned ?? summary?.assigned ?? visibleBugs.filter((bugIssue) => normalizeBugStatusForIssue(bugIssue) === ISSUE_STATUS.ASSIGNED).length;
+      const inProgress = cardSummary?.inProgress ?? summary?.inProgress ?? visibleBugs.filter(isInProgressBug).length;
+      const reopened = cardSummary?.reopened ?? summary?.reopened ?? getReopenedIssues(visibleBugs).length;
+      const readyForQa = cardSummary?.readyForQa ?? summary?.readyForQa ?? visibleBugs.filter(isReadyForQa).length;
+      const closed = cardSummary?.closed ?? summary?.closed ?? visibleBugs.filter(isClosedBug).length;
+      const other =
+        cardSummary?.other ??
+        summary?.other ??
+        Math.max(total - bucket - assigned - inProgress - reopened - readyForQa - closed, 0);
+
+      return {
+        total,
+        bucket,
+        assigned,
+        open: cardSummary?.open ?? summary?.open ?? visibleBugs.filter((bugIssue) => !isClosedBug(bugIssue)).length,
+        critical: cardSummary?.critical ?? summary?.critical ?? getCriticalIssues(visibleBugs).length,
+        unassigned:
         cardSummary?.unassigned ??
         summary?.unassigned ??
         visibleBugs.filter((bugIssue) => !resolveUserId(getBugDeveloper(bugIssue))).length,
-      inProgress: cardSummary?.inProgress ?? summary?.inProgress ?? visibleBugs.filter(isInProgressBug).length,
-      reopened: cardSummary?.reopened ?? summary?.reopened ?? getReopenedIssues(visibleBugs).length,
-      readyForQa: cardSummary?.readyForQa ?? summary?.readyForQa ?? visibleBugs.filter(isReadyForQa).length,
-      closed: cardSummary?.closed ?? summary?.closed ?? visibleBugs.filter(isClosedBug).length,
-    }),
+        inProgress,
+        reopened,
+        readyForQa,
+        closed,
+        other,
+      };
+    },
     [cardSummary, pagination.total, summary, visibleBugs]
   );
   const activeCard =
@@ -1820,7 +1856,7 @@ const AdminBugsPage = () => {
 
   return (
     <div className="flex flex-col gap-4 text-[13px]">
-      <section className="order-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-7">
+      <section className="order-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-8">
         {BUG_CARD_VIEWS.map((view) => (
           <MetricTile
             key={view.id}
@@ -1832,6 +1868,12 @@ const AdminBugsPage = () => {
             onClick={() => applyCardView(view.id)}
           />
         ))}
+        <MetricTile
+          icon={OTHER_BUGS_VIEW.icon}
+          label={OTHER_BUGS_VIEW.label}
+          value={metrics.other}
+          tone={OTHER_BUGS_VIEW.tone}
+        />
         <MetricTile
           active={activeCardView === TOTAL_BUGS_VIEW.id}
           icon={TOTAL_BUGS_VIEW.icon}

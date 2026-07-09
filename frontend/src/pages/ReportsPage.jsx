@@ -171,7 +171,6 @@ const BUG_WORK_QUEUE_STATUSES = new Set([
   ISSUE_STATUS.AVAILABLE_QUEUE,
   ISSUE_STATUS.NEEDS_TRIAGE,
   ISSUE_STATUS.OPEN,
-  ISSUE_STATUS.REOPEN,
 ]);
 
 const asArray = (value) => (Array.isArray(value) ? value : []);
@@ -3854,6 +3853,15 @@ const JiraReportsDashboard = () => {
   const readyForQaBugs = bugIssues.filter(isReadyForQa);
   const currentReopenedBugs = bugIssues.filter(isReopened);
   const closedReportBugs = bugIssues.filter(isBugClosed);
+  const otherBugs = bugIssues.filter(
+    (issue) =>
+      !isBugWorkQueue(issue) &&
+      !isBugAssigned(issue) &&
+      !isBugInProgress(issue) &&
+      !isReadyForQa(issue) &&
+      !isReopened(issue) &&
+      !isBugClosed(issue)
+  );
   const taskPerformanceRows = buildDeveloperRankingRows(developerPerformance, (developer) => ({
     closed: developer.taskMetrics.completed,
     total: developer.taskMetrics.total,
@@ -3936,13 +3944,14 @@ const JiraReportsDashboard = () => {
     if (activePage === "bugs") {
       return (
         <>
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-7">
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-8">
             <JiraKpi label="Work Queue" value={formatCompactNumber(workQueueBugs.length)} helper="Unassigned bugs ready for pickup" onClick={() => drillTo("Work queue bugs", workQueueBugs)} />
             <JiraKpi label="Assigned Bugs" value={formatCompactNumber(assignedBugs.length)} helper="Assigned to developers" onClick={() => drillTo("Assigned bugs", assignedBugs)} />
             <JiraKpi label="Closed Bugs" value={formatCompactNumber(closedReportBugs.length)} helper="Verified and closed" onClick={() => drillTo("Closed bugs", closedReportBugs)} />
             <JiraKpi label="In Progress" value={formatCompactNumber(inProgressBugs.length)} helper="Active bug fixes" onClick={() => drillTo("In progress bugs", inProgressBugs)} />
             <JiraKpi label="Ready For QA" value={formatCompactNumber(readyForQaBugs.length)} helper="Awaiting tester verification" onClick={() => drillTo("Ready For QA", readyForQaBugs)} />
             <JiraKpi label="Reopen" value={formatCompactNumber(currentReopenedBugs.length)} helper="Returned for follow-up" onClick={() => drillTo("Reopened bugs", currentReopenedBugs)} />
+            <JiraKpi label="Other Bugs" value={formatCompactNumber(otherBugs.length)} helper="Outside main workflow buckets" onClick={() => drillTo("Other bugs", otherBugs)} />
             <JiraKpi label="Total Bugs" value={formatCompactNumber(bugIssues.length)} helper="All filtered bugs" onClick={() => drillTo("All bugs", bugIssues)} />
           </div>
           {renderDrilldownPanel()}

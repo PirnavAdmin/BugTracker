@@ -1615,6 +1615,9 @@ const mergeOrConditions = (query, conditions = []) => {
 };
 
 const getBugListSummary = async (query) => {
+  const workQueueStatuses = AVAILABLE_BUG_QUEUE_STATUSES.filter(
+    (status) => status !== ISSUE_STATUS.REOPEN
+  );
   const [
     total,
     open,
@@ -1639,7 +1642,7 @@ const getBugListSummary = async (query) => {
       assignedDeveloperId: null,
       "bugDetails.developerLead": null,
       status: {
-        $in: AVAILABLE_BUG_QUEUE_STATUSES,
+        $in: workQueueStatuses,
       },
     }),
     Issue.countDocuments({ ...query, status: ISSUE_STATUS.ASSIGNED }),
@@ -1679,6 +1682,11 @@ const getBugListSummary = async (query) => {
     Issue.countDocuments({ ...query, priority: "Low" }),
   ]);
 
+  const other = Math.max(
+    total - bucket - assigned - inProgress - reopened - readyForQa - closed,
+    0
+  );
+
   return {
     total,
     open,
@@ -1690,6 +1698,7 @@ const getBugListSummary = async (query) => {
     reopened,
     readyForQa,
     closed,
+    other,
     high,
     medium,
     low,
