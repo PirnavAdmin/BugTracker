@@ -35,7 +35,13 @@ import {
   resolveTeamId,
   resolveUserId,
 } from "@/lib/project-teams";
-import { hasAdminPanelAccess, ROLE_DEVELOPER, ROLE_TEAM_LEAD } from "@/lib/roles";
+import {
+  hasAdminPanelAccess,
+  hasTaskStoryLeadAccess,
+  ROLE_DEVELOPER,
+  ROLE_QA_LEAD,
+  ROLE_TEAM_LEAD,
+} from "@/lib/roles";
 import { formatDate, getInitials } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
 
@@ -323,6 +329,17 @@ const formatDependencyLabel = (option) => (
   </div>
 );
 
+const formatParentStoryOptionLabel = (option) => (
+  <div className="min-w-0 py-0.5">
+    <p className="truncate text-sm font-semibold text-slate-900">
+      {option.issue?.title || option.label}
+    </p>
+    <p className="truncate text-xs text-slate-500">
+      {getIssueDisplayKey(option.issue)}
+    </p>
+  </div>
+);
+
 const formatEpicOptionLabel = (option) => (
   <div className="flex min-w-0 items-center gap-3">
     <span
@@ -367,6 +384,23 @@ const baseSelectProps = {
   menuPosition: "absolute",
   menuShouldScrollIntoView: false,
   maxMenuHeight: SELECT_MENU_MAX_HEIGHT,
+};
+
+const parentStorySelectStyles = {
+  ...issueSelectStyles,
+  menu: (base) => ({
+    ...issueSelectStyles.menu(base),
+    marginTop: 6,
+  }),
+  menuList: (base) => ({
+    ...issueSelectStyles.menuList(base),
+    padding: 6,
+    maxHeight: 240,
+  }),
+  option: (base, state) => ({
+    ...issueSelectStyles.option(base, state),
+    padding: "8px 12px",
+  }),
 };
 
 const IssueCreateDialog = ({
@@ -500,9 +534,9 @@ const IssueCreateDialog = ({
   );
   const taskAssignableAssignees = useMemo(
     () =>
-      role === ROLE_TEAM_LEAD && ["Task", "Sub-task"].includes(formData.type)
+      hasTaskStoryLeadAccess(role) && ["Task", "Sub-task"].includes(formData.type)
         ? availableAssignees.filter((assignee) =>
-            ["Developer", ROLE_TEAM_LEAD].includes(assignee.role)
+            [ROLE_DEVELOPER, ROLE_TEAM_LEAD, ROLE_QA_LEAD].includes(assignee.role)
           )
         : availableAssignees,
     [availableAssignees, formData.type, role]
@@ -1249,7 +1283,7 @@ const IssueCreateDialog = ({
                           }
                           noOptionsMessage={() =>
                             formData.teamId
-                              ? role === ROLE_TEAM_LEAD && ["Task", "Sub-task"].includes(formData.type)
+                              ? hasTaskStoryLeadAccess(role) && ["Task", "Sub-task"].includes(formData.type)
                                 ? "No developers or team leads available in this team."
                                 : "No teammates available in this team."
                               : "Select a team first."
@@ -1431,10 +1465,10 @@ const IssueCreateDialog = ({
 
               <label className="mt-3 block space-y-1.5 md:max-w-[calc(50%-0.375rem)]">
                 <span className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">
-                  Due Date (Optional)
+                  Due Date & Time (Optional)
                 </span>
                 <Input
-                  type="date"
+                  type="datetime-local"
                   className="h-auto rounded-2xl py-3"
                   value={formData.dueAt}
                   onChange={(event) =>
@@ -1572,13 +1606,14 @@ const IssueCreateDialog = ({
                         story?.sprintId?._id || story?.sprintId || current.sprintId,
                     }));
                   }}
-                  styles={issueSelectStyles}
-                  formatOptionLabel={formatDependencyLabel}
+                  styles={parentStorySelectStyles}
+                  formatOptionLabel={formatParentStoryOptionLabel}
                   isSearchable
                   isClearable
                   isDisabled={!formData.projectId || isSubmitPending}
                   menuPortalTarget={menuPortalTarget}
                   {...baseSelectProps}
+                  menuPosition="fixed"
                   placeholder="No parent Story"
                   noOptionsMessage={() => "No Stories found in this project."}
                 />

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Activity,
+  AlertTriangle,
   Bell,
   Bug,
   CalendarDays,
@@ -46,7 +47,7 @@ import {
   resolveIssueProjectId,
 } from "@/lib/issues";
 import { getProjectTeams, resolveUserId } from "@/lib/project-teams";
-import { ROLE_TESTER } from "@/lib/roles";
+import { hasTesterPanelAccess } from "@/lib/roles";
 import { cn, formatDate, formatDateTime } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
 import { readStoredSession } from "@/lib/session";
@@ -403,7 +404,7 @@ const TesterDashboardPage = () => {
   const timeOfDay = currentHour < 12 ? "morning" : currentHour < 17 ? "afternoon" : "evening";
   const testerName = String(user?.name || "Tester").trim().split(/\s+/)[0];
   const testerId = String(user?._id || user?.id || "");
-  const isTester = user?.role === ROLE_TESTER;
+  const isTester = hasTesterPanelAccess(user?.role);
   const [searchTerm, setSearchTerm] = useState("");
   const [projectFilter, setProjectFilter] = useState("all");
   const [lastRefreshedAt, setLastRefreshedAt] = useState(() => new Date());
