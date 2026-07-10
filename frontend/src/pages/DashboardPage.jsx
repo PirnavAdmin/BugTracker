@@ -114,7 +114,7 @@ const TASK_STATUS_META = [
     helper: "Ready for pickup",
     className: "bg-slate-400",
     icon: Layers3,
-    routeParams: { status: TASK_BOARD_STATUS.OPEN },
+    routeParams: { status: TASK_BOARD_STATUS.OPEN, type: ISSUE_TYPES.TASK },
     tone: "blue",
   },
   {
@@ -123,7 +123,7 @@ const TASK_STATUS_META = [
     helper: "Active task work",
     className: "bg-blue-500",
     icon: TimerReset,
-    routeParams: { status: ISSUE_STATUS.IN_PROGRESS },
+    routeParams: { status: ISSUE_STATUS.IN_PROGRESS, type: ISSUE_TYPES.TASK },
     tone: "amber",
   },
   {
@@ -132,7 +132,7 @@ const TASK_STATUS_META = [
     helper: "Completed tasks",
     className: "bg-emerald-500",
     icon: CheckCircle2,
-    routeParams: { statusGroup: "closed" },
+    routeParams: { statusGroup: "closed", type: ISSUE_TYPES.TASK },
     tone: "emerald",
   },
 ];
@@ -1129,7 +1129,7 @@ const DashboardPage = () => {
     helper: "Need attention now",
     icon: AlertTriangle,
     tone: "rose",
-    onClick: () => navigateToTasks({ filter: "open" }),
+    onClick: () => navigateToTasks({ type: ISSUE_TYPES.TASK, filter: "overdue" }),
   });
   const kpiCards = [
     {
@@ -1238,7 +1238,7 @@ const DashboardPage = () => {
         <AdminQuickActionsCard actions={adminQuickActions} stats={adminQuickStats} />
       </section>
 
-      <section className="grid gap-5 md:grid-cols-3">
+      <section className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
         {taskKpiCards.map((card) => (
           <AnalyticsKpiCard
             key={card.key}

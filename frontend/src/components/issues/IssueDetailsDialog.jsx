@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   CalendarDays,
@@ -111,6 +111,16 @@ const formatDependencyLabel = (issue) =>
   issue ? `${getIssueDisplayKey(issue)} ${issue.title}` : "No dependency";
 
 const resolveNestedUserId = (value) => String(value?._id || value || "");
+const getProjectAssignmentName = (value) => {
+  if (!value || typeof value !== "object") {
+    return "Unassigned";
+  }
+
+  const name = typeof value.name === "string" ? value.name.trim() : "";
+  const email = typeof value.email === "string" ? value.email.trim() : "";
+
+  return name || email || "Unassigned";
+};
 const isPreviewableImage = (attachment) =>
   String(attachment?.mimeType || "").toLowerCase().startsWith("image/");
 
@@ -183,6 +193,8 @@ const IssueDetailsDialog = ({
   const [previewError, setPreviewError] = useState("");
   const [previewLoadingId, setPreviewLoadingId] = useState("");
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
+  const [isMoreDetailsOpen, setIsMoreDetailsOpen] = useState(false);
+  const commentTextareaRef = useRef(null);
 
   const selectedProject = useMemo(
     () => findProjectById(projects, detailDraft.projectId),
@@ -250,7 +262,19 @@ const IssueDetailsDialog = ({
     setPreviewAttachment(null);
     setPreviewError("");
     setIsDeleteConfirmOpen(false);
+    setIsMoreDetailsOpen(false);
   }, [issue]);
+
+  useEffect(() => {
+    const textarea = commentTextareaRef.current;
+
+    if (!textarea) {
+      return;
+    }
+
+    textarea.style.height = "0px";
+    textarea.style.height = `${Math.min(textarea.scrollHeight, 320)}px`;
+  }, [commentText, open]);
 
   useEffect(() => {
     const issueId = issue?._id;
@@ -456,6 +480,23 @@ const IssueDetailsDialog = ({
     });
   };
 
+  const handleCommentComposerKeyDown = async (event) => {
+    if (event.key !== "Enter" || event.shiftKey) {
+      return;
+    }
+
+    event.preventDefault();
+
+    if (!commentText.trim() || createCommentMutation.isPending) {
+      return;
+    }
+
+    await createCommentMutation.mutateAsync({
+      issueId: issue._id,
+      text: commentText.trim(),
+    });
+  };
+
   if (!issue) {
     return null;
   }
@@ -484,6 +525,9 @@ const IssueDetailsDialog = ({
   const issueSprintName = issue.sprintId?.name || "Backlog";
   const issueSprintGoal = issue.sprintId?.goal || "No sprint goal";
   const storyOwnerName = issue.reporter?.name || issue.reporterName || "Unknown";
+  const projectManagerName = getProjectAssignmentName(
+    issue.projectId?.projectManager || issue.projectId?.manager
+  );
   const issueLoggedMinutes = worklogs.reduce(
     (sum, worklog) => sum + Number(worklog.minutes || 0),
     0
@@ -510,13 +554,20 @@ const IssueDetailsDialog = ({
     }
   };
   const commentComposer = (
-    <form className="space-y-3 rounded-2xl border border-blue-100 bg-white p-3 shadow-sm" onSubmit={handleSubmitComment}>
-      <Input
-        className="rounded-xl border-slate-200 bg-slate-50"
+    <form className="space-y-3 rounded-[24px] border border-blue-100 bg-white p-4 shadow-sm" onSubmit={handleSubmitComment}>
+      <Textarea
+        ref={commentTextareaRef}
+        className="min-h-[140px] max-h-[320px] resize-none overflow-y-auto rounded-[20px] border-slate-200 bg-slate-50 text-base leading-7"
         placeholder="Add a status update or implementation note"
         value={commentText}
         onChange={(event) => setCommentText(event.target.value)}
+        onKeyDown={(event) => {
+          void handleCommentComposerKeyDown(event);
+        }}
       />
+      <p className="text-xs text-slate-500">
+        Press <span className="font-semibold">Enter</span> to post and <span className="font-semibold">Shift + Enter</span> for a new line.
+      </p>
       <Button
         className="w-full"
         disabled={createCommentMutation.isPending}
@@ -835,6 +886,90 @@ const IssueDetailsDialog = ({
                 {issue.description || "No detailed description has been added yet."}
               </p>
             </div>
+
+            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+              <div className="rounded-[24px] border border-gray-200 bg-white p-4 shadow-sm">
+                <div className="flex items-center gap-2 text-xs uppercase tracking-[0.22em] text-gray-500">
+                  <CalendarDays className="h-3.5 w-3.5" />
+                  Due Date
+                </div>
+                <p className="mt-2 text-sm font-semibold text-gray-900">
+                  {formatDueAt(issue.dueAt)}
+                </p>
+              </div>
+
+              <div className="rounded-[24px] border border-gray-200 bg-white p-4 shadow-sm">
+                <p className="text-xs uppercase tracking-[0.22em] text-gray-500">
+                  Project Manager
+                </p>
+                <p className="mt-3 text-sm font-semibold text-gray-900">
+                  {projectManagerName}
+                </p>
+              </div>
+
+              <div className="rounded-[24px] border border-gray-200 bg-white p-4 shadow-sm">
+                <p className="text-xs uppercase tracking-[0.22em] text-gray-500">Reporter</p>
+                <div className="mt-3 flex items-center gap-3">
+                  <Avatar className="h-10 w-10">
+                    <AvatarFallback>{getInitials(reporterName)}</AvatarFallback>
+                  </Avatar>
+                  <div>
+                    <p className="text-sm font-semibold text-gray-900">
+                      {reporterName}
+                    </p>
+                    <p className="text-xs text-gray-500">{reporterRole}</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-[24px] border border-gray-200 bg-white p-4 shadow-sm">
+                <p className="text-xs uppercase tracking-[0.22em] text-gray-500">
+                  Current owner
+                </p>
+                {issueAssignee ? (
+                  <div className="mt-3 flex items-center gap-3">
+                    <Avatar className="h-10 w-10">
+                      <AvatarFallback>{getInitials(issueAssignee.name)}</AvatarFallback>
+                    </Avatar>
+                    <div>
+                      <p className="text-sm font-semibold text-gray-900">
+                        {issueAssignee.name}
+                      </p>
+                      <p className="text-xs text-gray-500">{issueAssignee.role}</p>
+                    </div>
+                  </div>
+                ) : issueAssigneeId ? (
+                  <div className="mt-3 flex items-center gap-2 text-sm text-gray-600">
+                    <UserCircle2 className="h-4 w-4" />
+                    <span>Assigned user</span>
+                  </div>
+                ) : (
+                  <div className="mt-3 flex items-center gap-2 text-sm text-gray-600">
+                    <UserCircle2 className="h-4 w-4" />
+                    <span>No one is assigned yet.</span>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-[24px] border border-slate-200 bg-slate-50 px-4 py-3">
+              <div>
+                <p className="text-sm font-semibold text-slate-900">More Details</p>
+                <p className="text-xs text-slate-500">
+                  View project, sprint, workflow, and extended task or bug details.
+                </p>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setIsMoreDetailsOpen((current) => !current)}
+              >
+                {isMoreDetailsOpen ? "Hide Details" : "Show Details"}
+              </Button>
+            </div>
+
+            {isMoreDetailsOpen ? (
+              <>
 
             {canEditCoreDetails ? (
               <form
@@ -1882,51 +2017,8 @@ const IssueDetailsDialog = ({
               </div>
             ) : null}
 
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="rounded-[24px] border border-gray-200 bg-white p-4 shadow-sm">
-                <p className="text-xs uppercase tracking-[0.22em] text-gray-500">Reporter</p>
-                <div className="mt-3 flex items-center gap-3">
-                  <Avatar className="h-10 w-10">
-                    <AvatarFallback>{getInitials(reporterName)}</AvatarFallback>
-                  </Avatar>
-                  <div>
-                    <p className="text-sm font-semibold text-gray-900">
-                      {reporterName}
-                    </p>
-                    <p className="text-xs text-gray-500">{reporterRole}</p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="rounded-[24px] border border-gray-200 bg-white p-4 shadow-sm">
-                <p className="text-xs uppercase tracking-[0.22em] text-gray-500">
-                  Current owner
-                </p>
-                {issueAssignee ? (
-                  <div className="mt-3 flex items-center gap-3">
-                    <Avatar className="h-10 w-10">
-                      <AvatarFallback>{getInitials(issueAssignee.name)}</AvatarFallback>
-                    </Avatar>
-                    <div>
-                      <p className="text-sm font-semibold text-gray-900">
-                        {issueAssignee.name}
-                      </p>
-                      <p className="text-xs text-gray-500">{issueAssignee.role}</p>
-                    </div>
-                  </div>
-                ) : issueAssigneeId ? (
-                  <div className="mt-3 flex items-center gap-2 text-sm text-gray-600">
-                    <UserCircle2 className="h-4 w-4" />
-                    <span>Assigned user</span>
-                  </div>
-                ) : (
-                  <div className="mt-3 flex items-center gap-2 text-sm text-gray-600">
-                    <UserCircle2 className="h-4 w-4" />
-                    <span>No one is assigned yet.</span>
-                  </div>
-                )}
-              </div>
-            </div>
+              </>
+            ) : null}
 
           </section>
 

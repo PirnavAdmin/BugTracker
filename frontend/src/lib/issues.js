@@ -626,7 +626,7 @@ export const getHighPriorityIssues = (issues = []) => issues.filter(isHighPriori
 export const normalizeIssueFilterAlias = (value = "") => {
   const normalizedValue = String(value || "").trim().toLowerCase();
 
-  return ["open", "closed", "reopened", "critical"].includes(normalizedValue)
+  return ["open", "closed", "reopened", "critical", "overdue"].includes(normalizedValue)
     ? normalizedValue
     : "";
 };
@@ -983,6 +983,10 @@ export const filterIssues = (issues, filters) => {
     }
 
     if (filterAlias === "critical" && !isCriticalIssue(issue)) {
+      return false;
+    }
+
+    if (filterAlias === "overdue" && !isIssueOverdue(issue)) {
       return false;
     }
 
