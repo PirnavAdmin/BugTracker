@@ -645,6 +645,15 @@ const serializeTaskImportErrorValue = (value) => {
   return resolveImportText(value);
 };
 
+const shouldIgnoreTaskImportRow = ({
+  title,
+  description,
+  dueDateInput,
+}) =>
+  !resolveImportText(title) &&
+  !resolveImportText(description) &&
+  !resolveImportText(dueDateInput);
+
 const resolveTaskImportProject = async ({ workspaceId, projectName }) => {
   const trimmedProjectName = resolveImportText(projectName);
 
@@ -3184,6 +3193,16 @@ const importTasksFromSpreadsheet = asyncHandler(async (req, res) => {
     const teamName = resolveImportText(getTaskImportValue(row, "team"));
     const assigneeInput = resolveImportText(getTaskImportValue(row, "assignee"));
     const dueDateInput = getTaskImportValue(row, "dueDate");
+
+    if (
+      shouldIgnoreTaskImportRow({
+        title,
+        description,
+        dueDateInput,
+      })
+    ) {
+      continue;
+    }
 
     try {
       const missingValues = [];

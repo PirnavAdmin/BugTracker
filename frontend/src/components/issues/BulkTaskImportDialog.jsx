@@ -133,7 +133,7 @@ const BulkTaskImportDialog = ({ open, onOpenChange, onImported }) => {
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="max-w-3xl border border-slate-200/80 bg-white p-0 shadow-[0_36px_90px_-50px_rgba(15,23,42,0.35)]">
+      <DialogContent className="max-h-[90vh] max-w-3xl overflow-y-auto border border-slate-200/80 bg-white p-0 shadow-[0_36px_90px_-50px_rgba(15,23,42,0.35)]">
         <div className="space-y-6 p-6 sm:p-7">
           <DialogHeader className="space-y-2 border-b border-slate-200/80 pb-5">
             <DialogTitle className="text-2xl tracking-tight text-slate-950">
@@ -225,16 +225,18 @@ const BulkTaskImportDialog = ({ open, onOpenChange, onImported }) => {
               <div className="rounded-[24px] border border-emerald-200 bg-emerald-50/80 p-4 text-sm text-emerald-800">
                 <p className="font-semibold">{result.message || "Import completed"}</p>
                 <p className="mt-2">Success count: {result.successCount || 0}</p>
-                <p className="mt-1">Failed count: {result.failedCount || 0}</p>
+                {result.failedCount ? (
+                  <p className="mt-1">Rows with errors: {result.failedCount}</p>
+                ) : null}
               </div>
 
               {result.errors?.length ? (
                 <div className="space-y-3 rounded-[24px] border border-amber-200 bg-amber-50/80 p-4">
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <div>
-                      <p className="text-sm font-semibold text-amber-900">Skipped rows</p>
+                      <p className="text-sm font-semibold text-amber-900">Import issues</p>
                       <p className="mt-1 text-xs text-amber-800">
-                        These rows were not imported. Fix them and upload again.
+                        Only rows with real validation errors are shown here.
                       </p>
                     </div>
 
