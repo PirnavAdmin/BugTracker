@@ -212,13 +212,14 @@ const TASK_IMPORT_SAMPLE_HEADERS = Object.freeze([
 const TASK_IMPORT_TEMPLATE_ROW_COUNT = 200;
 const TASK_IMPORT_LOOKUP_SHEET_NAMES = Object.freeze({
   projects: "Projects",
-  teams: "Teams",
-  users: "Users",
+  projectTeamMap: "ProjectTeamMap",
+  teamOptions: "TeamOptions",
+  teamAssigneeMap: "TeamAssigneeMap",
+  assigneeOptions: "AssigneeOptions",
 });
 const TASK_IMPORT_LOOKUP_RANGE_NAMES = Object.freeze({
   projects: "TaskImportProjects",
-  teams: "TaskImportTeams",
-  users: "TaskImportUsers",
+  empty: "TaskImportEmpty",
 });
 const TASK_IMPORT_TEMPLATE_COLUMNS = Object.freeze([
   { header: "Title", key: "title", width: 34 },
@@ -238,6 +239,7 @@ const compareImportText = (left, right) =>
   });
 
 const buildExactMatchRegex = (value = "") => new RegExp(`^${escapeRegExp(value)}$`, "i");
+const getTaskImportComparableId = (value) => String(value || "");
 
 const buildTaskImportAssigneeLabel = (user, duplicateNameCounts = new Map()) => {
   const name = resolveImportText(user?.name);
@@ -278,30 +280,205 @@ const normalizeTaskImportDropdownValues = (values = []) =>
     )
   ).sort(compareImportText);
 
+const sanitizeTaskImportRangeName = (value, prefix = "TaskImport") => {
+  const normalizedValue = String(value || "")
+    .replace(/[^A-Za-z0-9_]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+  const safeValue = normalizedValue || "Option";
+  const baseName = /^[A-Za-z_]/.test(safeValue)
+    ? safeValue
+    : `${prefix}_${safeValue}`;
+
+  return `${prefix}_${baseName}`.slice(0, 240);
+};
+
+const createTaskImportRangeNameRegistry = (labels = [], prefix) => {
+  const usedNames = new Set();
+  const registry = new Map();
+
+  labels.forEach((label) => {
+    const trimmedLabel = resolveImportText(label);
+
+    if (!trimmedLabel) {
+      return;
+    }
+
+    const baseName = sanitizeTaskImportRangeName(trimmedLabel, prefix);
+    let nextName = baseName;
+    let suffix = 2;
+
+    while (usedNames.has(nextName)) {
+      nextName = `${baseName}_${suffix}`;
+      suffix += 1;
+    }
+
+    usedNames.add(nextName);
+    registry.set(trimmedLabel, nextName);
+  });
+
+  return registry;
+};
+
+const createTaskImportLookupSheet = ({ workbook, sheetName }) => {
+  const worksheet = workbook.addWorksheet(sheetName);
+  worksheet.state = "veryHidden";
+  return worksheet;
+};
+
+const getTaskImportExcelColumnName = (columnIndex) => {
+  let value = Number(columnIndex) || 0;
+  let columnName = "";
+
+  while (value > 0) {
+    const remainder = (value - 1) % 26;
+    columnName = String.fromCharCode(65 + remainder) + columnName;
+    value = Math.floor((value - 1) / 26);
+  }
+
+  return columnName || "A";
+};
+
+const writeTaskImportNamedListsToSheet = ({
+  workbook,
+  worksheet,
+  namedRangeRegistry,
+  listsByLabel,
+  startColumn = 1,
+}) => {
+  let columnIndex = startColumn;
+
+  namedRangeRegistry.forEach((rangeName, label) => {
+    const values = normalizeTaskImportDropdownValues(listsByLabel.get(label) || []);
+    const headerCell = worksheet.getCell(1, columnIndex);
+    headerCell.value = label;
+
+    if (values.length) {
+      values.forEach((value, index) => {
+        worksheet.getCell(index + 2, columnIndex).value = value;
+      });
+
+      const columnName = getTaskImportExcelColumnName(columnIndex);
+      workbook.definedNames.add(
+        `'${worksheet.name}'!$${columnName}$2:$${columnName}$${values.length + 1}`,
+        rangeName
+      );
+    }
+
+    columnIndex += 1;
+  });
+};
+
+const writeTaskImportLabelToRangeMapSheet = ({
+  worksheet,
+  labelToRangeName,
+}) => {
+  let rowIndex = 1;
+  labelToRangeName.forEach((rangeName, label) => {
+    worksheet.getCell(`A${rowIndex}`).value = label;
+    worksheet.getCell(`B${rowIndex}`).value = rangeName;
+    rowIndex += 1;
+  });
+
+  return Math.max(rowIndex - 1, 1);
+};
+
+const buildTaskImportDependentDropdownFormula = ({
+  sourceCell,
+  mapSheetName,
+  mapRowCount,
+}) =>
+  `INDIRECT(IF(${sourceCell}="", "${TASK_IMPORT_LOOKUP_RANGE_NAMES.empty}", IFERROR(VLOOKUP(${sourceCell}, '${mapSheetName}'!$A$1:$B$${mapRowCount}, 2, FALSE), "${TASK_IMPORT_LOOKUP_RANGE_NAMES.empty}")))`;
+
 const getTaskImportTemplateOptions = async ({ workspaceId }) => {
   const normalizedWorkspaceId = normalizeWorkspaceId(workspaceId);
-  const [projects, teams, users] = await Promise.all([
-    Project.find({
-      workspaceId: normalizedWorkspaceId,
-      status: "Active",
-      isCompleted: { $ne: true },
-    })
-      .select("name")
-      .sort({ name: 1 })
-      .lean(),
+  const projects = await Project.find({
+    workspaceId: normalizedWorkspaceId,
+  })
+    .select("_id name attachedTeams teamIds teams")
+    .sort({ name: 1 })
+    .lean();
+
+  const projectIds = projects.map((project) => project._id).filter(Boolean);
+  const projectTeamLinks = projectIds.length
+    ? await ProjectTeam.find({
+        projectId: {
+          $in: projectIds,
+        },
+      })
+        .select("projectId teamId")
+        .lean()
+    : [];
+
+  const projectTeamLinksByProjectId = projectTeamLinks.reduce((result, link) => {
+    const key = getTaskImportComparableId(link?.projectId);
+
+    if (!result.has(key)) {
+      result.set(key, []);
+    }
+
+    result.get(key).push(link);
+    return result;
+  }, new Map());
+
+  const allProjectTeamIds = new Set();
+  const mergedProjectTeams = projects.map((project) => {
+    const mergedTeamIds = mergeProjectTeamIds(
+      project,
+      projectTeamLinksByProjectId.get(getTaskImportComparableId(project._id)) || []
+    );
+
+    mergedTeamIds.forEach((teamId) => {
+      if (teamId) {
+        allProjectTeamIds.add(getTaskImportComparableId(teamId));
+      }
+    });
+
+    return {
+      project,
+      teamIds: mergedTeamIds,
+    };
+  });
+
+  const [teams, teamMembers] = await Promise.all([
     Team.find({
       workspaceId: normalizedWorkspaceId,
+      ...(allProjectTeamIds.size
+        ? {
+            _id: {
+              $in: Array.from(allProjectTeamIds),
+            },
+          }
+        : {}),
     })
-      .select("name")
+      .select("_id name")
       .sort({ name: 1 })
       .lean(),
-    User.find({
-      workspaceId: normalizedWorkspaceId,
-    })
-      .select("name email")
-      .sort({ name: 1, email: 1 })
-      .lean(),
+    allProjectTeamIds.size
+      ? TeamMember.find({
+          teamId: {
+            $in: Array.from(allProjectTeamIds),
+          },
+        })
+          .select("teamId userId")
+          .lean()
+      : Promise.resolve([]),
   ]);
+
+  const uniqueUserIds = Array.from(
+    new Set(teamMembers.map((member) => getTaskImportComparableId(member.userId)).filter(Boolean))
+  );
+
+  const users = uniqueUserIds.length
+    ? await User.find({
+        workspaceId: normalizedWorkspaceId,
+        _id: {
+          $in: uniqueUserIds,
+        },
+      })
+        .select("_id name email")
+        .sort({ name: 1, email: 1 })
+        .lean()
+    : [];
 
   const duplicateNameCounts = users.reduce((counts, user) => {
     const key = resolveImportText(user?.name).toLowerCase();
@@ -313,53 +490,78 @@ const getTaskImportTemplateOptions = async ({ workspaceId }) => {
     return counts;
   }, new Map());
 
+  const teamNameById = new Map(
+    teams.map((team) => [getTaskImportComparableId(team._id), resolveImportText(team.name)])
+  );
+  const assigneeLabelByUserId = new Map(
+    users.map((user) => [
+      getTaskImportComparableId(user._id),
+      buildTaskImportAssigneeLabel(user, duplicateNameCounts),
+    ])
+  );
+  const assigneesByTeamName = teamMembers.reduce((result, member) => {
+    const teamName = teamNameById.get(getTaskImportComparableId(member.teamId));
+    const assigneeLabel = assigneeLabelByUserId.get(
+      getTaskImportComparableId(member.userId)
+    );
+
+    if (!teamName || !assigneeLabel) {
+      return result;
+    }
+
+    if (!result.has(teamName)) {
+      result.set(teamName, []);
+    }
+
+    result.get(teamName).push(assigneeLabel);
+    return result;
+  }, new Map());
+
+  const teamsByProjectName = mergedProjectTeams.reduce((result, item) => {
+    const projectName = resolveImportText(item.project?.name);
+
+    if (!projectName) {
+      return result;
+    }
+
+    const teamNames = normalizeTaskImportDropdownValues(
+      item.teamIds.map((teamId) => teamNameById.get(getTaskImportComparableId(teamId)))
+    );
+
+    result.set(projectName, teamNames);
+    return result;
+  }, new Map());
+
+  const projectNames = normalizeTaskImportDropdownValues(projects.map((project) => project.name));
+  const projectNamesWithTeams = normalizeTaskImportDropdownValues(
+    Array.from(teamsByProjectName.entries())
+      .filter(([, teamNames]) => teamNames.length > 0)
+      .map(([projectName]) => projectName)
+  );
+  const teamNamesWithAssignees = normalizeTaskImportDropdownValues(
+    Array.from(assigneesByTeamName.entries())
+      .filter(([, assignees]) => assignees.length > 0)
+      .map(([teamName]) => teamName)
+  );
+
   return {
-    projects: normalizeTaskImportDropdownValues(projects.map((project) => project.name)),
-    teams: normalizeTaskImportDropdownValues(teams.map((team) => team.name)),
-    assignees: normalizeTaskImportDropdownValues(
-      users.map((user) => buildTaskImportAssigneeLabel(user, duplicateNameCounts))
+    projects: projectNames,
+    teamsByProjectName,
+    assigneesByTeamName: new Map(
+      Array.from(assigneesByTeamName.entries()).map(([teamName, assignees]) => [
+        teamName,
+        normalizeTaskImportDropdownValues(assignees),
+      ])
+    ),
+    projectRangeNames: createTaskImportRangeNameRegistry(
+      projectNamesWithTeams,
+      "TaskProject"
+    ),
+    teamRangeNames: createTaskImportRangeNameRegistry(
+      teamNamesWithAssignees,
+      "TaskTeam"
     ),
   };
-};
-
-const buildTaskImportExampleRows = ({ projects, teams, assignees }) => [
-  {
-    title: "Login Page UI",
-    project: projects[0] || "CRM",
-    description: "Design login page",
-    team: teams[0] || "UI/UX",
-    assignee: assignees[0] || "Rahul",
-    dueDate: new Date(2026, 6, 15),
-  },
-  {
-    title: "Payment API",
-    project: projects[1] || projects[0] || "HRMS",
-    description: "Integrate payment gateway",
-    team: teams[1] || teams[0] || "Development",
-    assignee: assignees[1] || assignees[0] || "Pradeep",
-    dueDate: new Date(2026, 6, 18),
-  },
-];
-
-const addTaskImportLookupSheet = ({
-  workbook,
-  sheetName,
-  rangeName,
-  values,
-}) => {
-  const lookupSheet = workbook.addWorksheet(sheetName);
-  lookupSheet.state = "veryHidden";
-
-  values.forEach((value, index) => {
-    lookupSheet.getCell(index + 1, 1).value = value;
-  });
-
-  if (values.length) {
-    workbook.definedNames.add(
-      `'${sheetName}'!$A$1:$A$${values.length}`,
-      rangeName
-    );
-  }
 };
 
 const applyTaskImportListValidation = ({
@@ -2686,14 +2888,70 @@ const downloadTaskImportSample = asyncHandler(async (req, res) => {
   headerRow.alignment = { vertical: "middle", horizontal: "center" };
   headerRow.height = 22;
 
-  const exampleRows = buildTaskImportExampleRows(templateOptions);
-  exampleRows.forEach((row) => {
-    worksheet.addRow(row);
-  });
-
   for (let rowNumber = 2; rowNumber <= TASK_IMPORT_TEMPLATE_ROW_COUNT + 1; rowNumber += 1) {
     worksheet.getCell(`F${rowNumber}`).numFmt = "dd-mmm-yyyy";
   }
+
+  const projectsSheet = createTaskImportLookupSheet({
+    workbook,
+    sheetName: TASK_IMPORT_LOOKUP_SHEET_NAMES.projects,
+  });
+  templateOptions.projects.forEach((projectName, index) => {
+    projectsSheet.getCell(`A${index + 1}`).value = projectName;
+  });
+
+  if (templateOptions.projects.length) {
+    workbook.definedNames.add(
+      `'${projectsSheet.name}'!$A$1:$A$${templateOptions.projects.length}`,
+      TASK_IMPORT_LOOKUP_RANGE_NAMES.projects
+    );
+  }
+
+  projectsSheet.getCell("B1").value = "";
+  workbook.definedNames.add(
+    `'${projectsSheet.name}'!$B$1`,
+    TASK_IMPORT_LOOKUP_RANGE_NAMES.empty
+  );
+
+  const teamOptionsSheet = createTaskImportLookupSheet({
+    workbook,
+    sheetName: TASK_IMPORT_LOOKUP_SHEET_NAMES.teamOptions,
+  });
+  writeTaskImportNamedListsToSheet({
+    workbook,
+    worksheet: teamOptionsSheet,
+    namedRangeRegistry: templateOptions.projectRangeNames,
+    listsByLabel: templateOptions.teamsByProjectName,
+  });
+
+  const assigneeOptionsSheet = createTaskImportLookupSheet({
+    workbook,
+    sheetName: TASK_IMPORT_LOOKUP_SHEET_NAMES.assigneeOptions,
+  });
+  writeTaskImportNamedListsToSheet({
+    workbook,
+    worksheet: assigneeOptionsSheet,
+    namedRangeRegistry: templateOptions.teamRangeNames,
+    listsByLabel: templateOptions.assigneesByTeamName,
+  });
+
+  const projectTeamMapSheet = createTaskImportLookupSheet({
+    workbook,
+    sheetName: TASK_IMPORT_LOOKUP_SHEET_NAMES.projectTeamMap,
+  });
+  const projectTeamMapRowCount = writeTaskImportLabelToRangeMapSheet({
+    worksheet: projectTeamMapSheet,
+    labelToRangeName: templateOptions.projectRangeNames,
+  });
+
+  const teamAssigneeMapSheet = createTaskImportLookupSheet({
+    workbook,
+    sheetName: TASK_IMPORT_LOOKUP_SHEET_NAMES.teamAssigneeMap,
+  });
+  const teamAssigneeMapRowCount = writeTaskImportLabelToRangeMapSheet({
+    worksheet: teamAssigneeMapSheet,
+    labelToRangeName: templateOptions.teamRangeNames,
+  });
 
   applyTaskImportListValidation({
     worksheet,
@@ -2702,18 +2960,43 @@ const downloadTaskImportSample = asyncHandler(async (req, res) => {
       ? TASK_IMPORT_LOOKUP_RANGE_NAMES.projects
       : "",
   });
-  applyTaskImportListValidation({
-    worksheet,
-    column: "D",
-    rangeName: templateOptions.teams.length ? TASK_IMPORT_LOOKUP_RANGE_NAMES.teams : "",
-  });
-  applyTaskImportListValidation({
-    worksheet,
-    column: "E",
-    rangeName: templateOptions.assignees.length
-      ? TASK_IMPORT_LOOKUP_RANGE_NAMES.users
-      : "",
-  });
+
+  for (let rowNumber = 2; rowNumber <= TASK_IMPORT_TEMPLATE_ROW_COUNT + 1; rowNumber += 1) {
+    worksheet.getCell(`D${rowNumber}`).dataValidation = {
+      type: "list",
+      allowBlank: true,
+      showInputMessage: true,
+      showErrorMessage: true,
+      formulae: [
+        buildTaskImportDependentDropdownFormula({
+          sourceCell: `$B${rowNumber}`,
+          mapSheetName: projectTeamMapSheet.name,
+          mapRowCount: projectTeamMapRowCount,
+        }),
+      ],
+      promptTitle: "Choose a team",
+      prompt: "First choose a project. The team dropdown will show only teams attached to that project.",
+      errorTitle: "Invalid team",
+      error: "Select a team from the project-specific dropdown list.",
+    };
+    worksheet.getCell(`E${rowNumber}`).dataValidation = {
+      type: "list",
+      allowBlank: true,
+      showInputMessage: true,
+      showErrorMessage: true,
+      formulae: [
+        buildTaskImportDependentDropdownFormula({
+          sourceCell: `$D${rowNumber}`,
+          mapSheetName: teamAssigneeMapSheet.name,
+          mapRowCount: teamAssigneeMapRowCount,
+        }),
+      ],
+      promptTitle: "Choose an assignee",
+      prompt: "First choose a team. The assignee dropdown will show that team's members.",
+      errorTitle: "Invalid assignee",
+      error: "Select an assignee from the team-specific dropdown list.",
+    };
+  }
 
   for (let rowNumber = 2; rowNumber <= TASK_IMPORT_TEMPLATE_ROW_COUNT + 1; rowNumber += 1) {
     worksheet.getCell(`F${rowNumber}`).dataValidation = {
@@ -2731,30 +3014,11 @@ const downloadTaskImportSample = asyncHandler(async (req, res) => {
   }
 
   worksheet.getCell("A1").note = "Free text. Required during upload.";
-  worksheet.getCell("B1").note = "Dropdown populated from active projects in the workspace.";
+  worksheet.getCell("B1").note = "Dropdown populated from all workspace projects.";
   worksheet.getCell("C1").note = "Free text. Required during upload.";
-  worksheet.getCell("D1").note = "Dropdown populated from available teams in the workspace.";
-  worksheet.getCell("E1").note = "Dropdown populated from active workspace users.";
+  worksheet.getCell("D1").note = "Choose a project first. This dropdown shows only teams attached to that project.";
+  worksheet.getCell("E1").note = "Choose a team first. This dropdown shows only members of that team.";
   worksheet.getCell("F1").note = "Use an Excel date value or the dd-mmm-yyyy format.";
-
-  addTaskImportLookupSheet({
-    workbook,
-    sheetName: TASK_IMPORT_LOOKUP_SHEET_NAMES.projects,
-    rangeName: TASK_IMPORT_LOOKUP_RANGE_NAMES.projects,
-    values: templateOptions.projects,
-  });
-  addTaskImportLookupSheet({
-    workbook,
-    sheetName: TASK_IMPORT_LOOKUP_SHEET_NAMES.teams,
-    rangeName: TASK_IMPORT_LOOKUP_RANGE_NAMES.teams,
-    values: templateOptions.teams,
-  });
-  addTaskImportLookupSheet({
-    workbook,
-    sheetName: TASK_IMPORT_LOOKUP_SHEET_NAMES.users,
-    rangeName: TASK_IMPORT_LOOKUP_RANGE_NAMES.users,
-    values: templateOptions.assignees,
-  });
 
   const fileBuffer = await workbook.xlsx.writeBuffer();
 
