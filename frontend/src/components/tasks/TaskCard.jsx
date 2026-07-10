@@ -107,8 +107,6 @@ const TaskCardSurface = ({
       aria-busy={isUpdating}
       className={cn(
         "group relative rounded-[16px] border border-slate-200 bg-white p-4 text-left shadow-sm transition duration-200 ease-out hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-[0_18px_40px_-30px_rgba(37,99,235,0.34)]",
-        isOverdue &&
-          "border-rose-300 bg-[linear-gradient(180deg,rgba(255,241,242,0.98),rgba(254,226,226,0.96))] shadow-[0_18px_40px_-30px_rgba(225,29,72,0.34)]",
         isNearDue && "border-amber-300",
         isDragging && "opacity-40",
         isOverlay && "rotate-[0.5deg] shadow-[0_24px_54px_-28px_rgba(15,23,42,0.58)]",

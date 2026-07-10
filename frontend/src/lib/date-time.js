@@ -152,3 +152,22 @@ export const formatRelativeDateLabel = (value, options = {}) => {
 
   return formatDate(date, options);
 };
+
+export const toDateTimeInputValue = (value) => {
+  const date = toDate(value);
+
+  if (!date) {
+    return "";
+  }
+
+  const parts = getPartsMap(date, {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+
+  return `${parts.year}-${parts.month}-${parts.day}T${parts.hour}:${parts.minute}`;
+};

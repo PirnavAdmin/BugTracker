@@ -262,8 +262,6 @@ const IssueCard = ({
     <article
       className={cn(
         "group rounded-[18px] border border-slate-200 bg-white p-3 shadow-sm transition hover:border-blue-200 hover:shadow-[0_14px_32px_-28px_rgba(37,99,235,0.35)]",
-        isOverdue &&
-          "border-rose-300 bg-[linear-gradient(180deg,rgba(255,241,242,0.98),rgba(254,226,226,0.96))] shadow-[0_16px_36px_-26px_rgba(225,29,72,0.32)]",
         isNearDue && "border-amber-300"
       )}
       role="button"

@@ -53,7 +53,14 @@ import {
   resolveUserId,
 } from "@/lib/project-teams";
 import { ROLE_DEVELOPER, ROLE_TEAM_LEAD } from "@/lib/roles";
-import { cn, formatDate, formatDateTime, formatTime, getInitials } from "@/lib/utils";
+import {
+  cn,
+  formatDate,
+  formatDateTime,
+  formatTime,
+  getInitials,
+  toDateTimeInputValue,
+} from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -70,22 +77,6 @@ import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
-
-const toDateTimeLocalValue = (value) => {
-  if (!value) {
-    return "";
-  }
-
-  const parsedValue = new Date(value);
-
-  if (Number.isNaN(parsedValue.getTime())) {
-    return "";
-  }
-
-  return new Date(parsedValue.getTime() - parsedValue.getTimezoneOffset() * 60000)
-    .toISOString()
-    .slice(0, 16);
-};
 
 const formatDueAt = (value) => (value ? formatDateTime(value) : "No due date");
 const formatMinutes = (minutes) => {
@@ -150,7 +141,7 @@ const buildDetailDraft = (issue) => ({
   assigneeId: resolveIssueAssigneeId(issue),
   priority: issue?.priority || "Medium",
   status: isBugIssue(issue) ? normalizeBugStatusForIssue(issue) : normalizeIssueStatus(issue?.status),
-  dueAt: toDateTimeLocalValue(issue?.dueAt),
+  dueAt: toDateTimeInputValue(issue?.dueAt),
   dependsOnIssueId: resolveIssueDependencyId(issue),
   storyPoints: issue?.storyPoints ?? "",
   acceptanceCriteria: Array.isArray(issue?.acceptanceCriteria)

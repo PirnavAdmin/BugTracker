@@ -30,6 +30,7 @@ const getReporterName = (issue) =>
   "Unknown reporter";
 const getSeverity = (issue) => resolveBugDetails(issue)?.severity || "Not set";
 const getModuleName = (issue) => resolveBugDetails(issue)?.moduleName || "Unmapped module";
+const getCreatedTimeLabel = (issue) => formatDateTime(issue?.createdAt);
 
 const ActionButton = ({ action, disabled }) => {
   const Icon = action.icon || Eye;
@@ -342,7 +343,7 @@ const BugCardSurface = ({
         </div>
         <div className="flex items-center gap-2">
           <CalendarClock className="h-3.5 w-3.5 shrink-0 text-slate-400" />
-          <span className="truncate">{formatDateTime(issue.updatedAt || issue.createdAt)}</span>
+          <span className="truncate">{getCreatedTimeLabel(issue)}</span>
         </div>
       </div>
 

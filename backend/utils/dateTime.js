@@ -106,6 +106,27 @@ const createUtcDateFromIndianParts = ({
 };
 
 const parseCommonDateString = (value, { endOfDay = false } = {}) => {
+  const dateTimeLocalMatch = String(value || "")
+    .trim()
+    .match(
+      /^(\d{4})-(\d{2})-(\d{2})[T\s](\d{2}):(\d{2})(?::(\d{2})(?:\.(\d{1,3}))?)?$/
+    );
+
+  if (dateTimeLocalMatch) {
+    const [, year, month, day, hours, minutes, seconds = "0", milliseconds = "0"] =
+      dateTimeLocalMatch;
+
+    return createUtcDateFromIndianParts({
+      year: Number(year),
+      month: Number(month),
+      day: Number(day),
+      hours: Number(hours),
+      minutes: Number(minutes),
+      seconds: Number(seconds),
+      milliseconds: Number(String(milliseconds).padEnd(3, "0")),
+    });
+  }
+
   const dateOnlyMatch = String(value || "").trim().match(/^(\d{4})-(\d{2})-(\d{2})$/);
 
   if (dateOnlyMatch) {
