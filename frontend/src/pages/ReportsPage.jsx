@@ -48,7 +48,7 @@ import {
 } from "recharts";
 import useAnalytics, { useDeveloperDashboard } from "@/hooks/use-analytics";
 import { useAuth } from "@/hooks/use-auth";
-import { fetchEpics, fetchProjects, fetchSprints } from "@/lib/api";
+import { fetchBugs, fetchEpics, fetchProjects, fetchSprints } from "@/lib/api";
 import {
   BUG_STATUS_OPTIONS,
   BUG_SEVERITY_OPTIONS,
@@ -1490,6 +1490,12 @@ const OrganizationReportsDashboard = () => {
     dateTo: "",
   });
   const statusParts = getStatusParts(filters.status);
+  const bugSummaryFilter =
+    statusParts.statusGroup === "open"
+      ? "open"
+      : statusParts.statusGroup === "closed"
+        ? "closed"
+        : "all";
   const analyticsFilters = {
     dateFrom: toLocalDayBoundaryIso(filters.dateFrom),
     dateTo: toLocalDayBoundaryIso(filters.dateTo, true),
@@ -3599,6 +3605,41 @@ const JiraReportsDashboard = () => {
     queryFn: () => fetchSprints({ projectId: selectedProjectId }),
     enabled: Boolean(selectedProjectId),
   });
+  const { data: bugSummaryResponse = null } = useQuery({
+    queryKey: [
+      "jira-reports",
+      "bug-summary",
+      filters.projectId,
+      filters.teamId,
+      filters.developerId,
+      filters.testerId,
+      filters.priority,
+      filters.severity,
+      filters.status,
+      filters.sprintId,
+      filters.dateFrom,
+      filters.dateTo,
+    ],
+    queryFn: () =>
+      fetchBugs({
+        paginate: true,
+        page: 1,
+        limit: 1,
+        projectId: filters.projectId === "all" ? "" : filters.projectId,
+        teamId: filters.teamId,
+        developerId: filters.developerId,
+        testerId: filters.testerId,
+        priority: filters.priority,
+        severity: filters.severity,
+        status: statusParts.status,
+        sprintId: filters.sprintId,
+        dateFrom: filters.dateFrom,
+        dateTo: filters.dateTo,
+        filter: bugSummaryFilter,
+      }),
+    enabled: filters.releaseId === "all",
+    staleTime: 30_000,
+  });
 
   const teams = useMemo(() => {
     const rows = new Map();
@@ -3666,6 +3707,10 @@ const JiraReportsDashboard = () => {
     });
     return Array.from(rows.entries()).map(([id, name]) => ({ id, name }));
   }, [rawBugIssues, rawTaskIssues]);
+  const bugSummaryCounts =
+    filters.releaseId === "all"
+      ? bugSummaryResponse?.summary || null
+      : null;
 
   if (!REPORT_PAGE_KEYS.has(activePage)) {
     return <Navigate to="/reports" replace />;
@@ -3861,6 +3906,16 @@ const JiraReportsDashboard = () => {
       !isReopened(issue) &&
       !isBugClosed(issue)
   );
+  const bugCardCounts = {
+    workQueue: bugSummaryCounts?.bucket ?? workQueueBugs.length,
+    assigned: bugSummaryCounts?.assigned ?? assignedBugs.length,
+    closed: bugSummaryCounts?.closed ?? closedReportBugs.length,
+    inProgress: bugSummaryCounts?.inProgress ?? inProgressBugs.length,
+    readyForQa: bugSummaryCounts?.readyForQa ?? readyForQaBugs.length,
+    reopened: bugSummaryCounts?.reopened ?? currentReopenedBugs.length,
+    other: bugSummaryCounts?.other ?? otherBugs.length,
+    total: bugSummaryCounts?.total ?? bugIssues.length,
+  };
   const taskPerformanceRows = buildDeveloperRankingRows(developerPerformance, (developer) => ({
     closed: developer.taskMetrics.completed,
     total: developer.taskMetrics.total,
@@ -3944,14 +3999,14 @@ const JiraReportsDashboard = () => {
       return (
         <>
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-8">
-            <JiraKpi label="Work Queue" value={formatCompactNumber(workQueueBugs.length)} helper="Unassigned bugs ready for pickup" onClick={() => drillTo("Work queue bugs", workQueueBugs)} />
-            <JiraKpi label="Assigned Bugs" value={formatCompactNumber(assignedBugs.length)} helper="Assigned to developers" onClick={() => drillTo("Assigned bugs", assignedBugs)} />
-            <JiraKpi label="Closed Bugs" value={formatCompactNumber(closedReportBugs.length)} helper="Verified and closed" onClick={() => drillTo("Closed bugs", closedReportBugs)} />
-            <JiraKpi label="In Progress" value={formatCompactNumber(inProgressBugs.length)} helper="Active bug fixes" onClick={() => drillTo("In progress bugs", inProgressBugs)} />
-            <JiraKpi label="Ready For QA" value={formatCompactNumber(readyForQaBugs.length)} helper="Awaiting tester verification" onClick={() => drillTo("Ready For QA", readyForQaBugs)} />
-            <JiraKpi label="Reopen" value={formatCompactNumber(currentReopenedBugs.length)} helper="Returned for follow-up" onClick={() => drillTo("Reopened bugs", currentReopenedBugs)} />
-            <JiraKpi label="Other Bugs" value={formatCompactNumber(otherBugs.length)} helper="Outside main workflow buckets" onClick={() => drillTo("Other bugs", otherBugs)} />
-            <JiraKpi label="Total Bugs" value={formatCompactNumber(bugIssues.length)} helper="All filtered bugs" onClick={() => drillTo("All bugs", bugIssues)} />
+            <JiraKpi label="Work Queue" value={formatCompactNumber(bugCardCounts.workQueue)} helper="Unassigned bugs ready for pickup" onClick={() => drillTo("Work queue bugs", workQueueBugs)} />
+            <JiraKpi label="Assigned Bugs" value={formatCompactNumber(bugCardCounts.assigned)} helper="Assigned to developers" onClick={() => drillTo("Assigned bugs", assignedBugs)} />
+            <JiraKpi label="Closed Bugs" value={formatCompactNumber(bugCardCounts.closed)} helper="Verified and closed" onClick={() => drillTo("Closed bugs", closedReportBugs)} />
+            <JiraKpi label="In Progress" value={formatCompactNumber(bugCardCounts.inProgress)} helper="Active bug fixes" onClick={() => drillTo("In progress bugs", inProgressBugs)} />
+            <JiraKpi label="Ready For QA" value={formatCompactNumber(bugCardCounts.readyForQa)} helper="Awaiting tester verification" onClick={() => drillTo("Ready For QA", readyForQaBugs)} />
+            <JiraKpi label="Reopen" value={formatCompactNumber(bugCardCounts.reopened)} helper="Returned for follow-up" onClick={() => drillTo("Reopened bugs", currentReopenedBugs)} />
+            <JiraKpi label="Other Bugs" value={formatCompactNumber(bugCardCounts.other)} helper="Outside main workflow buckets" onClick={() => drillTo("Other bugs", otherBugs)} />
+            <JiraKpi label="Total Bugs" value={formatCompactNumber(bugCardCounts.total)} helper="All filtered bugs" onClick={() => drillTo("All bugs", bugIssues)} />
           </div>
           {renderDrilldownPanel()}
           {!hasDrilldown ? (
