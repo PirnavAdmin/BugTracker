@@ -216,6 +216,7 @@ const TASK_IMPORT_LOOKUP_SHEET_NAMES = Object.freeze({
   teamOptions: "TeamOptions",
   teamAssigneeMap: "TeamAssigneeMap",
   assigneeOptions: "AssigneeOptions",
+  reference: "Reference Data",
 });
 const TASK_IMPORT_LOOKUP_RANGE_NAMES = Object.freeze({
   projects: "TaskImportProjects",
@@ -544,6 +545,52 @@ const getTaskImportTemplateOptions = async ({ workspaceId }) => {
       .map(([teamName]) => teamName)
   );
 
+  const sampleRows = [];
+  projectNames.forEach((projectName) => {
+    const projectTeams = teamsByProjectName.get(projectName) || [];
+
+    if (!projectTeams.length) {
+      sampleRows.push({
+        title: "",
+        project: projectName,
+        description: "",
+        team: "",
+        assignee: "",
+        dueDate: "",
+      });
+      return;
+    }
+
+    projectTeams.forEach((teamName) => {
+      const assignees = normalizeTaskImportDropdownValues(
+        assigneesByTeamName.get(teamName) || []
+      );
+
+      if (!assignees.length) {
+        sampleRows.push({
+          title: "",
+          project: projectName,
+          description: "",
+          team: teamName,
+          assignee: "",
+          dueDate: "",
+        });
+        return;
+      }
+
+      assignees.forEach((assignee) => {
+        sampleRows.push({
+          title: "",
+          project: projectName,
+          description: "",
+          team: teamName,
+          assignee,
+          dueDate: "",
+        });
+      });
+    });
+  });
+
   return {
     projects: projectNames,
     teamsByProjectName,
@@ -561,6 +608,7 @@ const getTaskImportTemplateOptions = async ({ workspaceId }) => {
       teamNamesWithAssignees,
       "TaskTeam"
     ),
+    sampleRows,
   };
 };
 
@@ -568,12 +616,13 @@ const applyTaskImportListValidation = ({
   worksheet,
   column,
   rangeName,
+  rowCount = TASK_IMPORT_TEMPLATE_ROW_COUNT,
 }) => {
   if (!rangeName) {
     return;
   }
 
-  for (let rowNumber = 2; rowNumber <= TASK_IMPORT_TEMPLATE_ROW_COUNT + 1; rowNumber += 1) {
+  for (let rowNumber = 2; rowNumber <= rowCount + 1; rowNumber += 1) {
     worksheet.getCell(`${column}${rowNumber}`).dataValidation = {
       type: "list",
       allowBlank: true,
@@ -2875,7 +2924,6 @@ const downloadTaskImportSample = asyncHandler(async (req, res) => {
   workbook.modified = new Date();
 
   worksheet.columns = TASK_IMPORT_TEMPLATE_COLUMNS;
-  worksheet.autoFilter = "A1:F1";
 
   const headerRow = worksheet.getRow(1);
   headerRow.values = TASK_IMPORT_SAMPLE_HEADERS;
@@ -2888,7 +2936,16 @@ const downloadTaskImportSample = asyncHandler(async (req, res) => {
   headerRow.alignment = { vertical: "middle", horizontal: "center" };
   headerRow.height = 22;
 
-  for (let rowNumber = 2; rowNumber <= TASK_IMPORT_TEMPLATE_ROW_COUNT + 1; rowNumber += 1) {
+  templateOptions.sampleRows.forEach((row) => {
+    worksheet.addRow(row);
+  });
+
+  const totalTemplateRows = Math.max(
+    TASK_IMPORT_TEMPLATE_ROW_COUNT,
+    templateOptions.sampleRows.length
+  );
+
+  for (let rowNumber = 2; rowNumber <= totalTemplateRows + 1; rowNumber += 1) {
     worksheet.getCell(`F${rowNumber}`).numFmt = "dd-mmm-yyyy";
   }
 
@@ -2959,9 +3016,10 @@ const downloadTaskImportSample = asyncHandler(async (req, res) => {
     rangeName: templateOptions.projects.length
       ? TASK_IMPORT_LOOKUP_RANGE_NAMES.projects
       : "",
+    rowCount: totalTemplateRows,
   });
 
-  for (let rowNumber = 2; rowNumber <= TASK_IMPORT_TEMPLATE_ROW_COUNT + 1; rowNumber += 1) {
+  for (let rowNumber = 2; rowNumber <= totalTemplateRows + 1; rowNumber += 1) {
     worksheet.getCell(`D${rowNumber}`).dataValidation = {
       type: "list",
       allowBlank: true,
@@ -2998,7 +3056,7 @@ const downloadTaskImportSample = asyncHandler(async (req, res) => {
     };
   }
 
-  for (let rowNumber = 2; rowNumber <= TASK_IMPORT_TEMPLATE_ROW_COUNT + 1; rowNumber += 1) {
+  for (let rowNumber = 2; rowNumber <= totalTemplateRows + 1; rowNumber += 1) {
     worksheet.getCell(`F${rowNumber}`).dataValidation = {
       type: "date",
       operator: "between",
@@ -3019,6 +3077,35 @@ const downloadTaskImportSample = asyncHandler(async (req, res) => {
   worksheet.getCell("D1").note = "Choose a project first. This dropdown shows only teams attached to that project.";
   worksheet.getCell("E1").note = "Choose a team first. This dropdown shows only members of that team.";
   worksheet.getCell("F1").note = "Use an Excel date value or the dd-mmm-yyyy format.";
+
+  const referenceSheet = workbook.addWorksheet(
+    TASK_IMPORT_LOOKUP_SHEET_NAMES.reference,
+    {
+      views: [{ state: "frozen", ySplit: 1 }],
+    }
+  );
+  referenceSheet.columns = [
+    { header: "Project", key: "project", width: 30 },
+    { header: "Team", key: "team", width: 28 },
+    { header: "Assignee", key: "assignee", width: 34 },
+  ];
+  const referenceHeaderRow = referenceSheet.getRow(1);
+  referenceHeaderRow.font = { bold: true, color: { argb: "FF0F172A" } };
+  referenceHeaderRow.fill = {
+    type: "pattern",
+    pattern: "solid",
+    fgColor: { argb: "FFF8FAFC" },
+  };
+  referenceHeaderRow.alignment = { vertical: "middle", horizontal: "center" };
+  referenceHeaderRow.height = 22;
+
+  templateOptions.sampleRows.forEach((row) => {
+    referenceSheet.addRow({
+      project: row.project || "",
+      team: row.team || "",
+      assignee: row.assignee || "",
+    });
+  });
 
   const fileBuffer = await workbook.xlsx.writeBuffer();
 
