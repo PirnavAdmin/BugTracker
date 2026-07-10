@@ -48,7 +48,7 @@ import {
 } from "recharts";
 import useAnalytics, { useDeveloperDashboard } from "@/hooks/use-analytics";
 import { useAuth } from "@/hooks/use-auth";
-import { fetchBugs, fetchEpics, fetchProjects, fetchSprints } from "@/lib/api";
+import { fetchBugs, fetchEpics, fetchIssues, fetchProjects, fetchSprints } from "@/lib/api";
 import {
   BUG_STATUS_OPTIONS,
   BUG_SEVERITY_OPTIONS,
@@ -3605,7 +3605,85 @@ const JiraReportsDashboard = () => {
     queryFn: () => fetchSprints({ projectId: selectedProjectId }),
     enabled: Boolean(selectedProjectId),
   });
-  const { data: bugSummaryResponse = null } = useQuery({
+  const statusParts = getStatusParts(filters.status);
+  const listFilter =
+    statusParts.statusGroup === "open"
+      ? "open"
+      : statusParts.statusGroup === "closed"
+        ? "closed"
+        : "all";
+  const {
+    data: taskIssuesResponse = [],
+    isLoading: taskIssuesLoading,
+    error: taskIssuesError,
+  } = useQuery({
+    queryKey: [
+      "jira-reports",
+      "task-issues",
+      filters.projectId,
+      filters.teamId,
+      filters.developerId,
+      filters.priority,
+      filters.status,
+      filters.sprintId,
+      filters.dateFrom,
+      filters.dateTo,
+    ],
+    queryFn: () =>
+      fetchIssues({
+        excludeType: ISSUE_TYPES.BUG,
+        projectId: filters.projectId === "all" ? "" : filters.projectId,
+        teamId: filters.teamId,
+        assigneeId: filters.developerId,
+        priority: filters.priority,
+        status: statusParts.status,
+        sprintId: filters.sprintId,
+        dateFrom: filters.dateFrom,
+        dateTo: filters.dateTo,
+        filter: listFilter,
+      }),
+    staleTime: 30_000,
+  });
+  const {
+    data: bugIssuesResponse = [],
+    isLoading: bugIssuesLoading,
+    error: bugIssuesError,
+  } = useQuery({
+    queryKey: [
+      "jira-reports",
+      "bug-issues",
+      filters.projectId,
+      filters.teamId,
+      filters.developerId,
+      filters.testerId,
+      filters.priority,
+      filters.severity,
+      filters.status,
+      filters.sprintId,
+      filters.dateFrom,
+      filters.dateTo,
+    ],
+    queryFn: () =>
+      fetchBugs({
+        projectId: filters.projectId === "all" ? "" : filters.projectId,
+        teamId: filters.teamId,
+        developerId: filters.developerId,
+        testerId: filters.testerId,
+        priority: filters.priority,
+        severity: filters.severity,
+        status: statusParts.status,
+        sprintId: filters.sprintId,
+        dateFrom: filters.dateFrom,
+        dateTo: filters.dateTo,
+        filter: listFilter,
+      }),
+    staleTime: 30_000,
+  });
+  const {
+    data: bugSummaryResponse = null,
+    isLoading: bugSummaryLoading,
+    error: bugSummaryError,
+  } = useQuery({
     queryKey: [
       "jira-reports",
       "bug-summary",
@@ -3635,7 +3713,7 @@ const JiraReportsDashboard = () => {
         sprintId: filters.sprintId,
         dateFrom: filters.dateFrom,
         dateTo: filters.dateTo,
-        filter: bugSummaryFilter,
+        filter: listFilter,
       }),
     enabled: filters.releaseId === "all",
     staleTime: 30_000,
@@ -3665,24 +3743,8 @@ const JiraReportsDashboard = () => {
     return Array.from(rows.values()).sort((left, right) => (left.name || "").localeCompare(right.name || ""));
   }, [filters.projectId, projects]);
 
-  const statusParts = getStatusParts(filters.status);
-  const analyticsFilters = {
-    dateFrom: toLocalDayBoundaryIso(filters.dateFrom),
-    dateTo: toLocalDayBoundaryIso(filters.dateTo, true),
-    projectId: filters.projectId,
-    teamId: filters.teamId,
-    assigneeId: filters.developerId,
-    developerId: filters.developerId,
-    testerId: filters.testerId,
-    priority: filters.priority,
-    severity: filters.severity,
-    sprintId: filters.sprintId,
-    ...statusParts,
-  };
-  const taskAnalytics = useAnalytics({ ...analyticsFilters, type: ISSUE_TYPES.TASK }, { includeIssues: true });
-  const bugAnalytics = useAnalytics({ ...analyticsFilters, type: ISSUE_TYPES.BUG }, { includeIssues: true });
-  const rawTaskIssues = asArray(taskAnalytics.issues?.issues);
-  const rawBugIssues = asArray(bugAnalytics.issues?.issues);
+  const rawTaskIssues = asArray(taskIssuesResponse?.issues || taskIssuesResponse);
+  const rawBugIssues = asArray(bugIssuesResponse?.bugs || bugIssuesResponse);
   const releaseMatches = (issue) => filters.releaseId === "all" || getIssueReleaseId(issue) === filters.releaseId;
   const taskIssues = rawTaskIssues.filter((issue) => !isDeletedIssue(issue) && releaseMatches(issue));
   const bugIssues = rawBugIssues.filter((issue) => !isDeletedIssue(issue) && releaseMatches(issue));
@@ -3716,8 +3778,16 @@ const JiraReportsDashboard = () => {
     return <Navigate to="/reports" replace />;
   }
 
-  const isLoading = projectsLoading || taskAnalytics.isLoading || bugAnalytics.isLoading;
-  const error = projectsError || taskAnalytics.error || bugAnalytics.error;
+  const isLoading =
+    projectsLoading ||
+    taskIssuesLoading ||
+    bugIssuesLoading ||
+    (filters.releaseId === "all" && bugSummaryLoading);
+  const error =
+    projectsError ||
+    taskIssuesError ||
+    bugIssuesError ||
+    (filters.releaseId === "all" ? bugSummaryError : null);
   const updateFilter = (key, value) => {
     setDrilldown(null);
     const nextFilters = {
