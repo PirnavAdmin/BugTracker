@@ -2874,44 +2874,10 @@ const REPORT_DEFAULT_FILTER_VALUES = {
   status: "all",
   releaseId: "all",
 };
-const REPORT_DATE_APPLY_DELAY_MS = 700;
-
 const buildDefaultJiraReportFilters = () => ({
   ...REPORT_DEFAULT_FILTER_VALUES,
   ...getReportDatePreset(DEFAULT_REPORT_DATE_PRESET),
 });
-
-const getReportDateRangeError = (dateFrom, dateTo) => {
-  if (!dateFrom || !dateTo) {
-    return "";
-  }
-
-  return String(dateFrom) > String(dateTo)
-    ? "Start date must be before or equal to the end date."
-    : "";
-};
-
-const normalizeReportDateFilters = (filters, datePreset) => {
-  const nextFilters = {
-    ...filters,
-  };
-
-  if (datePreset !== "custom") {
-    return nextFilters;
-  }
-
-  if (
-    nextFilters.dateFrom &&
-    nextFilters.dateTo &&
-    String(nextFilters.dateFrom) > String(nextFilters.dateTo)
-  ) {
-    const currentFrom = nextFilters.dateFrom;
-    nextFilters.dateFrom = nextFilters.dateTo;
-    nextFilters.dateTo = currentFrom;
-  }
-
-  return nextFilters;
-};
 
 const isValidReportDatePreset = (value) =>
   REPORT_DATE_PRESETS.some((preset) => preset.value === value);
@@ -2936,17 +2902,16 @@ const readJiraReportStateFromSearchParams = (searchParams) => {
   return {
     comparisonMode: searchParams.get("comparison") || DEFAULT_REPORT_COMPARISON_MODE,
     datePreset,
-    filters: normalizeReportDateFilters(filters, datePreset),
+    filters,
   };
 };
 
 const buildJiraReportSearchParams = (filters, datePreset, comparisonMode) => {
   const defaults = buildDefaultJiraReportFilters();
-  const normalizedFilters = normalizeReportDateFilters(filters, datePreset);
   const nextParams = new URLSearchParams();
 
   REPORT_FILTER_KEYS.forEach((key) => {
-    const value = normalizedFilters?.[key] || "";
+    const value = filters?.[key] || "";
     const isCustomDateField =
       datePreset === "custom" && ["dateFrom", "dateTo"].includes(key);
 
@@ -3583,11 +3548,6 @@ const JiraReportsDashboard = () => {
   const [datePreset, setDatePreset] = useState(initialReportState.current.datePreset);
   const [drilldown, setDrilldown] = useState(null);
   const [filters, setFilters] = useState(initialReportState.current.filters);
-  const [draftDateRange, setDraftDateRange] = useState(() => ({
-    dateFrom: initialReportState.current.filters.dateFrom || "",
-    dateTo: initialReportState.current.filters.dateTo || "",
-  }));
-  const dateApplyTimeoutRef = useRef(null);
   const reportSearch = useMemo(
     () => buildJiraReportSearchParams(filters, datePreset, comparisonMode).toString(),
     [comparisonMode, datePreset, filters]
@@ -3619,17 +3579,7 @@ const JiraReportsDashboard = () => {
     setComparisonMode(nextState.comparisonMode);
     setDatePreset(nextState.datePreset);
     setFilters(nextState.filters);
-    setDraftDateRange({
-      dateFrom: nextState.filters.dateFrom || "",
-      dateTo: nextState.filters.dateTo || "",
-    });
   }, [reportSearch, searchParams]);
-
-  useEffect(() => () => {
-    if (dateApplyTimeoutRef.current) {
-      window.clearTimeout(dateApplyTimeoutRef.current);
-    }
-  }, []);
 
   const replaceReportSearch = (nextFilters, nextDatePreset, nextComparisonMode) => {
     setSearchParams(
@@ -3723,47 +3673,7 @@ const JiraReportsDashboard = () => {
 
   const isLoading = projectsLoading || taskAnalytics.isLoading || bugAnalytics.isLoading;
   const error = projectsError || taskAnalytics.error || bugAnalytics.error;
-  const dateRangeError =
-    datePreset === "custom"
-      ? getReportDateRangeError(draftDateRange.dateFrom, draftDateRange.dateTo)
-      : "";
-  const applyDateRangeFilters = (nextDraftDateRange) => {
-    const nextFilters = {
-      ...filters,
-      dateFrom: nextDraftDateRange.dateFrom || "",
-      dateTo: nextDraftDateRange.dateTo || "",
-    };
-
-    setDrilldown(null);
-    setFilters(nextFilters);
-    replaceReportSearch(nextFilters, datePreset, comparisonMode);
-  };
   const updateFilter = (key, value) => {
-    if (key === "dateFrom" || key === "dateTo") {
-      const nextDraftDateRange = {
-        ...draftDateRange,
-        [key]: value,
-      };
-
-      setDraftDateRange(nextDraftDateRange);
-
-      if (dateApplyTimeoutRef.current) {
-        window.clearTimeout(dateApplyTimeoutRef.current);
-      }
-
-      dateApplyTimeoutRef.current = window.setTimeout(() => {
-        if (!getReportDateRangeError(nextDraftDateRange.dateFrom, nextDraftDateRange.dateTo)) {
-          applyDateRangeFilters(nextDraftDateRange);
-        }
-      }, REPORT_DATE_APPLY_DELAY_MS);
-
-      return;
-    }
-
-    if (dateApplyTimeoutRef.current) {
-      window.clearTimeout(dateApplyTimeoutRef.current);
-    }
-
     setDrilldown(null);
     const nextFilters = {
       ...filters,
@@ -3774,10 +3684,6 @@ const JiraReportsDashboard = () => {
     replaceReportSearch(nextFilters, datePreset, comparisonMode);
   };
   const updateDatePreset = (preset) => {
-    if (dateApplyTimeoutRef.current) {
-      window.clearTimeout(dateApplyTimeoutRef.current);
-    }
-
     setDatePreset(preset);
     setDrilldown(null);
 
@@ -3786,19 +3692,11 @@ const JiraReportsDashboard = () => {
         ...filters,
         ...getReportDatePreset(preset),
       };
-      setDraftDateRange({
-        dateFrom: nextFilters.dateFrom || "",
-        dateTo: nextFilters.dateTo || "",
-      });
       setFilters(nextFilters);
       replaceReportSearch(nextFilters, preset, comparisonMode);
       return;
     }
 
-    setDraftDateRange({
-      dateFrom: filters.dateFrom || "",
-      dateTo: filters.dateTo || "",
-    });
     replaceReportSearch(filters, preset, comparisonMode);
   };
   const updateComparisonMode = (value) => {
@@ -3806,20 +3704,12 @@ const JiraReportsDashboard = () => {
     replaceReportSearch(filters, datePreset, value);
   };
   const resetFilters = () => {
-    if (dateApplyTimeoutRef.current) {
-      window.clearTimeout(dateApplyTimeoutRef.current);
-    }
-
     const nextFilters = buildDefaultJiraReportFilters();
 
     setDrilldown(null);
     setDatePreset(DEFAULT_REPORT_DATE_PRESET);
     setComparisonMode(DEFAULT_REPORT_COMPARISON_MODE);
     setFilters(nextFilters);
-    setDraftDateRange({
-      dateFrom: nextFilters.dateFrom || "",
-      dateTo: nextFilters.dateTo || "",
-    });
     replaceReportSearch(nextFilters, DEFAULT_REPORT_DATE_PRESET, DEFAULT_REPORT_COMPARISON_MODE);
   };
   const drillTo = (title, rows) => setDrilldown({ title, rows });
@@ -4421,21 +4311,11 @@ const JiraReportsDashboard = () => {
             </div>
             {datePreset === "custom" ? (
               <>
-                <DateField label="Date from" value={draftDateRange.dateFrom} onChange={(event) => updateFilter("dateFrom", event.target.value)} />
-                <DateField label="Date to" value={draftDateRange.dateTo} onChange={(event) => updateFilter("dateTo", event.target.value)} />
+                <DateField label="Date from" value={filters.dateFrom} onChange={(event) => updateFilter("dateFrom", event.target.value)} />
+                <DateField label="Date to" value={filters.dateTo} onChange={(event) => updateFilter("dateTo", event.target.value)} />
               </>
             ) : null}
           </div>
-          {datePreset === "custom" ? (
-            <div className="mt-2 flex flex-wrap items-center justify-between gap-2 px-1">
-              <p className="text-xs text-slate-500">
-                Reports refresh shortly after you finish selecting the date range.
-              </p>
-              {dateRangeError ? (
-                <p className="text-xs font-medium text-rose-600">{dateRangeError}</p>
-              ) : null}
-            </div>
-          ) : null}
         </div>
 
         {renderPage()}
