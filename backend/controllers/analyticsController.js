@@ -30,7 +30,14 @@ const {
   formatMonthYear,
   getIndianDateKey,
 } = require("../utils/dateTime");
-const { ROLE_ADMIN, ROLE_DEVELOPER, ROLE_MANAGER, ROLE_TEAM_LEAD, ROLE_TESTER } = require("../utils/roles");
+const {
+  ROLE_ADMIN,
+  ROLE_DEVELOPER,
+  ROLE_MANAGER,
+  ROLE_TEAM_LEAD,
+  hasTaskStoryLeadAccess,
+  hasTesterAccess,
+} = require("../utils/roles");
 const { applyActiveSprintVisibilityToIssueQuery } = require("../utils/sprintVisibility");
 const { normalizeWorkspaceId } = require("../utils/workspace");
 
@@ -250,14 +257,14 @@ const addPersonalAccess = (match, user) => {
   const userObjectId = user._id || user.id;
   let personalAccessQuery;
 
-  if (user.role === ROLE_TESTER) {
+  if (hasTesterAccess(user.role)) {
     personalAccessQuery = {
       $or: [
         { assignee: userObjectId },
         { reporter: userObjectId },
       ],
     };
-  } else if ([ROLE_DEVELOPER, ROLE_TEAM_LEAD].includes(user.role)) {
+  } else if (user.role === ROLE_DEVELOPER || hasTaskStoryLeadAccess(user.role)) {
     personalAccessQuery = {
       $or: [
         { assignee: userObjectId },
@@ -588,7 +595,7 @@ const buildAnalyticsMatch = async (req, res) => {
     addPersonalAccess(match, req.user);
   }
 
-  if ([ROLE_DEVELOPER, ROLE_TEAM_LEAD].includes(req.user.role)) {
+  if (req.user.role === ROLE_DEVELOPER || hasTaskStoryLeadAccess(req.user.role)) {
     await applyActiveSprintVisibilityToIssueQuery(match, Sprint);
   }
 

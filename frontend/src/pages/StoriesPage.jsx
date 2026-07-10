@@ -4,7 +4,7 @@ import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { BookOpen, Plus, Search } from "lucide-react";
 import { createIssue, fetchProjects, fetchStories, uploadIssueAttachment } from "@/lib/api";
 import { useAuth } from "@/hooks/use-auth";
-import { ADMIN_PANEL_ROLES, ROLE_TEAM_LEAD } from "@/lib/roles";
+import { ADMIN_PANEL_ROLES, hasTaskStoryLeadAccess } from "@/lib/roles";
 import StoryCard from "@/components/stories/StoryCard";
 import StoryDetails from "@/components/stories/StoryDetails";
 import IssueCreateDialog from "@/components/issues/IssueCreateDialog";
@@ -22,7 +22,7 @@ const StoriesPage = () => {
   const [search, setSearch] = useState("");
   const [projectId, setProjectId] = useState(searchParams.get("projectId") || "all");
   const [isCreateOpen, setIsCreateOpen] = useState(false);
-  const canCreateStory = ADMIN_PANEL_ROLES.includes(role) || role === ROLE_TEAM_LEAD;
+  const canCreateStory = ADMIN_PANEL_ROLES.includes(role) || hasTaskStoryLeadAccess(role);
   const storyListPath = projectId === "all" ? "/stories" : `/stories?projectId=${encodeURIComponent(projectId)}`;
 
   useEffect(() => {

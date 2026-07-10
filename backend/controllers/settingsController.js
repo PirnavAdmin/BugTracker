@@ -15,8 +15,8 @@ const { decryptSecret, encryptSecret } = require("../utils/emailCrypto");
 const {
   ROLE_ADMIN,
   ROLE_MANAGER,
-  ROLE_TESTER,
   hasAdminAccess,
+  hasTesterAccess,
   isEligibleWorkspaceSenderRole,
 } = require("../utils/roles");
 const {
@@ -311,7 +311,7 @@ const logSenderResolution = (step, payload = {}) => {
 };
 
 const isTesterSelfSenderRequest = (requestUser, targetUserId) =>
-  requestUser?.role === ROLE_TESTER &&
+  hasTesterAccess(requestUser?.role) &&
   String(requestUser?._id || "") === String(targetUserId || "");
 
 const buildTesterPersonalSenderSelection = (user, smtpConfigured = false) => {
@@ -357,7 +357,7 @@ const resolveAccessibleSenderUser = async ({
 
   const testerSelfRequest = isTesterSelfSenderRequest(requestUser, user._id);
 
-  if (requestUser?.role === ROLE_TESTER && !testerSelfRequest) {
+  if (hasTesterAccess(requestUser?.role) && !testerSelfRequest) {
     res.status(403);
     throw new Error("Testers can only access their own mail account");
   }
@@ -1018,7 +1018,7 @@ const testEmailConfig = asyncHandler(async (req, res) => {
 const getEligibleSenders = asyncHandler(async (req, res) => {
   const workspaceId = normalizeWorkspaceId(req.user.workspaceId);
 
-  if (req.user.role === ROLE_TESTER) {
+  if (hasTesterAccess(req.user.role)) {
     const { smtpConfigured } = await getUserSmtpConfigState({
       workspaceId,
       userId: req.user._id,
@@ -1069,7 +1069,7 @@ const getEligibleSenders = asyncHandler(async (req, res) => {
 const getWorkspaceSender = asyncHandler(async (req, res) => {
   const workspaceId = normalizeWorkspaceId(req.user.workspaceId);
 
-  if (req.user.role === ROLE_TESTER) {
+  if (hasTesterAccess(req.user.role)) {
     const { smtpConfigured } = await getUserSmtpConfigState({
       workspaceId,
       userId: req.user._id,
@@ -1105,7 +1105,7 @@ const saveWorkspaceSender = asyncHandler(async (req, res) => {
   const selectedSenderUserId = String(req.body.userId || "").trim();
   const enabled = Boolean(req.body.enabled);
 
-  if (req.user.role === ROLE_TESTER) {
+  if (hasTesterAccess(req.user.role)) {
     if (!enabled || !selectedSenderUserId) {
       res.status(403);
       throw new Error("Testers can only use their own mail account as the active sender");

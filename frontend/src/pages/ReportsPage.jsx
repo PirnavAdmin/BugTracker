@@ -68,7 +68,15 @@ import {
   resolveTeamId,
   resolveUserId,
 } from "@/lib/project-teams";
-import { ROLE_ADMIN, ROLE_DEVELOPER, ROLE_MANAGER, ROLE_TEAM_LEAD, ROLE_TESTER } from "@/lib/roles";
+import {
+  hasTesterPanelAccess,
+  ROLE_ADMIN,
+  ROLE_DEVELOPER,
+  ROLE_MANAGER,
+  ROLE_QA_LEAD,
+  ROLE_TEAM_LEAD,
+  ROLE_TESTER,
+} from "@/lib/roles";
 import {
   ANALYTICS_FIELD_CLASS,
   ANALYTICS_PANEL_CLASS,
@@ -3826,7 +3834,10 @@ const JiraReportsDashboard = () => {
   const bugPriorityRows = buildGroupedBugRows(bugIssues, BUG_PRIORITY_GROUPS.map((group) => ({ ...group, labels: [group.source] })), getBugPriorityValue, { key: "Unspecified", label: "Unspecified", color: "#64748b" });
   const workloadRows = buildRows(taskIssues, (issue) => issue.assignee?._id, (issue) => resolveUserLabel(issue.assignee)).map((row) => ({ ...row, label: row.name }));
   const reportTesters = Array.from(
-    [...members.filter((member) => member.role === ROLE_TESTER), ...bugIssues.map(resolveBugTester)]
+    [
+      ...members.filter((member) => [ROLE_TESTER, ROLE_QA_LEAD].includes(member.role)),
+      ...bugIssues.map(resolveBugTester),
+    ]
       .filter(Boolean)
       .reduce((rows, tester) => {
         const testerId = resolveUserId(tester);
@@ -4388,7 +4399,7 @@ const JiraReportsDashboard = () => {
 const ReportsPage = () => {
   const { role, user } = useAuth();
 
-  if (role === ROLE_TESTER) {
+  if (hasTesterPanelAccess(role)) {
     return <TesterReportsDashboard user={user} />;
   }
 

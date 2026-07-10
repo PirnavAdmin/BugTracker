@@ -5,7 +5,7 @@ const UserEmailConfig = require("../models/UserEmailConfig");
 const WorkspaceSetting = require("../models/WorkspaceSetting");
 const { decryptSecret } = require("../utils/emailCrypto");
 const {
-  ROLE_TESTER,
+  hasTesterAccess,
   isEligibleWorkspaceSenderRole,
 } = require("../utils/roles");
 const { getWorkspaceSenderState } = require("../utils/workspaceSender");
@@ -850,7 +850,7 @@ const loadManualSenderPreferenceConfig = async ({
   }
 
   if (!ownerUser.senderPreference?.userId) {
-    if (ownerUser.role === ROLE_TESTER) {
+    if (hasTesterAccess(ownerUser.role)) {
       const testerPersonalSenderConfig = await loadUserMailerConfig({
         allowSelfSenderUserId: ownerUser._id,
         userId: ownerUser._id,
@@ -874,7 +874,7 @@ const loadManualSenderPreferenceConfig = async ({
   }
 
   if (
-    ownerUser.role === ROLE_TESTER &&
+    hasTesterAccess(ownerUser.role) &&
     String(ownerUser.senderPreference.userId) !== String(ownerUser._id)
   ) {
     await clearOwnerManualSenderPreference({
@@ -901,7 +901,7 @@ const loadManualSenderPreferenceConfig = async ({
 
   const manualSenderConfig = await loadUserMailerConfig({
     allowSelfSenderUserId:
-      ownerUser.role === ROLE_TESTER ? ownerUser._id : null,
+      hasTesterAccess(ownerUser.role) ? ownerUser._id : null,
     userId: ownerUser.senderPreference.userId,
     workspaceId: normalizedWorkspaceId,
     sourceLabel: "User-selected sender",
@@ -994,7 +994,7 @@ const getNotificationMailer = async ({ creatorUserId, workspaceId }) => {
           workspaceId: "",
         }),
   ]);
-  const isTesterOwner = manualSenderConfig.ownerUser?.role === ROLE_TESTER;
+  const isTesterOwner = hasTesterAccess(manualSenderConfig.ownerUser?.role);
 
   const manualMailer = manualSenderConfig.config
     ? buildMailerResult({

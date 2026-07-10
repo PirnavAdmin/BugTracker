@@ -28,8 +28,8 @@ import { useAuth } from "@/hooks/use-auth";
 import {
   ADMIN_PANEL_ROLES,
   ROLE_DEVELOPER,
-  ROLE_TEAM_LEAD,
-  ROLE_TESTER,
+  hasTaskStoryLeadAccess,
+  hasTesterPanelAccess,
 } from "@/lib/roles";
 import {
   findProjectById,
@@ -141,8 +141,10 @@ const StoryDetails = ({ story, projects, stories, onBack, onChanged }) => {
   const progress = story.storyProgress || {};
   const canCreateTask =
     ADMIN_PANEL_ROLES.includes(role) ||
-    [ROLE_DEVELOPER, ROLE_TEAM_LEAD, ROLE_TESTER].includes(role);
-  const canCreateBug = ADMIN_PANEL_ROLES.includes(role) || role === ROLE_TESTER;
+    [ROLE_DEVELOPER].includes(role) ||
+    hasTaskStoryLeadAccess(role) ||
+    hasTesterPanelAccess(role);
+  const canCreateBug = ADMIN_PANEL_ROLES.includes(role) || hasTesterPanelAccess(role);
   const canManageCollaborators = ADMIN_PANEL_ROLES.includes(role);
   const canDeleteStory = ADMIN_PANEL_ROLES.includes(role);
 
@@ -231,7 +233,7 @@ const StoryDetails = ({ story, projects, stories, onBack, onChanged }) => {
       {canCreateTask ? (
         <Button type="button" size="sm" onClick={() => setCreateType("Task")}>
           <Plus className="h-4 w-4" />
-          {role === ROLE_TESTER ? "Task / Update" : "Task"}
+          {hasTesterPanelAccess(role) ? "Task / Update" : "Task"}
         </Button>
       ) : null}
       {canCreateBug ? (

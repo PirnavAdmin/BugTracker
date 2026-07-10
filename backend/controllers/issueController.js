@@ -87,9 +87,12 @@ const {
   ROLE_ADMIN,
   ROLE_MANAGER,
   ROLE_TEAM_LEAD,
+  ROLE_QA_LEAD,
   ROLE_DEVELOPER,
   ROLE_TESTER,
   hasAdminAccess,
+  hasTaskStoryLeadAccess,
+  hasTesterAccess,
 } = require("../utils/roles");
 const { normalizeWorkspaceId } = require("../utils/workspace");
 const { getNextIssueDisplayId } = require("../utils/displayIds");
@@ -124,12 +127,12 @@ const isGenericIssueStatus = (status) =>
   GENERIC_ISSUE_STATUS_VALUES.includes(normalizeIssueStatus(status));
 const isBugLifecycleStatus = (status) =>
   BUG_STATUS_VALUES.includes(normalizeIssueStatus(status));
-const isQaRole = (role) => role === ROLE_TESTER;
+const isQaRole = (role) => hasTesterAccess(role);
 const isDevRole = (role) => [ROLE_DEVELOPER, ROLE_TEAM_LEAD].includes(role);
 const isLeadRole = (role) => [ROLE_ADMIN, ROLE_MANAGER].includes(role);
 const canAssignTaskWork = (user, type) =>
   isAdmin(user) ||
-  (user?.role === ROLE_TEAM_LEAD &&
+  (hasTaskStoryLeadAccess(user?.role) &&
     [ISSUE_TYPES.TASK, ISSUE_TYPES.SUB_TASK].includes(getCanonicalIssueType(type, "")));
 const canAssignBugWork = (user, type) =>
   isAdmin(user) ||
@@ -1127,7 +1130,7 @@ const isBugReportedAndUnpicked = (issue) => {
 };
 
 const canTesterModifyReportedBug = (issue, user) =>
-  user?.role === ROLE_TESTER &&
+  hasTesterAccess(user?.role) &&
   hasBugQaOwnership(issue, user?._id || user?.id) &&
   isBugReportedAndUnpicked(issue);
 
@@ -3453,7 +3456,7 @@ const getStories = asyncHandler(async (req, res) => {
     ];
   }
 
-  if ([ROLE_DEVELOPER, ROLE_TESTER].includes(req.user.role)) {
+  if ([ROLE_DEVELOPER].includes(req.user.role) || hasTesterAccess(req.user.role)) {
     addAndCondition(query, {
       $or: [
         { assignee: req.user._id },
@@ -4438,19 +4441,25 @@ const createIssue = asyncHandler(async (req, res) => {
   }
 
   if (
-    req.user.role === ROLE_TESTER &&
-    ![ISSUE_TYPES.BUG, ISSUE_TYPES.TASK, ISSUE_TYPES.SUB_TASK].includes(normalizedType)
+    hasTesterAccess(req.user.role) &&
+    !(
+      hasTaskStoryLeadAccess(req.user.role)
+        ? [ISSUE_TYPES.BUG, ISSUE_TYPES.STORY, ISSUE_TYPES.TASK, ISSUE_TYPES.SUB_TASK].includes(
+            normalizedType
+          )
+        : [ISSUE_TYPES.BUG, ISSUE_TYPES.TASK, ISSUE_TYPES.SUB_TASK].includes(normalizedType)
+    )
   ) {
     res.status(403);
-    throw new Error("Testers can only report bugs or add Story tasks");
+    throw new Error("QA users can only report bugs, create stories, or add story tasks");
   }
 
   if (
-    req.user.role === ROLE_TEAM_LEAD &&
+    hasTaskStoryLeadAccess(req.user.role) &&
     ![ISSUE_TYPES.STORY, ISSUE_TYPES.TASK, ISSUE_TYPES.SUB_TASK].includes(normalizedType)
   ) {
     res.status(403);
-    throw new Error("Team Leads can create Stories, Tasks, and Sub-tasks");
+    throw new Error("Team leads and Q/A leads can create Stories, Tasks, and Sub-tasks");
   }
 
   if (!canAssignPlanningFields && ((hasEpicInput && epicId) || (hasSprintInput && sprintId))) {
@@ -4559,9 +4568,8 @@ const createIssue = asyncHandler(async (req, res) => {
 
   if (requestedAssigneeIds.length && !assignLater && !sendToTriage) {
     const canTesterAssignBugDeveloper =
-      req.user.role === ROLE_TESTER && isBug;
-    const canTeamLeadAssignTask =
-      req.user.role === ROLE_TEAM_LEAD && canAssignTaskWork(req.user, normalizedType);
+      hasTesterAccess(req.user.role) && isBug;
+    const canTeamLeadAssignTask = canAssignTaskWork(req.user, normalizedType);
 
     if (
       !isAdmin(req.user) &&
@@ -4590,10 +4598,14 @@ const createIssue = asyncHandler(async (req, res) => {
 
       if (
         canTeamLeadAssignTask &&
-        ![ROLE_DEVELOPER, ROLE_TEAM_LEAD].includes(assigneeResult.assignee?.role)
+        ![ROLE_DEVELOPER, ROLE_TEAM_LEAD, ROLE_QA_LEAD].includes(
+          assigneeResult.assignee?.role
+        )
       ) {
         res.status(400);
-        throw new Error("Team Leads can assign tasks only to developers or team leads");
+        throw new Error(
+          "Team leads and Q/A leads can assign tasks only to developers, team leads, or Q/A leads"
+        );
       }
     }
   }
@@ -4662,9 +4674,9 @@ const createIssue = asyncHandler(async (req, res) => {
     : priority;
   const reporterName = req.user?.name || req.user?.email || "";
   const forcedTesterOwner =
-    isBug && req.user.role === ROLE_TESTER ? req.user._id : null;
+    isBug && hasTesterAccess(req.user.role) ? req.user._id : null;
   const forcedTesterOwnerName =
-    isBug && req.user.role === ROLE_TESTER ? reporterName : "";
+    isBug && hasTesterAccess(req.user.role) ? reporterName : "";
   const bugDetails = isBug
     ? buildBugDetailsDraft(req.body, {}, {
         testerOwner: forcedTesterOwner,
@@ -4724,7 +4736,7 @@ const createIssue = asyncHandler(async (req, res) => {
       bugDetails.developerLead = null;
     }
 
-    if (req.user.role === ROLE_TESTER && bugDetails.developerLead) {
+    if (hasTesterAccess(req.user.role) && bugDetails.developerLead) {
       logBugAssignmentEmailEvent("info", {
         bugId: "pending",
         senderUserId: getUserIdString(req.user),
@@ -4850,7 +4862,7 @@ const createIssue = asyncHandler(async (req, res) => {
       issue,
       actorUser: req.user,
       workspaceId: emailWorkspaceId,
-      strictTesterSender: req.user.role === ROLE_TESTER,
+      strictTesterSender: hasTesterAccess(req.user.role),
     });
   } else {
     const emails = getIssueNotificationEmails(issue);
@@ -5321,7 +5333,7 @@ const updateIssue = asyncHandler(async (req, res) => {
   if (nextIsBug) {
     nextBugDetails = buildBugDetailsDraft(req.body, issue.bugDetails || {}, {});
 
-    if (req.user.role === ROLE_TESTER) {
+    if (hasTesterAccess(req.user.role)) {
       nextBugDetails.testerOwner = req.user._id;
     }
 
@@ -5407,8 +5419,7 @@ const updateIssue = asyncHandler(async (req, res) => {
   console.log("Updating bug", { id: req.params.id, updates: req.body });
 
   if (shouldValidateAssigneeTeamMembership) {
-    const canTeamLeadAssignExistingTask =
-      req.user.role === ROLE_TEAM_LEAD && canAssignTaskWork(req.user, issue.type);
+    const canTeamLeadAssignExistingTask = canAssignTaskWork(req.user, issue.type);
     const canTeamLeadAssignExistingBug =
       req.user.role === ROLE_TEAM_LEAD && canAssignBugWork(req.user, issue.type);
 
@@ -5442,13 +5453,15 @@ const updateIssue = asyncHandler(async (req, res) => {
 
       if (
         (canTeamLeadAssignExistingTask || canTeamLeadAssignExistingBug) &&
-        ![ROLE_DEVELOPER, ROLE_TEAM_LEAD].includes(assigneeResult.assignee?.role)
+        ![ROLE_DEVELOPER, ROLE_TEAM_LEAD, ROLE_QA_LEAD].includes(
+          assigneeResult.assignee?.role
+        )
       ) {
         res.status(400);
         throw new Error(
           canTeamLeadAssignExistingBug
-            ? "Team Leads can assign bugs only to developers or team leads"
-            : "Team Leads can assign tasks only to developers or team leads"
+            ? "Team Leads can assign bugs only to developers, team leads, or Q/A leads"
+            : "Team leads and Q/A leads can assign tasks only to developers, team leads, or Q/A leads"
         );
       }
     }
@@ -5516,7 +5529,7 @@ const updateIssue = asyncHandler(async (req, res) => {
     nextDeveloperLeadUser = await ensureAssigneeExists(nextBugDeveloperId, workspaceId);
   }
 
-  if (req.user.role === ROLE_TESTER && shouldSendBugAssignmentEmail) {
+  if (hasTesterAccess(req.user.role) && shouldSendBugAssignmentEmail) {
     logBugAssignmentEmailEvent("info", {
       bugId: String(issue?.displayBugId || issue?._id || "pending"),
       senderUserId: getUserIdString(req.user),
@@ -5867,7 +5880,7 @@ const updateIssue = asyncHandler(async (req, res) => {
       issue,
       actorUser: req.user,
       workspaceId: normalizeWorkspaceId(targetProject.workspaceId || workspaceId),
-      strictTesterSender: req.user.role === ROLE_TESTER,
+      strictTesterSender: hasTesterAccess(req.user.role),
     });
   }
 
@@ -6015,7 +6028,7 @@ const deleteIssue = asyncHandler(async (req, res) => {
   const isStory = isStoryType(issue.type);
   const isUserAdmin = req.user.role === ROLE_ADMIN;
   const isUserManager = req.user.role === ROLE_MANAGER;
-  const isUserTester = req.user.role === ROLE_TESTER;
+  const isUserTester = hasTesterAccess(req.user.role);
   const isTesterOwnerOfBug = hasBugQaOwnership(issue, userId);
   const isReportedAndUnpicked = isBug && isBugReportedAndUnpicked(issue);
 

@@ -52,7 +52,12 @@ import {
   getProjectTeams,
   resolveUserId,
 } from "@/lib/project-teams";
-import { ROLE_DEVELOPER, ROLE_TEAM_LEAD } from "@/lib/roles";
+import {
+  hasTaskStoryLeadAccess,
+  ROLE_DEVELOPER,
+  ROLE_QA_LEAD,
+  ROLE_TEAM_LEAD,
+} from "@/lib/roles";
 import {
   cn,
   formatDate,
@@ -205,21 +210,21 @@ const IssueDetailsDialog = ({
   }, [availableAssignees]);
   const taskAssignableAssignees = useMemo(
     () =>
-      role === ROLE_TEAM_LEAD && ["Task", "Sub-task"].includes(detailDraft.type)
+      hasTaskStoryLeadAccess(role) && ["Task", "Sub-task"].includes(detailDraft.type)
         ? availableAssignees.filter((assignee) =>
-            ["Developer", ROLE_TEAM_LEAD].includes(assignee.role)
+            [ROLE_DEVELOPER, ROLE_TEAM_LEAD, ROLE_QA_LEAD].includes(assignee.role)
           )
         : availableAssignees,
     [availableAssignees, detailDraft.type, role]
   );
   const assigneeOptions = useMemo(() => {
-    if (role !== ROLE_TEAM_LEAD) {
+    if (!hasTaskStoryLeadAccess(role)) {
       return taskAssignableAssignees;
     }
 
     if (detailDraft.type === "Bug") {
       return availableAssignees.filter((assignee) =>
-        [ROLE_DEVELOPER, ROLE_TEAM_LEAD].includes(assignee.role)
+        [ROLE_DEVELOPER, ROLE_TEAM_LEAD, ROLE_QA_LEAD].includes(assignee.role)
       );
     }
 

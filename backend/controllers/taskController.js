@@ -7,7 +7,7 @@ const {
 } = require("../utils/issuePresentation");
 const { ISSUE_STATUS } = require("../utils/issueStatus");
 const { ISSUE_TYPES } = require("../utils/issueTypes");
-const { ROLE_TESTER } = require("../utils/roles");
+const { hasTesterAccess } = require("../utils/roles");
 
 const RECENT_TASK_LIMIT = 5;
 
@@ -55,9 +55,9 @@ const updateTaskStatus = asyncHandler(async (req, res, next) => {
 });
 
 const getRecentTasks = asyncHandler(async (req, res) => {
-  if (req.user.role !== ROLE_TESTER) {
+  if (!hasTesterAccess(req.user.role)) {
     res.status(403);
-    throw new Error("Only testers can access recent tasks");
+    throw new Error("Only tester roles can access recent tasks");
   }
 
   const tasks = await populateIssueQuery(

@@ -32,7 +32,7 @@ import {
 
 const MANAGER_ROLES = ["Admin", "Manager"];
 const TEAM_LEAD_ROLES = ["Admin", "Manager", "Developer"];
-const QA_LEAD_ROLES = ["Admin", "Manager", "Tester"];
+const QA_LEAD_ROLES = ["Admin", "Manager", "Tester", "Q/A Lead"];
 const PROJECT_STATUSES = ["Active", "On Hold", "Completed"];
 const PROJECT_PRIORITIES = ["Low", "Medium", "High", "Critical"];
 

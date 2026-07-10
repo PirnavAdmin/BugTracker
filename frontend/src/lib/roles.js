@@ -1,6 +1,7 @@
 export const ROLE_ADMIN = "Admin";
 export const ROLE_MANAGER = "Manager";
 export const ROLE_TEAM_LEAD = "Team Lead";
+export const ROLE_QA_LEAD = "Q/A Lead";
 export const ROLE_DEVELOPER = "Developer";
 export const ROLE_TESTER = "Tester";
 
@@ -8,18 +9,24 @@ export const WORKSPACE_ROLE_OPTIONS = [
   ROLE_ADMIN,
   ROLE_MANAGER,
   ROLE_TEAM_LEAD,
+  ROLE_QA_LEAD,
   ROLE_DEVELOPER,
   ROLE_TESTER,
 ];
 
 export const ADMIN_PANEL_ROLES = [ROLE_ADMIN, ROLE_MANAGER];
+export const TESTER_PANEL_ROLES = [ROLE_TESTER, ROLE_QA_LEAD];
+export const TASK_STORY_LEAD_ROLES = [ROLE_TEAM_LEAD, ROLE_QA_LEAD];
 
 export const hasAdminPanelAccess = (role) => ADMIN_PANEL_ROLES.includes(role);
+export const hasTesterPanelAccess = (role) => TESTER_PANEL_ROLES.includes(role);
+export const hasTaskStoryLeadAccess = (role) => TASK_STORY_LEAD_ROLES.includes(role);
 
 export const dashboardPathByRole = {
   [ROLE_ADMIN]: "/admin/dashboard",
   [ROLE_MANAGER]: "/admin/dashboard",
   [ROLE_TEAM_LEAD]: "/dev/dashboard",
+  [ROLE_QA_LEAD]: "/tester/dashboard",
   [ROLE_DEVELOPER]: "/dev/dashboard",
   [ROLE_TESTER]: "/tester/dashboard",
 };
@@ -51,9 +58,9 @@ export const getRoleNavigation = (role) => {
     return navigation;
   }
 
-  if (role === ROLE_TESTER) {
+  if (hasTesterPanelAccess(role)) {
     return [
-      { label: "Dashboard", href: dashboardPathByRole[ROLE_TESTER], icon: "dashboard" },
+      { label: "Dashboard", href: dashboardPathByRole[role] || dashboardPathByRole[ROLE_TESTER], icon: "dashboard" },
       { label: "Stories", href: "/stories", icon: "stories" },
       { label: "Tasks", href: "/tasks", icon: "tasks" },
       { label: "Bugs", href: "/bugs", icon: "bugs" },
@@ -81,7 +88,7 @@ export const getPageMeta = (pathname, role) => {
   }
 
   if (pathname === "/dev/settings") {
-    if (role === ROLE_TESTER) {
+    if (hasTesterPanelAccess(role)) {
       return {
         title: "Mail Settings",
         description:
@@ -187,7 +194,7 @@ export const getPageMeta = (pathname, role) => {
       };
     }
 
-    if (role === ROLE_TESTER) {
+    if (hasTesterPanelAccess(role)) {
       return {
         title: "Assigned Project Bugs",
         description:
@@ -212,7 +219,8 @@ export const getPageMeta = (pathname, role) => {
 
 export const canManageUsers = (role) => hasAdminPanelAccess(role);
 export const canManageProjects = (role) => hasAdminPanelAccess(role);
-export const canAssignIssues = (role) => hasAdminPanelAccess(role);
+export const canAssignIssues = (role) =>
+  hasAdminPanelAccess(role) || hasTaskStoryLeadAccess(role);
 export const canDeleteIssues = (role) => hasAdminPanelAccess(role);
 export const canCreateIssues = (role) =>
-  hasAdminPanelAccess(role) || role === ROLE_TESTER;
+  hasAdminPanelAccess(role) || hasTesterPanelAccess(role);

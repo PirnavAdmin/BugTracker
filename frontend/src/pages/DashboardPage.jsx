@@ -103,6 +103,7 @@ const USER_ROLE_DISTRIBUTION_META = [
   { key: "Admin", label: "Admins", color: "#2563eb" },
   { key: "Manager", label: "Managers", color: "#0891b2" },
   { key: "Team Lead", label: "Team Leads", color: "#7c3aed" },
+  { key: "Q/A Lead", label: "Q/A Leads", color: "#ec4899" },
   { key: "Developer", label: "Developers", color: "#10b981" },
   { key: "Tester", label: "Testers", color: "#f59e0b" },
 ];

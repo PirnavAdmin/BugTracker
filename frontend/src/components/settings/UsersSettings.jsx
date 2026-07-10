@@ -46,6 +46,7 @@ const summaryIconMap = {
   [USER_FILTER_KEY_ALL]: Users2,
   Admin: ShieldCheck,
   Manager: UserCircle2,
+  "Q/A Lead": CheckCircle2,
   Developer: MailPlus,
   Tester: CheckCircle2,
 };
@@ -83,6 +84,7 @@ const UsersSettings = ({
       total: users.length,
       adminCount: countByRole("Admin"),
       managerCount: countByRole("Manager"),
+      qaLeadCount: countByRole("Q/A Lead"),
       developerCount: countByRole("Developer"),
       testerCount: countByRole("Tester"),
     };
@@ -107,6 +109,12 @@ const UsersSettings = ({
         label: "Managers",
         count: stats.managerCount,
         description: "Delivery managers",
+      },
+      {
+        key: "Q/A Lead",
+        label: "Q/A Leads",
+        count: stats.qaLeadCount,
+        description: "QA owners with assignment access",
       },
       {
         key: "Developer",

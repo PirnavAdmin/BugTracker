@@ -10,8 +10,10 @@ import {
   getDashboardPathByRole,
   ROLE_ADMIN,
   ROLE_DEVELOPER,
+  ROLE_QA_LEAD,
   ROLE_TEAM_LEAD,
   ROLE_TESTER,
+  TESTER_PANEL_ROLES,
 } from "@/lib/roles";
 
 const AuthPage = lazy(() => import("@/pages/AuthPage"));
@@ -128,7 +130,7 @@ const LegacyDashboardRedirect = () => {
 const SelfSettingsRoute = () => {
   const { role } = useAuth();
 
-  return role === ROLE_TESTER ? <UserSettingsPage /> : <DeveloperSettingsPage />;
+  return TESTER_PANEL_ROLES.includes(role) ? <UserSettingsPage /> : <DeveloperSettingsPage />;
 };
 
 const BugsRoute = () => {
@@ -189,7 +191,7 @@ const App = () => (
       <Route
         path="/profile"
         element={
-          <ProtectedRoute roles={[...ADMIN_PANEL_ROLES, ROLE_DEVELOPER, ROLE_TEAM_LEAD, ROLE_TESTER]}>
+          <ProtectedRoute roles={[...ADMIN_PANEL_ROLES, ROLE_DEVELOPER, ROLE_TEAM_LEAD, ROLE_QA_LEAD, ROLE_TESTER]}>
             <Suspense fallback={<PublicRouteFallback />}>
               <ProfilePage />
             </Suspense>
@@ -199,7 +201,7 @@ const App = () => (
       <Route
         path="/settings"
         element={
-          <ProtectedRoute roles={[ROLE_DEVELOPER, ROLE_TEAM_LEAD, ROLE_TESTER, ...ADMIN_PANEL_ROLES]}>
+          <ProtectedRoute roles={[ROLE_DEVELOPER, ROLE_TEAM_LEAD, ROLE_QA_LEAD, ROLE_TESTER, ...ADMIN_PANEL_ROLES]}>
             <SelfSettingsRoute />
           </ProtectedRoute>
         }
@@ -239,7 +241,7 @@ const App = () => (
       <Route
         path="/dev/settings"
         element={
-          <ProtectedRoute roles={[ROLE_DEVELOPER, ROLE_TEAM_LEAD, ROLE_TESTER]}>
+          <ProtectedRoute roles={[ROLE_DEVELOPER, ROLE_TEAM_LEAD, ROLE_QA_LEAD, ROLE_TESTER]}>
             <SelfSettingsRoute />
           </ProtectedRoute>
         }
@@ -247,7 +249,7 @@ const App = () => (
       <Route
         path="/tester/dashboard"
         element={
-          <ProtectedRoute roles={[ROLE_TESTER]}>
+          <ProtectedRoute roles={TESTER_PANEL_ROLES}>
             <TesterDashboardPage />
           </ProtectedRoute>
         }
@@ -255,7 +257,7 @@ const App = () => (
       <Route
         path="/bugs"
         element={
-          <ProtectedRoute roles={[...ADMIN_PANEL_ROLES, ROLE_TESTER]}>
+          <ProtectedRoute roles={[...ADMIN_PANEL_ROLES, ...TESTER_PANEL_ROLES]}>
             <BugsRoute />
           </ProtectedRoute>
         }
@@ -321,7 +323,7 @@ const App = () => (
       <Route
         path="/stories"
         element={
-          <ProtectedRoute roles={[...ADMIN_PANEL_ROLES, ROLE_TEAM_LEAD, ROLE_DEVELOPER, ROLE_TESTER]}>
+          <ProtectedRoute roles={[...ADMIN_PANEL_ROLES, ROLE_TEAM_LEAD, ROLE_QA_LEAD, ROLE_DEVELOPER, ROLE_TESTER]}>
             <StoriesPage />
           </ProtectedRoute>
         }
@@ -329,7 +331,7 @@ const App = () => (
       <Route
         path="/stories/:storyId"
         element={
-          <ProtectedRoute roles={[...ADMIN_PANEL_ROLES, ROLE_TEAM_LEAD, ROLE_DEVELOPER, ROLE_TESTER]}>
+          <ProtectedRoute roles={[...ADMIN_PANEL_ROLES, ROLE_TEAM_LEAD, ROLE_QA_LEAD, ROLE_DEVELOPER, ROLE_TESTER]}>
             <StoriesPage />
           </ProtectedRoute>
         }
@@ -338,7 +340,7 @@ const App = () => (
         path="/chat"
         element={
           <ProtectedRoute
-            roles={[...ADMIN_PANEL_ROLES, ROLE_TEAM_LEAD, ROLE_DEVELOPER, ROLE_TESTER]}
+            roles={[...ADMIN_PANEL_ROLES, ROLE_TEAM_LEAD, ROLE_QA_LEAD, ROLE_DEVELOPER, ROLE_TESTER]}
           >
             <ChatPage />
           </ProtectedRoute>
@@ -347,7 +349,7 @@ const App = () => (
       <Route
         path="/tasks"
         element={
-          <ProtectedRoute roles={[...ADMIN_PANEL_ROLES, ROLE_DEVELOPER, ROLE_TEAM_LEAD, ROLE_TESTER]}>
+          <ProtectedRoute roles={[...ADMIN_PANEL_ROLES, ROLE_DEVELOPER, ROLE_TEAM_LEAD, ROLE_QA_LEAD, ROLE_TESTER]}>
             <TasksRoute />
           </ProtectedRoute>
         }

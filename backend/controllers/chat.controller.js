@@ -18,7 +18,7 @@ const {
 } = require("../utils/projectRelations");
 const { normalizeWorkspaceId } = require("../utils/workspace");
 
-const CHAT_ACCESS_ROLES = ["Admin", "Manager", "Team Lead", "Developer", "Tester"];
+const CHAT_ACCESS_ROLES = ["Admin", "Manager", "Team Lead", "Q/A Lead", "Developer", "Tester"];
 const MAX_MESSAGE_LENGTH = 4000;
 const DEFAULT_MESSAGE_LIMIT = 30;
 const MAX_MESSAGE_LIMIT = 80;

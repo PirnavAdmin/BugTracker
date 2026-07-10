@@ -18,7 +18,7 @@ const projectMemberSchema = new Schema(
     },
     role: {
       type: String,
-      enum: ["Developer", "Tester", "Team Lead", "Manager"],
+      enum: ["Developer", "Tester", "Q/A Lead", "Team Lead", "Manager"],
       required: [true, "Project member role is required"],
       default: "Developer",
     },
