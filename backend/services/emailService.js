@@ -10,6 +10,7 @@ const {
 } = require("../utils/roles");
 const { getWorkspaceSenderState } = require("../utils/workspaceSender");
 const { normalizeWorkspaceId } = require("../utils/workspace");
+const { formatDateTime } = require("../utils/dateTime");
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const TESTER_SMTP_REQUIRED_MESSAGE =
   "Please configure your SMTP settings before assigning bugs by email.";
@@ -27,14 +28,6 @@ const escapeHtml = (value = "") =>
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
-
-const formatDateTime = (value) => {
-  if (!value) {
-    return "Not set";
-  }
-
-  return new Date(value).toLocaleString();
-};
 
 const getStatusLabel = (status = "") => {
   if (!status) {

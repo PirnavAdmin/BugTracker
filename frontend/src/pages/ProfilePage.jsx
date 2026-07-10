@@ -3,7 +3,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { getInitials } from "@/lib/utils";
+import { formatDate, getInitials } from "@/lib/utils";
 import {
   Mail,
   Briefcase,
@@ -30,11 +30,7 @@ const ProfilePage = () => {
   }
 
   const formattedJoinDate = user.createdAt
-    ? new Date(user.createdAt).toLocaleDateString("en-US", {
-        year: "numeric",
-        month: "long",
-        day: "numeric",
-      })
+    ? formatDate(user.createdAt, { fallback: "Not available" })
     : "Not available";
 
   const infoCards = [

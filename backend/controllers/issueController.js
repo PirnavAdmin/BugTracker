@@ -71,6 +71,10 @@ const {
 } = require("../utils/issueFilters");
 const { canManageProjectPlanning } = require("../utils/backlogAccess");
 const {
+  createUtcDateFromIndianParts,
+  parseFlexibleDateInput,
+} = require("../utils/dateTime");
+const {
   buildProjectAccessQuery,
   getProjectIdsForUserThroughTeams,
   mergeProjectTeamIds,
@@ -165,30 +169,18 @@ const parseSpreadsheetDate = (value) => {
     const parsedDate = XLSX.SSF.parse_date_code(value);
 
     if (parsedDate) {
-      return new Date(
-        parsedDate.y,
-        Math.max(parsedDate.m - 1, 0),
-        parsedDate.d,
-        parsedDate.H || 0,
-        parsedDate.M || 0,
-        parsedDate.S || 0
-      );
+      return createUtcDateFromIndianParts({
+        year: parsedDate.y,
+        month: Math.max(parsedDate.m, 1),
+        day: parsedDate.d,
+        hours: parsedDate.H || 0,
+        minutes: parsedDate.M || 0,
+        seconds: parsedDate.S || 0,
+      });
     }
   }
 
-  const trimmedValue = String(value || "").trim();
-
-  if (!trimmedValue) {
-    return null;
-  }
-
-  const parsedTime = Date.parse(trimmedValue);
-
-  if (Number.isNaN(parsedTime)) {
-    return null;
-  }
-
-  return new Date(parsedTime);
+  return parseFlexibleDateInput(value);
 };
 
 const TASK_IMPORT_REQUIRED_FIELDS = Object.freeze([
@@ -1376,9 +1368,9 @@ const parseOptionalDateInput = (value, label) => {
     };
   }
 
-  const parsedValue = new Date(value);
+  const parsedValue = parseFlexibleDateInput(value);
 
-  if (Number.isNaN(parsedValue.getTime())) {
+  if (!parsedValue) {
     return {
       error: {
         status: 400,

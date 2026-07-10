@@ -4,30 +4,9 @@ import { Button } from "@/components/ui/button";
 import ChatHeader from "@/components/chat/ChatHeader";
 import MessageBubble from "@/components/chat/MessageBubble";
 import MessageInput from "@/components/chat/MessageInput";
+import { formatRelativeDateLabel, getIndianDateKey } from "@/lib/utils";
 
 const getId = (value) => String(value?._id || value?.id || value || "");
-
-const formatDateSeparator = (value) => {
-  const date = new Date(value);
-  const today = new Date();
-  const yesterday = new Date();
-
-  yesterday.setDate(today.getDate() - 1);
-
-  if (date.toDateString() === today.toDateString()) {
-    return "Today";
-  }
-
-  if (date.toDateString() === yesterday.toDateString()) {
-    return "Yesterday";
-  }
-
-  return new Intl.DateTimeFormat("en", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  }).format(date);
-};
 
 const ChatWindow = memo(
   ({
@@ -61,13 +40,13 @@ const ChatWindow = memo(
       let previousDate = "";
 
       messages.forEach((message) => {
-        const dateKey = new Date(message.createdAt).toDateString();
+        const dateKey = getIndianDateKey(message.createdAt);
 
         if (dateKey !== previousDate) {
           rows.push({
             type: "date",
             id: `date-${dateKey}`,
-            label: formatDateSeparator(message.createdAt),
+            label: formatRelativeDateLabel(message.createdAt),
           });
           previousDate = dateKey;
         }
