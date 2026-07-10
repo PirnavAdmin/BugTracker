@@ -48,7 +48,7 @@ import {
 } from "recharts";
 import useAnalytics, { useDeveloperDashboard } from "@/hooks/use-analytics";
 import { useAuth } from "@/hooks/use-auth";
-import { fetchBugs, fetchEpics, fetchIssues, fetchProjects, fetchSprints } from "@/lib/api";
+import { fetchEpics, fetchProjects, fetchSprints } from "@/lib/api";
 import {
   BUG_STATUS_OPTIONS,
   BUG_SEVERITY_OPTIONS,
@@ -3606,118 +3606,6 @@ const JiraReportsDashboard = () => {
     enabled: Boolean(selectedProjectId),
   });
   const statusParts = getStatusParts(filters.status);
-  const listFilter =
-    statusParts.statusGroup === "open"
-      ? "open"
-      : statusParts.statusGroup === "closed"
-        ? "closed"
-        : "all";
-  const {
-    data: taskIssuesResponse = [],
-    isLoading: taskIssuesLoading,
-    error: taskIssuesError,
-  } = useQuery({
-    queryKey: [
-      "jira-reports",
-      "task-issues",
-      filters.projectId,
-      filters.teamId,
-      filters.developerId,
-      filters.priority,
-      filters.status,
-      filters.sprintId,
-      filters.dateFrom,
-      filters.dateTo,
-    ],
-    queryFn: () =>
-      fetchIssues({
-        excludeType: ISSUE_TYPES.BUG,
-        projectId: filters.projectId === "all" ? "" : filters.projectId,
-        teamId: filters.teamId,
-        assigneeId: filters.developerId,
-        priority: filters.priority,
-        status: statusParts.status,
-        sprintId: filters.sprintId,
-        dateFrom: filters.dateFrom,
-        dateTo: filters.dateTo,
-        filter: listFilter,
-      }),
-    staleTime: 30_000,
-  });
-  const {
-    data: bugIssuesResponse = [],
-    isLoading: bugIssuesLoading,
-    error: bugIssuesError,
-  } = useQuery({
-    queryKey: [
-      "jira-reports",
-      "bug-issues",
-      filters.projectId,
-      filters.teamId,
-      filters.developerId,
-      filters.testerId,
-      filters.priority,
-      filters.severity,
-      filters.status,
-      filters.sprintId,
-      filters.dateFrom,
-      filters.dateTo,
-    ],
-    queryFn: () =>
-      fetchBugs({
-        projectId: filters.projectId === "all" ? "" : filters.projectId,
-        teamId: filters.teamId,
-        developerId: filters.developerId,
-        testerId: filters.testerId,
-        priority: filters.priority,
-        severity: filters.severity,
-        status: statusParts.status,
-        sprintId: filters.sprintId,
-        dateFrom: filters.dateFrom,
-        dateTo: filters.dateTo,
-        filter: listFilter,
-      }),
-    staleTime: 30_000,
-  });
-  const {
-    data: bugSummaryResponse = null,
-    isLoading: bugSummaryLoading,
-    error: bugSummaryError,
-  } = useQuery({
-    queryKey: [
-      "jira-reports",
-      "bug-summary",
-      filters.projectId,
-      filters.teamId,
-      filters.developerId,
-      filters.testerId,
-      filters.priority,
-      filters.severity,
-      filters.status,
-      filters.sprintId,
-      filters.dateFrom,
-      filters.dateTo,
-    ],
-    queryFn: () =>
-      fetchBugs({
-        paginate: true,
-        page: 1,
-        limit: 1,
-        projectId: filters.projectId === "all" ? "" : filters.projectId,
-        teamId: filters.teamId,
-        developerId: filters.developerId,
-        testerId: filters.testerId,
-        priority: filters.priority,
-        severity: filters.severity,
-        status: statusParts.status,
-        sprintId: filters.sprintId,
-        dateFrom: filters.dateFrom,
-        dateTo: filters.dateTo,
-        filter: listFilter,
-      }),
-    enabled: filters.releaseId === "all",
-    staleTime: 30_000,
-  });
 
   const teams = useMemo(() => {
     const rows = new Map();
@@ -3743,8 +3631,23 @@ const JiraReportsDashboard = () => {
     return Array.from(rows.values()).sort((left, right) => (left.name || "").localeCompare(right.name || ""));
   }, [filters.projectId, projects]);
 
-  const rawTaskIssues = asArray(taskIssuesResponse?.issues || taskIssuesResponse);
-  const rawBugIssues = asArray(bugIssuesResponse?.bugs || bugIssuesResponse);
+  const analyticsFilters = {
+    dateFrom: toLocalDayBoundaryIso(filters.dateFrom),
+    dateTo: toLocalDayBoundaryIso(filters.dateTo, true),
+    projectId: filters.projectId,
+    teamId: filters.teamId,
+    assigneeId: filters.developerId,
+    developerId: filters.developerId,
+    testerId: filters.testerId,
+    priority: filters.priority,
+    severity: filters.severity,
+    sprintId: filters.sprintId,
+    ...statusParts,
+  };
+  const taskAnalytics = useAnalytics({ ...analyticsFilters, type: ISSUE_TYPES.TASK }, { includeIssues: true });
+  const bugAnalytics = useAnalytics({ ...analyticsFilters, type: ISSUE_TYPES.BUG }, { includeIssues: true });
+  const rawTaskIssues = asArray(taskAnalytics.issues?.issues);
+  const rawBugIssues = asArray(bugAnalytics.issues?.issues);
   const releaseMatches = (issue) => filters.releaseId === "all" || getIssueReleaseId(issue) === filters.releaseId;
   const taskIssues = rawTaskIssues.filter((issue) => !isDeletedIssue(issue) && releaseMatches(issue));
   const bugIssues = rawBugIssues.filter((issue) => !isDeletedIssue(issue) && releaseMatches(issue));
@@ -3769,25 +3672,12 @@ const JiraReportsDashboard = () => {
     });
     return Array.from(rows.entries()).map(([id, name]) => ({ id, name }));
   }, [rawBugIssues, rawTaskIssues]);
-  const bugSummaryCounts =
-    filters.releaseId === "all"
-      ? bugSummaryResponse?.summary || null
-      : null;
-
   if (!REPORT_PAGE_KEYS.has(activePage)) {
     return <Navigate to="/reports" replace />;
   }
 
-  const isLoading =
-    projectsLoading ||
-    taskIssuesLoading ||
-    bugIssuesLoading ||
-    (filters.releaseId === "all" && bugSummaryLoading);
-  const error =
-    projectsError ||
-    taskIssuesError ||
-    bugIssuesError ||
-    (filters.releaseId === "all" ? bugSummaryError : null);
+  const isLoading = projectsLoading || taskAnalytics.isLoading || bugAnalytics.isLoading;
+  const error = projectsError || taskAnalytics.error || bugAnalytics.error;
   const updateFilter = (key, value) => {
     setDrilldown(null);
     const nextFilters = {
@@ -3976,16 +3866,6 @@ const JiraReportsDashboard = () => {
       !isReopened(issue) &&
       !isBugClosed(issue)
   );
-  const bugCardCounts = {
-    workQueue: bugSummaryCounts?.bucket ?? workQueueBugs.length,
-    assigned: bugSummaryCounts?.assigned ?? assignedBugs.length,
-    closed: bugSummaryCounts?.closed ?? closedReportBugs.length,
-    inProgress: bugSummaryCounts?.inProgress ?? inProgressBugs.length,
-    readyForQa: bugSummaryCounts?.readyForQa ?? readyForQaBugs.length,
-    reopened: bugSummaryCounts?.reopened ?? currentReopenedBugs.length,
-    other: bugSummaryCounts?.other ?? otherBugs.length,
-    total: bugSummaryCounts?.total ?? bugIssues.length,
-  };
   const taskPerformanceRows = buildDeveloperRankingRows(developerPerformance, (developer) => ({
     closed: developer.taskMetrics.completed,
     total: developer.taskMetrics.total,
@@ -4069,14 +3949,14 @@ const JiraReportsDashboard = () => {
       return (
         <>
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-8">
-            <JiraKpi label="Work Queue" value={formatCompactNumber(bugCardCounts.workQueue)} helper="Unassigned bugs ready for pickup" onClick={() => drillTo("Work queue bugs", workQueueBugs)} />
-            <JiraKpi label="Assigned Bugs" value={formatCompactNumber(bugCardCounts.assigned)} helper="Assigned to developers" onClick={() => drillTo("Assigned bugs", assignedBugs)} />
-            <JiraKpi label="Closed Bugs" value={formatCompactNumber(bugCardCounts.closed)} helper="Verified and closed" onClick={() => drillTo("Closed bugs", closedReportBugs)} />
-            <JiraKpi label="In Progress" value={formatCompactNumber(bugCardCounts.inProgress)} helper="Active bug fixes" onClick={() => drillTo("In progress bugs", inProgressBugs)} />
-            <JiraKpi label="Ready For QA" value={formatCompactNumber(bugCardCounts.readyForQa)} helper="Awaiting tester verification" onClick={() => drillTo("Ready For QA", readyForQaBugs)} />
-            <JiraKpi label="Reopen" value={formatCompactNumber(bugCardCounts.reopened)} helper="Returned for follow-up" onClick={() => drillTo("Reopened bugs", currentReopenedBugs)} />
-            <JiraKpi label="Other Bugs" value={formatCompactNumber(bugCardCounts.other)} helper="Outside main workflow buckets" onClick={() => drillTo("Other bugs", otherBugs)} />
-            <JiraKpi label="Total Bugs" value={formatCompactNumber(bugCardCounts.total)} helper="All filtered bugs" onClick={() => drillTo("All bugs", bugIssues)} />
+            <JiraKpi label="Work Queue" value={formatCompactNumber(workQueueBugs.length)} helper="Unassigned bugs ready for pickup" onClick={() => drillTo("Work queue bugs", workQueueBugs)} />
+            <JiraKpi label="Assigned Bugs" value={formatCompactNumber(assignedBugs.length)} helper="Assigned to developers" onClick={() => drillTo("Assigned bugs", assignedBugs)} />
+            <JiraKpi label="Closed Bugs" value={formatCompactNumber(closedReportBugs.length)} helper="Verified and closed" onClick={() => drillTo("Closed bugs", closedReportBugs)} />
+            <JiraKpi label="In Progress" value={formatCompactNumber(inProgressBugs.length)} helper="Active bug fixes" onClick={() => drillTo("In progress bugs", inProgressBugs)} />
+            <JiraKpi label="Ready For QA" value={formatCompactNumber(readyForQaBugs.length)} helper="Awaiting tester verification" onClick={() => drillTo("Ready For QA", readyForQaBugs)} />
+            <JiraKpi label="Reopen" value={formatCompactNumber(currentReopenedBugs.length)} helper="Returned for follow-up" onClick={() => drillTo("Reopened bugs", currentReopenedBugs)} />
+            <JiraKpi label="Other Bugs" value={formatCompactNumber(otherBugs.length)} helper="Outside main workflow buckets" onClick={() => drillTo("Other bugs", otherBugs)} />
+            <JiraKpi label="Total Bugs" value={formatCompactNumber(bugIssues.length)} helper="All filtered bugs" onClick={() => drillTo("All bugs", bugIssues)} />
           </div>
           {renderDrilldownPanel()}
           {!hasDrilldown ? (
