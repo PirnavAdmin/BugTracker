@@ -2885,6 +2885,25 @@ const buildDefaultJiraReportFilters = () => ({
   ...getReportDatePreset(DEFAULT_REPORT_DATE_PRESET),
 });
 
+const normalizeCustomReportDateRange = (filters = {}, datePreset = DEFAULT_REPORT_DATE_PRESET) => {
+  if (datePreset !== "custom") {
+    return filters;
+  }
+
+  const dateFrom = filters?.dateFrom || "";
+  const dateTo = filters?.dateTo || "";
+
+  if (dateFrom && dateTo && String(dateFrom) > String(dateTo)) {
+    return {
+      ...filters,
+      dateFrom: dateTo,
+      dateTo: dateFrom,
+    };
+  }
+
+  return filters;
+};
+
 const isValidReportDatePreset = (value) =>
   REPORT_DATE_PRESETS.some((preset) => preset.value === value);
 
@@ -2908,16 +2927,17 @@ const readJiraReportStateFromSearchParams = (searchParams) => {
   return {
     comparisonMode: searchParams.get("comparison") || DEFAULT_REPORT_COMPARISON_MODE,
     datePreset,
-    filters,
+    filters: normalizeCustomReportDateRange(filters, datePreset),
   };
 };
 
 const buildJiraReportSearchParams = (filters, datePreset, comparisonMode) => {
   const defaults = buildDefaultJiraReportFilters();
+  const normalizedFilters = normalizeCustomReportDateRange(filters, datePreset);
   const nextParams = new URLSearchParams();
 
   REPORT_FILTER_KEYS.forEach((key) => {
-    const value = filters?.[key] || "";
+    const value = normalizedFilters?.[key] || "";
     const isCustomDateField =
       datePreset === "custom" && ["dateFrom", "dateTo"].includes(key);
 
@@ -3680,11 +3700,16 @@ const JiraReportsDashboard = () => {
   const error = projectsError || taskAnalytics.error || bugAnalytics.error;
   const updateFilter = (key, value) => {
     setDrilldown(null);
-    const nextFilters = {
+    let nextFilters = {
       ...filters,
       [key]: value,
       ...(key === "projectId" ? { sprintId: "all", teamId: "all", developerId: "all", testerId: "all" } : {}),
     };
+
+    if (datePreset === "custom" && (key === "dateFrom" || key === "dateTo")) {
+      nextFilters = normalizeCustomReportDateRange(nextFilters, datePreset);
+    }
+
     setFilters(nextFilters);
     replaceReportSearch(nextFilters, datePreset, comparisonMode);
   };
