@@ -39,6 +39,7 @@ import {
   getIssuePriorityVariant,
   getIssueStatusLabel,
   getIssueStatusVariant,
+  isIssueOverdue,
   normalizeBugStatusForIssue,
   normalizeIssueStatus,
   resolveBugDetails,
@@ -539,6 +540,10 @@ const TesterDashboardPage = () => {
 
     return metrics;
   }, [visibleIssues]);
+  const overdueTasksCount = useMemo(
+    () => (Array.isArray(recentTasks) ? recentTasks : []).filter((issue) => isIssueOverdue(issue)).length,
+    [recentTasks]
+  );
   const statusChartData = useMemo(
     () =>
       STATUS_CHART_META.map((item) => ({
@@ -678,6 +683,12 @@ const TesterDashboardPage = () => {
             value={dashboardMetrics[item.key]}
           />
         ))}
+        <SummaryCard
+          Icon={AlertTriangle}
+          className="from-rose-500 to-orange-500"
+          label="My Overdue Tasks"
+          value={overdueTasksCount}
+        />
       </section>
 
       <section className="grid gap-5 xl:grid-cols-[0.86fr_1.14fr]">

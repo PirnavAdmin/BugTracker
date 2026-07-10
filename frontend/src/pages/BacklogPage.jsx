@@ -9,6 +9,7 @@ import {
   deleteSprint,
   fetchBacklogBoard,
   fetchProjects,
+  reopenSprint,
   reorderIssuePlanning,
   startSprint,
   updateEpic,
@@ -33,6 +34,9 @@ import EmptyState from "@/components/shared/EmptyState";
 import ToastNotice from "@/components/shared/ToastNotice";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useAuth } from "@/hooks/use-auth";
+import { isSprintLocked } from "@/lib/issues";
+import { ROLE_ADMIN } from "@/lib/roles";
 
 const BACKLOG_PROJECT_FILTER_STORAGE_KEY = "pirnav.backlog.projectId";
 
@@ -427,6 +431,7 @@ const moveIssueLocally = ({ boardState, issueId, destinationSprintId = "", overI
 };
 
 const BacklogPage = () => {
+  const { role } = useAuth();
   const queryClient = useQueryClient();
   const [filters, setFilters] = useState(createDefaultFilters);
   const [boardState, setBoardState] = useState(createBoardState(null));
@@ -625,7 +630,7 @@ const BacklogPage = () => {
     [boardState.sprintSections]
   );
   const assignableSprints = useMemo(
-    () => allSprints.filter((sprint) => sprint.state !== "COMPLETED"),
+    () => allSprints.filter((sprint) => !isSprintLocked(sprint)),
     [allSprints]
   );
   const plannedSprints = useMemo(
@@ -833,6 +838,10 @@ const BacklogPage = () => {
   });
   const completeSprintMutation = useMutation({
     mutationFn: completeSprint,
+    onSuccess: async () => invalidatePlanningQueries(),
+  });
+  const reopenSprintMutation = useMutation({
+    mutationFn: reopenSprint,
     onSuccess: async () => invalidatePlanningQueries(),
   });
   const updatePlanningMutation = useMutation({
@@ -1210,6 +1219,7 @@ const BacklogPage = () => {
                       issues={section.issues}
                       availableSprints={assignableSprints}
                       canManageSprints={permissions.canManageSprints}
+                      canAdminReopen={role === ROLE_ADMIN}
                       canManagePlanning={permissions.canAssignIssues}
                       canReorderIssues={permissions.canReorderIssues}
                       planningUpdatingIssueId={planningUpdatingIssueId}
@@ -1299,7 +1309,47 @@ const BacklogPage = () => {
                         }
                       }}
                       isStartPending={startingSprintId === section.sprint._id}
-                      onCompleteSprint={() => setCompletionSprint(section.sprint)}
+                      onCompleteSprint={() => {
+                        if (isSprintLocked(section.sprint)) {
+                          setToast({
+                            type: "error",
+                            message:
+                              section.sprint.lockReason ||
+                              "Sprint has ended. Create a new sprint to continue working.",
+                          });
+                          return;
+                        }
+
+                        setCompletionSprint(section.sprint);
+                      }}
+                      onReopenSprint={async () => {
+                        if (reopenSprintMutation.isPending) {
+                          return;
+                        }
+
+                        const confirmed = window.confirm(
+                          `Reopen sprint "${section.sprint.name}"? Developers will be allowed to update tasks again.`
+                        );
+
+                        if (!confirmed) {
+                          return;
+                        }
+
+                        try {
+                          await reopenSprintMutation.mutateAsync(section.sprint._id);
+                          setToast({
+                            type: "success",
+                            message: `${section.sprint.name} was reopened.`,
+                          });
+                        } catch (error) {
+                          setToast({
+                            type: "error",
+                            message:
+                              error.response?.data?.message ||
+                              "Unable to reopen that sprint right now.",
+                          });
+                        }
+                      }}
                     />
                   ))
                 ) : (

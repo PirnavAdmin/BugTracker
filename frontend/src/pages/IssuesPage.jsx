@@ -18,6 +18,8 @@ import {
   getIssueDisplayKey,
   getIssueStatusLabel,
   getIssueWorkflowLane,
+  getSprintLifecycleState,
+  isSprintLocked,
   normalizeIssueFilterAlias,
   sortIssues,
 } from "@/lib/issues";
@@ -380,7 +382,8 @@ const IssuesPage = () => {
   const availableSprints = useMemo(
     () =>
       (Array.isArray(selectedProjectSprintsData) ? selectedProjectSprintsData : [])
-        .filter((sprint) => ["ACTIVE", "PLANNED"].includes(String(sprint?.state || "")))
+        .filter((sprint) => !isSprintLocked(sprint))
+        .filter((sprint) => ["ACTIVE", "PLANNED"].includes(getSprintLifecycleState(sprint)))
         .sort((left, right) => {
           const stateDelta =
             (left.state === "ACTIVE" ? 0 : 1) - (right.state === "ACTIVE" ? 0 : 1);

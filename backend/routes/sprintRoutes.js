@@ -5,6 +5,7 @@ const {
   deleteSprint,
   getSprintIssues,
   getSprints,
+  reopenSprint,
   startSprint,
   updateSprint,
 } = require("../controllers/sprintController");
@@ -18,5 +19,6 @@ router.patch("/:id", protect, updateSprint);
 router.delete("/:id", protect, deleteSprint);
 router.post("/:id/start", protect, startSprint);
 router.post("/:id/complete", protect, completeSprint);
+router.post("/:id/reopen", protect, reopenSprint);
 
 module.exports = router;

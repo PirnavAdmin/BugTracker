@@ -75,6 +75,10 @@ const {
   parseFlexibleDateInput,
 } = require("../utils/dateTime");
 const {
+  getSprintLifecycleState,
+  isSprintLocked,
+} = require("../utils/sprintLifecycle");
+const {
   buildProjectAccessQuery,
   getProjectIdsForUserThroughTeams,
   mergeProjectTeamIds,
@@ -140,6 +144,8 @@ const normalizeImportKey = (value = "") =>
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "");
 const getComparableUserId = (user) => String(user?._id || user?.id || user || "");
+const SPRINT_EDIT_BLOCKED_MESSAGE =
+  "Sprint has ended. Create a new sprint to continue working.";
 
 const TASK_IMPORT_FIELD_ALIASES = Object.freeze({
   title: ["title"],
@@ -2155,8 +2161,7 @@ const ensureSprintForIssue = async ({ sprintId, projectId, teamId }) => {
     _id: sprintId,
     projectId,
   })
-    .select("_id name teamId state")
-    .lean();
+    .select("_id name teamId state endDate expiredAt lockOverride");
 
   if (!sprint) {
     return {
@@ -2167,11 +2172,14 @@ const ensureSprintForIssue = async ({ sprintId, projectId, teamId }) => {
     };
   }
 
-  if (sprint.state === "COMPLETED") {
+  if (isSprintLocked(sprint)) {
     return {
       error: {
         status: 400,
-        message: "Completed sprints cannot receive new issues",
+        message:
+          getSprintLifecycleState(sprint) === "EXPIRED"
+            ? SPRINT_EDIT_BLOCKED_MESSAGE
+            : "Completed sprints cannot receive new issues",
       },
     };
   }
@@ -2191,6 +2199,36 @@ const ensureSprintForIssue = async ({ sprintId, projectId, teamId }) => {
 };
 
 const DATE_ONLY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+
+const loadIssueSprintLock = async (issue) => {
+  if (!issue?.sprintId || !mongoose.isValidObjectId(issue.sprintId)) {
+    return {
+      sprint: null,
+      lifecycleState: "",
+      isLocked: false,
+    };
+  }
+
+  const sprint = await Sprint.findById(issue.sprintId).select(
+    "_id name state endDate expiredAt lockOverride"
+  );
+
+  if (!sprint) {
+    return {
+      sprint: null,
+      lifecycleState: "",
+      isLocked: false,
+    };
+  }
+
+  const lifecycleState = getSprintLifecycleState(sprint);
+
+  return {
+    sprint,
+    lifecycleState,
+    isLocked: isSprintLocked(sprint),
+  };
+};
 
 const parseDateFilterInput = (value, label, { endOfDay = false } = {}) => {
   if (value === null || value === "" || typeof value === "undefined") {
@@ -2692,7 +2730,7 @@ const buildIssueQueryFromRequest = async (
     if (req.query.sprintState && req.query.sprintState !== "all") {
       const sprintState = String(req.query.sprintState).trim().toUpperCase();
 
-      if (!["PLANNED", "ACTIVE", "COMPLETED"].includes(sprintState)) {
+      if (!["PLANNED", "ACTIVE", "COMPLETED", "EXPIRED"].includes(sprintState)) {
         res.status(400);
         throw new Error("Invalid sprint state filter");
       }
@@ -3693,6 +3731,13 @@ const pickIssue = asyncHandler(async (req, res) => {
   if (!existingIssue) {
     res.status(404);
     throw new Error("Issue not found");
+  }
+
+  const sprintLockResult = await loadIssueSprintLock(existingIssue);
+
+  if (sprintLockResult.isLocked) {
+    res.status(400);
+    throw new Error(SPRINT_EDIT_BLOCKED_MESSAGE);
   }
 
   const isBug = isBugType(existingIssue.type);
@@ -4902,6 +4947,13 @@ const updateIssue = asyncHandler(async (req, res) => {
     throw new Error("Issue not found");
   }
 
+  const sprintLockResult = await loadIssueSprintLock(issue);
+
+  if (sprintLockResult.isLocked) {
+    res.status(400);
+    throw new Error(SPRINT_EDIT_BLOCKED_MESSAGE);
+  }
+
   let targetProject = await loadAccessibleProject(req.user, issue.projectId);
   const hasBugOwnerAccess =
     !isAdmin(req.user) && hasBugQaOwnership(issue, req.user._id);
@@ -5941,6 +5993,13 @@ const deleteIssue = asyncHandler(async (req, res) => {
   if (!issue || issue.isDeleted) {
     res.status(404);
     throw new Error("Issue not found");
+  }
+
+  const sprintLockResult = await loadIssueSprintLock(issue);
+
+  if (sprintLockResult.isLocked) {
+    res.status(400);
+    throw new Error(SPRINT_EDIT_BLOCKED_MESSAGE);
   }
 
   const project = await loadAccessibleProject(req.user, issue.projectId);

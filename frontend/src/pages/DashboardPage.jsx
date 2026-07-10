@@ -50,6 +50,7 @@ import {
   getIssueStatusLabel,
   getIssueStatusVariant,
   getHighPriorityIssues,
+  isIssueOverdue,
   getOpenIssues,
   getReopenedIssues,
   normalizeBugStatusForIssue,
@@ -1121,6 +1122,15 @@ const DashboardPage = () => {
     tone: item.tone,
     onClick: () => navigateToTasks(item.routeParams),
   }));
+  taskKpiCards.push({
+    key: "overdue-tasks",
+    title: "Overdue Tasks",
+    value: formatCompactNumber(taskIssues.filter((issue) => isIssueOverdue(issue)).length),
+    helper: "Need attention now",
+    icon: AlertTriangle,
+    tone: "rose",
+    onClick: () => navigateToTasks({ filter: "open" }),
+  });
   const kpiCards = [
     {
       key: "total",

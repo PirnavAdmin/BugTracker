@@ -51,6 +51,7 @@ import {
   getIssueStatusMetrics,
   isBugIssue,
   isIssueClosed,
+  isIssueOverdue,
   normalizeBugStatusForIssue,
   resolveBugDetails,
   resolveIssueProjectId,
@@ -1706,8 +1707,23 @@ const DeveloperDashboardPage = () => {
         Icon: CheckCircle2,
         className: "bg-emerald-500",
       },
+      {
+        label: "My Overdue Tasks",
+        value: taskIssues.filter((issue) => isIssueOverdue(issue)).length,
+        helper: "Past due and still open",
+        Icon: AlertTriangle,
+        className: "bg-rose-500",
+      },
     ],
-    [bugIssues.length, stats.closed, stats.inProgress, stats.open, stats.total, taskIssues.length]
+    [
+      bugIssues.length,
+      stats.closed,
+      stats.inProgress,
+      stats.open,
+      stats.total,
+      taskIssues,
+      taskIssues.length,
+    ]
   );
   const activeStatusLabel = activeTab === "bugs" ? "Bugs / Issues" : "Tasks";
   const error = projectsError || issuesError;

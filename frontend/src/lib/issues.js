@@ -547,6 +547,65 @@ export const isIssueReopened = (issueOrStatus) => {
   return normalizeIssueStatus(status, "") === ISSUE_STATUS.REOPEN;
 };
 
+export const getIssueDueAtTime = (issue) => {
+  if (!issue?.dueAt) {
+    return Number.NaN;
+  }
+
+  return new Date(issue.dueAt).getTime();
+};
+
+export const isIssueOverdue = (issue) => {
+  if (typeof issue?.isOverdue === "boolean") {
+    return issue.isOverdue;
+  }
+
+  const dueAtTime = getIssueDueAtTime(issue);
+
+  return Number.isFinite(dueAtTime) && !isIssueClosed(issue) && dueAtTime < Date.now();
+};
+
+export const isIssueNearDue = (issue) => {
+  if (typeof issue?.isNearDue === "boolean") {
+    return issue.isNearDue;
+  }
+
+  const dueAtTime = getIssueDueAtTime(issue);
+
+  if (!Number.isFinite(dueAtTime) || isIssueClosed(issue)) {
+    return false;
+  }
+
+  const diffMs = dueAtTime - Date.now();
+
+  return diffMs >= 0 && diffMs <= 24 * 60 * 60 * 1000;
+};
+
+export const getIssueOverdueDays = (issue) => {
+  if (typeof issue?.overdueDays === "number") {
+    return issue.overdueDays;
+  }
+
+  if (!isIssueOverdue(issue)) {
+    return 0;
+  }
+
+  return Math.max(1, Math.ceil((Date.now() - getIssueDueAtTime(issue)) / (24 * 60 * 60 * 1000)));
+};
+
+export const getIssueDeadlineLabel = (issue) => {
+  if (isIssueOverdue(issue)) {
+    const overdueDays = getIssueOverdueDays(issue);
+    return overdueDays === 1 ? "1 Day Late" : `${overdueDays} Days Late`;
+  }
+
+  if (isIssueNearDue(issue)) {
+    return "Due Within 24h";
+  }
+
+  return "";
+};
+
 export const isHighPriorityIssue = (issue = {}) =>
   ISSUE_HIGH_PRIORITY_VALUES.includes(issue.priority);
 
@@ -839,6 +898,27 @@ export const resolveIssueEpicId = (issue) =>
 
 export const resolveIssueSprintId = (issue) =>
   String(issue?.sprintId?._id || issue?.sprintId || "");
+
+export const getSprintLifecycleState = (sprint) => {
+  const lifecycleState = String(sprint?.lifecycleState || "").trim().toUpperCase();
+
+  if (lifecycleState) {
+    return lifecycleState;
+  }
+
+  if (sprint?.isExpired) {
+    return "EXPIRED";
+  }
+
+  return String(sprint?.state || sprint?.status || "").trim().toUpperCase();
+};
+
+export const isSprintExpired = (sprint) =>
+  Boolean(sprint?.isExpired) || getSprintLifecycleState(sprint) === "EXPIRED";
+
+export const isSprintLocked = (sprint) =>
+  Boolean(sprint?.isLocked) ||
+  ["COMPLETED", "EXPIRED"].includes(getSprintLifecycleState(sprint));
 
 export const resolveIssueDependencyId = (issue) =>
   String(issue?.dependsOnIssueId?._id || issue?.dependsOnIssueId || "");

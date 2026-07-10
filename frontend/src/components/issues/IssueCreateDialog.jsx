@@ -15,6 +15,8 @@ import {
   ISSUE_STATUS,
   ISSUE_TYPE_OPTIONS,
   getIssueDisplayKey,
+  getSprintLifecycleState,
+  isSprintLocked,
   resolveIssueProjectId,
 } from "@/lib/issues";
 import {
@@ -178,7 +180,7 @@ const buildSprintOption = (sprint) => {
   return {
     value: String(sprint?._id || ""),
     label: sprint?.name || "Untitled sprint",
-    state: sprint?.state || sprint?.status || "PLANNED",
+    state: getSprintLifecycleState(sprint) || sprint?.state || sprint?.status || "PLANNED",
     startDate: sprint?.startDate || null,
     endDate: sprint?.endDate || null,
     sprint,
@@ -586,7 +588,8 @@ const IssueCreateDialog = ({
   );
   const sprintOptions = useMemo(() => {
     const assignableSprints = (Array.isArray(projectSprintsData) ? projectSprintsData : [])
-      .filter((sprint) => ["ACTIVE", "PLANNED"].includes(String(sprint?.state || "")))
+      .filter((sprint) => !isSprintLocked(sprint))
+      .filter((sprint) => ["ACTIVE", "PLANNED"].includes(getSprintLifecycleState(sprint)))
       .filter((sprint) => {
         const sprintTeamId = resolveSprintTeamId(sprint);
 

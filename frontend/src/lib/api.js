@@ -856,6 +856,11 @@ export const completeSprint = async ({ id, payload }) => {
   return response.data;
 };
 
+export const reopenSprint = async (id) => {
+  const response = await api.post(`/sprints/${id}/reopen`);
+  return response.data;
+};
+
 export const updateIssuePlanning = async ({ id, payload }) => {
   const response = await api.patch(`/issues/${id}/planning`, payload);
   return response.data;

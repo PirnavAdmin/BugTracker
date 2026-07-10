@@ -9,6 +9,7 @@ const {
 } = require("../utils/backlogAccess");
 const { serializeProjectsWithRelations } = require("../utils/projectRelations");
 const { populateIssueQuery, serializeIssues } = require("../utils/issuePresentation");
+const { buildSprintLifecycleMeta } = require("../utils/sprintLifecycle");
 const {
   ISSUE_TYPES,
 } = require("../utils/issueTypes");
@@ -196,6 +197,7 @@ const serializeSprint = (sprint, issues = []) => ({
   updatedAt: sprint.updatedAt,
   issueCount: issues.length,
   completedCount: issues.filter((issue) => issue.status === "DONE").length,
+  ...buildSprintLifecycleMeta(sprint),
 });
 
 const getBacklogBoard = asyncHandler(async (req, res) => {
@@ -323,13 +325,13 @@ const getBacklogBoard = asyncHandler(async (req, res) => {
       totalVisibleIssues: visibleIssueIds.size,
       backlogIssueCount: backlogIssues.length,
       activeSprintCount: sprintSections.filter(
-        (section) => section.sprint.state === "ACTIVE"
+        (section) => section.sprint.lifecycleState === "ACTIVE"
       ).length,
       plannedSprintCount: sprintSections.filter(
         (section) => section.sprint.state === "PLANNED"
       ).length,
       completedSprintCount: sprintSections.filter(
-        (section) => section.sprint.state === "COMPLETED"
+        (section) => section.sprint.lifecycleState === "COMPLETED"
       ).length,
     },
   });

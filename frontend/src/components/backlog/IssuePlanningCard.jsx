@@ -11,6 +11,7 @@ import {
   getIssueStatusLabel,
   getIssueStatusVariant,
   getIssueTypeVariant,
+  isSprintLocked,
   resolveIssueAssignee,
   resolveIssueTeamId,
 } from "@/lib/issues";
@@ -263,7 +264,7 @@ const IssuePlanningCard = ({
   const sprintOptions = useMemo(
     () =>
       availableSprints.filter(
-        (sprint) => sprint?.state !== "COMPLETED" && isSprintAllowedForIssue(issue, sprint)
+        (sprint) => !isSprintLocked(sprint) && isSprintAllowedForIssue(issue, sprint)
       ),
     [availableSprints, issue]
   );
