@@ -638,6 +638,13 @@ const toDateInputValue = (date) => {
 };
 
 const getReportDatePreset = (preset, now = new Date()) => {
+  if (preset === "overall") {
+    return {
+      dateFrom: "",
+      dateTo: "",
+    };
+  }
+
   const end = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   let start = new Date(end);
 
@@ -656,6 +663,7 @@ const getReportDatePreset = (preset, now = new Date()) => {
 };
 
 const REPORT_DATE_PRESETS = [
+  { value: "overall", label: "Overall", icon: Layers3 },
   { value: "today", label: "Today", icon: CalendarDays },
   { value: "week", label: "Last Week", icon: TimerReset },
   { value: "month", label: "Month", icon: BarChart3 },
@@ -2854,7 +2862,7 @@ const REPORT_PAGES = [
 
 const REPORT_PAGE_KEYS = new Set(REPORT_PAGES.map((page) => page.key));
 const REPORT_NAV_STORAGE_KEY = "jira-report-last-path";
-const DEFAULT_REPORT_DATE_PRESET = "month";
+const DEFAULT_REPORT_DATE_PRESET = "overall";
 const DEFAULT_REPORT_COMPARISON_MODE = "sprint";
 const REPORT_FILTER_KEYS = [
   "projectId",
@@ -2908,9 +2916,12 @@ const isValidReportDatePreset = (value) =>
   REPORT_DATE_PRESETS.some((preset) => preset.value === value);
 
 const readJiraReportStateFromSearchParams = (searchParams) => {
+  const hasCustomDateRange = Boolean(searchParams.get("dateFrom") || searchParams.get("dateTo"));
   const datePreset = isValidReportDatePreset(searchParams.get("datePreset"))
     ? searchParams.get("datePreset")
-    : DEFAULT_REPORT_DATE_PRESET;
+    : hasCustomDateRange
+      ? "custom"
+      : DEFAULT_REPORT_DATE_PRESET;
   const filters = {
     ...REPORT_DEFAULT_FILTER_VALUES,
     ...getReportDatePreset(datePreset),
@@ -2937,6 +2948,10 @@ const buildJiraReportSearchParams = (filters, datePreset, comparisonMode) => {
   const nextParams = new URLSearchParams();
 
   REPORT_FILTER_KEYS.forEach((key) => {
+    if (datePreset === "overall" && ["dateFrom", "dateTo"].includes(key)) {
+      return;
+    }
+
     const value = normalizedFilters?.[key] || "";
     const isCustomDateField =
       datePreset === "custom" && ["dateFrom", "dateTo"].includes(key);
@@ -3742,6 +3757,17 @@ const JiraReportsDashboard = () => {
     setFilters(nextFilters);
     replaceReportSearch(nextFilters, DEFAULT_REPORT_DATE_PRESET, DEFAULT_REPORT_COMPARISON_MODE);
   };
+  const showAllResults = () => {
+    const nextFilters = {
+      ...REPORT_DEFAULT_FILTER_VALUES,
+      ...getReportDatePreset("overall"),
+    };
+
+    setDrilldown(null);
+    setDatePreset("overall");
+    setFilters(nextFilters);
+    replaceReportSearch(nextFilters, "overall", comparisonMode);
+  };
   const drillTo = (title, rows) => setDrilldown({ title, rows });
   const statusFilterOptions =
     activePage === "tasks"
@@ -4345,6 +4371,11 @@ const JiraReportsDashboard = () => {
                 <DateField label="Date to" value={filters.dateTo} onChange={(event) => updateFilter("dateTo", event.target.value)} />
               </>
             ) : null}
+            <div className="flex items-center justify-end md:col-span-2 xl:col-span-1">
+              <Button type="button" variant="outline" size="sm" onClick={showAllResults}>
+                All Results
+              </Button>
+            </div>
           </div>
         </div>
 
