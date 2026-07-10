@@ -140,8 +140,9 @@ const BulkTaskImportDialog = ({ open, onOpenChange, onImported }) => {
               Bulk assign tasks from Excel
             </DialogTitle>
             <DialogDescription className="max-w-2xl text-sm leading-6 text-slate-600">
-              Upload one Excel sheet to create admin task assignments in bulk. Keep
-              the required columns exactly as shown in the sample.
+              Upload one Excel sheet to create admin task assignments in bulk. The
+              sample includes live dropdowns for Project, Team, and Assignee, so keep
+              the required columns exactly as shown before uploading.
             </DialogDescription>
           </DialogHeader>
 

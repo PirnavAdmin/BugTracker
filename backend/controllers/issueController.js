@@ -1,5 +1,6 @@
 const mongoose = require("mongoose");
 const multer = require("multer");
+const ExcelJS = require("exceljs");
 const XLSX = require("xlsx");
 const Comment = require("../models/Comment");
 const Epic = require("../models/Epic");
@@ -208,11 +209,190 @@ const TASK_IMPORT_SAMPLE_HEADERS = Object.freeze([
   "Due Date",
 ]);
 
+const TASK_IMPORT_TEMPLATE_ROW_COUNT = 200;
+const TASK_IMPORT_LOOKUP_SHEET_NAMES = Object.freeze({
+  projects: "Projects",
+  teams: "Teams",
+  users: "Users",
+});
+const TASK_IMPORT_LOOKUP_RANGE_NAMES = Object.freeze({
+  projects: "TaskImportProjects",
+  teams: "TaskImportTeams",
+  users: "TaskImportUsers",
+});
+const TASK_IMPORT_TEMPLATE_COLUMNS = Object.freeze([
+  { header: "Title", key: "title", width: 34 },
+  { header: "Project", key: "project", width: 28 },
+  { header: "Description", key: "description", width: 48 },
+  { header: "Team", key: "team", width: 26 },
+  { header: "Assignee", key: "assignee", width: 30 },
+  { header: "Due Date", key: "dueDate", width: 16 },
+]);
+
 const escapeCsvValue = (value) => `"${String(value || "").replace(/"/g, '""')}"`;
 
 const resolveImportText = (value) => String(value || "").trim();
+const compareImportText = (left, right) =>
+  String(left || "").localeCompare(String(right || ""), undefined, {
+    sensitivity: "base",
+  });
 
 const buildExactMatchRegex = (value = "") => new RegExp(`^${escapeRegExp(value)}$`, "i");
+
+const buildTaskImportAssigneeLabel = (user, duplicateNameCounts = new Map()) => {
+  const name = resolveImportText(user?.name);
+  const email = resolveImportText(user?.email).toLowerCase();
+
+  if (!name) {
+    return email;
+  }
+
+  if (duplicateNameCounts.get(name.toLowerCase()) > 1 && email) {
+    return `${name} <${email}>`;
+  }
+
+  return name;
+};
+
+const extractAssigneeEmailFromImport = (value) => {
+  const trimmedValue = resolveImportText(value);
+  const emailMatch = trimmedValue.match(/<([^<>]+)>$/);
+
+  if (emailMatch?.[1]) {
+    return resolveImportText(emailMatch[1]).toLowerCase();
+  }
+
+  if (trimmedValue.includes("@")) {
+    return trimmedValue.toLowerCase();
+  }
+
+  return "";
+};
+
+const normalizeTaskImportDropdownValues = (values = []) =>
+  Array.from(
+    new Set(
+      values
+        .map((value) => resolveImportText(value))
+        .filter(Boolean)
+    )
+  ).sort(compareImportText);
+
+const getTaskImportTemplateOptions = async ({ workspaceId }) => {
+  const normalizedWorkspaceId = normalizeWorkspaceId(workspaceId);
+  const [projects, teams, users] = await Promise.all([
+    Project.find({
+      workspaceId: normalizedWorkspaceId,
+      status: "Active",
+      isCompleted: { $ne: true },
+    })
+      .select("name")
+      .sort({ name: 1 })
+      .lean(),
+    Team.find({
+      workspaceId: normalizedWorkspaceId,
+    })
+      .select("name")
+      .sort({ name: 1 })
+      .lean(),
+    User.find({
+      workspaceId: normalizedWorkspaceId,
+    })
+      .select("name email")
+      .sort({ name: 1, email: 1 })
+      .lean(),
+  ]);
+
+  const duplicateNameCounts = users.reduce((counts, user) => {
+    const key = resolveImportText(user?.name).toLowerCase();
+
+    if (key) {
+      counts.set(key, (counts.get(key) || 0) + 1);
+    }
+
+    return counts;
+  }, new Map());
+
+  return {
+    projects: normalizeTaskImportDropdownValues(projects.map((project) => project.name)),
+    teams: normalizeTaskImportDropdownValues(teams.map((team) => team.name)),
+    assignees: normalizeTaskImportDropdownValues(
+      users.map((user) => buildTaskImportAssigneeLabel(user, duplicateNameCounts))
+    ),
+  };
+};
+
+const buildTaskImportExampleRows = ({ projects, teams, assignees }) => [
+  {
+    title: "Login Page UI",
+    project: projects[0] || "CRM",
+    description: "Design login page",
+    team: teams[0] || "UI/UX",
+    assignee: assignees[0] || "Rahul",
+    dueDate: new Date(2026, 6, 15),
+  },
+  {
+    title: "Payment API",
+    project: projects[1] || projects[0] || "HRMS",
+    description: "Integrate payment gateway",
+    team: teams[1] || teams[0] || "Development",
+    assignee: assignees[1] || assignees[0] || "Pradeep",
+    dueDate: new Date(2026, 6, 18),
+  },
+];
+
+const addTaskImportLookupSheet = ({
+  workbook,
+  sheetName,
+  rangeName,
+  values,
+}) => {
+  const lookupSheet = workbook.addWorksheet(sheetName);
+  lookupSheet.state = "veryHidden";
+
+  values.forEach((value, index) => {
+    lookupSheet.getCell(index + 1, 1).value = value;
+  });
+
+  if (values.length) {
+    workbook.definedNames.add(
+      `'${sheetName}'!$A$1:$A$${values.length}`,
+      rangeName
+    );
+  }
+};
+
+const applyTaskImportListValidation = ({
+  worksheet,
+  column,
+  rangeName,
+}) => {
+  if (!rangeName) {
+    return;
+  }
+
+  for (let rowNumber = 2; rowNumber <= TASK_IMPORT_TEMPLATE_ROW_COUNT + 1; rowNumber += 1) {
+    worksheet.getCell(`${column}${rowNumber}`).dataValidation = {
+      type: "list",
+      allowBlank: true,
+      showInputMessage: true,
+      showErrorMessage: true,
+      formulae: [rangeName],
+      promptTitle: "Choose from the list",
+      prompt: "Use the dropdown values synced from the current workspace.",
+      errorTitle: "Invalid value",
+      error: "Select one of the values provided in the sample workbook.",
+    };
+  }
+};
+
+const serializeTaskImportErrorValue = (value) => {
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return value.toISOString().slice(0, 10);
+  }
+
+  return resolveImportText(value);
+};
 
 const resolveTaskImportProject = async ({ workspaceId, projectName }) => {
   const trimmedProjectName = resolveImportText(projectName);
@@ -253,6 +433,7 @@ const resolveTaskImportTeam = async ({ workspaceId, teamName, project }) => {
 
 const resolveTaskImportAssignee = async ({ workspaceId, assigneeInput }) => {
   const trimmedAssigneeInput = resolveImportText(assigneeInput);
+  const emailCandidate = extractAssigneeEmailFromImport(trimmedAssigneeInput);
 
   if (!trimmedAssigneeInput) {
     return {
@@ -264,10 +445,10 @@ const resolveTaskImportAssignee = async ({ workspaceId, assigneeInput }) => {
     workspaceId: normalizeWorkspaceId(workspaceId),
   };
 
-  if (trimmedAssigneeInput.includes("@")) {
+  if (emailCandidate) {
     const assigneeByEmail = await User.findOne({
       ...workspaceQuery,
-      email: buildExactMatchRegex(trimmedAssigneeInput),
+      email: buildExactMatchRegex(emailCandidate),
     })
       .select("_id name email role workspaceId")
       .lean();
@@ -302,9 +483,25 @@ const resolveTaskImportAssignee = async ({ workspaceId, assigneeInput }) => {
 };
 
 const buildTaskImportErrorCsv = (errors = []) =>
-  ["Row,Message", ...errors.map((item) => `${item.row},${escapeCsvValue(item.message)}`)].join(
-    "\n"
-  );
+  [
+    [
+      "Row",
+      "Message",
+      ...TASK_IMPORT_SAMPLE_HEADERS,
+    ].join(","),
+    ...errors.map((item) =>
+      [
+        item.row,
+        escapeCsvValue(item.message),
+        escapeCsvValue(serializeTaskImportErrorValue(item.title)),
+        escapeCsvValue(serializeTaskImportErrorValue(item.project)),
+        escapeCsvValue(serializeTaskImportErrorValue(item.description)),
+        escapeCsvValue(serializeTaskImportErrorValue(item.team)),
+        escapeCsvValue(serializeTaskImportErrorValue(item.assignee)),
+        escapeCsvValue(serializeTaskImportErrorValue(item.dueDate)),
+      ].join(",")
+    ),
+  ].join("\n");
 
 const isAssignedToUser = (issue, userId) =>
   Boolean(userId) &&
@@ -2464,34 +2661,102 @@ const downloadTaskImportSample = asyncHandler(async (req, res) => {
     throw new Error("Only admin users can download the task import sample.");
   }
 
-  const workbook = XLSX.utils.book_new();
-  const worksheet = XLSX.utils.aoa_to_sheet([
-    TASK_IMPORT_SAMPLE_HEADERS,
-    [
-      "Improve login page validation",
-      "Bug Tracking Testing",
-      "Add clearer inline validation messages for required login fields.",
-      "BTT - Implementation Team",
-      "developer@example.com",
-      "2026-07-15",
-    ],
-  ]);
-
-  worksheet["!cols"] = [
-    { wch: 36 },
-    { wch: 28 },
-    { wch: 52 },
-    { wch: 28 },
-    { wch: 32 },
-    { wch: 16 },
-  ];
-
-  XLSX.utils.book_append_sheet(workbook, worksheet, "Tasks");
-
-  const fileBuffer = XLSX.write(workbook, {
-    type: "buffer",
-    bookType: "xlsx",
+  const workbook = new ExcelJS.Workbook();
+  const workspaceId = normalizeWorkspaceId(req.user.workspaceId);
+  const templateOptions = await getTaskImportTemplateOptions({ workspaceId });
+  const worksheet = workbook.addWorksheet("Tasks", {
+    views: [{ state: "frozen", ySplit: 1 }],
   });
+
+  workbook.creator = "Pirnav";
+  workbook.created = new Date();
+  workbook.modified = new Date();
+
+  worksheet.columns = TASK_IMPORT_TEMPLATE_COLUMNS;
+  worksheet.autoFilter = "A1:F1";
+
+  const headerRow = worksheet.getRow(1);
+  headerRow.values = TASK_IMPORT_SAMPLE_HEADERS;
+  headerRow.font = { bold: true, color: { argb: "FF0F172A" } };
+  headerRow.fill = {
+    type: "pattern",
+    pattern: "solid",
+    fgColor: { argb: "FFE0F2FE" },
+  };
+  headerRow.alignment = { vertical: "middle", horizontal: "center" };
+  headerRow.height = 22;
+
+  const exampleRows = buildTaskImportExampleRows(templateOptions);
+  exampleRows.forEach((row) => {
+    worksheet.addRow(row);
+  });
+
+  for (let rowNumber = 2; rowNumber <= TASK_IMPORT_TEMPLATE_ROW_COUNT + 1; rowNumber += 1) {
+    worksheet.getCell(`F${rowNumber}`).numFmt = "dd-mmm-yyyy";
+  }
+
+  applyTaskImportListValidation({
+    worksheet,
+    column: "B",
+    rangeName: templateOptions.projects.length
+      ? TASK_IMPORT_LOOKUP_RANGE_NAMES.projects
+      : "",
+  });
+  applyTaskImportListValidation({
+    worksheet,
+    column: "D",
+    rangeName: templateOptions.teams.length ? TASK_IMPORT_LOOKUP_RANGE_NAMES.teams : "",
+  });
+  applyTaskImportListValidation({
+    worksheet,
+    column: "E",
+    rangeName: templateOptions.assignees.length
+      ? TASK_IMPORT_LOOKUP_RANGE_NAMES.users
+      : "",
+  });
+
+  for (let rowNumber = 2; rowNumber <= TASK_IMPORT_TEMPLATE_ROW_COUNT + 1; rowNumber += 1) {
+    worksheet.getCell(`F${rowNumber}`).dataValidation = {
+      type: "date",
+      operator: "between",
+      allowBlank: true,
+      showInputMessage: true,
+      showErrorMessage: true,
+      formulae: [new Date(2000, 0, 1), new Date(2100, 11, 31)],
+      promptTitle: "Due date",
+      prompt: "Enter a valid Excel date or use the dd-mmm-yyyy format.",
+      errorTitle: "Invalid date",
+      error: "Provide a valid due date using an Excel date value.",
+    };
+  }
+
+  worksheet.getCell("A1").note = "Free text. Required during upload.";
+  worksheet.getCell("B1").note = "Dropdown populated from active projects in the workspace.";
+  worksheet.getCell("C1").note = "Free text. Required during upload.";
+  worksheet.getCell("D1").note = "Dropdown populated from available teams in the workspace.";
+  worksheet.getCell("E1").note = "Dropdown populated from active workspace users.";
+  worksheet.getCell("F1").note = "Use an Excel date value or the dd-mmm-yyyy format.";
+
+  addTaskImportLookupSheet({
+    workbook,
+    sheetName: TASK_IMPORT_LOOKUP_SHEET_NAMES.projects,
+    rangeName: TASK_IMPORT_LOOKUP_RANGE_NAMES.projects,
+    values: templateOptions.projects,
+  });
+  addTaskImportLookupSheet({
+    workbook,
+    sheetName: TASK_IMPORT_LOOKUP_SHEET_NAMES.teams,
+    rangeName: TASK_IMPORT_LOOKUP_RANGE_NAMES.teams,
+    values: templateOptions.teams,
+  });
+  addTaskImportLookupSheet({
+    workbook,
+    sheetName: TASK_IMPORT_LOOKUP_SHEET_NAMES.users,
+    rangeName: TASK_IMPORT_LOOKUP_RANGE_NAMES.users,
+    values: templateOptions.assignees,
+  });
+
+  const fileBuffer = await workbook.xlsx.writeBuffer();
 
   res.setHeader(
     "Content-Type",
@@ -2562,15 +2827,14 @@ const importTasksFromSpreadsheet = asyncHandler(async (req, res) => {
   for (let index = 0; index < rows.length; index += 1) {
     const row = rows[index] || {};
     const rowNumber = index + 2;
+    const title = resolveImportText(getTaskImportValue(row, "title"));
+    const projectName = resolveImportText(getTaskImportValue(row, "project"));
+    const description = resolveImportText(getTaskImportValue(row, "description"));
+    const teamName = resolveImportText(getTaskImportValue(row, "team"));
+    const assigneeInput = resolveImportText(getTaskImportValue(row, "assignee"));
+    const dueDateInput = getTaskImportValue(row, "dueDate");
 
     try {
-      const title = resolveImportText(getTaskImportValue(row, "title"));
-      const projectName = resolveImportText(getTaskImportValue(row, "project"));
-      const description = resolveImportText(getTaskImportValue(row, "description"));
-      const teamName = resolveImportText(getTaskImportValue(row, "team"));
-      const assigneeInput = resolveImportText(getTaskImportValue(row, "assignee"));
-      const dueDateInput = getTaskImportValue(row, "dueDate");
-
       const missingValues = [];
 
       if (!title) missingValues.push("Title");
@@ -2675,6 +2939,12 @@ const importTasksFromSpreadsheet = asyncHandler(async (req, res) => {
       errors.push({
         row: rowNumber,
         message: error.message || "Unable to import this row",
+        title,
+        project: projectName,
+        description,
+        team: teamName,
+        assignee: assigneeInput,
+        dueDate: dueDateInput,
       });
     }
   }
