@@ -52,15 +52,12 @@ import {
   getProjectTeams,
   resolveUserId,
 } from "@/lib/project-teams";
-<<<<<<< HEAD
-import { ROLE_DEVELOPER, ROLE_TEAM_LEAD, ROLE_TESTER } from "@/lib/roles";
-import { cn, formatDate, formatDateTime, formatTime, getInitials } from "@/lib/utils";
-=======
 import {
   hasTaskStoryLeadAccess,
   ROLE_DEVELOPER,
   ROLE_QA_LEAD,
   ROLE_TEAM_LEAD,
+  ROLE_TESTER,
 } from "@/lib/roles";
 import {
   cn,
@@ -70,7 +67,6 @@ import {
   getInitials,
   toDateTimeInputValue,
 } from "@/lib/utils";
->>>>>>> b17c4066c1873c208a579ac9310d65ecabbf82d7
 import { useAuth } from "@/hooks/use-auth";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -217,11 +213,7 @@ const IssueDetailsDialog = ({
     () =>
       hasTaskStoryLeadAccess(role) && ["Task", "Sub-task"].includes(detailDraft.type)
         ? availableAssignees.filter((assignee) =>
-<<<<<<< HEAD
-            [ROLE_DEVELOPER, ROLE_TEAM_LEAD, ROLE_TESTER].includes(assignee.role)
-=======
-            [ROLE_DEVELOPER, ROLE_TEAM_LEAD, ROLE_QA_LEAD].includes(assignee.role)
->>>>>>> b17c4066c1873c208a579ac9310d65ecabbf82d7
+            [ROLE_DEVELOPER, ROLE_TEAM_LEAD, ROLE_QA_LEAD, ROLE_TESTER].includes(assignee.role)
           )
         : availableAssignees,
     [availableAssignees, detailDraft.type, role]

@@ -1,7 +1,6 @@
 const mongoose = require("mongoose");
 const multer = require("multer");
 const ExcelJS = require("exceljs");
-const XLSX = require("xlsx");
 const Comment = require("../models/Comment");
 const Epic = require("../models/Epic");
 const Issue = require("../models/Issue");
@@ -134,14 +133,12 @@ const canAssignTaskWork = (user, type) =>
   isAdmin(user) ||
   (hasTaskStoryLeadAccess(user?.role) &&
     [ISSUE_TYPES.TASK, ISSUE_TYPES.SUB_TASK].includes(getCanonicalIssueType(type, "")));
-<<<<<<< HEAD
 const TEAM_LEAD_TASK_ASSIGNABLE_ROLES = [ROLE_DEVELOPER, ROLE_TEAM_LEAD, ROLE_TESTER];
-=======
+const TEAM_LEAD_BUG_ASSIGNABLE_ROLES = [ROLE_DEVELOPER, ROLE_TEAM_LEAD, ROLE_QA_LEAD];
 const canAssignBugWork = (user, type) =>
   isAdmin(user) ||
   (user?.role === ROLE_TEAM_LEAD &&
     getCanonicalIssueType(type, "") === ISSUE_TYPES.BUG);
->>>>>>> b17c4066c1873c208a579ac9310d65ecabbf82d7
 const ISSUE_PRIORITY_VALUES = ["Critical", "High", "Medium", "Low"];
 const escapeRegExp = (value = "") =>
   value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -173,24 +170,100 @@ const getTaskImportValue = (row = {}, field) => {
   return matchedEntry ? matchedEntry[1] : "";
 };
 
+const getExcelCellValue = (cell) => {
+  const value = cell?.value;
+
+  if (!value || value instanceof Date || typeof value !== "object") {
+    return value ?? "";
+  }
+
+  if (Array.isArray(value.richText)) {
+    return value.richText.map((part) => part.text || "").join("");
+  }
+
+  if (Object.prototype.hasOwnProperty.call(value, "result")) {
+    return value.result ?? "";
+  }
+
+  if (Object.prototype.hasOwnProperty.call(value, "text")) {
+    return value.text ?? "";
+  }
+
+  if (Object.prototype.hasOwnProperty.call(value, "hyperlink")) {
+    return value.text || value.hyperlink || "";
+  }
+
+  return String(value);
+};
+
+const excelSerialDateToDate = (value) => {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return null;
+  }
+
+  const excelEpoch = Date.UTC(1899, 11, 30);
+  const millisecondsPerDay = 24 * 60 * 60 * 1000;
+  const wholeDays = Math.floor(value);
+  const dayFraction = value - wholeDays;
+  const date = new Date(excelEpoch + wholeDays * millisecondsPerDay);
+  const totalSeconds = Math.round(dayFraction * 24 * 60 * 60);
+
+  return createUtcDateFromIndianParts({
+    year: date.getUTCFullYear(),
+    month: date.getUTCMonth() + 1,
+    day: date.getUTCDate(),
+    hours: Math.floor(totalSeconds / 3600),
+    minutes: Math.floor((totalSeconds % 3600) / 60),
+    seconds: totalSeconds % 60,
+  });
+};
+
+const worksheetToTaskImportRows = (worksheet) => {
+  const headerRow = worksheet.getRow(1);
+  const headers = [];
+
+  headerRow.eachCell({ includeEmpty: true }, (cell, columnNumber) => {
+    headers[columnNumber] = resolveImportText(getExcelCellValue(cell));
+  });
+
+  const rows = [];
+
+  worksheet.eachRow({ includeEmpty: false }, (row, rowNumber) => {
+    if (rowNumber === 1) {
+      return;
+    }
+
+    const record = {};
+    let hasValue = false;
+
+    headers.forEach((header, columnNumber) => {
+      if (!header) {
+        return;
+      }
+
+      const value = getExcelCellValue(row.getCell(columnNumber));
+      record[header] = value;
+
+      if (resolveImportText(value)) {
+        hasValue = true;
+      }
+    });
+
+    if (hasValue) {
+      rows.push(record);
+    }
+  });
+
+  return rows;
+};
+
 const parseSpreadsheetDate = (value) => {
   if (value instanceof Date && !Number.isNaN(value.getTime())) {
     return value;
   }
 
   if (typeof value === "number") {
-    const parsedDate = XLSX.SSF.parse_date_code(value);
-
-    if (parsedDate) {
-      return createUtcDateFromIndianParts({
-        year: parsedDate.y,
-        month: Math.max(parsedDate.m, 1),
-        day: parsedDate.d,
-        hours: parsedDate.H || 0,
-        minutes: parsedDate.M || 0,
-        seconds: parsedDate.S || 0,
-      });
-    }
+    return excelSerialDateToDate(value);
   }
 
   return parseFlexibleDateInput(value);
@@ -3187,22 +3260,16 @@ const importTasksFromSpreadsheet = asyncHandler(async (req, res) => {
     throw new Error("Upload an Excel file to import tasks.");
   }
 
-  const workbook = XLSX.read(req.file.buffer, {
-    type: "buffer",
-    cellDates: true,
-  });
-  const firstSheetName = workbook.SheetNames?.[0];
+  const workbook = new ExcelJS.Workbook();
+  await workbook.xlsx.load(req.file.buffer);
+  const worksheet = workbook.worksheets[0];
 
-  if (!firstSheetName) {
+  if (!worksheet) {
     res.status(400);
     throw new Error("The uploaded Excel file does not contain any sheets.");
   }
 
-  const worksheet = workbook.Sheets[firstSheetName];
-  const rows = XLSX.utils.sheet_to_json(worksheet, {
-    defval: "",
-    raw: true,
-  });
+  const rows = worksheetToTaskImportRows(worksheet);
 
   if (!rows.length) {
     res.status(400);
@@ -4611,21 +4678,10 @@ const createIssue = asyncHandler(async (req, res) => {
 
       if (
         canTeamLeadAssignTask &&
-<<<<<<< HEAD
         !TEAM_LEAD_TASK_ASSIGNABLE_ROLES.includes(assigneeResult.assignee?.role)
       ) {
         res.status(400);
         throw new Error("Team Leads can assign tasks only to developers, team leads, or QA leads");
-=======
-        ![ROLE_DEVELOPER, ROLE_TEAM_LEAD, ROLE_QA_LEAD].includes(
-          assigneeResult.assignee?.role
-        )
-      ) {
-        res.status(400);
-        throw new Error(
-          "Team leads and Q/A leads can assign tasks only to developers, team leads, or Q/A leads"
-        );
->>>>>>> b17c4066c1873c208a579ac9310d65ecabbf82d7
       }
     }
   }
@@ -5079,8 +5135,6 @@ const updateIssue = asyncHandler(async (req, res) => {
           "statusChangeComment",
           "comment",
         ]
-<<<<<<< HEAD
-=======
       : hasTeamLeadTaskAssignmentAccess
         ? [
             "assigneeId",
@@ -5098,7 +5152,6 @@ const updateIssue = asyncHandler(async (req, res) => {
             "devLeadId",
             "devLead",
           ]
->>>>>>> b17c4066c1873c208a579ac9310d65ecabbf82d7
       : canTesterEditReportedBug
         ? [
             "title",
@@ -5477,25 +5530,19 @@ const updateIssue = asyncHandler(async (req, res) => {
       }
 
       if (
-<<<<<<< HEAD
         canTeamLeadAssignExistingTask &&
         !TEAM_LEAD_TASK_ASSIGNABLE_ROLES.includes(assigneeResult.assignee?.role)
       ) {
         res.status(400);
         throw new Error("Team Leads can assign tasks only to developers, team leads, or QA leads");
-=======
-        (canTeamLeadAssignExistingTask || canTeamLeadAssignExistingBug) &&
-        ![ROLE_DEVELOPER, ROLE_TEAM_LEAD, ROLE_QA_LEAD].includes(
-          assigneeResult.assignee?.role
-        )
+      }
+
+      if (
+        canTeamLeadAssignExistingBug &&
+        !TEAM_LEAD_BUG_ASSIGNABLE_ROLES.includes(assigneeResult.assignee?.role)
       ) {
         res.status(400);
-        throw new Error(
-          canTeamLeadAssignExistingBug
-            ? "Team Leads can assign bugs only to developers, team leads, or Q/A leads"
-            : "Team leads and Q/A leads can assign tasks only to developers, team leads, or Q/A leads"
-        );
->>>>>>> b17c4066c1873c208a579ac9310d65ecabbf82d7
+        throw new Error("Team Leads can assign bugs only to developers, team leads, or QA leads");
       }
     }
   }

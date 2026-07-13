@@ -3,16 +3,16 @@ import assert from "node:assert/strict";
 
 import { formatDate, formatDateTime } from "../src/lib/utils.js";
 
-test("formatDate uses DD/MM/YY", () => {
+test("formatDate uses day short-month year", () => {
   assert.equal(
     formatDate("2026-05-20T12:00:00.000Z", { timeZone: "UTC" }),
-    "20/05/26"
+    "20 May 2026"
   );
 });
 
-test("formatDateTime keeps DD/MM/YY for the date portion", () => {
+test("formatDateTime keeps the shared date format", () => {
   assert.equal(
     formatDateTime("2026-05-20T15:30:00.000Z", { timeZone: "UTC" }),
-    "20/05/26, 3:30 pm"
+    "20 May 2026, 03:30 PM"
   );
 });

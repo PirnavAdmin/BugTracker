@@ -10,13 +10,13 @@ export {
   INDIAN_LOCALE,
   INDIAN_TIME_ZONE,
   toDateTimeInputValue,
-} from "@/lib/date-time";
+} from "./date-time.js";
 import {
   formatDate,
   formatDateTime,
   formatTime,
   toDateTimeInputValue,
-} from "@/lib/date-time";
+} from "./date-time.js";
 
 export const cn = (...inputs) => twMerge(clsx(inputs));
 
