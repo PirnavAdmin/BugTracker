@@ -365,7 +365,7 @@ const WorkspaceMailSenderCard = ({
                       styles={senderSelectStyles}
                       formatOptionLabel={formatSenderOptionLabel}
                       onChange={(option) => onSelectedSenderChange(option?.value || "")}
-                      placeholder="Search Admin or Manager by name or email"
+                      placeholder="Search Admin, Manager, Team Lead, or Q/A Lead"
                       noOptionsMessage={() => "No eligible sender users found."}
                     />
                   </label>
@@ -429,8 +429,8 @@ const WorkspaceMailSenderCard = ({
                 </div>
               ) : (
                 <div className="rounded-[12px] border border-amber-200 bg-amber-50/90 px-3 py-2 text-sm text-amber-800">
-                  Promote a workspace user to Admin or Manager to make them eligible as a
-                  sender.
+                  Promote a workspace user to Admin, Manager, Team Lead, or Q/A Lead
+                  to make them eligible as a sender.
                 </div>
               )
             ) : null}

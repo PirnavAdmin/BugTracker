@@ -50,6 +50,11 @@ const userSchema = new Schema(
       },
       default: "Developer",
     },
+    avatarUrl: {
+      type: String,
+      trim: true,
+      default: "",
+    },
     workspaceId: {
       type: String,
       required: true,

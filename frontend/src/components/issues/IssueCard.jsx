@@ -18,8 +18,8 @@ import {
   normalizeIssueStatus,
   resolveIssueAssignee,
 } from "@/lib/issues";
-import { cn, formatDateTime, getInitials } from "@/lib/utils";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import UserAvatar from "@/components/shared/UserAvatar";
+import { cn, formatDateTime } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 
@@ -354,9 +354,11 @@ const IssueCard = ({
       <div className="mt-2.5 space-y-1.5 border-t border-slate-100 pt-2.5">
         <div className="flex items-center gap-2">
           {assignee ? (
-            <Avatar className="h-7 w-7 rounded-lg">
-              <AvatarFallback className="text-[10px]">{getInitials(assignee.name)}</AvatarFallback>
-            </Avatar>
+            <UserAvatar
+              user={assignee}
+              className="h-7 w-7 rounded-lg"
+              fallbackClassName="text-[10px]"
+            />
           ) : (
             <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-slate-100 text-slate-500">
               <UserCircle2 className="h-3.5 w-3.5" />

@@ -1,6 +1,6 @@
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import UserAvatar from "@/components/shared/UserAvatar";
 import StatusIndicator from "@/components/presence/StatusIndicator";
-import { cn, getInitials } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 
 const sizeClasses = {
   sm: "h-7 w-7 text-[10px]",
@@ -44,14 +44,13 @@ const TeamMemberStack = ({
             key={member._id}
             className={cn("relative", index === 0 ? "" : "-ml-3")}
           >
-            <Avatar
+            <UserAvatar
+              user={member}
               className={cn(
                 "rounded-2xl border-2 border-white bg-gradient-to-br from-sky-100 to-cyan-100 text-slate-700 shadow-sm",
                 sizeClasses[size] || sizeClasses.md
               )}
-            >
-              <AvatarFallback>{getInitials(member.name)}</AvatarFallback>
-            </Avatar>
+            />
             <StatusIndicator userId={member._id} className="absolute -bottom-0.5 -right-0.5" />
           </span>
         ))}

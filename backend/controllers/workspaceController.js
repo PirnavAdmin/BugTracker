@@ -21,7 +21,7 @@ const getWorkspaceUsers = asyncHandler(async (req, res) => {
   const users = await User.find({
     workspaceId: requestedWorkspaceId,
   })
-    .select("name email role employeeId designation createdAt workspaceId")
+    .select("name email role avatarUrl employeeId designation createdAt workspaceId")
     .sort({ name: 1 })
     .lean();
 

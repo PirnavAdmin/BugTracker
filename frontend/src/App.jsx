@@ -8,6 +8,7 @@ import { useAuth } from "@/hooks/use-auth";
 import {
   ADMIN_PANEL_ROLES,
   getDashboardPathByRole,
+  hasWorkspaceMailAccess,
   ROLE_ADMIN,
   ROLE_DEVELOPER,
   ROLE_QA_LEAD,
@@ -131,7 +132,11 @@ const LegacyDashboardRedirect = () => {
 const SelfSettingsRoute = () => {
   const { role } = useAuth();
 
-  return TESTER_PANEL_ROLES.includes(role) ? <UserSettingsPage /> : <DeveloperSettingsPage />;
+  return TESTER_PANEL_ROLES.includes(role) || hasWorkspaceMailAccess(role) ? (
+    <UserSettingsPage />
+  ) : (
+    <DeveloperSettingsPage />
+  );
 };
 
 const BugsRoute = () => {

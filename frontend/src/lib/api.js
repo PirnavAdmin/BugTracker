@@ -203,6 +203,14 @@ export const changePasswordRequest = async (payload) => {
   return response.data;
 };
 
+export const uploadProfileAvatar = async (file) => {
+  const formData = new FormData();
+  formData.append("avatar", file);
+
+  const response = await api.post("/auth/me/avatar", formData);
+  return response.data;
+};
+
 export const requestPasswordReset = async (payload) => {
   const response = await api.post("/auth/forgot-password", payload);
   return response.data;

@@ -1,9 +1,12 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import UserAvatar from "@/components/shared/UserAvatar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { formatDate, getInitials } from "@/lib/utils";
+import { uploadProfileAvatar } from "@/lib/api";
+import { readStoredSession } from "@/lib/session";
+import { formatDate } from "@/lib/utils";
 import {
   Mail,
   Briefcase,
@@ -13,12 +16,46 @@ import {
   ArrowRight,
   Edit2,
   Download,
+  Camera,
 } from "lucide-react";
 import { Link } from "react-router-dom";
 
 const ProfilePage = () => {
-  const { user } = useAuth();
+  const { user, setAuthSession } = useAuth();
+  const queryClient = useQueryClient();
   const [isEditing, setIsEditing] = useState(false);
+  const [uploadError, setUploadError] = useState("");
+  const fileInputRef = useRef(null);
+
+  const avatarMutation = useMutation({
+    mutationFn: uploadProfileAvatar,
+    onSuccess: (data) => {
+      const updatedUser = data?.user;
+
+      if (updatedUser) {
+        const storedSession = readStoredSession();
+        setAuthSession({
+          ...storedSession,
+          user: {
+            ...storedSession?.user,
+            ...updatedUser,
+          },
+        });
+      }
+
+      setUploadError("");
+      setIsEditing(false);
+      queryClient.invalidateQueries({ queryKey: ["users"] });
+      queryClient.invalidateQueries({ queryKey: ["teams"] });
+    },
+    onError: (error) => {
+      setUploadError(
+        error?.response?.data?.message ||
+          error?.message ||
+          "Unable to upload profile picture"
+      );
+    },
+  });
 
   if (!user) {
     return (
@@ -33,6 +70,20 @@ const ProfilePage = () => {
   const formattedJoinDate = user.createdAt
     ? formatDate(user.createdAt, { fallback: "Not available" })
     : "Not available";
+  const teamNames = Array.isArray(user.teams)
+    ? user.teams.map((team) => team?.name).filter(Boolean)
+    : [];
+
+  const handleAvatarChange = (event) => {
+    const file = event.target.files?.[0];
+
+    if (!file) {
+      return;
+    }
+
+    avatarMutation.mutate(file);
+    event.target.value = "";
+  };
 
   const infoCards = [
     {
@@ -50,7 +101,7 @@ const ProfilePage = () => {
     {
       icon: Users,
       label: "Teams",
-      value: user.teamCount || "0 teams",
+      value: teamNames.length ? teamNames.join(", ") : "No teams assigned",
       color: "green",
     },
     {
@@ -67,11 +118,47 @@ const ProfilePage = () => {
         {/* Header with Avatar */}
         <div className="mb-8 rounded-2xl border border-slate-200 bg-white p-8 shadow-sm">
           <div className="flex flex-col items-center gap-6 sm:flex-row sm:items-start">
-            <Avatar className="h-24 w-24 ring-4 ring-blue-200">
-              <AvatarFallback className="text-2xl font-bold bg-gradient-to-br from-blue-500 to-blue-600 text-white">
-                {getInitials(user.name)}
-              </AvatarFallback>
-            </Avatar>
+            <div className="flex flex-col items-center gap-3">
+              <div className="relative">
+                <UserAvatar
+                  user={user}
+                  className="h-24 w-24 ring-4 ring-blue-200"
+                  fallbackClassName="text-2xl font-bold"
+                />
+                {isEditing ? (
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={avatarMutation.isPending}
+                    className="absolute -bottom-2 -right-2 inline-flex h-10 w-10 items-center justify-center rounded-full border-2 border-white bg-blue-600 text-white shadow-lg transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-70"
+                    aria-label="Upload profile picture"
+                  >
+                    <Camera className="h-5 w-5" />
+                  </button>
+                ) : null}
+              </div>
+              {isEditing ? (
+                <>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp,image/gif"
+                    className="hidden"
+                    onChange={handleAvatarChange}
+                  />
+                  <p className="text-center text-xs font-medium text-slate-500">
+                    {avatarMutation.isPending
+                      ? "Uploading profile picture..."
+                      : "Click the camera to upload a photo"}
+                  </p>
+                  {uploadError ? (
+                    <p className="max-w-[14rem] text-center text-xs font-medium text-red-600">
+                      {uploadError}
+                    </p>
+                  ) : null}
+                </>
+              ) : null}
+            </div>
 
             <div className="flex-1 text-center sm:text-left">
               <h1 className="text-3xl font-bold text-slate-900">{user.name}</h1>
@@ -120,7 +207,7 @@ const ProfilePage = () => {
                       <p className="text-sm font-medium text-slate-600">
                         {card.label}
                       </p>
-                      <p className="mt-1 text-lg font-semibold text-slate-900">
+                      <p className="mt-1 break-words text-lg font-semibold text-slate-900">
                         {card.value}
                       </p>
                     </div>

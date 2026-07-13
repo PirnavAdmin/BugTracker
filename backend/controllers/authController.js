@@ -1,5 +1,8 @@
 const crypto = require("crypto");
+const fs = require("fs/promises");
+const path = require("path");
 const User = require("../models/User");
+const TeamMember = require("../models/TeamMember");
 const { sendWorkspaceEmail } = require("../services/emailService");
 const asyncHandler = require("../utils/asyncHandler");
 const { DEFAULT_USER } = require("../utils/defaultUser");
@@ -14,6 +17,13 @@ const passwordHasNumber = /\d/;
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const PASSWORD_RESET_OTP_TTL_MS = 10 * 60 * 1000;
 const PASSWORD_RESET_RESEND_COOLDOWN_MS = 60 * 1000;
+const avatarUploadDir = path.resolve(__dirname, "../uploads/profile-avatars");
+const allowedAvatarMimeTypes = new Map([
+  ["image/jpeg", ".jpg"],
+  ["image/png", ".png"],
+  ["image/webp", ".webp"],
+  ["image/gif", ".gif"],
+]);
 
 const isAdminDefaultLoginAllowed = () =>
   process.env.ENABLE_ADMIN_DEFAULT_LOGIN === "true";
@@ -71,33 +81,75 @@ const getPasswordValidationMessage = (password) => {
 const normalizeRememberMe = (value) =>
   value === true || value === "true" || value === "1";
 
-const buildAuthPayload = (user, { rememberMe = false } = {}) => {
+const serializeTeam = (team = {}) => ({
+  _id: team._id,
+  name: team.name,
+});
+
+const getUserTeams = async (user) => {
+  const memberships = await TeamMember.find({
+    userId: user._id,
+  })
+    .populate({
+      path: "teamId",
+      select: "_id name workspaceId",
+      match: {
+        workspaceId: normalizeWorkspaceId(user.workspaceId),
+      },
+    })
+    .sort({ createdAt: 1 })
+    .lean();
+
+  return memberships
+    .map((membership) => membership.teamId)
+    .filter(Boolean)
+    .map(serializeTeam);
+};
+
+const serializeAuthUser = (user, { teams = [] } = {}) => ({
+  _id: user._id,
+  name: user.name,
+  email: user.email,
+  role: user.role,
+  avatarUrl: user.avatarUrl || "",
+  workspaceId: normalizeWorkspaceId(user.workspaceId),
+  createdAt: user.createdAt,
+  teams,
+  teamCount: teams.length,
+});
+
+const buildAuthPayload = async (user, { rememberMe = false } = {}) => {
   const normalizedWorkspaceId = normalizeWorkspaceId(user.workspaceId);
   const maxAgeSeconds = generateToken.getTokenMaxAgeSeconds({ rememberMe });
+  const teams = await getUserTeams(user);
 
   return {
     token: generateToken(user._id, normalizedWorkspaceId, { rememberMe }),
     expiresAt: new Date(Date.now() + maxAgeSeconds * 1000).toISOString(),
     rememberMe,
-    user: {
-      _id: user._id,
-      name: user.name,
-      email: user.email,
-      role: user.role,
-      workspaceId: normalizedWorkspaceId,
-    },
+    user: serializeAuthUser(user, { teams }),
   };
 };
 
-const buildCurrentUserPayload = (user) => ({
+const buildCurrentUserPayload = async (user) => ({
   user: {
-    _id: user._id,
-    name: user.name,
-    email: user.email,
-    role: user.role,
-    workspaceId: normalizeWorkspaceId(user.workspaceId),
+    ...serializeAuthUser(user, { teams: await getUserTeams(user) }),
   },
 });
+
+const removeStoredAvatar = async (avatarUrl = "") => {
+  if (!avatarUrl.startsWith("/uploads/profile-avatars/")) {
+    return;
+  }
+
+  const filename = path.basename(avatarUrl);
+
+  if (!filename) {
+    return;
+  }
+
+  await fs.rm(path.join(avatarUploadDir, filename), { force: true });
+};
 
 const syncUserForAuth = async (user, password) => {
   let requiresSave = false;
@@ -169,7 +221,7 @@ const register = asyncHandler(async (req, res) => {
 
   res.status(201).json({
     message: "Account created successfully. Please sign in.",
-    ...buildAuthPayload(user),
+    ...(await buildAuthPayload(user)),
   });
 });
 
@@ -206,7 +258,7 @@ const login = asyncHandler(async (req, res) => {
   }
 
   await syncUserForAuth(user, password);
-  res.status(200).json(buildAuthPayload(user, { rememberMe }));
+  res.status(200).json(await buildAuthPayload(user, { rememberMe }));
 });
 
 const adminLogin = asyncHandler(async (req, res) => {
@@ -242,14 +294,14 @@ const adminLogin = asyncHandler(async (req, res) => {
   }
 
   await syncUserForAuth(user, adminDefaultPassword);
-  res.status(200).json(buildAuthPayload(user, { rememberMe }));
+  res.status(200).json(await buildAuthPayload(user, { rememberMe }));
 });
 
 const getUsers = asyncHandler(async (req, res) => {
   const users = await User.find({
     workspaceId: normalizeWorkspaceId(req.user.workspaceId),
   })
-    .select("name email role createdAt workspaceId")
+    .select("name email role avatarUrl createdAt workspaceId")
     .sort({ name: 1 });
 
   console.log(
@@ -265,7 +317,42 @@ const getUsers = asyncHandler(async (req, res) => {
 });
 
 const getCurrentUser = asyncHandler(async (req, res) => {
-  res.status(200).json(buildCurrentUserPayload(req.user));
+  res.status(200).json(await buildCurrentUserPayload(req.user));
+});
+
+const updateCurrentUserAvatar = asyncHandler(async (req, res) => {
+  if (!req.file?.buffer?.length) {
+    res.status(400);
+    throw new Error("Please upload a profile image");
+  }
+
+  const extension = allowedAvatarMimeTypes.get(req.file.mimetype);
+
+  if (!extension) {
+    res.status(400);
+    throw new Error("Profile image must be a JPG, PNG, WEBP, or GIF file");
+  }
+
+  await fs.mkdir(avatarUploadDir, { recursive: true });
+
+  const user = await User.findById(req.user._id);
+
+  if (!user) {
+    res.status(401);
+    throw new Error("Unauthorized");
+  }
+
+  const filename = `${user._id}-${Date.now()}${extension}`;
+  await fs.writeFile(path.join(avatarUploadDir, filename), req.file.buffer);
+  await removeStoredAvatar(user.avatarUrl || "");
+
+  user.avatarUrl = `/uploads/profile-avatars/${filename}`;
+  await user.save();
+
+  res.status(200).json({
+    message: "Profile picture updated successfully",
+    ...(await buildCurrentUserPayload(user)),
+  });
 });
 
 const changePassword = asyncHandler(async (req, res) => {
@@ -470,6 +557,7 @@ module.exports = {
   login,
   adminLogin,
   getCurrentUser,
+  updateCurrentUserAvatar,
   getUsers,
   changePassword,
   requestPasswordReset,

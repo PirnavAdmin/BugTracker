@@ -61,7 +61,7 @@ const validateWorkspaceMembers = async (memberIds, workspaceId, res) => {
     },
     workspaceId,
   })
-    .select("_id name email role workspaceId")
+    .select("_id name email role avatarUrl workspaceId")
     .lean();
 
   if (users.length !== uniqueMemberIds.length) {
@@ -191,7 +191,7 @@ const addTeamMember = asyncHandler(async (req, res) => {
       _id: req.body.userId,
       workspaceId,
     })
-      .select("_id name workspaceId")
+      .select("_id name avatarUrl workspaceId")
       .lean(),
     TeamMember.findOne({
       teamId: req.params.id,

@@ -259,7 +259,7 @@ const EmailConfigurationCard = ({
         "error",
         personalAccountMode
           ? "Your mail account is not available right now."
-          : "Select an Admin or Manager before editing email settings."
+          : "Select a workspace sender before editing email settings."
       );
       return;
     }
@@ -288,7 +288,7 @@ const EmailConfigurationCard = ({
         "error",
         personalAccountMode
           ? "Your mail account is not available right now."
-          : "Select an Admin or Manager before saving email settings."
+          : "Select a workspace sender before saving email settings."
       );
       return;
     }
@@ -380,7 +380,7 @@ const EmailConfigurationCard = ({
             <div className="rounded-[24px] border border-dashed border-slate-200 bg-slate-50/80 px-4 py-6 text-sm text-slate-600">
               {personalAccountMode
                 ? "Your tester mail account is not available right now."
-                : "Choose an Admin or Manager in the Active Sender section to view or save SMTP credentials for that user."}
+                : "Choose a workspace sender in the Active Sender section to view or save SMTP credentials for that user."}
             </div>
           ) : emailConfigQuery.isLoading ? (
             <div className="grid gap-4 md:grid-cols-2">

@@ -21,6 +21,7 @@ const {
   ROLE_TESTER,
   hasAdminAccess,
   hasTesterAccess,
+  hasWorkspaceMailAccess,
   isEligibleWorkspaceSenderRole,
 } = require("../utils/roles");
 const {
@@ -451,14 +452,18 @@ const resolveAccessibleSenderUser = async ({
 
   const testerSelfRequest = isTesterSelfSenderRequest(requestUser, user._id);
 
-  if (hasTesterAccess(requestUser?.role) && !testerSelfRequest) {
+  if (
+    hasTesterAccess(requestUser?.role) &&
+    !hasWorkspaceMailAccess(requestUser?.role) &&
+    !testerSelfRequest
+  ) {
     res.status(403);
     throw new Error("Testers can only access their own mail account");
   }
 
   if (!testerSelfRequest && !isEligibleWorkspaceSenderRole(user.role)) {
     res.status(400);
-    throw new Error("Only Admin and Manager users can be configured as senders");
+    throw new Error("Only Admin, Manager, Team Lead, or Q/A Lead users can be configured as senders");
   }
 
   return {
@@ -1112,7 +1117,7 @@ const testEmailConfig = asyncHandler(async (req, res) => {
 const getEligibleSenders = asyncHandler(async (req, res) => {
   const workspaceId = normalizeWorkspaceId(req.user.workspaceId);
 
-  if (hasTesterAccess(req.user.role)) {
+  if (hasTesterAccess(req.user.role) && !hasWorkspaceMailAccess(req.user.role)) {
     const { smtpConfigured } = await getUserSmtpConfigState({
       workspaceId,
       userId: req.user._id,
@@ -1127,7 +1132,7 @@ const getEligibleSenders = asyncHandler(async (req, res) => {
   const eligibleUsers = await User.find({
     workspaceId,
     role: {
-      $in: [ROLE_ADMIN, ROLE_MANAGER],
+      $in: [ROLE_ADMIN, ROLE_MANAGER, ROLE_TEAM_LEAD, ROLE_QA_LEAD],
     },
   })
     .select("_id name email role")
@@ -1163,7 +1168,7 @@ const getEligibleSenders = asyncHandler(async (req, res) => {
 const getWorkspaceSender = asyncHandler(async (req, res) => {
   const workspaceId = normalizeWorkspaceId(req.user.workspaceId);
 
-  if (hasTesterAccess(req.user.role)) {
+  if (hasTesterAccess(req.user.role) && !hasWorkspaceMailAccess(req.user.role)) {
     const { smtpConfigured } = await getUserSmtpConfigState({
       workspaceId,
       userId: req.user._id,
@@ -1199,7 +1204,7 @@ const saveWorkspaceSender = asyncHandler(async (req, res) => {
   const selectedSenderUserId = String(req.body.userId || "").trim();
   const enabled = Boolean(req.body.enabled);
 
-  if (hasTesterAccess(req.user.role)) {
+  if (hasTesterAccess(req.user.role) && !hasWorkspaceMailAccess(req.user.role)) {
     if (!enabled || !selectedSenderUserId) {
       res.status(403);
       throw new Error("Testers can only use their own mail account as the active sender");
