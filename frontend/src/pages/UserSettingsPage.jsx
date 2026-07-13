@@ -12,6 +12,7 @@ import {
   getDashboardPathByRole,
   hasAdminPanelAccess,
   hasTesterPanelAccess,
+  hasWorkspaceMailAccess,
   ROLE_TESTER,
 } from "@/lib/roles";
 import { getWorkspaceSenderResponseState } from "@/lib/workspaceSender";
@@ -48,6 +49,12 @@ const TESTER_SETTINGS_ITEMS = [
   { id: "password", label: "Change Password" },
 ];
 
+const MAIL_ADMIN_SETTINGS_ITEMS = [
+  { id: "sender", label: "Workspace Mail Sender" },
+  { id: "smtp", label: "SMTP Configuration" },
+  { id: "password", label: "Change Password" },
+];
+
 const ADMIN_DEFAULT_SETTINGS_ITEM = "users";
 const TESTER_DEFAULT_SETTINGS_ITEM = "sender";
 const USER_FILTER_KEY_ALL = "all";
@@ -60,9 +67,13 @@ const UserSettingsPage = () => {
   const workspaceSenderNoteRef = useRef("");
   const { token, user: authUser, setAuthSession } = useAuth();
   const canManageWorkspaceUsers = hasAdminPanelAccess(authUser?.role);
-  const isTesterSettingsMode = hasTesterPanelAccess(authUser?.role);
+  const canManageWorkspaceMail = hasWorkspaceMailAccess(authUser?.role);
+  const isPersonalMailSettingsMode =
+    hasTesterPanelAccess(authUser?.role) && !canManageWorkspaceMail;
   const settingsItems = canManageWorkspaceUsers
     ? ADMIN_SETTINGS_ITEMS
+    : canManageWorkspaceMail
+      ? MAIL_ADMIN_SETTINGS_ITEMS
     : TESTER_SETTINGS_ITEMS;
   const defaultSettingsItem = canManageWorkspaceUsers
     ? ADMIN_DEFAULT_SETTINGS_ITEM
@@ -152,10 +163,10 @@ const UserSettingsPage = () => {
     workspaceSenderQuery,
     saveWorkspaceSenderMutation,
   } = useWorkspaceSender({
-    enabled: canManageWorkspaceUsers,
+    enabled: canManageWorkspaceMail,
   });
 
-  const eligibleSenders = canManageWorkspaceUsers ? eligibleSendersQuery.data || [] : [];
+  const eligibleSenders = canManageWorkspaceMail ? eligibleSendersQuery.data || [] : [];
   const {
     workspaceSender,
     manualSelection,
@@ -188,24 +199,24 @@ const UserSettingsPage = () => {
     emailConfigQuery,
     saveEmailConfigMutation,
   } = useEmailSettings(selectedSenderId, {
-    enabled: canManageWorkspaceUsers && Boolean(selectedSenderId),
+    enabled: canManageWorkspaceMail && Boolean(selectedSenderId),
   });
   const {
     emailConfigQuery: activeSenderEmailConfigQuery,
     testEmailConfigMutation: activeSenderTestEmailMutation,
   } = useEmailSettings(activeSenderId, {
-    enabled: canManageWorkspaceUsers && Boolean(activeSenderId),
+    enabled: canManageWorkspaceMail && Boolean(activeSenderId),
   });
   const {
     emailConfigQuery: testerEmailConfigQuery,
     saveEmailConfigMutation: testerSaveEmailConfigMutation,
     testEmailConfigMutation: testerTestEmailConfigMutation,
   } = useEmailSettings(authUser?._id || "", {
-    enabled: isTesterSettingsMode && Boolean(authUser?._id),
+    enabled: isPersonalMailSettingsMode && Boolean(authUser?._id),
   });
 
   useEffect(() => {
-    if (!canManageWorkspaceUsers) {
+    if (!canManageWorkspaceMail) {
       return;
     }
 
@@ -223,11 +234,11 @@ const UserSettingsPage = () => {
     isSenderDirty,
     preferredSenderId,
     workspaceSenderQuery.isLoading,
-    canManageWorkspaceUsers,
+    canManageWorkspaceMail,
   ]);
 
   useEffect(() => {
-    if (!canManageWorkspaceUsers) {
+    if (!canManageWorkspaceMail) {
       workspaceSenderNoteRef.current = "";
       return;
     }
@@ -245,10 +256,10 @@ const UserSettingsPage = () => {
 
     workspaceSenderNoteRef.current = note;
     showToast("warning", note);
-  }, [canManageWorkspaceUsers, workspaceSender?.note]);
+  }, [canManageWorkspaceMail, workspaceSender?.note]);
 
   useEffect(() => {
-    if (!canManageWorkspaceUsers || !selectedSenderId) {
+    if (!canManageWorkspaceMail || !selectedSenderId) {
       return;
     }
 
@@ -273,7 +284,7 @@ const UserSettingsPage = () => {
     selectedSenderId,
     workspaceSender?.user?._id,
     workspaceSenderQuery.isLoading,
-    canManageWorkspaceUsers,
+    canManageWorkspaceMail,
   ]);
 
   const sortedUsers = useMemo(
@@ -654,7 +665,7 @@ const UserSettingsPage = () => {
   };
 
   const handleTestActiveSender = async () => {
-    if (isTesterSettingsMode) {
+    if (isPersonalMailSettingsMode) {
       if (!authUser?._id || !testerSelectedSender?.smtpConfigured) {
         showToast(
           "error",
@@ -765,7 +776,7 @@ const UserSettingsPage = () => {
     }
 
     if (activeSettingsItem === "sender") {
-      if (isTesterSettingsMode) {
+      if (isPersonalMailSettingsMode) {
         return (
           <WorkspaceMailSenderSettings
             currentUser={authUser}
@@ -830,7 +841,7 @@ const UserSettingsPage = () => {
     }
 
     if (activeSettingsItem === "smtp") {
-      if (isTesterSettingsMode) {
+      if (isPersonalMailSettingsMode) {
         return (
           <SMTPConfigurationSettings
             currentWorkspaceSender={testerWorkspaceSender}

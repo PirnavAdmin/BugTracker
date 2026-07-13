@@ -49,6 +49,8 @@ export const DEFAULT_SCREEN_PERMISSIONS = SCREEN_PERMISSION_ROLES.reduce(
 export const hasAdminPanelAccess = (role) => ADMIN_PANEL_ROLES.includes(role);
 export const hasTesterPanelAccess = (role) => TESTER_PANEL_ROLES.includes(role);
 export const hasTaskStoryLeadAccess = (role) => TASK_STORY_LEAD_ROLES.includes(role);
+export const hasWorkspaceMailAccess = (role) =>
+  hasAdminPanelAccess(role) || hasTaskStoryLeadAccess(role);
 
 export const dashboardPathByRole = {
   [ROLE_ADMIN]: "/admin/dashboard",

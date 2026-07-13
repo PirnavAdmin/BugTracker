@@ -22,7 +22,9 @@ const hasAdminAccess = (role) => ADMIN_ACCESS_ROLES.includes(role);
 const hasTesterAccess = (role) => TESTER_ACCESS_ROLES.includes(role);
 const hasTaskStoryLeadAccess = (role) => TASK_STORY_LEAD_ROLES.includes(role);
 
-const isEligibleWorkspaceSenderRole = hasAdminAccess;
+const hasWorkspaceMailAccess = (role) =>
+  hasAdminAccess(role) || hasTaskStoryLeadAccess(role);
+const isEligibleWorkspaceSenderRole = hasWorkspaceMailAccess;
 
 module.exports = {
   ROLE_ADMIN,
@@ -38,5 +40,6 @@ module.exports = {
   hasAdminAccess,
   hasTesterAccess,
   hasTaskStoryLeadAccess,
+  hasWorkspaceMailAccess,
   isEligibleWorkspaceSenderRole,
 };

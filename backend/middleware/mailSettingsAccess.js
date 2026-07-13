@@ -1,5 +1,5 @@
 const asyncHandler = require("../utils/asyncHandler");
-const { hasAdminAccess, hasTesterAccess } = require("../utils/roles");
+const { hasTesterAccess, hasWorkspaceMailAccess } = require("../utils/roles");
 
 const mailSettingsAccess = asyncHandler(async (req, res, next) => {
   if (!req.user) {
@@ -7,9 +7,9 @@ const mailSettingsAccess = asyncHandler(async (req, res, next) => {
     throw new Error("Unauthorized");
   }
 
-  if (!hasAdminAccess(req.user.role) && !hasTesterAccess(req.user.role)) {
+  if (!hasWorkspaceMailAccess(req.user.role) && !hasTesterAccess(req.user.role)) {
     res.status(403);
-    throw new Error("Admin, manager, or tester access required");
+    throw new Error("Admin, manager, team lead, Q/A lead, or tester access required");
   }
 
   next();

@@ -134,7 +134,12 @@ const canAssignTaskWork = (user, type) =>
   isAdmin(user) ||
   (hasTaskStoryLeadAccess(user?.role) &&
     [ISSUE_TYPES.TASK, ISSUE_TYPES.SUB_TASK].includes(getCanonicalIssueType(type, "")));
-const TEAM_LEAD_TASK_ASSIGNABLE_ROLES = [ROLE_DEVELOPER, ROLE_TEAM_LEAD, ROLE_TESTER];
+const TEAM_LEAD_TASK_ASSIGNABLE_ROLES = [
+  ROLE_DEVELOPER,
+  ROLE_TEAM_LEAD,
+  ROLE_QA_LEAD,
+  ROLE_TESTER,
+];
 const TEAM_LEAD_BUG_ASSIGNABLE_ROLES = [ROLE_DEVELOPER, ROLE_TEAM_LEAD, ROLE_QA_LEAD];
 const canAssignBugWork = (user, type) =>
   isAdmin(user) ||
