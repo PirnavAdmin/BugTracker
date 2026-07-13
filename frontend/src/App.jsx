@@ -296,7 +296,7 @@ const App = () => (
         path="/teams"
         element={
           <ProtectedRoute roles={ADMIN_PANEL_ROLES}>
-            <Navigate to="/projects" replace />
+            <Navigate to="/projects?tab=teams" replace />
           </ProtectedRoute>
         }
       />
@@ -304,7 +304,7 @@ const App = () => (
         path="/teams/create"
         element={
           <ProtectedRoute roles={ADMIN_PANEL_ROLES}>
-            <Navigate to="/projects" replace />
+            <Navigate to="/projects?tab=teams" replace />
           </ProtectedRoute>
         }
       />

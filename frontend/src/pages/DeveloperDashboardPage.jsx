@@ -54,6 +54,7 @@ import {
   isIssueOverdue,
   normalizeBugStatusForIssue,
   resolveBugDetails,
+  resolveIssueAssigneeIds,
   resolveIssueProjectId,
   sortIssues,
 } from "@/lib/issues";
@@ -1540,8 +1541,13 @@ const DeveloperDashboardPage = () => {
     [allIssues]
   );
   const taskIssues = useMemo(
-    () => allIssues.filter(isTaskWorkItem),
-    [allIssues]
+    () =>
+      allIssues
+        .filter(isTaskWorkItem)
+        .filter((issue) =>
+          user?._id ? resolveIssueAssigneeIds(issue).includes(String(user._id)) : true
+        ),
+    [allIssues, user?._id]
   );
   const sprintProgress = useMemo(
     () => {
