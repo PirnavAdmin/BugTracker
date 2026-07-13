@@ -552,7 +552,7 @@ const createProject = asyncHandler(async (req, res) => {
       userId: qaLead,
       workspaceId,
       label: "QA lead",
-      allowedRoles: ["Admin", "Manager", "Tester"],
+      allowedRoles: ["Admin", "Manager", "Tester", "Q/A Lead"],
     }),
   ]);
 
@@ -727,7 +727,7 @@ const updateProject = asyncHandler(async (req, res) => {
             userId: req.body.qaLead,
             workspaceId,
             label: "QA lead",
-            allowedRoles: ["Admin", "Manager", "Tester"],
+            allowedRoles: ["Admin", "Manager", "Tester", "Q/A Lead"],
           })
         : Promise.resolve({ value: project.qaLead || null }),
     ]);
@@ -772,7 +772,7 @@ const updateProject = asyncHandler(async (req, res) => {
 const updateProjectLeadership = updateProject;
 
 const normalizeProjectMemberRole = (value, fallback = "Developer") => {
-  const allowedRoles = ["Developer", "Tester", "Team Lead", "Manager"];
+  const allowedRoles = ["Developer", "Tester", "Q/A Lead", "Team Lead", "Manager"];
   const role = allowedRoles.find(
     (item) => item.toLowerCase() === String(value || "").trim().toLowerCase()
   );

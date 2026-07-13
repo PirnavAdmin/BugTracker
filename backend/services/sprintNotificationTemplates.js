@@ -1,3 +1,5 @@
+const { formatDate } = require("../utils/dateTime");
+
 const escapeHtml = (value = "") =>
   String(value)
     .replace(/&/g, "&amp;")
@@ -5,14 +7,6 @@ const escapeHtml = (value = "") =>
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
-
-const formatDate = (value) => {
-  if (!value) {
-    return "Not set";
-  }
-
-  return new Date(value).toLocaleDateString();
-};
 
 const formatIssueListHtml = (issues = []) =>
   issues

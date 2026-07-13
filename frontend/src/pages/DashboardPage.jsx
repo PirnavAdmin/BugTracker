@@ -21,7 +21,7 @@ import {
   Users2,
   Zap,
 } from "lucide-react";
-import { fetchBugs, fetchIssues, fetchManagedUsers } from "@/lib/api";
+import { fetchBugs, fetchIssues, fetchManagedUsers, fetchProjects, fetchTeams } from "@/lib/api";
 import useAnalytics from "@/hooks/use-analytics";
 import {
   ANALYTICS_PANEL_CLASS,
@@ -50,6 +50,7 @@ import {
   getIssueStatusLabel,
   getIssueStatusVariant,
   getHighPriorityIssues,
+  isIssueOverdue,
   getOpenIssues,
   getReopenedIssues,
   normalizeBugStatusForIssue,
@@ -102,6 +103,7 @@ const USER_ROLE_DISTRIBUTION_META = [
   { key: "Admin", label: "Admins", color: "#2563eb" },
   { key: "Manager", label: "Managers", color: "#0891b2" },
   { key: "Team Lead", label: "Team Leads", color: "#7c3aed" },
+  { key: "Q/A Lead", label: "Q/A Leads", color: "#ec4899" },
   { key: "Developer", label: "Developers", color: "#10b981" },
   { key: "Tester", label: "Testers", color: "#f59e0b" },
 ];
@@ -113,7 +115,7 @@ const TASK_STATUS_META = [
     helper: "Ready for pickup",
     className: "bg-slate-400",
     icon: Layers3,
-    routeParams: { status: TASK_BOARD_STATUS.OPEN },
+    routeParams: { status: TASK_BOARD_STATUS.OPEN, type: ISSUE_TYPES.TASK },
     tone: "blue",
   },
   {
@@ -122,7 +124,7 @@ const TASK_STATUS_META = [
     helper: "Active task work",
     className: "bg-blue-500",
     icon: TimerReset,
-    routeParams: { status: ISSUE_STATUS.IN_PROGRESS },
+    routeParams: { status: ISSUE_STATUS.IN_PROGRESS, type: ISSUE_TYPES.TASK },
     tone: "amber",
   },
   {
@@ -131,7 +133,7 @@ const TASK_STATUS_META = [
     helper: "Completed tasks",
     className: "bg-emerald-500",
     icon: CheckCircle2,
-    routeParams: { statusGroup: "closed" },
+    routeParams: { statusGroup: "closed", type: ISSUE_TYPES.TASK },
     tone: "emerald",
   },
 ];
@@ -766,6 +768,20 @@ const DashboardPage = () => {
     queryKey: ["managed-users", "admin-dashboard-overview"],
     queryFn: fetchManagedUsers,
   });
+  const {
+    data: allProjectsData = [],
+    isLoading: isProjectsCountLoading,
+  } = useQuery({
+    queryKey: ["projects", "admin-dashboard-counts"],
+    queryFn: fetchProjects,
+  });
+  const {
+    data: allTeamsData = [],
+    isLoading: isTeamsCountLoading,
+  } = useQuery({
+    queryKey: ["teams", "admin-dashboard-counts"],
+    queryFn: () => fetchTeams(),
+  });
   const issues = useMemo(
     () => (Array.isArray(issuesData) ? issuesData : []),
     [issuesData]
@@ -776,6 +792,14 @@ const DashboardPage = () => {
   );
   const bugs = useMemo(() => (Array.isArray(bugsData) ? bugsData : []), [bugsData]);
   const users = useMemo(() => (Array.isArray(usersData) ? usersData : []), [usersData]);
+  const allProjects = useMemo(
+    () => (Array.isArray(allProjectsData) ? allProjectsData : []),
+    [allProjectsData]
+  );
+  const allTeams = useMemo(
+    () => (Array.isArray(allTeamsData) ? allTeamsData : []),
+    [allTeamsData]
+  );
   const summary = analytics.overview?.summary || {};
   const issueStats = {
     total: issues.length,
@@ -1043,7 +1067,7 @@ const DashboardPage = () => {
     {
       key: "projects",
       title: "Total Projects",
-      value: formatCompactNumber(projects.length),
+      value: formatCompactNumber(allProjects.length),
       icon: FolderKanban,
       iconClassName: "text-blue-600",
       onClick: () => navigate("/projects"),
@@ -1051,7 +1075,7 @@ const DashboardPage = () => {
     {
       key: "teams",
       title: "Total Teams",
-      value: formatCompactNumber(teams.length),
+      value: formatCompactNumber(allTeams.length),
       icon: Users2,
       iconClassName: "text-violet-600",
       onClick: () => navigate("/teams"),
@@ -1099,6 +1123,15 @@ const DashboardPage = () => {
     tone: item.tone,
     onClick: () => navigateToTasks(item.routeParams),
   }));
+  taskKpiCards.push({
+    key: "overdue-tasks",
+    title: "Overdue Tasks",
+    value: formatCompactNumber(taskIssues.filter((issue) => isIssueOverdue(issue)).length),
+    helper: "Need attention now",
+    icon: AlertTriangle,
+    tone: "rose",
+    onClick: () => navigateToTasks({ type: ISSUE_TYPES.TASK, filter: "overdue" }),
+  });
   const kpiCards = [
     {
       key: "total",
@@ -1168,7 +1201,7 @@ const DashboardPage = () => {
     },
   ];
 
-  if (analytics.isLoading || isIssuesLoading) {
+  if (analytics.isLoading || isIssuesLoading || isProjectsCountLoading || isTeamsCountLoading) {
     return <DashboardLoading />;
   }
 
@@ -1206,7 +1239,7 @@ const DashboardPage = () => {
         <AdminQuickActionsCard actions={adminQuickActions} stats={adminQuickStats} />
       </section>
 
-      <section className="grid gap-5 md:grid-cols-3">
+      <section className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
         {taskKpiCards.map((card) => (
           <AnalyticsKpiCard
             key={card.key}

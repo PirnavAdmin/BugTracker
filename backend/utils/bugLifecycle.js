@@ -166,7 +166,7 @@ const BUG_ALLOWED_TRANSITIONS = Object.freeze({
   [BUG_STATUS.DONE]: Object.freeze([BUG_STATUS.CLOSED, BUG_STATUS.REOPEN]),
   [BUG_STATUS.REOPEN]: Object.freeze([BUG_STATUS.ASSIGNED, BUG_STATUS.IN_PROGRESS]),
   [BUG_STATUS.CLOSED]: Object.freeze([]),
-  [BUG_STATUS.REJECTED]: Object.freeze([]),
+  [BUG_STATUS.REJECTED]: Object.freeze([BUG_STATUS.REOPEN]),
   [BUG_STATUS.DEFERRED]: Object.freeze([]),
 });
 

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Activity,
+  AlertTriangle,
   Bell,
   Bug,
   CalendarDays,
@@ -39,13 +40,14 @@ import {
   getIssuePriorityVariant,
   getIssueStatusLabel,
   getIssueStatusVariant,
+  isIssueOverdue,
   normalizeBugStatusForIssue,
   normalizeIssueStatus,
   resolveBugDetails,
   resolveIssueProjectId,
 } from "@/lib/issues";
 import { getProjectTeams, resolveUserId } from "@/lib/project-teams";
-import { ROLE_TESTER } from "@/lib/roles";
+import { hasTesterPanelAccess } from "@/lib/roles";
 import { cn, formatDate, formatDateTime } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
 import { readStoredSession } from "@/lib/session";
@@ -402,7 +404,7 @@ const TesterDashboardPage = () => {
   const timeOfDay = currentHour < 12 ? "morning" : currentHour < 17 ? "afternoon" : "evening";
   const testerName = String(user?.name || "Tester").trim().split(/\s+/)[0];
   const testerId = String(user?._id || user?.id || "");
-  const isTester = user?.role === ROLE_TESTER;
+  const isTester = hasTesterPanelAccess(user?.role);
   const [searchTerm, setSearchTerm] = useState("");
   const [projectFilter, setProjectFilter] = useState("all");
   const [lastRefreshedAt, setLastRefreshedAt] = useState(() => new Date());
@@ -539,6 +541,10 @@ const TesterDashboardPage = () => {
 
     return metrics;
   }, [visibleIssues]);
+  const overdueTasksCount = useMemo(
+    () => (Array.isArray(recentTasks) ? recentTasks : []).filter((issue) => isIssueOverdue(issue)).length,
+    [recentTasks]
+  );
   const statusChartData = useMemo(
     () =>
       STATUS_CHART_META.map((item) => ({
@@ -678,6 +684,12 @@ const TesterDashboardPage = () => {
             value={dashboardMetrics[item.key]}
           />
         ))}
+        <SummaryCard
+          Icon={AlertTriangle}
+          className="from-rose-500 to-orange-500"
+          label="My Overdue Tasks"
+          value={overdueTasksCount}
+        />
       </section>
 
       <section className="grid gap-5 xl:grid-cols-[0.86fr_1.14fr]">

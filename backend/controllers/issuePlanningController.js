@@ -8,6 +8,7 @@ const Epic = require("../models/Epic");
 const Issue = require("../models/Issue");
 const IssueAttachment = require("../models/IssueAttachment");
 const IssueHistory = require("../models/IssueHistory");
+const ProjectMember = require("../models/ProjectMember");
 const IssueWorklog = require("../models/IssueWorklog");
 const Sprint = require("../models/Sprint");
 const TeamMember = require("../models/TeamMember");
@@ -31,6 +32,10 @@ const {
 } = require("../utils/planningIssueTypes");
 const { normalizeWorkspaceId } = require("../utils/workspace");
 const { ISSUE_TYPES } = require("../utils/issueTypes");
+const {
+  getSprintLifecycleState,
+  isSprintLocked,
+} = require("../utils/sprintLifecycle");
 
 const attachmentsRoot = path.resolve(__dirname, "..", "uploads", "issue-attachments");
 fs.mkdirSync(attachmentsRoot, {
@@ -47,6 +52,8 @@ const uploadIssueAttachmentMiddleware = multer({
 }).single("file");
 
 const getActorId = (user) => user?.id || user?._id;
+const SPRINT_EDIT_BLOCKED_MESSAGE =
+  "Sprint has ended. Create a new sprint to continue working.";
 
 const formatAttachment = (attachment) => ({
   ...(typeof attachment?.toObject === "function" ? attachment.toObject() : attachment),
@@ -103,7 +110,12 @@ const ensurePlanningAccessForIssue = async (user, issueId) => {
   };
 };
 
-const ensureAssigneeBelongsToTeam = async ({ assigneeId, teamId, workspaceId }) => {
+const ensureAssigneeBelongsToTeam = async ({
+  assigneeId,
+  teamId,
+  projectId,
+  workspaceId,
+}) => {
   if (!assigneeId) {
     return {
       assignee: null,
@@ -144,18 +156,29 @@ const ensureAssigneeBelongsToTeam = async ({ assigneeId, teamId, workspaceId }) 
     };
   }
 
-  const teamMembership = await TeamMember.findOne({
-    teamId,
-    userId: assigneeId,
-  })
-    .select("_id")
-    .lean();
+  const [teamMembership, directProjectMembership] = await Promise.all([
+    TeamMember.findOne({
+      teamId,
+      userId: assigneeId,
+    })
+      .select("_id")
+      .lean(),
+    projectId
+      ? ProjectMember.findOne({
+          projectId,
+          userId: assigneeId,
+        })
+          .select("_id")
+          .lean()
+      : null,
+  ]);
 
-  if (!teamMembership) {
+  if (!teamMembership && !directProjectMembership) {
     return {
       error: {
         status: 400,
-        message: "Selected assignee is not a member of the selected team",
+        message:
+          "Selected assignee is not a member of the selected team or directly assigned to this project",
       },
     };
   }
@@ -222,8 +245,7 @@ const ensureSprintForIssue = async ({ sprintId, projectId, teamId }) => {
     _id: sprintId,
     projectId,
   })
-    .select("_id name teamId state")
-    .lean();
+    .select("_id name teamId state endDate expiredAt lockOverride");
 
   if (!sprint) {
     return {
@@ -234,11 +256,14 @@ const ensureSprintForIssue = async ({ sprintId, projectId, teamId }) => {
     };
   }
 
-  if (sprint.state === "COMPLETED") {
+  if (isSprintLocked(sprint)) {
     return {
       error: {
         status: 400,
-        message: "Completed sprints cannot receive new issues",
+        message:
+          getSprintLifecycleState(sprint) === "EXPIRED"
+            ? SPRINT_EDIT_BLOCKED_MESSAGE
+            : "Completed sprints cannot receive new issues",
       },
     };
   }
@@ -294,6 +319,31 @@ const buildContainerQuery = (projectId, sprintId) => ({
   type: ISSUE_TYPES.STORY,
 });
 
+const ensureIssueSprintIsMutable = async (issue) => {
+  if (!issue?.sprintId || !mongoose.isValidObjectId(issue.sprintId)) {
+    return {
+      sprint: null,
+    };
+  }
+
+  const sprint = await Sprint.findById(issue.sprintId).select(
+    "_id name state endDate expiredAt lockOverride"
+  );
+
+  if (!sprint || !isSprintLocked(sprint)) {
+    return {
+      sprint,
+    };
+  }
+
+  return {
+    error: {
+      status: 400,
+      message: SPRINT_EDIT_BLOCKED_MESSAGE,
+    },
+  };
+};
+
 const updateIssuePlanning = asyncHandler(async (req, res) => {
   if (!mongoose.isValidObjectId(req.params.id)) {
     res.status(400);
@@ -308,6 +358,12 @@ const updateIssuePlanning = asyncHandler(async (req, res) => {
   }
 
   const { issue, project } = accessResult;
+  const sprintMutationAccess = await ensureIssueSprintIsMutable(issue);
+
+  if (sprintMutationAccess.error) {
+    res.status(sprintMutationAccess.error.status);
+    throw new Error(sprintMutationAccess.error.message);
+  }
 
   if (
     (Object.prototype.hasOwnProperty.call(req.body, "sprintId") ||
@@ -355,6 +411,7 @@ const updateIssuePlanning = asyncHandler(async (req, res) => {
     const assigneeResult = await ensureAssigneeBelongsToTeam({
       assigneeId: req.body.assigneeId || null,
       teamId: issue.teamId,
+      projectId: issue.projectId,
       workspaceId,
     });
 
@@ -475,6 +532,12 @@ const reorderIssuePlanning = asyncHandler(async (req, res) => {
   }
 
   const { issue, project } = accessResult;
+  const sprintMutationAccess = await ensureIssueSprintIsMutable(issue);
+
+  if (sprintMutationAccess.error) {
+    res.status(sprintMutationAccess.error.status);
+    throw new Error(sprintMutationAccess.error.message);
+  }
 
   if (issue.type !== ISSUE_TYPES.STORY) {
     res.status(400);
@@ -630,6 +693,13 @@ const uploadIssueAttachment = asyncHandler(async (req, res) => {
     throw new Error("Issue not found or inaccessible");
   }
 
+  const sprintMutationAccess = await ensureIssueSprintIsMutable(issue);
+
+  if (sprintMutationAccess.error) {
+    res.status(sprintMutationAccess.error.status);
+    throw new Error(sprintMutationAccess.error.message);
+  }
+
   if (!req.file) {
     res.status(400);
     throw new Error("Select a file to upload");
@@ -702,6 +772,13 @@ const createIssueWorklog = asyncHandler(async (req, res) => {
   if (!issue) {
     res.status(404);
     throw new Error("Issue not found or inaccessible");
+  }
+
+  const sprintMutationAccess = await ensureIssueSprintIsMutable(issue);
+
+  if (sprintMutationAccess.error) {
+    res.status(sprintMutationAccess.error.status);
+    throw new Error(sprintMutationAccess.error.message);
   }
 
   const minutes = Number(req.body?.minutes);

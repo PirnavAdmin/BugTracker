@@ -15,6 +15,8 @@ import {
   ISSUE_STATUS,
   ISSUE_TYPE_OPTIONS,
   getIssueDisplayKey,
+  getSprintLifecycleState,
+  isSprintLocked,
   resolveIssueProjectId,
 } from "@/lib/issues";
 import {
@@ -33,7 +35,17 @@ import {
   resolveTeamId,
   resolveUserId,
 } from "@/lib/project-teams";
+<<<<<<< HEAD
 import { hasAdminPanelAccess, ROLE_DEVELOPER, ROLE_TEAM_LEAD, ROLE_TESTER } from "@/lib/roles";
+=======
+import {
+  hasAdminPanelAccess,
+  hasTaskStoryLeadAccess,
+  ROLE_DEVELOPER,
+  ROLE_QA_LEAD,
+  ROLE_TEAM_LEAD,
+} from "@/lib/roles";
+>>>>>>> b17c4066c1873c208a579ac9310d65ecabbf82d7
 import { formatDate, getInitials } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
 
@@ -178,7 +190,7 @@ const buildSprintOption = (sprint) => {
   return {
     value: String(sprint?._id || ""),
     label: sprint?.name || "Untitled sprint",
-    state: sprint?.state || sprint?.status || "PLANNED",
+    state: getSprintLifecycleState(sprint) || sprint?.state || sprint?.status || "PLANNED",
     startDate: sprint?.startDate || null,
     endDate: sprint?.endDate || null,
     sprint,
@@ -321,6 +333,17 @@ const formatDependencyLabel = (option) => (
   </div>
 );
 
+const formatParentStoryOptionLabel = (option) => (
+  <div className="min-w-0 py-0.5">
+    <p className="truncate text-sm font-semibold text-slate-900">
+      {option.issue?.title || option.label}
+    </p>
+    <p className="truncate text-xs text-slate-500">
+      {getIssueDisplayKey(option.issue)}
+    </p>
+  </div>
+);
+
 const formatEpicOptionLabel = (option) => (
   <div className="flex min-w-0 items-center gap-3">
     <span
@@ -365,6 +388,23 @@ const baseSelectProps = {
   menuPosition: "absolute",
   menuShouldScrollIntoView: false,
   maxMenuHeight: SELECT_MENU_MAX_HEIGHT,
+};
+
+const parentStorySelectStyles = {
+  ...issueSelectStyles,
+  menu: (base) => ({
+    ...issueSelectStyles.menu(base),
+    marginTop: 6,
+  }),
+  menuList: (base) => ({
+    ...issueSelectStyles.menuList(base),
+    padding: 6,
+    maxHeight: 240,
+  }),
+  option: (base, state) => ({
+    ...issueSelectStyles.option(base, state),
+    padding: "8px 12px",
+  }),
 };
 
 const IssueCreateDialog = ({
@@ -498,9 +538,13 @@ const IssueCreateDialog = ({
   );
   const taskAssignableAssignees = useMemo(
     () =>
-      role === ROLE_TEAM_LEAD && ["Task", "Sub-task"].includes(formData.type)
+      hasTaskStoryLeadAccess(role) && ["Task", "Sub-task"].includes(formData.type)
         ? availableAssignees.filter((assignee) =>
+<<<<<<< HEAD
             [ROLE_DEVELOPER, ROLE_TEAM_LEAD, ROLE_TESTER].includes(assignee.role)
+=======
+            [ROLE_DEVELOPER, ROLE_TEAM_LEAD, ROLE_QA_LEAD].includes(assignee.role)
+>>>>>>> b17c4066c1873c208a579ac9310d65ecabbf82d7
           )
         : availableAssignees,
     [availableAssignees, formData.type, role]
@@ -586,7 +630,8 @@ const IssueCreateDialog = ({
   );
   const sprintOptions = useMemo(() => {
     const assignableSprints = (Array.isArray(projectSprintsData) ? projectSprintsData : [])
-      .filter((sprint) => ["ACTIVE", "PLANNED"].includes(String(sprint?.state || "")))
+      .filter((sprint) => !isSprintLocked(sprint))
+      .filter((sprint) => ["ACTIVE", "PLANNED"].includes(getSprintLifecycleState(sprint)))
       .filter((sprint) => {
         const sprintTeamId = resolveSprintTeamId(sprint);
 
@@ -1246,8 +1291,13 @@ const IssueCreateDialog = ({
                           }
                           noOptionsMessage={() =>
                             formData.teamId
+<<<<<<< HEAD
                               ? role === ROLE_TEAM_LEAD && ["Task", "Sub-task"].includes(formData.type)
                                 ? "No developers, team leads, or QA leads available in this team."
+=======
+                              ? hasTaskStoryLeadAccess(role) && ["Task", "Sub-task"].includes(formData.type)
+                                ? "No developers or team leads available in this team."
+>>>>>>> b17c4066c1873c208a579ac9310d65ecabbf82d7
                                 : "No teammates available in this team."
                               : "Select a team first."
                           }
@@ -1428,10 +1478,10 @@ const IssueCreateDialog = ({
 
               <label className="mt-3 block space-y-1.5 md:max-w-[calc(50%-0.375rem)]">
                 <span className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">
-                  Due Date (Optional)
+                  Due Date & Time (Optional)
                 </span>
                 <Input
-                  type="date"
+                  type="datetime-local"
                   className="h-auto rounded-2xl py-3"
                   value={formData.dueAt}
                   onChange={(event) =>
@@ -1569,13 +1619,14 @@ const IssueCreateDialog = ({
                         story?.sprintId?._id || story?.sprintId || current.sprintId,
                     }));
                   }}
-                  styles={issueSelectStyles}
-                  formatOptionLabel={formatDependencyLabel}
+                  styles={parentStorySelectStyles}
+                  formatOptionLabel={formatParentStoryOptionLabel}
                   isSearchable
                   isClearable
                   isDisabled={!formData.projectId || isSubmitPending}
                   menuPortalTarget={menuPortalTarget}
                   {...baseSelectProps}
+                  menuPosition="fixed"
                   placeholder="No parent Story"
                   noOptionsMessage={() => "No Stories found in this project."}
                 />

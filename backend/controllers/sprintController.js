@@ -17,6 +17,15 @@ const {
 } = require("../utils/planningOrder");
 const { populateIssueQuery, serializeIssues } = require("../utils/issuePresentation");
 const { normalizeWorkspaceId } = require("../utils/workspace");
+const {
+  ACTIVE_SPRINT_STATE,
+  buildSprintLifecycleMeta,
+  getSprintLifecycleState,
+  hasSprintPastEndDate,
+  isSprintExpired,
+  isSprintLocked,
+} = require("../utils/sprintLifecycle");
+const { ROLE_ADMIN } = require("../utils/roles");
 
 const parseOptionalDate = (value, label) => {
   if (!value) {
@@ -108,6 +117,12 @@ const serializeSprint = (sprint, issues = []) => ({
   endDate: sprint.endDate,
   startedAt: sprint.startedAt,
   completedAt: sprint.completedAt,
+  expiredAt: sprint.expiredAt || null,
+  lockOverride: sprint.lockOverride || {
+    enabled: false,
+    reopenedAt: null,
+    reopenedBy: null,
+  },
   snapshot: sprint.snapshot || null,
   createdBy: sprint.createdBy,
   completedBy: sprint.completedBy,
@@ -115,7 +130,21 @@ const serializeSprint = (sprint, issues = []) => ({
   updatedAt: sprint.updatedAt,
   issueCount: issues.length,
   completedCount: issues.filter((issue) => issue.status === "DONE").length,
+  ...buildSprintLifecycleMeta(sprint),
 });
+
+const expireSprintIfNeeded = async (sprint) => {
+  if (!sprint || typeof sprint.save !== "function" || !isSprintExpired(sprint)) {
+    return sprint;
+  }
+
+  if (!sprint.expiredAt) {
+    sprint.expiredAt = new Date();
+    await sprint.save();
+  }
+
+  return sprint;
+};
 
 const createHttpError = (status, message, code = "", details = null) => {
   const error = new Error(message);
@@ -295,10 +324,11 @@ const getSprints = asyncHandler(async (req, res) => {
     .sort({
       startDate: 1,
       createdAt: 1,
-    })
-    .lean();
+    });
 
-  res.status(200).json(sprints.map((sprint) => serializeSprint(sprint)));
+  await Promise.all(sprints.map((sprint) => expireSprintIfNeeded(sprint)));
+
+  res.status(200).json(sprints.map((sprint) => serializeSprint(sprint.toObject())));
 });
 
 const getSprintIssues = asyncHandler(async (req, res) => {
@@ -307,14 +337,17 @@ const getSprintIssues = asyncHandler(async (req, res) => {
     throw new Error("Invalid sprint id");
   }
 
-  const sprint = await Sprint.findById(req.params.id)
-    .populate("teamId", "name description workspaceId")
-    .lean();
+  const sprint = await Sprint.findById(req.params.id).populate(
+    "teamId",
+    "name description workspaceId"
+  );
 
   if (!sprint) {
     res.status(404);
     throw new Error("Sprint not found");
   }
+
+  await expireSprintIfNeeded(sprint);
 
   const accessResult = await ensureSprintManagementAccess(req.user, sprint);
 
@@ -333,7 +366,7 @@ const getSprintIssues = asyncHandler(async (req, res) => {
   );
 
   res.status(200).json({
-    sprint: serializeSprint(sprint, serializeIssues(issues)),
+    sprint: serializeSprint(sprint.toObject(), serializeIssues(issues)),
     issues: serializeIssues(issues),
   });
 });
@@ -446,6 +479,11 @@ const updateSprint = asyncHandler(async (req, res) => {
     throw new Error("Completed sprints cannot be edited");
   }
 
+  if (isSprintExpired(sprint)) {
+    res.status(400);
+    throw new Error("Expired sprints cannot be edited until an admin reopens them");
+  }
+
   const workspaceId = normalizeWorkspaceId(req.user.workspaceId);
 
   if (Object.prototype.hasOwnProperty.call(req.body, "teamId")) {
@@ -502,6 +540,15 @@ const updateSprint = asyncHandler(async (req, res) => {
 
   if (typeof req.body.endDate !== "undefined") {
     sprint.endDate = endDateResult.value;
+  }
+
+  if (!hasSprintPastEndDate(sprint)) {
+    sprint.expiredAt = null;
+    sprint.lockOverride = {
+      enabled: false,
+      reopenedAt: null,
+      reopenedBy: null,
+    };
   }
 
   await sprint.save();
@@ -583,7 +630,7 @@ const startSprint = asyncHandler(async (req, res) => {
     throw new Error(accessResult.error.message);
   }
 
-  if (sprint.state === "ACTIVE") {
+  if (sprint.state === "ACTIVE" && !isSprintExpired(sprint)) {
     logSprintStartConflict({
       sprint,
       reason: "already_active",
@@ -630,6 +677,11 @@ const startSprint = asyncHandler(async (req, res) => {
     throw new Error("Sprint start and end dates must be set before starting the sprint");
   }
 
+  if (hasSprintPastEndDate(sprint)) {
+    res.status(400);
+    throw new Error("Sprint end date has already passed. Update the sprint dates before starting it.");
+  }
+
   const overlapResult = await validateActiveSprintOverlap(sprint);
 
   if (overlapResult.error) {
@@ -653,8 +705,14 @@ const startSprint = asyncHandler(async (req, res) => {
     .select("_id storyPoints")
     .lean();
 
-  sprint.state = "ACTIVE";
+  sprint.state = ACTIVE_SPRINT_STATE;
   sprint.startedAt = new Date();
+  sprint.expiredAt = null;
+  sprint.lockOverride = {
+    enabled: false,
+    reopenedAt: null,
+    reopenedBy: null,
+  };
   sprint.snapshot = {
     committedIssueIds: issues.map((issue) => issue._id),
     committedPoints: issues.reduce(
@@ -847,6 +905,11 @@ const completeSprint = asyncHandler(async (req, res) => {
   sprint.state = "COMPLETED";
   sprint.completedAt = new Date();
   sprint.completedBy = req.user._id;
+  sprint.lockOverride = {
+    enabled: false,
+    reopenedAt: null,
+    reopenedBy: null,
+  };
   sprint.snapshot = {
     ...(sprint.snapshot || {}),
     committedIssueIds: sprint.snapshot?.committedIssueIds || issues.map((issue) => issue._id),
@@ -879,6 +942,48 @@ const completeSprint = asyncHandler(async (req, res) => {
   });
 });
 
+const reopenSprint = asyncHandler(async (req, res) => {
+  if (!mongoose.isValidObjectId(req.params.id)) {
+    res.status(400);
+    throw new Error("Invalid sprint id");
+  }
+
+  const sprint = await Sprint.findById(req.params.id);
+
+  if (!sprint) {
+    res.status(404);
+    throw new Error("Sprint not found");
+  }
+
+  const accessResult = await ensureSprintManagementAccess(req.user, sprint);
+
+  if (accessResult.error) {
+    res.status(accessResult.error.status);
+    throw new Error(accessResult.error.message);
+  }
+
+  if (req.user.role !== ROLE_ADMIN) {
+    res.status(403);
+    throw new Error("Only admins can reopen expired sprints");
+  }
+
+  if (!isSprintLocked(sprint) || getSprintLifecycleState(sprint) !== "EXPIRED") {
+    res.status(400);
+    throw new Error("Only expired active sprints can be reopened");
+  }
+
+  sprint.lockOverride = {
+    enabled: true,
+    reopenedAt: new Date(),
+    reopenedBy: req.user._id,
+  };
+
+  await sprint.save();
+  await sprint.populate("teamId", "name description workspaceId");
+
+  res.status(200).json(serializeSprint(sprint.toObject()));
+});
+
 module.exports = {
   getSprints,
   getSprintIssues,
@@ -887,4 +992,5 @@ module.exports = {
   deleteSprint,
   startSprint,
   completeSprint,
+  reopenSprint,
 };

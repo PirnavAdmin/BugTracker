@@ -1,47 +1,24 @@
 import { clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
+export {
+  formatDate,
+  formatDatePickerDisplay,
+  formatDateTime,
+  formatRelativeDateLabel,
+  formatTime,
+  getIndianDateKey,
+  INDIAN_LOCALE,
+  INDIAN_TIME_ZONE,
+  toDateTimeInputValue,
+} from "@/lib/date-time";
+import {
+  formatDate,
+  formatDateTime,
+  formatTime,
+  toDateTimeInputValue,
+} from "@/lib/date-time";
 
 export const cn = (...inputs) => twMerge(clsx(inputs));
-
-const DATE_LOCALE = "en-GB";
-const SHORT_DATE_FORMAT = {
-  day: "2-digit",
-  month: "2-digit",
-  year: "2-digit",
-};
-
-export const formatDate = (value, options = {}) =>
-  new Intl.DateTimeFormat(DATE_LOCALE, {
-    ...SHORT_DATE_FORMAT,
-    ...options,
-  }).format(new Date(value));
-
-export const formatDateTime = (value, options = {}) => {
-  if (!value) {
-    return "Not started";
-  }
-
-  return new Intl.DateTimeFormat(DATE_LOCALE, {
-    ...SHORT_DATE_FORMAT,
-    hour: "numeric",
-    minute: "2-digit",
-    hour12: true,
-    ...options,
-  }).format(new Date(value));
-};
-
-export const formatTime = (value, options = {}) => {
-  if (!value) {
-    return "Unknown time";
-  }
-
-  return new Intl.DateTimeFormat("en-GB", {
-    hour: "numeric",
-    minute: "2-digit",
-    hour12: true,
-    ...options,
-  }).format(new Date(value));
-};
 
 export const getInitials = (name = "") =>
   name

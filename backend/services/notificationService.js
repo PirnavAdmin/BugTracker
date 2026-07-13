@@ -3,7 +3,7 @@ const User = require("../models/User");
 const TeamMember = require("../models/TeamMember");
 const ProjectTeam = require("../models/ProjectTeam");
 const { emitToUser } = require("../socket");
-const { ROLE_TESTER, ROLE_ADMIN } = require("../utils/roles");
+const { ROLE_TESTER, ROLE_QA_LEAD, ROLE_ADMIN } = require("../utils/roles");
 const { BUG_STATUS } = require("../utils/bugLifecycle");
 
 /**
@@ -24,10 +24,10 @@ const getTestersForProject = async (projectId) => {
 
   if (!userIds.length) return [];
 
-  // Find users among team members who have the Tester role
+  // Find users among team members who have tester-like roles
   const testers = await User.find({
     _id: { $in: userIds },
-    role: ROLE_TESTER,
+    role: { $in: [ROLE_TESTER, ROLE_QA_LEAD] },
   }).select("_id").lean();
 
   return testers.map((t) => t._id);

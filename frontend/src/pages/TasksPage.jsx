@@ -20,7 +20,7 @@ import { useAuth } from "@/hooks/use-auth";
 import {
   ISSUE_TYPES,
 } from "@/lib/issues";
-import { ROLE_TEAM_LEAD, canDeleteIssues } from "@/lib/roles";
+import { canDeleteIssues, hasTaskStoryLeadAccess } from "@/lib/roles";
 import IssueCreateDialog from "@/components/issues/IssueCreateDialog";
 import IssueDetailsDialog from "@/components/issues/IssueDetailsDialog";
 import TaskKanbanBoard from "@/components/tasks/TaskKanbanBoard";
@@ -48,7 +48,7 @@ const TasksPage = () => {
   const [taskScope, setTaskScope] = useState("mine");
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [toast, setToast] = useState(null);
-  const isTeamLead = role === ROLE_TEAM_LEAD;
+  const isTeamLead = hasTaskStoryLeadAccess(role);
   const canDeleteTask = canDeleteIssues(role);
   const statusFilter = useMemo(() => {
     const value = String(searchParams.get("status") || "all").trim().toUpperCase();

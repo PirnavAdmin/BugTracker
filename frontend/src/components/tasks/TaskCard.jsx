@@ -1,7 +1,21 @@
 import { useDraggable } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
-import { CalendarDays, FolderKanban, GripVertical, LoaderCircle, UserCircle2 } from "lucide-react";
-import { getIssueDisplayKey, getIssuePriorityVariant, resolveIssueAssignee } from "@/lib/issues";
+import {
+  AlertTriangle,
+  CalendarDays,
+  FolderKanban,
+  GripVertical,
+  LoaderCircle,
+  UserCircle2,
+} from "lucide-react";
+import {
+  getIssueDeadlineLabel,
+  getIssueDisplayKey,
+  getIssuePriorityVariant,
+  isIssueNearDue,
+  isIssueOverdue,
+  resolveIssueAssignee,
+} from "@/lib/issues";
 import { cn, formatDateTime } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 
@@ -82,6 +96,9 @@ const TaskCardSurface = ({
 }) => {
   const createdAtLabel = formatCreatedAt(issue.createdAt);
   const assignee = resolveIssueAssignee(issue);
+  const isOverdue = isIssueOverdue(issue);
+  const isNearDue = !isOverdue && isIssueNearDue(issue);
+  const deadlineLabel = getIssueDeadlineLabel(issue);
 
   return (
     <article
@@ -90,6 +107,7 @@ const TaskCardSurface = ({
       aria-busy={isUpdating}
       className={cn(
         "group relative rounded-[16px] border border-slate-200 bg-white p-4 text-left shadow-sm transition duration-200 ease-out hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-[0_18px_40px_-30px_rgba(37,99,235,0.34)]",
+        isNearDue && "border-amber-300",
         isDragging && "opacity-40",
         isOverlay && "rotate-[0.5deg] shadow-[0_24px_54px_-28px_rgba(15,23,42,0.58)]",
         isUpdating && "pointer-events-none opacity-70",
@@ -129,6 +147,15 @@ const TaskCardSurface = ({
             >
               {issue.priority}
             </Badge>
+            {deadlineLabel ? (
+              <Badge
+                className="gap-1 px-2.5 py-1 text-[11px]"
+                variant={isOverdue ? "danger" : "warning"}
+              >
+                <AlertTriangle className="h-3.5 w-3.5" />
+                {deadlineLabel}
+              </Badge>
+            ) : null}
           </div>
 
           <h3 className="mt-3 line-clamp-2 text-sm font-semibold leading-5 text-slate-950 transition group-hover:text-blue-700">
@@ -162,6 +189,13 @@ const TaskCardSurface = ({
           <div className="flex items-center gap-2">
             <CalendarDays className="h-4 w-4 shrink-0 text-slate-400" />
             <span>{createdAtLabel}</span>
+          </div>
+        ) : null}
+
+        {issue?.dueAt ? (
+          <div className={cn("flex items-center gap-2", isOverdue ? "text-rose-700" : "text-slate-600")}>
+            <AlertTriangle className={cn("h-4 w-4 shrink-0", isOverdue ? "text-rose-500" : "text-amber-500")} />
+            <span>{isOverdue ? `Overdue by ${deadlineLabel.replace(" Late", "")}` : deadlineLabel || "On schedule"}</span>
           </div>
         ) : null}
       </div>

@@ -25,7 +25,19 @@ const {
   getProjectIdsForUserThroughTeams,
   mergeProjectTeamIds,
 } = require("../utils/projectRelations");
-const { ROLE_ADMIN, ROLE_DEVELOPER, ROLE_MANAGER, ROLE_TEAM_LEAD, ROLE_TESTER } = require("../utils/roles");
+const {
+  formatDate,
+  formatMonthYear,
+  getIndianDateKey,
+} = require("../utils/dateTime");
+const {
+  ROLE_ADMIN,
+  ROLE_DEVELOPER,
+  ROLE_MANAGER,
+  ROLE_TEAM_LEAD,
+  hasTaskStoryLeadAccess,
+  hasTesterAccess,
+} = require("../utils/roles");
 const { applyActiveSprintVisibilityToIssueQuery } = require("../utils/sprintVisibility");
 const { normalizeWorkspaceId } = require("../utils/workspace");
 
@@ -245,14 +257,14 @@ const addPersonalAccess = (match, user) => {
   const userObjectId = user._id || user.id;
   let personalAccessQuery;
 
-  if (user.role === ROLE_TESTER) {
+  if (hasTesterAccess(user.role)) {
     personalAccessQuery = {
       $or: [
         { assignee: userObjectId },
         { reporter: userObjectId },
       ],
     };
-  } else if ([ROLE_DEVELOPER, ROLE_TEAM_LEAD].includes(user.role)) {
+  } else if (user.role === ROLE_DEVELOPER || hasTaskStoryLeadAccess(user.role)) {
     personalAccessQuery = {
       $or: [
         { assignee: userObjectId },
@@ -583,7 +595,7 @@ const buildAnalyticsMatch = async (req, res) => {
     addPersonalAccess(match, req.user);
   }
 
-  if ([ROLE_DEVELOPER, ROLE_TEAM_LEAD].includes(req.user.role)) {
+  if (req.user.role === ROLE_DEVELOPER || hasTaskStoryLeadAccess(req.user.role)) {
     await applyActiveSprintVisibilityToIssueQuery(match, Sprint);
   }
 
@@ -1447,31 +1459,14 @@ const getTrendRange = async (query, match) => {
   };
 };
 
-const getDateKey = (value) =>
-  new Intl.DateTimeFormat("en-CA", {
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(new Date(value));
+const getDateKey = (value) => getIndianDateKey(value);
 
 const getMonthKey = (value) =>
-  new Intl.DateTimeFormat("en-CA", {
-    year: "numeric",
-    month: "2-digit",
-  }).format(new Date(value));
+  formatMonthYear(value, { month: "2-digit" }).replace(" ", "-");
 
-const formatShortDateLabel = (value) =>
-  new Intl.DateTimeFormat("en-GB", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "2-digit",
-  }).format(new Date(value));
+const formatShortDateLabel = (value) => formatDate(value);
 
-const formatShortMonthLabel = (value) =>
-  new Intl.DateTimeFormat("en-GB", {
-    month: "2-digit",
-    year: "2-digit",
-  }).format(new Date(value));
+const formatShortMonthLabel = (value) => formatMonthYear(value);
 
 const buildTrendRows = async (match, req) => {
   const eventScopeMatch = cloneWithoutCreatedAt(match);

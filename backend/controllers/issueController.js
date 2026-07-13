@@ -1,9 +1,13 @@
 const mongoose = require("mongoose");
+const multer = require("multer");
+const ExcelJS = require("exceljs");
+const XLSX = require("xlsx");
 const Comment = require("../models/Comment");
 const Epic = require("../models/Epic");
 const Issue = require("../models/Issue");
 const IssueHistory = require("../models/IssueHistory");
 const Project = require("../models/Project");
+const ProjectMember = require("../models/ProjectMember");
 const ProjectTeam = require("../models/ProjectTeam");
 const Sprint = require("../models/Sprint");
 const Team = require("../models/Team");
@@ -67,6 +71,14 @@ const {
 } = require("../utils/issueFilters");
 const { canManageProjectPlanning } = require("../utils/backlogAccess");
 const {
+  createUtcDateFromIndianParts,
+  parseFlexibleDateInput,
+} = require("../utils/dateTime");
+const {
+  getSprintLifecycleState,
+  isSprintLocked,
+} = require("../utils/sprintLifecycle");
+const {
   buildProjectAccessQuery,
   getProjectIdsForUserThroughTeams,
   mergeProjectTeamIds,
@@ -75,9 +87,12 @@ const {
   ROLE_ADMIN,
   ROLE_MANAGER,
   ROLE_TEAM_LEAD,
+  ROLE_QA_LEAD,
   ROLE_DEVELOPER,
   ROLE_TESTER,
   hasAdminAccess,
+  hasTaskStoryLeadAccess,
+  hasTesterAccess,
 } = require("../utils/roles");
 const { normalizeWorkspaceId } = require("../utils/workspace");
 const { getNextIssueDisplayId } = require("../utils/displayIds");
@@ -98,24 +113,660 @@ const {
   summarizeBugQueryFilters,
 } = require("../utils/bugQueueQuery");
 
+const taskImportStorage = multer.memoryStorage();
+const uploadTaskImportMiddleware = multer({
+  storage: taskImportStorage,
+  limits: {
+    fileSize: 5 * 1024 * 1024,
+  },
+}).single("file");
+
 const isAdmin = (user) => hasAdminAccess(user?.role);
 const isBugType = (type) => getCanonicalIssueType(type, "") === ISSUE_TYPES.BUG;
 const isGenericIssueStatus = (status) =>
   GENERIC_ISSUE_STATUS_VALUES.includes(normalizeIssueStatus(status));
 const isBugLifecycleStatus = (status) =>
   BUG_STATUS_VALUES.includes(normalizeIssueStatus(status));
-const isQaRole = (role) => role === ROLE_TESTER;
+const isQaRole = (role) => hasTesterAccess(role);
 const isDevRole = (role) => [ROLE_DEVELOPER, ROLE_TEAM_LEAD].includes(role);
 const isLeadRole = (role) => [ROLE_ADMIN, ROLE_MANAGER].includes(role);
 const canAssignTaskWork = (user, type) =>
   isAdmin(user) ||
-  (user?.role === ROLE_TEAM_LEAD &&
+  (hasTaskStoryLeadAccess(user?.role) &&
     [ISSUE_TYPES.TASK, ISSUE_TYPES.SUB_TASK].includes(getCanonicalIssueType(type, "")));
+<<<<<<< HEAD
 const TEAM_LEAD_TASK_ASSIGNABLE_ROLES = [ROLE_DEVELOPER, ROLE_TEAM_LEAD, ROLE_TESTER];
+=======
+const canAssignBugWork = (user, type) =>
+  isAdmin(user) ||
+  (user?.role === ROLE_TEAM_LEAD &&
+    getCanonicalIssueType(type, "") === ISSUE_TYPES.BUG);
+>>>>>>> b17c4066c1873c208a579ac9310d65ecabbf82d7
 const ISSUE_PRIORITY_VALUES = ["Critical", "High", "Medium", "Low"];
 const escapeRegExp = (value = "") =>
   value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+const normalizeImportKey = (value = "") =>
+  String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "");
 const getComparableUserId = (user) => String(user?._id || user?.id || user || "");
+const SPRINT_EDIT_BLOCKED_MESSAGE =
+  "Sprint has ended. Create a new sprint to continue working.";
+
+const TASK_IMPORT_FIELD_ALIASES = Object.freeze({
+  title: ["title"],
+  project: ["project", "projectname"],
+  description: ["description", "desc"],
+  team: ["team", "teamname"],
+  assignee: ["assignee", "assigneename", "assignedto", "owner"],
+  dueDate: ["duedate", "due", "duedateyyyyMMdd"],
+});
+
+const getTaskImportValue = (row = {}, field) => {
+  const aliases = TASK_IMPORT_FIELD_ALIASES[field] || [];
+
+  const matchedEntry = Object.entries(row).find(([key]) =>
+    aliases.includes(normalizeImportKey(key))
+  );
+
+  return matchedEntry ? matchedEntry[1] : "";
+};
+
+const parseSpreadsheetDate = (value) => {
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return value;
+  }
+
+  if (typeof value === "number") {
+    const parsedDate = XLSX.SSF.parse_date_code(value);
+
+    if (parsedDate) {
+      return createUtcDateFromIndianParts({
+        year: parsedDate.y,
+        month: Math.max(parsedDate.m, 1),
+        day: parsedDate.d,
+        hours: parsedDate.H || 0,
+        minutes: parsedDate.M || 0,
+        seconds: parsedDate.S || 0,
+      });
+    }
+  }
+
+  return parseFlexibleDateInput(value);
+};
+
+const TASK_IMPORT_REQUIRED_FIELDS = Object.freeze([
+  "title",
+  "project",
+  "description",
+  "team",
+  "assignee",
+  "dueDate",
+]);
+
+const TASK_IMPORT_SAMPLE_HEADERS = Object.freeze([
+  "Title",
+  "Project",
+  "Description",
+  "Team",
+  "Assignee",
+  "Due Date",
+]);
+
+const TASK_IMPORT_TEMPLATE_ROW_COUNT = 200;
+const TASK_IMPORT_LOOKUP_SHEET_NAMES = Object.freeze({
+  projects: "Projects",
+  projectTeamMap: "ProjectTeamMap",
+  teamOptions: "TeamOptions",
+  teamAssigneeMap: "TeamAssigneeMap",
+  assigneeOptions: "AssigneeOptions",
+  reference: "Reference Data",
+});
+const TASK_IMPORT_LOOKUP_RANGE_NAMES = Object.freeze({
+  projects: "TaskImportProjects",
+  empty: "TaskImportEmpty",
+});
+const TASK_IMPORT_TEMPLATE_COLUMNS = Object.freeze([
+  { header: "Title", key: "title", width: 34 },
+  { header: "Project", key: "project", width: 28 },
+  { header: "Description", key: "description", width: 48 },
+  { header: "Team", key: "team", width: 26 },
+  { header: "Assignee", key: "assignee", width: 30 },
+  { header: "Due Date", key: "dueDate", width: 16 },
+]);
+
+const escapeCsvValue = (value) => `"${String(value || "").replace(/"/g, '""')}"`;
+
+const resolveImportText = (value) => String(value || "").trim();
+const compareImportText = (left, right) =>
+  String(left || "").localeCompare(String(right || ""), undefined, {
+    sensitivity: "base",
+  });
+
+const buildExactMatchRegex = (value = "") => new RegExp(`^${escapeRegExp(value)}$`, "i");
+const getTaskImportComparableId = (value) => String(value || "");
+
+const buildTaskImportAssigneeLabel = (user, duplicateNameCounts = new Map()) => {
+  const name = resolveImportText(user?.name);
+  const email = resolveImportText(user?.email).toLowerCase();
+
+  if (!name) {
+    return email;
+  }
+
+  if (duplicateNameCounts.get(name.toLowerCase()) > 1 && email) {
+    return `${name} <${email}>`;
+  }
+
+  return name;
+};
+
+const extractAssigneeEmailFromImport = (value) => {
+  const trimmedValue = resolveImportText(value);
+  const emailMatch = trimmedValue.match(/<([^<>]+)>$/);
+
+  if (emailMatch?.[1]) {
+    return resolveImportText(emailMatch[1]).toLowerCase();
+  }
+
+  if (trimmedValue.includes("@")) {
+    return trimmedValue.toLowerCase();
+  }
+
+  return "";
+};
+
+const normalizeTaskImportDropdownValues = (values = []) =>
+  Array.from(
+    new Set(
+      values
+        .map((value) => resolveImportText(value))
+        .filter(Boolean)
+    )
+  ).sort(compareImportText);
+
+const sanitizeTaskImportRangeName = (value, prefix = "TaskImport") => {
+  const normalizedValue = String(value || "")
+    .replace(/[^A-Za-z0-9_]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+  const safeValue = normalizedValue || "Option";
+  const baseName = /^[A-Za-z_]/.test(safeValue)
+    ? safeValue
+    : `${prefix}_${safeValue}`;
+
+  return `${prefix}_${baseName}`.slice(0, 240);
+};
+
+const createTaskImportRangeNameRegistry = (labels = [], prefix) => {
+  const usedNames = new Set();
+  const registry = new Map();
+
+  labels.forEach((label) => {
+    const trimmedLabel = resolveImportText(label);
+
+    if (!trimmedLabel) {
+      return;
+    }
+
+    const baseName = sanitizeTaskImportRangeName(trimmedLabel, prefix);
+    let nextName = baseName;
+    let suffix = 2;
+
+    while (usedNames.has(nextName)) {
+      nextName = `${baseName}_${suffix}`;
+      suffix += 1;
+    }
+
+    usedNames.add(nextName);
+    registry.set(trimmedLabel, nextName);
+  });
+
+  return registry;
+};
+
+const createTaskImportLookupSheet = ({ workbook, sheetName }) => {
+  const worksheet = workbook.addWorksheet(sheetName);
+  worksheet.state = "veryHidden";
+  return worksheet;
+};
+
+const getTaskImportExcelColumnName = (columnIndex) => {
+  let value = Number(columnIndex) || 0;
+  let columnName = "";
+
+  while (value > 0) {
+    const remainder = (value - 1) % 26;
+    columnName = String.fromCharCode(65 + remainder) + columnName;
+    value = Math.floor((value - 1) / 26);
+  }
+
+  return columnName || "A";
+};
+
+const writeTaskImportNamedListsToSheet = ({
+  workbook,
+  worksheet,
+  namedRangeRegistry,
+  listsByLabel,
+  startColumn = 1,
+}) => {
+  let columnIndex = startColumn;
+
+  namedRangeRegistry.forEach((rangeName, label) => {
+    const values = normalizeTaskImportDropdownValues(listsByLabel.get(label) || []);
+    const headerCell = worksheet.getCell(1, columnIndex);
+    headerCell.value = label;
+
+    if (values.length) {
+      values.forEach((value, index) => {
+        worksheet.getCell(index + 2, columnIndex).value = value;
+      });
+
+      const columnName = getTaskImportExcelColumnName(columnIndex);
+      workbook.definedNames.add(
+        `'${worksheet.name}'!$${columnName}$2:$${columnName}$${values.length + 1}`,
+        rangeName
+      );
+    }
+
+    columnIndex += 1;
+  });
+};
+
+const writeTaskImportLabelToRangeMapSheet = ({
+  worksheet,
+  labelToRangeName,
+}) => {
+  let rowIndex = 1;
+  labelToRangeName.forEach((rangeName, label) => {
+    worksheet.getCell(`A${rowIndex}`).value = label;
+    worksheet.getCell(`B${rowIndex}`).value = rangeName;
+    rowIndex += 1;
+  });
+
+  return Math.max(rowIndex - 1, 1);
+};
+
+const buildTaskImportDependentDropdownFormula = ({
+  sourceCell,
+  mapSheetName,
+  mapRowCount,
+}) =>
+  `INDIRECT(IF(${sourceCell}="", "${TASK_IMPORT_LOOKUP_RANGE_NAMES.empty}", IFERROR(VLOOKUP(${sourceCell}, '${mapSheetName}'!$A$1:$B$${mapRowCount}, 2, FALSE), "${TASK_IMPORT_LOOKUP_RANGE_NAMES.empty}")))`;
+
+const getTaskImportTemplateOptions = async ({ workspaceId }) => {
+  const normalizedWorkspaceId = normalizeWorkspaceId(workspaceId);
+  const projects = await Project.find({
+    workspaceId: normalizedWorkspaceId,
+  })
+    .select("_id name attachedTeams teamIds teams")
+    .sort({ name: 1 })
+    .lean();
+
+  const projectIds = projects.map((project) => project._id).filter(Boolean);
+  const projectTeamLinks = projectIds.length
+    ? await ProjectTeam.find({
+        projectId: {
+          $in: projectIds,
+        },
+      })
+        .select("projectId teamId")
+        .lean()
+    : [];
+
+  const projectTeamLinksByProjectId = projectTeamLinks.reduce((result, link) => {
+    const key = getTaskImportComparableId(link?.projectId);
+
+    if (!result.has(key)) {
+      result.set(key, []);
+    }
+
+    result.get(key).push(link);
+    return result;
+  }, new Map());
+
+  const allProjectTeamIds = new Set();
+  const mergedProjectTeams = projects.map((project) => {
+    const mergedTeamIds = mergeProjectTeamIds(
+      project,
+      projectTeamLinksByProjectId.get(getTaskImportComparableId(project._id)) || []
+    );
+
+    mergedTeamIds.forEach((teamId) => {
+      if (teamId) {
+        allProjectTeamIds.add(getTaskImportComparableId(teamId));
+      }
+    });
+
+    return {
+      project,
+      teamIds: mergedTeamIds,
+    };
+  });
+
+  const [teams, teamMembers] = await Promise.all([
+    Team.find({
+      workspaceId: normalizedWorkspaceId,
+      ...(allProjectTeamIds.size
+        ? {
+            _id: {
+              $in: Array.from(allProjectTeamIds),
+            },
+          }
+        : {}),
+    })
+      .select("_id name")
+      .sort({ name: 1 })
+      .lean(),
+    allProjectTeamIds.size
+      ? TeamMember.find({
+          teamId: {
+            $in: Array.from(allProjectTeamIds),
+          },
+        })
+          .select("teamId userId")
+          .lean()
+      : Promise.resolve([]),
+  ]);
+
+  const uniqueUserIds = Array.from(
+    new Set(teamMembers.map((member) => getTaskImportComparableId(member.userId)).filter(Boolean))
+  );
+
+  const users = uniqueUserIds.length
+    ? await User.find({
+        workspaceId: normalizedWorkspaceId,
+        _id: {
+          $in: uniqueUserIds,
+        },
+      })
+        .select("_id name email")
+        .sort({ name: 1, email: 1 })
+        .lean()
+    : [];
+
+  const duplicateNameCounts = users.reduce((counts, user) => {
+    const key = resolveImportText(user?.name).toLowerCase();
+
+    if (key) {
+      counts.set(key, (counts.get(key) || 0) + 1);
+    }
+
+    return counts;
+  }, new Map());
+
+  const teamNameById = new Map(
+    teams.map((team) => [getTaskImportComparableId(team._id), resolveImportText(team.name)])
+  );
+  const assigneeLabelByUserId = new Map(
+    users.map((user) => [
+      getTaskImportComparableId(user._id),
+      buildTaskImportAssigneeLabel(user, duplicateNameCounts),
+    ])
+  );
+  const assigneesByTeamName = teamMembers.reduce((result, member) => {
+    const teamName = teamNameById.get(getTaskImportComparableId(member.teamId));
+    const assigneeLabel = assigneeLabelByUserId.get(
+      getTaskImportComparableId(member.userId)
+    );
+
+    if (!teamName || !assigneeLabel) {
+      return result;
+    }
+
+    if (!result.has(teamName)) {
+      result.set(teamName, []);
+    }
+
+    result.get(teamName).push(assigneeLabel);
+    return result;
+  }, new Map());
+
+  const teamsByProjectName = mergedProjectTeams.reduce((result, item) => {
+    const projectName = resolveImportText(item.project?.name);
+
+    if (!projectName) {
+      return result;
+    }
+
+    const teamNames = normalizeTaskImportDropdownValues(
+      item.teamIds.map((teamId) => teamNameById.get(getTaskImportComparableId(teamId)))
+    );
+
+    result.set(projectName, teamNames);
+    return result;
+  }, new Map());
+
+  const projectNames = normalizeTaskImportDropdownValues(projects.map((project) => project.name));
+  const projectNamesWithTeams = normalizeTaskImportDropdownValues(
+    Array.from(teamsByProjectName.entries())
+      .filter(([, teamNames]) => teamNames.length > 0)
+      .map(([projectName]) => projectName)
+  );
+  const teamNamesWithAssignees = normalizeTaskImportDropdownValues(
+    Array.from(assigneesByTeamName.entries())
+      .filter(([, assignees]) => assignees.length > 0)
+      .map(([teamName]) => teamName)
+  );
+
+  const sampleRows = [];
+  projectNames.forEach((projectName) => {
+    const projectTeams = teamsByProjectName.get(projectName) || [];
+
+    if (!projectTeams.length) {
+      sampleRows.push({
+        title: "",
+        project: projectName,
+        description: "",
+        team: "",
+        assignee: "",
+        dueDate: "",
+      });
+      return;
+    }
+
+    projectTeams.forEach((teamName) => {
+      const assignees = normalizeTaskImportDropdownValues(
+        assigneesByTeamName.get(teamName) || []
+      );
+
+      if (!assignees.length) {
+        sampleRows.push({
+          title: "",
+          project: projectName,
+          description: "",
+          team: teamName,
+          assignee: "",
+          dueDate: "",
+        });
+        return;
+      }
+
+      assignees.forEach((assignee) => {
+        sampleRows.push({
+          title: "",
+          project: projectName,
+          description: "",
+          team: teamName,
+          assignee,
+          dueDate: "",
+        });
+      });
+    });
+  });
+
+  return {
+    projects: projectNames,
+    teamsByProjectName,
+    assigneesByTeamName: new Map(
+      Array.from(assigneesByTeamName.entries()).map(([teamName, assignees]) => [
+        teamName,
+        normalizeTaskImportDropdownValues(assignees),
+      ])
+    ),
+    projectRangeNames: createTaskImportRangeNameRegistry(
+      projectNamesWithTeams,
+      "TaskProject"
+    ),
+    teamRangeNames: createTaskImportRangeNameRegistry(
+      teamNamesWithAssignees,
+      "TaskTeam"
+    ),
+    sampleRows,
+  };
+};
+
+const applyTaskImportListValidation = ({
+  worksheet,
+  column,
+  rangeName,
+  rowCount = TASK_IMPORT_TEMPLATE_ROW_COUNT,
+}) => {
+  if (!rangeName) {
+    return;
+  }
+
+  for (let rowNumber = 2; rowNumber <= rowCount + 1; rowNumber += 1) {
+    worksheet.getCell(`${column}${rowNumber}`).dataValidation = {
+      type: "list",
+      allowBlank: true,
+      showInputMessage: true,
+      showErrorMessage: true,
+      formulae: [rangeName],
+      promptTitle: "Choose from the list",
+      prompt: "Use the dropdown values synced from the current workspace.",
+      errorTitle: "Invalid value",
+      error: "Select one of the values provided in the sample workbook.",
+    };
+  }
+};
+
+const serializeTaskImportErrorValue = (value) => {
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return value.toISOString().slice(0, 10);
+  }
+
+  return resolveImportText(value);
+};
+
+const shouldIgnoreTaskImportRow = ({
+  title,
+  description,
+  dueDateInput,
+}) =>
+  !resolveImportText(title) &&
+  !resolveImportText(description) &&
+  !resolveImportText(dueDateInput);
+
+const resolveTaskImportProject = async ({ workspaceId, projectName }) => {
+  const trimmedProjectName = resolveImportText(projectName);
+
+  if (!trimmedProjectName) {
+    return null;
+  }
+
+  return Project.findOne({
+    workspaceId: normalizeWorkspaceId(workspaceId),
+    name: buildExactMatchRegex(trimmedProjectName),
+  });
+};
+
+const resolveTaskImportTeam = async ({ workspaceId, teamName, project }) => {
+  const trimmedTeamName = resolveImportText(teamName);
+
+  if (!trimmedTeamName || !project?._id) {
+    return null;
+  }
+
+  const attachedTeamIds = await getProjectTeamIds(project._id, project);
+
+  if (!attachedTeamIds.length) {
+    return null;
+  }
+
+  return Team.findOne({
+    _id: {
+      $in: attachedTeamIds,
+    },
+    workspaceId: normalizeWorkspaceId(workspaceId),
+    name: buildExactMatchRegex(trimmedTeamName),
+  })
+    .select("_id name workspaceId")
+    .lean();
+};
+
+const resolveTaskImportAssignee = async ({ workspaceId, assigneeInput }) => {
+  const trimmedAssigneeInput = resolveImportText(assigneeInput);
+  const emailCandidate = extractAssigneeEmailFromImport(trimmedAssigneeInput);
+
+  if (!trimmedAssigneeInput) {
+    return {
+      error: "Assignee is required",
+    };
+  }
+
+  const workspaceQuery = {
+    workspaceId: normalizeWorkspaceId(workspaceId),
+  };
+
+  if (emailCandidate) {
+    const assigneeByEmail = await User.findOne({
+      ...workspaceQuery,
+      email: buildExactMatchRegex(emailCandidate),
+    })
+      .select("_id name email role workspaceId")
+      .lean();
+
+    return assigneeByEmail
+      ? { assignee: assigneeByEmail }
+      : { error: `Assignee "${trimmedAssigneeInput}" was not found in this workspace` };
+  }
+
+  const matchingUsers = await User.find({
+    ...workspaceQuery,
+    name: buildExactMatchRegex(trimmedAssigneeInput),
+  })
+    .select("_id name email role workspaceId")
+    .lean();
+
+  if (!matchingUsers.length) {
+    return {
+      error: `Assignee "${trimmedAssigneeInput}" was not found in this workspace`,
+    };
+  }
+
+  if (matchingUsers.length > 1) {
+    return {
+      error: `Assignee "${trimmedAssigneeInput}" matched multiple users. Use the assignee email instead.`,
+    };
+  }
+
+  return {
+    assignee: matchingUsers[0],
+  };
+};
+
+const buildTaskImportErrorCsv = (errors = []) =>
+  [
+    [
+      "Row",
+      "Message",
+      ...TASK_IMPORT_SAMPLE_HEADERS,
+    ].join(","),
+    ...errors.map((item) =>
+      [
+        item.row,
+        escapeCsvValue(item.message),
+        escapeCsvValue(serializeTaskImportErrorValue(item.title)),
+        escapeCsvValue(serializeTaskImportErrorValue(item.project)),
+        escapeCsvValue(serializeTaskImportErrorValue(item.description)),
+        escapeCsvValue(serializeTaskImportErrorValue(item.team)),
+        escapeCsvValue(serializeTaskImportErrorValue(item.assignee)),
+        escapeCsvValue(serializeTaskImportErrorValue(item.dueDate)),
+      ].join(",")
+    ),
+  ].join("\n");
 
 const haveSameUserIds = (leftValues = [], rightValues = []) => {
   const normalize = (values) =>
@@ -492,7 +1143,7 @@ const isBugReportedAndUnpicked = (issue) => {
 };
 
 const canTesterModifyReportedBug = (issue, user) =>
-  user?.role === ROLE_TESTER &&
+  hasTesterAccess(user?.role) &&
   hasBugQaOwnership(issue, user?._id || user?.id) &&
   isBugReportedAndUnpicked(issue);
 
@@ -739,9 +1390,9 @@ const parseOptionalDateInput = (value, label) => {
     };
   }
 
-  const parsedValue = new Date(value);
+  const parsedValue = parseFlexibleDateInput(value);
 
-  if (Number.isNaN(parsedValue.getTime())) {
+  if (!parsedValue) {
     return {
       error: {
         status: 400,
@@ -940,7 +1591,45 @@ const getBugStatusForIssueStatus = (status) => {
   return BUG_STATUS.NEW;
 };
 
-const getRequestedBugStatus = ({ payload = {}, currentStatus = BUG_STATUS.NEW }) => {
+const getEffectiveBugTransitionStatus = (status, issue = null) => {
+  const normalizedStatus = getBugStatusForIssueStatus(status);
+  const hasAssignedDeveloper = Boolean(
+    issue?.assignee || issue?.assignedDeveloperId || issue?.bugDetails?.developerLead
+  );
+
+  if (
+    hasAssignedDeveloper &&
+    [BUG_STATUS.NEW, BUG_STATUS.OPEN, BUG_STATUS.TRIAGED, BUG_STATUS.NEEDS_TRIAGE].includes(
+      normalizedStatus
+    )
+  ) {
+    return BUG_STATUS.ASSIGNED;
+  }
+
+  return normalizedStatus;
+};
+
+const getRequestedBugStatus = ({
+  payload = {},
+  currentStatus = BUG_STATUS.NEW,
+  issue = null,
+}) => {
+  const developerLeadId = getBugPayloadValue(payload, "developerLeadId", [
+    "developerLead",
+    "devLeadId",
+    "devLead",
+    "assigneeId",
+    "assignee",
+  ]);
+  const hasExistingAssignedDeveloper = Boolean(
+    issue?.assignee || issue?.assignedDeveloperId || issue?.bugDetails?.developerLead
+  );
+  const hasAssignedDeveloper = Boolean(developerLeadId) || hasExistingAssignedDeveloper;
+  const addToBucket = Boolean(
+    getBugPayloadValue(payload, "addToBucket", ["assignLater", "bucket"])
+  );
+  const sendToTriage = Boolean(payload.sendToTriage) || Boolean(payload.bugDetails?.sendToTriage);
+
   if (Boolean(payload.sendToTriage) || Boolean(payload.bugDetails?.sendToTriage)) {
     return BUG_STATUS.NEEDS_TRIAGE;
   }
@@ -950,18 +1639,6 @@ const getRequestedBugStatus = ({ payload = {}, currentStatus = BUG_STATUS.NEW })
   }
 
   if (!hasOwnField(payload, "status")) {
-    const developerLeadId = getBugPayloadValue(payload, "developerLeadId", [
-      "developerLead",
-      "devLeadId",
-      "devLead",
-      "assigneeId",
-      "assignee",
-    ]);
-    const addToBucket = Boolean(
-      getBugPayloadValue(payload, "addToBucket", ["assignLater", "bucket"])
-    );
-    const sendToTriage = Boolean(payload.sendToTriage) || Boolean(payload.bugDetails?.sendToTriage);
-
     if (developerLeadId && !addToBucket && !sendToTriage) {
       return BUG_STATUS.ASSIGNED;
     }
@@ -972,6 +1649,17 @@ const getRequestedBugStatus = ({ payload = {}, currentStatus = BUG_STATUS.NEW })
   const normalizedStatus = normalizeIssueStatus(payload.status, "");
 
   if (BUG_STATUS_VALUES.includes(normalizedStatus)) {
+    if (
+      hasAssignedDeveloper &&
+      !addToBucket &&
+      !sendToTriage &&
+      [BUG_STATUS.NEW, BUG_STATUS.OPEN, BUG_STATUS.TRIAGED, BUG_STATUS.NEEDS_TRIAGE].includes(
+        normalizedStatus
+      )
+    ) {
+      return BUG_STATUS.ASSIGNED;
+    }
+
     return normalizedStatus;
   }
 
@@ -980,7 +1668,16 @@ const getRequestedBugStatus = ({ payload = {}, currentStatus = BUG_STATUS.NEW })
   }
 
   if (normalizedStatus === ISSUE_STATUS.IN_PROGRESS) {
-    const currentBugStatus = getBugStatusForIssueStatus(currentStatus);
+    const currentBugStatus = getEffectiveBugTransitionStatus(currentStatus, issue);
+
+    if (
+      hasAssignedDeveloper &&
+      [BUG_STATUS.NEW, BUG_STATUS.OPEN, BUG_STATUS.TRIAGED, BUG_STATUS.NEEDS_TRIAGE].includes(
+        currentBugStatus
+      )
+    ) {
+      return BUG_STATUS.IN_PROGRESS;
+    }
 
     return currentBugStatus === BUG_STATUS.NEW ? BUG_STATUS.ASSIGNED : BUG_STATUS.IN_PROGRESS;
   }
@@ -1172,6 +1869,7 @@ const ensureIssueTeamForProject = async ({
 const ensureAssigneeBelongsToTeam = async ({
   assigneeId,
   teamId,
+  projectId,
   workspaceId,
 }) => {
   if (!assigneeId || assigneeId === "" || assigneeId === "Unassigned") {
@@ -1212,18 +1910,29 @@ const ensureAssigneeBelongsToTeam = async ({
     };
   }
 
-  const teamMembership = await TeamMember.findOne({
-    teamId,
-    userId: assigneeId,
-  })
-    .select("_id")
-    .lean();
+  const [teamMembership, directProjectMembership] = await Promise.all([
+    TeamMember.findOne({
+      teamId,
+      userId: assigneeId,
+    })
+      .select("_id")
+      .lean(),
+    projectId
+      ? ProjectMember.findOne({
+          projectId,
+          userId: assigneeId,
+        })
+          .select("_id")
+          .lean()
+      : null,
+  ]);
 
-  if (!teamMembership) {
+  if (!teamMembership && !directProjectMembership) {
     return {
       error: {
         status: 400,
-        message: "Selected assignee is not a member of the selected team",
+        message:
+          "Selected assignee is not a member of the selected team or directly assigned to this project",
       },
     };
   }
@@ -1236,6 +1945,7 @@ const ensureAssigneeBelongsToTeam = async ({
 const ensureBugOwnerBelongsToTeam = async ({
   userId,
   teamId,
+  projectId,
   workspaceId,
   label,
 }) => {
@@ -1248,6 +1958,7 @@ const ensureBugOwnerBelongsToTeam = async ({
   const result = await ensureAssigneeBelongsToTeam({
     assigneeId: userId,
     teamId,
+    projectId,
     workspaceId,
   });
 
@@ -1466,8 +2177,7 @@ const ensureSprintForIssue = async ({ sprintId, projectId, teamId }) => {
     _id: sprintId,
     projectId,
   })
-    .select("_id name teamId state")
-    .lean();
+    .select("_id name teamId state endDate expiredAt lockOverride");
 
   if (!sprint) {
     return {
@@ -1478,11 +2188,14 @@ const ensureSprintForIssue = async ({ sprintId, projectId, teamId }) => {
     };
   }
 
-  if (sprint.state === "COMPLETED") {
+  if (isSprintLocked(sprint)) {
     return {
       error: {
         status: 400,
-        message: "Completed sprints cannot receive new issues",
+        message:
+          getSprintLifecycleState(sprint) === "EXPIRED"
+            ? SPRINT_EDIT_BLOCKED_MESSAGE
+            : "Completed sprints cannot receive new issues",
       },
     };
   }
@@ -1502,6 +2215,36 @@ const ensureSprintForIssue = async ({ sprintId, projectId, teamId }) => {
 };
 
 const DATE_ONLY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+
+const loadIssueSprintLock = async (issue) => {
+  if (!issue?.sprintId || !mongoose.isValidObjectId(issue.sprintId)) {
+    return {
+      sprint: null,
+      lifecycleState: "",
+      isLocked: false,
+    };
+  }
+
+  const sprint = await Sprint.findById(issue.sprintId).select(
+    "_id name state endDate expiredAt lockOverride"
+  );
+
+  if (!sprint) {
+    return {
+      sprint: null,
+      lifecycleState: "",
+      isLocked: false,
+    };
+  }
+
+  const lifecycleState = getSprintLifecycleState(sprint);
+
+  return {
+    sprint,
+    lifecycleState,
+    isLocked: isSprintLocked(sprint),
+  };
+};
 
 const parseDateFilterInput = (value, label, { endOfDay = false } = {}) => {
   if (value === null || value === "" || typeof value === "undefined") {
@@ -1625,6 +2368,9 @@ const mergeOrConditions = (query, conditions = []) => {
 };
 
 const getBugListSummary = async (query) => {
+  const workQueueStatuses = AVAILABLE_BUG_QUEUE_STATUSES.filter(
+    (status) => status !== ISSUE_STATUS.REOPEN
+  );
   const [
     total,
     open,
@@ -1649,7 +2395,7 @@ const getBugListSummary = async (query) => {
       assignedDeveloperId: null,
       "bugDetails.developerLead": null,
       status: {
-        $in: AVAILABLE_BUG_QUEUE_STATUSES,
+        $in: workQueueStatuses,
       },
     }),
     Issue.countDocuments({ ...query, status: ISSUE_STATUS.ASSIGNED }),
@@ -1689,6 +2435,11 @@ const getBugListSummary = async (query) => {
     Issue.countDocuments({ ...query, priority: "Low" }),
   ]);
 
+  const other = Math.max(
+    total - bucket - assigned - inProgress - reopened - readyForQa - closed,
+    0
+  );
+
   return {
     total,
     open,
@@ -1700,6 +2451,7 @@ const getBugListSummary = async (query) => {
     reopened,
     readyForQa,
     closed,
+    other,
     high,
     medium,
     low,
@@ -1994,7 +2746,7 @@ const buildIssueQueryFromRequest = async (
     if (req.query.sprintState && req.query.sprintState !== "all") {
       const sprintState = String(req.query.sprintState).trim().toUpperCase();
 
-      if (!["PLANNED", "ACTIVE", "COMPLETED"].includes(sprintState)) {
+      if (!["PLANNED", "ACTIVE", "COMPLETED", "EXPIRED"].includes(sprintState)) {
         res.status(400);
         throw new Error("Invalid sprint state filter");
       }
@@ -2209,6 +2961,426 @@ const buildIssueQueryFromRequest = async (
   return query;
 };
 
+const downloadTaskImportSample = asyncHandler(async (req, res) => {
+  if (!hasAdminAccess(req.user?.role)) {
+    res.status(403);
+    throw new Error("Only admin users can download the task import sample.");
+  }
+
+  const workbook = new ExcelJS.Workbook();
+  const workspaceId = normalizeWorkspaceId(req.user.workspaceId);
+  const templateOptions = await getTaskImportTemplateOptions({ workspaceId });
+  const worksheet = workbook.addWorksheet("Tasks", {
+    views: [{ state: "frozen", ySplit: 1 }],
+  });
+
+  workbook.creator = "Pirnav";
+  workbook.created = new Date();
+  workbook.modified = new Date();
+
+  worksheet.columns = TASK_IMPORT_TEMPLATE_COLUMNS;
+
+  const headerRow = worksheet.getRow(1);
+  headerRow.values = TASK_IMPORT_SAMPLE_HEADERS;
+  headerRow.font = { bold: true, color: { argb: "FF0F172A" } };
+  headerRow.fill = {
+    type: "pattern",
+    pattern: "solid",
+    fgColor: { argb: "FFE0F2FE" },
+  };
+  headerRow.alignment = { vertical: "middle", horizontal: "center" };
+  headerRow.height = 22;
+
+  templateOptions.sampleRows.forEach((row) => {
+    worksheet.addRow(row);
+  });
+
+  const totalTemplateRows = Math.max(
+    TASK_IMPORT_TEMPLATE_ROW_COUNT,
+    templateOptions.sampleRows.length
+  );
+
+  for (let rowNumber = 2; rowNumber <= totalTemplateRows + 1; rowNumber += 1) {
+    worksheet.getCell(`F${rowNumber}`).numFmt = "dd-mmm-yyyy";
+  }
+
+  const projectsSheet = createTaskImportLookupSheet({
+    workbook,
+    sheetName: TASK_IMPORT_LOOKUP_SHEET_NAMES.projects,
+  });
+  templateOptions.projects.forEach((projectName, index) => {
+    projectsSheet.getCell(`A${index + 1}`).value = projectName;
+  });
+
+  if (templateOptions.projects.length) {
+    workbook.definedNames.add(
+      `'${projectsSheet.name}'!$A$1:$A$${templateOptions.projects.length}`,
+      TASK_IMPORT_LOOKUP_RANGE_NAMES.projects
+    );
+  }
+
+  projectsSheet.getCell("B1").value = "";
+  workbook.definedNames.add(
+    `'${projectsSheet.name}'!$B$1`,
+    TASK_IMPORT_LOOKUP_RANGE_NAMES.empty
+  );
+
+  const teamOptionsSheet = createTaskImportLookupSheet({
+    workbook,
+    sheetName: TASK_IMPORT_LOOKUP_SHEET_NAMES.teamOptions,
+  });
+  writeTaskImportNamedListsToSheet({
+    workbook,
+    worksheet: teamOptionsSheet,
+    namedRangeRegistry: templateOptions.projectRangeNames,
+    listsByLabel: templateOptions.teamsByProjectName,
+  });
+
+  const assigneeOptionsSheet = createTaskImportLookupSheet({
+    workbook,
+    sheetName: TASK_IMPORT_LOOKUP_SHEET_NAMES.assigneeOptions,
+  });
+  writeTaskImportNamedListsToSheet({
+    workbook,
+    worksheet: assigneeOptionsSheet,
+    namedRangeRegistry: templateOptions.teamRangeNames,
+    listsByLabel: templateOptions.assigneesByTeamName,
+  });
+
+  const projectTeamMapSheet = createTaskImportLookupSheet({
+    workbook,
+    sheetName: TASK_IMPORT_LOOKUP_SHEET_NAMES.projectTeamMap,
+  });
+  const projectTeamMapRowCount = writeTaskImportLabelToRangeMapSheet({
+    worksheet: projectTeamMapSheet,
+    labelToRangeName: templateOptions.projectRangeNames,
+  });
+
+  const teamAssigneeMapSheet = createTaskImportLookupSheet({
+    workbook,
+    sheetName: TASK_IMPORT_LOOKUP_SHEET_NAMES.teamAssigneeMap,
+  });
+  const teamAssigneeMapRowCount = writeTaskImportLabelToRangeMapSheet({
+    worksheet: teamAssigneeMapSheet,
+    labelToRangeName: templateOptions.teamRangeNames,
+  });
+
+  applyTaskImportListValidation({
+    worksheet,
+    column: "B",
+    rangeName: templateOptions.projects.length
+      ? TASK_IMPORT_LOOKUP_RANGE_NAMES.projects
+      : "",
+    rowCount: totalTemplateRows,
+  });
+
+  for (let rowNumber = 2; rowNumber <= totalTemplateRows + 1; rowNumber += 1) {
+    worksheet.getCell(`D${rowNumber}`).dataValidation = {
+      type: "list",
+      allowBlank: true,
+      showInputMessage: true,
+      showErrorMessage: true,
+      formulae: [
+        buildTaskImportDependentDropdownFormula({
+          sourceCell: `$B${rowNumber}`,
+          mapSheetName: projectTeamMapSheet.name,
+          mapRowCount: projectTeamMapRowCount,
+        }),
+      ],
+      promptTitle: "Choose a team",
+      prompt: "First choose a project. The team dropdown will show only teams attached to that project.",
+      errorTitle: "Invalid team",
+      error: "Select a team from the project-specific dropdown list.",
+    };
+    worksheet.getCell(`E${rowNumber}`).dataValidation = {
+      type: "list",
+      allowBlank: true,
+      showInputMessage: true,
+      showErrorMessage: true,
+      formulae: [
+        buildTaskImportDependentDropdownFormula({
+          sourceCell: `$D${rowNumber}`,
+          mapSheetName: teamAssigneeMapSheet.name,
+          mapRowCount: teamAssigneeMapRowCount,
+        }),
+      ],
+      promptTitle: "Choose an assignee",
+      prompt: "First choose a team. The assignee dropdown will show that team's members.",
+      errorTitle: "Invalid assignee",
+      error: "Select an assignee from the team-specific dropdown list.",
+    };
+  }
+
+  for (let rowNumber = 2; rowNumber <= totalTemplateRows + 1; rowNumber += 1) {
+    worksheet.getCell(`F${rowNumber}`).dataValidation = {
+      type: "date",
+      operator: "between",
+      allowBlank: true,
+      showInputMessage: true,
+      showErrorMessage: true,
+      formulae: [new Date(2000, 0, 1), new Date(2100, 11, 31)],
+      promptTitle: "Due date",
+      prompt: "Enter a valid Excel date or use the dd-mmm-yyyy format.",
+      errorTitle: "Invalid date",
+      error: "Provide a valid due date using an Excel date value.",
+    };
+  }
+
+  worksheet.getCell("A1").note = "Free text. Required during upload.";
+  worksheet.getCell("B1").note = "Dropdown populated from all workspace projects.";
+  worksheet.getCell("C1").note = "Free text. Required during upload.";
+  worksheet.getCell("D1").note = "Choose a project first. This dropdown shows only teams attached to that project.";
+  worksheet.getCell("E1").note = "Choose a team first. This dropdown shows only members of that team.";
+  worksheet.getCell("F1").note = "Use an Excel date value or the dd-mmm-yyyy format.";
+
+  const referenceSheet = workbook.addWorksheet(
+    TASK_IMPORT_LOOKUP_SHEET_NAMES.reference,
+    {
+      views: [{ state: "frozen", ySplit: 1 }],
+    }
+  );
+  referenceSheet.columns = [
+    { header: "Project", key: "project", width: 30 },
+    { header: "Team", key: "team", width: 28 },
+    { header: "Assignee", key: "assignee", width: 34 },
+  ];
+  const referenceHeaderRow = referenceSheet.getRow(1);
+  referenceHeaderRow.font = { bold: true, color: { argb: "FF0F172A" } };
+  referenceHeaderRow.fill = {
+    type: "pattern",
+    pattern: "solid",
+    fgColor: { argb: "FFF8FAFC" },
+  };
+  referenceHeaderRow.alignment = { vertical: "middle", horizontal: "center" };
+  referenceHeaderRow.height = 22;
+
+  templateOptions.sampleRows.forEach((row) => {
+    referenceSheet.addRow({
+      project: row.project || "",
+      team: row.team || "",
+      assignee: row.assignee || "",
+    });
+  });
+
+  const fileBuffer = await workbook.xlsx.writeBuffer();
+
+  res.setHeader(
+    "Content-Type",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+  );
+  res.setHeader(
+    "Content-Disposition",
+    'attachment; filename="task-import-template.xlsx"'
+  );
+
+  res.status(200).send(fileBuffer);
+});
+
+const importTasksFromSpreadsheet = asyncHandler(async (req, res) => {
+  if (!hasAdminAccess(req.user?.role)) {
+    res.status(403);
+    throw new Error("Only admin users can bulk import tasks.");
+  }
+
+  if (!req.file?.buffer) {
+    res.status(400);
+    throw new Error("Upload an Excel file to import tasks.");
+  }
+
+  const workbook = XLSX.read(req.file.buffer, {
+    type: "buffer",
+    cellDates: true,
+  });
+  const firstSheetName = workbook.SheetNames?.[0];
+
+  if (!firstSheetName) {
+    res.status(400);
+    throw new Error("The uploaded Excel file does not contain any sheets.");
+  }
+
+  const worksheet = workbook.Sheets[firstSheetName];
+  const rows = XLSX.utils.sheet_to_json(worksheet, {
+    defval: "",
+    raw: true,
+  });
+
+  if (!rows.length) {
+    res.status(400);
+    throw new Error("The uploaded Excel file does not contain any task rows.");
+  }
+
+  const firstRow = rows[0] || {};
+  const missingHeaders = TASK_IMPORT_REQUIRED_FIELDS.filter(
+    (field) => !Object.keys(firstRow).some((key) =>
+      TASK_IMPORT_FIELD_ALIASES[field].includes(normalizeImportKey(key))
+    )
+  );
+
+  if (missingHeaders.length) {
+    res.status(400);
+    throw new Error(
+      `The uploaded sheet is missing the required headers: ${missingHeaders
+        .map((field) => TASK_IMPORT_SAMPLE_HEADERS[TASK_IMPORT_REQUIRED_FIELDS.indexOf(field)])
+        .join(", ")}`
+    );
+  }
+
+  const workspaceId = normalizeWorkspaceId(req.user.workspaceId);
+  const reporterName = req.user?.name || req.user?.email || "";
+  const successIssues = [];
+  const errors = [];
+
+  for (let index = 0; index < rows.length; index += 1) {
+    const row = rows[index] || {};
+    const rowNumber = index + 2;
+    const title = resolveImportText(getTaskImportValue(row, "title"));
+    const projectName = resolveImportText(getTaskImportValue(row, "project"));
+    const description = resolveImportText(getTaskImportValue(row, "description"));
+    const teamName = resolveImportText(getTaskImportValue(row, "team"));
+    const assigneeInput = resolveImportText(getTaskImportValue(row, "assignee"));
+    const dueDateInput = getTaskImportValue(row, "dueDate");
+
+    if (
+      shouldIgnoreTaskImportRow({
+        title,
+        description,
+        dueDateInput,
+      })
+    ) {
+      continue;
+    }
+
+    try {
+      const missingValues = [];
+
+      if (!title) missingValues.push("Title");
+      if (!projectName) missingValues.push("Project");
+      if (!description) missingValues.push("Description");
+      if (!teamName) missingValues.push("Team");
+      if (!assigneeInput) missingValues.push("Assignee");
+      if (!resolveImportText(dueDateInput)) missingValues.push("Due Date");
+
+      if (missingValues.length) {
+        throw new Error(
+          `${missingValues.join(", ")} ${missingValues.length === 1 ? "is" : "are"} required`
+        );
+      }
+
+      const project = await resolveTaskImportProject({
+        workspaceId,
+        projectName,
+      });
+
+      if (!project) {
+        throw new Error(`Project "${projectName}" was not found in this workspace`);
+      }
+
+      const team = await resolveTaskImportTeam({
+        workspaceId,
+        teamName,
+        project,
+      });
+
+      if (!team) {
+        throw new Error(
+          `Team "${teamName}" was not found or is not attached to project "${project.name}"`
+        );
+      }
+
+      const assigneeResolution = await resolveTaskImportAssignee({
+        workspaceId,
+        assigneeInput,
+      });
+
+      if (assigneeResolution.error) {
+        throw new Error(assigneeResolution.error);
+      }
+
+      const assigneeResult = await ensureAssigneeBelongsToTeam({
+        assigneeId: assigneeResolution.assignee._id,
+        teamId: team._id,
+        projectId: project._id,
+        workspaceId,
+      });
+
+      if (assigneeResult.error) {
+        throw new Error(assigneeResult.error.message);
+      }
+
+      const parsedSpreadsheetDate = parseSpreadsheetDate(dueDateInput);
+
+      if (!parsedSpreadsheetDate) {
+        throw new Error("Due Date must be a valid Excel or date value");
+      }
+
+      const dueAtResult = parseOptionalDateInput(parsedSpreadsheetDate, "due date");
+
+      if (dueAtResult.error || !dueAtResult.value) {
+        throw new Error(dueAtResult.error?.message || "Due Date is required");
+      }
+
+      const planningOrder = await getNextPlanningOrder(Issue, {
+        projectId: project._id,
+        sprintId: null,
+      });
+      const displayBugId = await getNextIssueDisplayId({
+        Project,
+        Issue,
+        project,
+      });
+
+      const issue = await Issue.create({
+        title,
+        description,
+        displayBugId,
+        type: ISSUE_TYPES.TASK,
+        status: ISSUE_STATUS.TODO,
+        priority: "Medium",
+        assignee: assigneeResolution.assignee._id,
+        assignees: [assigneeResolution.assignee._id],
+        reporter: req.user._id,
+        reporterName,
+        projectId: project._id,
+        teamId: team._id,
+        dueAt: dueAtResult.value,
+        timeEstimateMinutes: 0,
+        remainingEstimateMinutes: 0,
+        planningOrder,
+        updatedBy: req.user._id,
+      });
+
+      const populatedIssue = await populateIssueDocument(issue);
+      successIssues.push(serializeIssue(populatedIssue));
+    } catch (error) {
+      errors.push({
+        row: rowNumber,
+        message: error.message || "Unable to import this row",
+        title,
+        project: projectName,
+        description,
+        team: teamName,
+        assignee: assigneeInput,
+        dueDate: dueDateInput,
+      });
+    }
+  }
+
+  const successCount = successIssues.length;
+  const failedCount = errors.length;
+
+  res.status(200).json({
+    message:
+      failedCount > 0
+        ? `Imported ${successCount} task${successCount === 1 ? "" : "s"} with ${failedCount} skipped row${failedCount === 1 ? "" : "s"}.`
+        : `Imported ${successCount} task${successCount === 1 ? "" : "s"} successfully.`,
+    successCount,
+    failedCount,
+    issues: successIssues,
+    errors,
+    errorCsv: failedCount ? buildTaskImportErrorCsv(errors) : "",
+  });
+});
+
 const getIssues = asyncHandler(async (req, res) => {
   const query = await buildIssueQueryFromRequest(req, res);
   const isBugListQuery = query.type === ISSUE_TYPES.BUG;
@@ -2297,7 +3469,7 @@ const getStories = asyncHandler(async (req, res) => {
     ];
   }
 
-  if ([ROLE_DEVELOPER, ROLE_TESTER].includes(req.user.role)) {
+  if ([ROLE_DEVELOPER].includes(req.user.role) || hasTesterAccess(req.user.role)) {
     addAndCondition(query, {
       $or: [
         { assignee: req.user._id },
@@ -2575,6 +3747,13 @@ const pickIssue = asyncHandler(async (req, res) => {
   if (!existingIssue) {
     res.status(404);
     throw new Error("Issue not found");
+  }
+
+  const sprintLockResult = await loadIssueSprintLock(existingIssue);
+
+  if (sprintLockResult.isLocked) {
+    res.status(400);
+    throw new Error(SPRINT_EDIT_BLOCKED_MESSAGE);
   }
 
   const isBug = isBugType(existingIssue.type);
@@ -3275,19 +4454,25 @@ const createIssue = asyncHandler(async (req, res) => {
   }
 
   if (
-    req.user.role === ROLE_TESTER &&
-    ![ISSUE_TYPES.BUG, ISSUE_TYPES.TASK, ISSUE_TYPES.SUB_TASK].includes(normalizedType)
+    hasTesterAccess(req.user.role) &&
+    !(
+      hasTaskStoryLeadAccess(req.user.role)
+        ? [ISSUE_TYPES.BUG, ISSUE_TYPES.STORY, ISSUE_TYPES.TASK, ISSUE_TYPES.SUB_TASK].includes(
+            normalizedType
+          )
+        : [ISSUE_TYPES.BUG, ISSUE_TYPES.TASK, ISSUE_TYPES.SUB_TASK].includes(normalizedType)
+    )
   ) {
     res.status(403);
-    throw new Error("Testers can only report bugs or add Story tasks");
+    throw new Error("QA users can only report bugs, create stories, or add story tasks");
   }
 
   if (
-    req.user.role === ROLE_TEAM_LEAD &&
+    hasTaskStoryLeadAccess(req.user.role) &&
     ![ISSUE_TYPES.STORY, ISSUE_TYPES.TASK, ISSUE_TYPES.SUB_TASK].includes(normalizedType)
   ) {
     res.status(403);
-    throw new Error("Team Leads can create Stories, Tasks, and Sub-tasks");
+    throw new Error("Team leads and Q/A leads can create Stories, Tasks, and Sub-tasks");
   }
 
   if (!canAssignPlanningFields && ((hasEpicInput && epicId) || (hasSprintInput && sprintId))) {
@@ -3396,9 +4581,8 @@ const createIssue = asyncHandler(async (req, res) => {
 
   if (requestedAssigneeIds.length && !assignLater && !sendToTriage) {
     const canTesterAssignBugDeveloper =
-      req.user.role === ROLE_TESTER && isBug;
-    const canTeamLeadAssignTask =
-      req.user.role === ROLE_TEAM_LEAD && canAssignTaskWork(req.user, normalizedType);
+      hasTesterAccess(req.user.role) && isBug;
+    const canTeamLeadAssignTask = canAssignTaskWork(req.user, normalizedType);
 
     if (
       !isAdmin(req.user) &&
@@ -3416,6 +4600,7 @@ const createIssue = asyncHandler(async (req, res) => {
       const assigneeResult = await ensureAssigneeBelongsToTeam({
         assigneeId: requestedAssigneeId,
         teamId,
+        projectId,
         workspaceId,
       });
 
@@ -3426,10 +4611,21 @@ const createIssue = asyncHandler(async (req, res) => {
 
       if (
         canTeamLeadAssignTask &&
+<<<<<<< HEAD
         !TEAM_LEAD_TASK_ASSIGNABLE_ROLES.includes(assigneeResult.assignee?.role)
       ) {
         res.status(400);
         throw new Error("Team Leads can assign tasks only to developers, team leads, or QA leads");
+=======
+        ![ROLE_DEVELOPER, ROLE_TEAM_LEAD, ROLE_QA_LEAD].includes(
+          assigneeResult.assignee?.role
+        )
+      ) {
+        res.status(400);
+        throw new Error(
+          "Team leads and Q/A leads can assign tasks only to developers, team leads, or Q/A leads"
+        );
+>>>>>>> b17c4066c1873c208a579ac9310d65ecabbf82d7
       }
     }
   }
@@ -3498,9 +4694,9 @@ const createIssue = asyncHandler(async (req, res) => {
     : priority;
   const reporterName = req.user?.name || req.user?.email || "";
   const forcedTesterOwner =
-    isBug && req.user.role === ROLE_TESTER ? req.user._id : null;
+    isBug && hasTesterAccess(req.user.role) ? req.user._id : null;
   const forcedTesterOwnerName =
-    isBug && req.user.role === ROLE_TESTER ? reporterName : "";
+    isBug && hasTesterAccess(req.user.role) ? reporterName : "";
   const bugDetails = isBug
     ? buildBugDetailsDraft(req.body, {}, {
         testerOwner: forcedTesterOwner,
@@ -3538,6 +4734,7 @@ const createIssue = asyncHandler(async (req, res) => {
       ensureBugOwnerBelongsToTeam({
         userId: bugDetails.developerLead,
         teamId,
+        projectId,
         workspaceId,
         label: "developer lead",
       }),
@@ -3559,7 +4756,7 @@ const createIssue = asyncHandler(async (req, res) => {
       bugDetails.developerLead = null;
     }
 
-    if (req.user.role === ROLE_TESTER && bugDetails.developerLead) {
+    if (hasTesterAccess(req.user.role) && bugDetails.developerLead) {
       logBugAssignmentEmailEvent("info", {
         bugId: "pending",
         senderUserId: getUserIdString(req.user),
@@ -3685,7 +4882,7 @@ const createIssue = asyncHandler(async (req, res) => {
       issue,
       actorUser: req.user,
       workspaceId: emailWorkspaceId,
-      strictTesterSender: req.user.role === ROLE_TESTER,
+      strictTesterSender: hasTesterAccess(req.user.role),
     });
   } else {
     const emails = getIssueNotificationEmails(issue);
@@ -3782,6 +4979,13 @@ const updateIssue = asyncHandler(async (req, res) => {
     throw new Error("Issue not found");
   }
 
+  const sprintLockResult = await loadIssueSprintLock(issue);
+
+  if (sprintLockResult.isLocked) {
+    res.status(400);
+    throw new Error(SPRINT_EDIT_BLOCKED_MESSAGE);
+  }
+
   let targetProject = await loadAccessibleProject(req.user, issue.projectId);
   const hasBugOwnerAccess =
     !isAdmin(req.user) && hasBugQaOwnership(issue, req.user._id);
@@ -3811,6 +5015,8 @@ const updateIssue = asyncHandler(async (req, res) => {
   const hasProjectLeadershipAccess = canManageProjectPlanning(req.user, targetProject);
   const hasTeamLeadTaskAssignmentAccess =
     canAssignTaskWork(req.user, issue.type) && Boolean(targetProject);
+  const hasTeamLeadBugAssignmentAccess =
+    canAssignBugWork(req.user, issue.type) && Boolean(targetProject);
 
   if (!isAdmin(req.user)) {
     const canTesterEditReportedBug = canTesterModifyReportedBug(issue, req.user);
@@ -3818,6 +5024,7 @@ const updateIssue = asyncHandler(async (req, res) => {
     if (
       !hasProjectLeadershipAccess &&
       !hasTeamLeadTaskAssignmentAccess &&
+      !hasTeamLeadBugAssignmentAccess &&
       !hasDirectIssueAccess
     ) {
       res.status(403);
@@ -3872,6 +5079,26 @@ const updateIssue = asyncHandler(async (req, res) => {
           "statusChangeComment",
           "comment",
         ]
+<<<<<<< HEAD
+=======
+      : hasTeamLeadTaskAssignmentAccess
+        ? [
+            "assigneeId",
+            "assignee",
+            "assigneeIds",
+            "assignees",
+          ]
+      : hasTeamLeadBugAssignmentAccess
+        ? [
+            "assigneeId",
+            "assignee",
+            "developerLeadId",
+            "developerLead",
+            "assignedDeveloperId",
+            "devLeadId",
+            "devLead",
+          ]
+>>>>>>> b17c4066c1873c208a579ac9310d65ecabbf82d7
       : canTesterEditReportedBug
         ? [
             "title",
@@ -3909,6 +5136,8 @@ const updateIssue = asyncHandler(async (req, res) => {
       throw new Error(
         canTesterEditReportedBug
           ? "You can only edit reported bug details before developer pickup"
+          : hasTeamLeadBugAssignmentAccess
+            ? "Team Leads can assign work-queue bugs only to their team developers"
           : "Your role can only update issue status"
       );
     }
@@ -3946,7 +5175,7 @@ const updateIssue = asyncHandler(async (req, res) => {
     ? getUserIdString(issue.bugDetails?.developerLead)
     : "";
   const previousBugStatus = isBugType(issue.type)
-    ? getBugStatusForIssueStatus(issue.status)
+    ? getEffectiveBugTransitionStatus(issue.status, issue)
     : "";
   const changeEntries = [];
   const hasProjectChange =
@@ -3990,11 +5219,12 @@ const updateIssue = asyncHandler(async (req, res) => {
     ? getRequestedBugStatus({
         payload: req.body,
         currentStatus: issue.status,
+        issue,
       })
     : req.body.status;
   const nextStatusResult = parseIssueStatusInput(
     requestedUpdateStatus,
-    nextIsBug ? getBugStatusForIssueStatus(issue.status) : issue.status
+    nextIsBug ? getEffectiveBugTransitionStatus(issue.status, issue) : issue.status
   );
   const nextPriority = hasOwnField(req.body, "priority")
     ? nextIsBug
@@ -4013,7 +5243,7 @@ const updateIssue = asyncHandler(async (req, res) => {
   }
 
   const nextStatus = nextStatusResult.value;
-  const currentBugStatus = getBugStatusForIssueStatus(issue.status);
+  const currentBugStatus = getEffectiveBugTransitionStatus(issue.status, issue);
 
   if (nextIsBug && !isBugLifecycleStatus(nextStatus)) {
     res.status(400);
@@ -4128,7 +5358,7 @@ const updateIssue = asyncHandler(async (req, res) => {
   if (nextIsBug) {
     nextBugDetails = buildBugDetailsDraft(req.body, issue.bugDetails || {}, {});
 
-    if (req.user.role === ROLE_TESTER) {
+    if (hasTesterAccess(req.user.role)) {
       nextBugDetails.testerOwner = req.user._id;
     }
 
@@ -4214,8 +5444,9 @@ const updateIssue = asyncHandler(async (req, res) => {
   console.log("Updating bug", { id: req.params.id, updates: req.body });
 
   if (shouldValidateAssigneeTeamMembership) {
-    const canTeamLeadAssignExistingTask =
-      req.user.role === ROLE_TEAM_LEAD && canAssignTaskWork(req.user, issue.type);
+    const canTeamLeadAssignExistingTask = canAssignTaskWork(req.user, issue.type);
+    const canTeamLeadAssignExistingBug =
+      req.user.role === ROLE_TEAM_LEAD && canAssignBugWork(req.user, issue.type);
 
     console.log("[issues] validating assignee team membership", {
       issueId: String(issue._id),
@@ -4229,6 +5460,7 @@ const updateIssue = asyncHandler(async (req, res) => {
       const assigneeResult = await ensureAssigneeBelongsToTeam({
         assigneeId: requestedAssigneeId,
         teamId: nextTeamId,
+        projectId: targetProject?._id || issue.projectId,
         workspaceId,
       });
 
@@ -4245,11 +5477,25 @@ const updateIssue = asyncHandler(async (req, res) => {
       }
 
       if (
+<<<<<<< HEAD
         canTeamLeadAssignExistingTask &&
         !TEAM_LEAD_TASK_ASSIGNABLE_ROLES.includes(assigneeResult.assignee?.role)
       ) {
         res.status(400);
         throw new Error("Team Leads can assign tasks only to developers, team leads, or QA leads");
+=======
+        (canTeamLeadAssignExistingTask || canTeamLeadAssignExistingBug) &&
+        ![ROLE_DEVELOPER, ROLE_TEAM_LEAD, ROLE_QA_LEAD].includes(
+          assigneeResult.assignee?.role
+        )
+      ) {
+        res.status(400);
+        throw new Error(
+          canTeamLeadAssignExistingBug
+            ? "Team Leads can assign bugs only to developers, team leads, or Q/A leads"
+            : "Team leads and Q/A leads can assign tasks only to developers, team leads, or Q/A leads"
+        );
+>>>>>>> b17c4066c1873c208a579ac9310d65ecabbf82d7
       }
     }
   }
@@ -4289,6 +5535,7 @@ const updateIssue = asyncHandler(async (req, res) => {
       const developerLeadResult = await ensureBugOwnerBelongsToTeam({
         userId: nextBugDetails.developerLead,
         teamId: nextTeamId,
+        projectId: targetProject?._id || issue.projectId,
         workspaceId,
         label: "Developer",
       });
@@ -4315,7 +5562,7 @@ const updateIssue = asyncHandler(async (req, res) => {
     nextDeveloperLeadUser = await ensureAssigneeExists(nextBugDeveloperId, workspaceId);
   }
 
-  if (req.user.role === ROLE_TESTER && shouldSendBugAssignmentEmail) {
+  if (hasTesterAccess(req.user.role) && shouldSendBugAssignmentEmail) {
     logBugAssignmentEmailEvent("info", {
       bugId: String(issue?.displayBugId || issue?._id || "pending"),
       senderUserId: getUserIdString(req.user),
@@ -4666,7 +5913,7 @@ const updateIssue = asyncHandler(async (req, res) => {
       issue,
       actorUser: req.user,
       workspaceId: normalizeWorkspaceId(targetProject.workspaceId || workspaceId),
-      strictTesterSender: req.user.role === ROLE_TESTER,
+      strictTesterSender: hasTesterAccess(req.user.role),
     });
   }
 
@@ -4794,6 +6041,13 @@ const deleteIssue = asyncHandler(async (req, res) => {
     throw new Error("Issue not found");
   }
 
+  const sprintLockResult = await loadIssueSprintLock(issue);
+
+  if (sprintLockResult.isLocked) {
+    res.status(400);
+    throw new Error(SPRINT_EDIT_BLOCKED_MESSAGE);
+  }
+
   const project = await loadAccessibleProject(req.user, issue.projectId);
 
   if (!project) {
@@ -4807,7 +6061,7 @@ const deleteIssue = asyncHandler(async (req, res) => {
   const isStory = isStoryType(issue.type);
   const isUserAdmin = req.user.role === ROLE_ADMIN;
   const isUserManager = req.user.role === ROLE_MANAGER;
-  const isUserTester = req.user.role === ROLE_TESTER;
+  const isUserTester = hasTesterAccess(req.user.role);
   const isTesterOwnerOfBug = hasBugQaOwnership(issue, userId);
   const isReportedAndUnpicked = isBug && isBugReportedAndUnpicked(issue);
 
@@ -5049,6 +6303,9 @@ module.exports = {
   getMyIssues,
   getBugBucket,
   pickIssue,
+  downloadTaskImportSample,
+  importTasksFromSpreadsheet,
+  uploadTaskImportMiddleware,
   getRecentIssueActivity,
   getNotifications,
   getUnreadNotificationCount,

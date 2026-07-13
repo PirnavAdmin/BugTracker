@@ -18,6 +18,8 @@ import {
   getIssueDisplayKey,
   getIssueStatusLabel,
   getIssueWorkflowLane,
+  getSprintLifecycleState,
+  isSprintLocked,
   normalizeIssueFilterAlias,
   sortIssues,
 } from "@/lib/issues";
@@ -29,6 +31,7 @@ import {
   resolveTeamId,
   resolveUserId,
 } from "@/lib/project-teams";
+import BulkTaskImportDialog from "@/components/issues/BulkTaskImportDialog";
 import IssueBoard from "@/components/issues/IssueBoard";
 import IssueCreateDialog from "@/components/issues/IssueCreateDialog";
 import IssueDetailsDialog from "@/components/issues/IssueDetailsDialog";
@@ -235,6 +238,7 @@ const IssuesPage = () => {
   });
   const [selectedIssue, setSelectedIssue] = useState(null);
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  const [isBulkImportOpen, setIsBulkImportOpen] = useState(false);
   const [toast, setToast] = useState(null);
   const deferredSearch = useDeferredValue(filters.search);
   const isAdminView = hasAdminPanelAccess(role);
@@ -380,7 +384,8 @@ const IssuesPage = () => {
   const availableSprints = useMemo(
     () =>
       (Array.isArray(selectedProjectSprintsData) ? selectedProjectSprintsData : [])
-        .filter((sprint) => ["ACTIVE", "PLANNED"].includes(String(sprint?.state || "")))
+        .filter((sprint) => !isSprintLocked(sprint))
+        .filter((sprint) => ["ACTIVE", "PLANNED"].includes(getSprintLifecycleState(sprint)))
         .sort((left, right) => {
           const stateDelta =
             (left.state === "ACTIVE" ? 0 : 1) - (right.state === "ACTIVE" ? 0 : 1);
@@ -832,6 +837,7 @@ const IssuesPage = () => {
         activeStatusLabel={activeStatusLabel}
         selectedProject={selectedProject}
         canCreateIssue={canCreateIssue}
+        canBulkImport={isAdminView}
         isCreateDisabled={!projects.length || !canCreateIssue}
         onProjectChange={handleProjectChange}
         onTeamChange={handleTeamChange}
@@ -841,6 +847,7 @@ const IssuesPage = () => {
         onTypeChange={handleTypeChange}
         onSearchChange={handleSearchChange}
         onCreateIssue={() => setIsCreateDialogOpen(true)}
+        onOpenBulkImport={() => setIsBulkImportOpen(true)}
       />
 
       {isProjectsLoading || isIssuesLoading ? (
@@ -896,6 +903,20 @@ const IssuesPage = () => {
           return createdIssue;
         }}
         onUploadAttachment={uploadIssueAttachment}
+      />
+
+      <BulkTaskImportDialog
+        open={isAdminView && isBulkImportOpen}
+        onOpenChange={setIsBulkImportOpen}
+        onImported={async (result) => {
+          await invalidateIssueWorkspaceQueries();
+
+          setToast({
+            id: `task-import-${Date.now()}`,
+            type: result?.failedCount ? "warning" : "success",
+            message: result?.message || "Bulk task import finished successfully.",
+          });
+        }}
       />
 
       <IssueDetailsDialog

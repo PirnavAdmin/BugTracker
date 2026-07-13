@@ -4,6 +4,8 @@ const {
 } = require("../utils/issueStatus");
 const { getBugLifecycleStatus } = require("../utils/bugLifecycle");
 const { getCanonicalIssueType, ISSUE_TYPES } = require("../utils/issueTypes");
+const { buildIssueTimingMeta } = require("./issueTiming");
+const { buildSprintLifecycleMeta } = require("./sprintLifecycle");
 
 const issuePopulation = [
   { path: "assignee", select: "name email role" },
@@ -64,11 +66,19 @@ const serializeIssue = (issue) => {
   const status = getCanonicalIssueStatus(serializedIssue.status, ISSUE_STATUS.TODO);
   const type = getCanonicalIssueType(serializedIssue.type, serializedIssue.type);
   const isBug = type === ISSUE_TYPES.BUG;
+  const sprintMeta =
+    serializedIssue?.sprintId && typeof serializedIssue.sprintId === "object"
+      ? {
+          ...serializedIssue.sprintId,
+          ...buildSprintLifecycleMeta(serializedIssue.sprintId),
+        }
+      : serializedIssue?.sprintId || null;
 
   return {
     ...serializedIssue,
     status,
     bugLifecycleStatus: isBug ? getBugLifecycleStatus(status) : null,
+    sprintId: sprintMeta,
     reporterName:
       serializedIssue.reporterName ||
       serializedIssue.reporter?.name ||
@@ -97,6 +107,10 @@ const serializeIssue = (issue) => {
       serializedIssue.bugDetails?.developerLead?.name ||
       serializedIssue.assignee?.name ||
       "",
+    ...buildIssueTimingMeta({
+      dueAt: serializedIssue.dueAt,
+      status,
+    }),
   };
 };
 

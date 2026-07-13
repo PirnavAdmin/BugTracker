@@ -4,15 +4,7 @@ import { CheckCheck, Clock3, Download, FileText, ImageIcon, X } from "lucide-rea
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { resolveApiAssetUrl } from "@/lib/api";
-import { cn, getInitials } from "@/lib/utils";
-
-const formatTime = (value) =>
-  value
-    ? new Intl.DateTimeFormat("en", {
-        hour: "2-digit",
-        minute: "2-digit",
-      }).format(new Date(value))
-    : "";
+import { cn, formatTime, getInitials } from "@/lib/utils";
 
 const formatFileSize = (size = 0) => {
   if (!size) {

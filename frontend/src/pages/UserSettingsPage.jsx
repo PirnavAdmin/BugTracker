@@ -11,6 +11,7 @@ import {
 import {
   getDashboardPathByRole,
   hasAdminPanelAccess,
+  hasTesterPanelAccess,
   ROLE_TESTER,
 } from "@/lib/roles";
 import { getWorkspaceSenderResponseState } from "@/lib/workspaceSender";
@@ -57,7 +58,7 @@ const UserSettingsPage = () => {
   const workspaceSenderNoteRef = useRef("");
   const { token, user: authUser, setAuthSession } = useAuth();
   const canManageWorkspaceUsers = hasAdminPanelAccess(authUser?.role);
-  const isTesterSettingsMode = authUser?.role === ROLE_TESTER;
+  const isTesterSettingsMode = hasTesterPanelAccess(authUser?.role);
   const settingsItems = canManageWorkspaceUsers
     ? ADMIN_SETTINGS_ITEMS
     : TESTER_SETTINGS_ITEMS;

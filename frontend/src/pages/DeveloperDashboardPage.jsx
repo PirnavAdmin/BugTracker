@@ -51,6 +51,7 @@ import {
   getIssueStatusMetrics,
   isBugIssue,
   isIssueClosed,
+  isIssueOverdue,
   normalizeBugStatusForIssue,
   resolveBugDetails,
   resolveIssueProjectId,
@@ -169,11 +170,32 @@ const developerBugTransitions = {
   [ISSUE_STATUS.REOPEN]: [ISSUE_STATUS.ASSIGNED, ISSUE_STATUS.IN_PROGRESS],
 };
 
+const hasAssignedDeveloper = (issue) =>
+  Boolean(
+    issue?.assignee ||
+      issue?.assignedDeveloperId ||
+      resolveBugDetails(issue)?.developerLead
+  );
+
+const getDeveloperVisibleBugStatus = (issue) => {
+  const status = normalizeBugStatusForIssue(issue);
+
+  if (
+    hasAssignedDeveloper(issue) &&
+    [ISSUE_STATUS.NEW, ISSUE_STATUS.OPEN, ISSUE_STATUS.TRIAGED].includes(status)
+  ) {
+    return ISSUE_STATUS.ASSIGNED;
+  }
+
+  return status;
+};
+
+const getDisplayStatus = (issue) =>
+  isBugIssue(issue) ? getDeveloperVisibleBugStatus(issue) : issue?.status;
+
 const taskStatusOptions = [
   { value: ISSUE_STATUS.TODO, label: "To Do" },
   { value: ISSUE_STATUS.IN_PROGRESS, label: "In Progress" },
-  { value: ISSUE_STATUS.REVIEW, label: "Review" },
-  { value: ISSUE_STATUS.QA, label: "Testing" },
   { value: ISSUE_STATUS.DONE, label: "Done" },
 ];
 
@@ -236,7 +258,8 @@ const BUG_STATUS_ANALYTICS = [
 
 const getStatusLabel = (issue) =>
   isBugIssue(issue)
-    ? bugWorkflowLabels[normalizeBugStatusForIssue(issue)] || getIssueStatusLabel(issue.status)
+    ? bugWorkflowLabels[getDeveloperVisibleBugStatus(issue)] ||
+      getIssueStatusLabel(getDeveloperVisibleBugStatus(issue))
     : getIssueStatusLabel(issue.status);
 
 const isTaskWorkItem = (issue) => ["Task", "Sub-task"].includes(issue?.type);
@@ -396,7 +419,7 @@ const sortAvailableBugQueue = (issues = []) =>
   });
 
 const getNextBugAction = (issue) => {
-  const currentStatus = normalizeBugStatusForIssue(issue);
+  const currentStatus = getDeveloperVisibleBugStatus(issue);
   const [nextStatus] = developerBugTransitions[currentStatus] || [];
 
   if (!nextStatus) {
@@ -507,7 +530,7 @@ const BugStatusAnalytics = ({ issues = [] }) => {
 
     return BUG_STATUS_ANALYTICS.map((item) => {
       const value = issues.filter((issue) =>
-        item.statuses.includes(normalizeBugStatusForIssue(issue))
+        item.statuses.includes(getDeveloperVisibleBugStatus(issue))
       ).length;
 
       return {
@@ -1145,7 +1168,7 @@ const WorkTable = ({
       <div className="hidden">
         {issues.map((issue) => {
           const severity = getBugSeverity(issue);
-          const currentBugStatus = normalizeBugStatusForIssue(issue);
+          const currentBugStatus = getDeveloperVisibleBugStatus(issue);
           const bugOptions = developerBugTransitions[currentBugStatus] || [];
           const nextAction = getNextBugAction(issue);
 
@@ -1170,7 +1193,7 @@ const WorkTable = ({
                     {getProjectName(issue)}
                   </p>
                 </button>
-                <Pill className={getBadgeClass(statusStyleMap, issue.status)}>
+                <Pill className={getBadgeClass(statusStyleMap, getDisplayStatus(issue))}>
                   {getStatusLabel(issue)}
                 </Pill>
               </div>
@@ -1273,7 +1296,7 @@ const WorkTable = ({
         <tbody className="divide-y divide-slate-200/80">
           {issues.map((issue) => {
             const severity = getBugSeverity(issue);
-            const currentBugStatus = normalizeBugStatusForIssue(issue);
+            const currentBugStatus = getDeveloperVisibleBugStatus(issue);
             const bugOptions = developerBugTransitions[currentBugStatus] || [];
             const nextAction = getNextBugAction(issue);
 
@@ -1317,7 +1340,7 @@ const WorkTable = ({
                   </td>
                 ) : null}
                 <td className="px-3 py-2 align-middle">
-                  <Pill className={getBadgeClass(statusStyleMap, issue.status)}>
+                  <Pill className={getBadgeClass(statusStyleMap, getDisplayStatus(issue))}>
                     {getStatusLabel(issue)}
                   </Pill>
                 </td>
@@ -1684,8 +1707,23 @@ const DeveloperDashboardPage = () => {
         Icon: CheckCircle2,
         className: "bg-emerald-500",
       },
+      {
+        label: "My Overdue Tasks",
+        value: taskIssues.filter((issue) => isIssueOverdue(issue)).length,
+        helper: "Past due and still open",
+        Icon: AlertTriangle,
+        className: "bg-rose-500",
+      },
     ],
-    [bugIssues.length, stats.closed, stats.inProgress, stats.open, stats.total, taskIssues.length]
+    [
+      bugIssues.length,
+      stats.closed,
+      stats.inProgress,
+      stats.open,
+      stats.total,
+      taskIssues,
+      taskIssues.length,
+    ]
   );
   const activeStatusLabel = activeTab === "bugs" ? "Bugs / Issues" : "Tasks";
   const error = projectsError || issuesError;
@@ -2076,7 +2114,7 @@ const DeveloperDashboardPage = () => {
                           {getIssueDisplayKey(issue)} - {formatDateTime(getLastUpdated(issue))}
                         </p>
                       </div>
-                      <Pill className={getBadgeClass(statusStyleMap, issue.status)}>
+                      <Pill className={getBadgeClass(statusStyleMap, getDisplayStatus(issue))}>
                         {getStatusLabel(issue)}
                       </Pill>
                     </button>

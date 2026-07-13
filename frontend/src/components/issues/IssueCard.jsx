@@ -1,15 +1,19 @@
 import { useCallback, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
+  AlertTriangle,
   CalendarDays,
   GripVertical,
   MoreHorizontal,
   UserCircle2,
 } from "lucide-react";
 import {
+  getIssueDeadlineLabel,
   getIssuePriorityVariant,
   getIssueDisplayKey,
   getWorkflowStatusOptionsForIssue,
+  isIssueNearDue,
+  isIssueOverdue,
   getIssueTypeVariant,
   normalizeIssueStatus,
   resolveIssueAssignee,
@@ -242,6 +246,9 @@ const IssueCard = ({
   const issueKey = getIssueDisplayKey(issue);
   const projectLabel = issue.projectId?.name || "Unknown project";
   const teamLabel = issue.teamId?.name;
+  const isOverdue = isIssueOverdue(issue);
+  const isNearDue = !isOverdue && isIssueNearDue(issue);
+  const deadlineLabel = getIssueDeadlineLabel(issue);
   const secondaryChips = [
     issue.epicId?.name
       ? { key: `epic-${issue._id}`, label: issue.epicId.name, className: "border-violet-100 bg-violet-50 text-violet-700" }
@@ -253,7 +260,10 @@ const IssueCard = ({
 
   return (
     <article
-      className="group rounded-[18px] border border-slate-200 bg-white p-3 shadow-sm transition hover:border-blue-200 hover:shadow-[0_14px_32px_-28px_rgba(37,99,235,0.35)]"
+      className={cn(
+        "group rounded-[18px] border border-slate-200 bg-white p-3 shadow-sm transition hover:border-blue-200 hover:shadow-[0_14px_32px_-28px_rgba(37,99,235,0.35)]",
+        isNearDue && "border-amber-300"
+      )}
       role="button"
       tabIndex={0}
       draggable={canChangeStatus && !isUpdating}
@@ -289,6 +299,12 @@ const IssueCard = ({
             {issue.type ? (
               <Badge className="px-2 py-0 text-[10px]" variant={getIssueTypeVariant(issue.type)}>
                 {issue.type}
+              </Badge>
+            ) : null}
+            {deadlineLabel ? (
+              <Badge className="gap-1 px-2 py-0 text-[10px]" variant={isOverdue ? "danger" : "warning"}>
+                <AlertTriangle className="h-3 w-3" />
+                {deadlineLabel}
               </Badge>
             ) : null}
           </div>
@@ -352,8 +368,14 @@ const IssueCard = ({
           </p>
 
           <div className="flex shrink-0 items-center gap-1 text-[11px] text-slate-500">
-            <CalendarDays className="h-3.5 w-3.5 text-slate-400" />
-            <span className="whitespace-nowrap">{formatDueAt(issue.dueAt)}</span>
+            {isOverdue ? (
+              <AlertTriangle className="h-3.5 w-3.5 text-rose-500" />
+            ) : (
+              <CalendarDays className="h-3.5 w-3.5 text-slate-400" />
+            )}
+            <span className={cn("whitespace-nowrap", isOverdue && "font-semibold text-rose-700")}>
+              {formatDueAt(issue.dueAt)}
+            </span>
           </div>
         </div>
 
