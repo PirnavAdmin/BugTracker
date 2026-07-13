@@ -12,6 +12,7 @@ import {
   Calendar,
   ArrowRight,
   Edit2,
+  Download,
 } from "lucide-react";
 import { Link } from "react-router-dom";
 
@@ -206,8 +207,14 @@ const ProfilePage = () => {
               Check our documentation or contact support if you need assistance.
             </p>
             <div className="mt-4 flex gap-3">
-              <Button variant="outline" size="sm">
-                Documentation
+              <Button asChild variant="outline" size="sm">
+                <a
+                  href="/docs/pirnav-user-manual.html"
+                  download="Pirnav-User-Manual.html"
+                >
+                  <Download className="h-4 w-4" />
+                  Documentation
+                </a>
               </Button>
               <Button variant="outline" size="sm">
                 Contact Support

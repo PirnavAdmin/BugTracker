@@ -1,0 +1,262 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Pirnav Bug Tracking User Manual</title>
+    <style>
+      :root {
+        color: #172033;
+        font-family: "Segoe UI", Arial, sans-serif;
+        line-height: 1.55;
+      }
+
+      body {
+        margin: 0;
+        background: #f6f8fc;
+      }
+
+      main {
+        max-width: 900px;
+        margin: 0 auto;
+        padding: 48px 32px;
+        background: #ffffff;
+      }
+
+      h1,
+      h2,
+      h3 {
+        color: #03152f;
+        line-height: 1.2;
+      }
+
+      h1 {
+        margin-bottom: 8px;
+        font-size: 34px;
+      }
+
+      h2 {
+        margin-top: 36px;
+        padding-bottom: 8px;
+        border-bottom: 1px solid #d9e2f1;
+        font-size: 24px;
+      }
+
+      h3 {
+        margin-top: 24px;
+        font-size: 18px;
+      }
+
+      .subtitle {
+        margin-top: 0;
+        color: #526179;
+      }
+
+      .meta,
+      .note {
+        border-radius: 10px;
+        background: #eef5ff;
+        padding: 16px 18px;
+      }
+
+      .meta {
+        margin: 28px 0;
+      }
+
+      .note {
+        border-left: 4px solid #2563eb;
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        margin: 16px 0 24px;
+      }
+
+      th,
+      td {
+        border: 1px solid #d9e2f1;
+        padding: 10px 12px;
+        text-align: left;
+        vertical-align: top;
+      }
+
+      th {
+        background: #f1f5fb;
+      }
+
+      ul,
+      ol {
+        padding-left: 24px;
+      }
+
+      li {
+        margin: 6px 0;
+      }
+
+      @media print {
+        body {
+          background: #ffffff;
+        }
+
+        main {
+          max-width: none;
+          padding: 0;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Pirnav Bug Tracking User Manual</h1>
+      <p class="subtitle">
+        Role-based guide for Admin, Tester, Developer, Lead, and Manager users.
+      </p>
+
+      <section class="meta" aria-label="Document details">
+        <strong>Product:</strong> Pirnav Bug Tracking<br />
+        <strong>Document:</strong> User Manual<br />
+        <strong>Audience:</strong> Admin, Tester, Developer, Lead, Manager<br />
+        <strong>Version:</strong> 1.0
+      </section>
+
+      <h2>1. Getting Started</h2>
+      <ol>
+        <li>Open the application URL provided by your organization.</li>
+        <li>Sign in with your registered email address and password.</li>
+        <li>Use the top navigation bar to access Dashboard, Projects, Backlog, Stories, Tasks, Bugs, Reports, Team Activity, and Chat.</li>
+        <li>Open your profile menu from the top-right avatar to manage profile, account, and help options.</li>
+      </ol>
+
+      <h2>2. Common Navigation</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Area</th>
+            <th>Purpose</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Dashboard</td>
+            <td>View high-level project, task, bug, and activity status.</td>
+          </tr>
+          <tr>
+            <td>Projects</td>
+            <td>Create, review, and manage project records based on your permissions.</td>
+          </tr>
+          <tr>
+            <td>Backlog</td>
+            <td>Plan upcoming work and organize pending items.</td>
+          </tr>
+          <tr>
+            <td>Stories</td>
+            <td>Track user stories, requirements, and related work items.</td>
+          </tr>
+          <tr>
+            <td>Tasks</td>
+            <td>Create, assign, update, and monitor implementation tasks.</td>
+          </tr>
+          <tr>
+            <td>Bugs</td>
+            <td>Report defects, update bug details, attach evidence, and track fixes.</td>
+          </tr>
+          <tr>
+            <td>Reports</td>
+            <td>Review project, team, task, and bug reporting views.</td>
+          </tr>
+          <tr>
+            <td>Team Activity</td>
+            <td>Monitor team-level work progress and recent updates.</td>
+          </tr>
+          <tr>
+            <td>Chat</td>
+            <td>Communicate with team members and share work-related updates.</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h2>3. Role Guide</h2>
+
+      <h3>Admin</h3>
+      <ul>
+        <li>Manage users, roles, teams, and workspace-level settings.</li>
+        <li>Create and maintain projects, assign members, and review account status.</li>
+        <li>Use reports to monitor organization-wide progress and bottlenecks.</li>
+        <li>Keep user access current by updating inactive users and role changes promptly.</li>
+      </ul>
+
+      <h3>Tester</h3>
+      <ul>
+        <li>Create bug reports with clear titles, steps to reproduce, expected result, actual result, severity, priority, and attachments.</li>
+        <li>Track assigned bugs and update testing status after verification.</li>
+        <li>Add screenshots, logs, or other evidence when reporting or retesting a defect.</li>
+        <li>Move verified fixes to the appropriate resolved or closed status based on team workflow.</li>
+      </ul>
+
+      <h3>Developer</h3>
+      <ul>
+        <li>Review assigned tasks and bugs from the Tasks and Bugs sections.</li>
+        <li>Update status, estimates, comments, and implementation notes as work progresses.</li>
+        <li>Use bug details to understand reproduction steps and attached evidence before starting a fix.</li>
+        <li>Notify testers or leads when a fix is ready for verification.</li>
+      </ul>
+
+      <h3>Lead</h3>
+      <ul>
+        <li>Plan work across backlog, stories, tasks, and bugs.</li>
+        <li>Assign items to developers and testers based on priority and availability.</li>
+        <li>Review team activity to identify blocked work and overdue items.</li>
+        <li>Use reports to prepare status updates and guide daily execution.</li>
+      </ul>
+
+      <h3>Manager</h3>
+      <ul>
+        <li>Monitor project health, delivery progress, open bugs, and team workload.</li>
+        <li>Use reporting pages to understand trends, risks, and completion status.</li>
+        <li>Review high-priority bugs and overdue tasks during planning and review meetings.</li>
+        <li>Coordinate with leads and admins when project scope, staffing, or access needs change.</li>
+      </ul>
+
+      <h2>4. Bug Reporting Workflow</h2>
+      <ol>
+        <li>Open the Bugs section and choose the option to create or report a bug.</li>
+        <li>Enter a specific title that describes the issue clearly.</li>
+        <li>Select the related project, priority, severity, assignee, and status where applicable.</li>
+        <li>Describe steps to reproduce, expected result, actual result, environment, and any dependency information.</li>
+        <li>Attach supporting files such as screenshots, logs, documents, or videos if available.</li>
+        <li>Submit the bug and monitor comments or status updates until it is verified and closed.</li>
+      </ol>
+
+      <h2>5. Task And Story Workflow</h2>
+      <ol>
+        <li>Create stories or tasks with enough detail for the assigned team member to begin work.</li>
+        <li>Set assignee, project, priority, due date, dependency, and status fields accurately.</li>
+        <li>Update progress regularly so reports and team activity remain reliable.</li>
+        <li>Use comments and attachments to keep discussions close to the work item.</li>
+      </ol>
+
+      <h2>6. Profile And Account</h2>
+      <ul>
+        <li>Open Profile from the top-right user menu to view account information.</li>
+        <li>Use Change Password to update your password regularly.</li>
+        <li>Use Documentation to download this manual for offline reference.</li>
+        <li>Contact your administrator or support contact when your role, team, or access appears incorrect.</li>
+      </ul>
+
+      <h2>7. Good Practices</h2>
+      <ul>
+        <li>Keep titles short, specific, and searchable.</li>
+        <li>Record decisions and clarifications in comments on the related item.</li>
+        <li>Attach evidence for bugs and important delivery risks.</li>
+        <li>Update status as soon as work moves forward, gets blocked, or is completed.</li>
+        <li>Review reports before team meetings so blockers can be addressed quickly.</li>
+      </ul>
+
+      <p class="note">
+        This manual is intended as a general guide. Your organization may apply
+        additional workflow rules based on project, team, or customer needs.
+      </p>
+    </main>
+  </body>
+</html>
