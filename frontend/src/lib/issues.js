@@ -276,9 +276,7 @@ export const ISSUE_STATUS_OPTIONS = [
   { value: ISSUE_STATUS.IN_PROGRESS, label: "In Progress" },
   { value: ISSUE_STATUS.BLOCKED, label: "Blocked" },
   { value: ISSUE_STATUS.REVIEW, label: "Review" },
-  { value: ISSUE_STATUS.CODE_REVIEW, label: "Code Review" },
   { value: ISSUE_STATUS.QA, label: "QA" },
-  { value: ISSUE_STATUS.QA_READY, label: "QA Ready" },
   { value: ISSUE_STATUS.DEVELOPMENT_COMPLETE, label: "Development Complete" },
   { value: ISSUE_STATUS.TESTING, label: "Testing" },
   { value: ISSUE_STATUS.READY_FOR_UAT, label: "Ready for UAT" },
@@ -311,8 +309,6 @@ export const STORY_WORKFLOW_STATUS_OPTIONS = [
 export const TASK_WORKFLOW_STATUS_OPTIONS = [
   { value: ISSUE_STATUS.TODO, label: "To Do" },
   { value: ISSUE_STATUS.IN_PROGRESS, label: "In Progress" },
-  { value: ISSUE_STATUS.CODE_REVIEW, label: "Code Review" },
-  { value: ISSUE_STATUS.QA_READY, label: "QA Ready" },
   { value: ISSUE_STATUS.DONE, label: "Done" },
 ];
 
