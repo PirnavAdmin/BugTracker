@@ -13,6 +13,7 @@ import {
   ROLE_QA_LEAD,
   ROLE_TEAM_LEAD,
   ROLE_TESTER,
+  TASK_STORY_LEAD_ROLES,
   TESTER_PANEL_ROLES,
 } from "@/lib/roles";
 
@@ -257,7 +258,7 @@ const App = () => (
       <Route
         path="/bugs"
         element={
-          <ProtectedRoute roles={[...ADMIN_PANEL_ROLES, ...TESTER_PANEL_ROLES]}>
+          <ProtectedRoute roles={[...ADMIN_PANEL_ROLES, ...TESTER_PANEL_ROLES, ...TASK_STORY_LEAD_ROLES]}>
             <BugsRoute />
           </ProtectedRoute>
         }

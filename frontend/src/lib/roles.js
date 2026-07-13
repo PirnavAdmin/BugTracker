@@ -102,7 +102,7 @@ export const getRoleNavigation = (role) => {
     { id: "dashboard", label: "Dashboard", href: dashboardPathByRole[ROLE_DEVELOPER], icon: "dashboard" },
     { id: "stories", label: "Stories", href: "/stories", icon: "stories" },
     { id: "tasks", label: "Tasks", href: "/tasks", icon: "tasks" },
-    { id: "bugs", label: "Bugs", href: "/dev/bugs", icon: "bugs" },
+    { id: "bugs", label: "Bugs", href: role === ROLE_TEAM_LEAD ? "/bugs" : "/dev/bugs", icon: "bugs" },
     { id: "reports", label: "Reports", href: "/reports", icon: "reports" },
     { id: "chat", label: "Chat", href: "/chat", icon: "chat" },
   ];

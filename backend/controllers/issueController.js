@@ -4536,10 +4536,12 @@ const createIssue = asyncHandler(async (req, res) => {
 
   if (
     hasTaskStoryLeadAccess(req.user.role) &&
-    ![ISSUE_TYPES.STORY, ISSUE_TYPES.TASK, ISSUE_TYPES.SUB_TASK].includes(normalizedType)
+    ![ISSUE_TYPES.BUG, ISSUE_TYPES.STORY, ISSUE_TYPES.TASK, ISSUE_TYPES.SUB_TASK].includes(
+      normalizedType
+    )
   ) {
     res.status(403);
-    throw new Error("Team leads and Q/A leads can create Stories, Tasks, and Sub-tasks");
+    throw new Error("Team leads and Q/A leads can report Bugs and create Stories, Tasks, and Sub-tasks");
   }
 
   if (!canAssignPlanningFields && ((hasEpicInput && epicId) || (hasSprintInput && sprintId))) {

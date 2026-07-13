@@ -144,7 +144,10 @@ const StoryDetails = ({ story, projects, stories, onBack, onChanged }) => {
     [ROLE_DEVELOPER].includes(role) ||
     hasTaskStoryLeadAccess(role) ||
     hasTesterPanelAccess(role);
-  const canCreateBug = ADMIN_PANEL_ROLES.includes(role) || hasTesterPanelAccess(role);
+  const canCreateBug =
+    ADMIN_PANEL_ROLES.includes(role) ||
+    hasTesterPanelAccess(role) ||
+    hasTaskStoryLeadAccess(role);
   const canManageCollaborators = ADMIN_PANEL_ROLES.includes(role);
   const canDeleteStory = ADMIN_PANEL_ROLES.includes(role);
 
