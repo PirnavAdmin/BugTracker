@@ -17,9 +17,7 @@ import {
   PauseCircle,
   RefreshCcw,
   Search,
-  Star,
   TimerReset,
-  Trophy,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import {
@@ -32,7 +30,6 @@ import {
 import { motion, AnimatePresence } from "framer-motion";
 import {
   fetchIssueActivity,
-  fetchIssueStats,
   fetchNotifications,
   fetchUnreadNotificationCount,
   markNotificationAsRead,
@@ -54,6 +51,7 @@ import {
   getIssueStatusMetrics,
   isBugIssue,
   isIssueClosed,
+  isIssueOverdue,
   normalizeBugStatusForIssue,
   resolveBugDetails,
   resolveIssueProjectId,
@@ -68,6 +66,7 @@ import {
 } from "@/lib/bug-workflow-cache";
 import IssueDetailsDialog from "@/components/issues/IssueDetailsDialog";
 import NotificationCard from "@/components/dashboard/NotificationCard";
+import GreetingBeachScene from "@/components/dashboard/GreetingBeachScene";
 import EmptyState from "@/components/shared/EmptyState";
 import { Button } from "@/components/ui/button";
 import {
@@ -171,11 +170,32 @@ const developerBugTransitions = {
   [ISSUE_STATUS.REOPEN]: [ISSUE_STATUS.ASSIGNED, ISSUE_STATUS.IN_PROGRESS],
 };
 
+const hasAssignedDeveloper = (issue) =>
+  Boolean(
+    issue?.assignee ||
+      issue?.assignedDeveloperId ||
+      resolveBugDetails(issue)?.developerLead
+  );
+
+const getDeveloperVisibleBugStatus = (issue) => {
+  const status = normalizeBugStatusForIssue(issue);
+
+  if (
+    hasAssignedDeveloper(issue) &&
+    [ISSUE_STATUS.NEW, ISSUE_STATUS.OPEN, ISSUE_STATUS.TRIAGED].includes(status)
+  ) {
+    return ISSUE_STATUS.ASSIGNED;
+  }
+
+  return status;
+};
+
+const getDisplayStatus = (issue) =>
+  isBugIssue(issue) ? getDeveloperVisibleBugStatus(issue) : issue?.status;
+
 const taskStatusOptions = [
   { value: ISSUE_STATUS.TODO, label: "To Do" },
   { value: ISSUE_STATUS.IN_PROGRESS, label: "In Progress" },
-  { value: ISSUE_STATUS.REVIEW, label: "Review" },
-  { value: ISSUE_STATUS.QA, label: "Testing" },
   { value: ISSUE_STATUS.DONE, label: "Done" },
 ];
 
@@ -238,8 +258,11 @@ const BUG_STATUS_ANALYTICS = [
 
 const getStatusLabel = (issue) =>
   isBugIssue(issue)
-    ? bugWorkflowLabels[normalizeBugStatusForIssue(issue)] || getIssueStatusLabel(issue.status)
+    ? bugWorkflowLabels[getDeveloperVisibleBugStatus(issue)] ||
+      getIssueStatusLabel(getDeveloperVisibleBugStatus(issue))
     : getIssueStatusLabel(issue.status);
+
+const isTaskWorkItem = (issue) => ["Task", "Sub-task"].includes(issue?.type);
 
 const getBadgeClass = (map, key, fallback) =>
   map[key] || fallback || "border-slate-200 bg-slate-100 text-slate-700";
@@ -396,7 +419,7 @@ const sortAvailableBugQueue = (issues = []) =>
   });
 
 const getNextBugAction = (issue) => {
-  const currentStatus = normalizeBugStatusForIssue(issue);
+  const currentStatus = getDeveloperVisibleBugStatus(issue);
   const [nextStatus] = developerBugTransitions[currentStatus] || [];
 
   if (!nextStatus) {
@@ -440,7 +463,7 @@ const SprintProgressWidget = ({ metrics, isLoading }) => {
 
   return (
     <div
-      className="group flex h-16 min-w-[240px] flex-1 flex-col justify-center rounded-[22px] border border-cyan-100/80 bg-[linear-gradient(135deg,rgba(255,255,255,0.86),rgba(239,246,255,0.78),rgba(236,254,255,0.68))] px-4 py-2 shadow-[0_16px_34px_-26px_rgba(14,165,233,0.78)] backdrop-blur-xl transition-all duration-300 hover:-translate-y-0.5 hover:border-cyan-200 hover:shadow-[0_18px_38px_-24px_rgba(14,165,233,0.9)] sm:ml-auto sm:max-w-[340px]"
+      className="group flex h-16 min-w-[240px] flex-1 flex-col justify-center rounded-[22px] border border-cyan-100/80 bg-[linear-gradient(135deg,rgba(255,255,255,0.86),rgba(239,246,255,0.78),rgba(236,254,255,0.68))] px-4 py-2 shadow-[0_16px_34px_-26px_rgba(14,165,233,0.78)] backdrop-blur-xl transition-all duration-300 hover:-translate-y-0.5 hover:border-cyan-200 hover:shadow-[0_18px_38px_-24px_rgba(14,165,233,0.9)] sm:max-w-[340px]"
       title="Sprint completion based on assigned tasks."
     >
       {isLoading ? (
@@ -501,56 +524,13 @@ const StatCard = ({ label, value, helper, Icon, className }) => (
   </Card>
 );
 
-const clampScore = (value) => Math.min(100, Math.max(0, Math.round(Number(value) || 0)));
-const ratingLabel = (score) =>
-  score >= 85 ? "Excellent" : score >= 70 ? "Good" : score >= 55 ? "Average" : "Needs Improvement";
-
-const RoleRatingCard = ({ metrics, title = "My Performance Rating" }) => {
-  const stars = Math.max(1, Math.min(5, Math.round(metrics.score / 20)));
-
-  return (
-    <div className="flex min-h-11 min-w-[250px] flex-1 items-center gap-3 rounded-2xl border border-slate-200 bg-white/90 px-3 py-2 shadow-sm backdrop-blur-xl transition hover:border-blue-200 hover:shadow-md sm:max-w-[360px]">
-      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-amber-100 bg-amber-50 text-amber-600">
-        <Trophy className="h-4 w-4" />
-      </div>
-      <div className="min-w-0 flex-1">
-        <div className="flex items-center justify-between gap-2">
-          <div className="min-w-0">
-            <p className="truncate text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
-              {title}
-            </p>
-            <p className="truncate text-sm font-semibold text-slate-950">
-              {ratingLabel(metrics.score)} · {metrics.score}/100
-            </p>
-          </div>
-          <div className="flex shrink-0 items-center gap-1">
-            <span className="text-xs font-bold text-slate-700">{stars}/5</span>
-            <Star className="h-3.5 w-3.5 fill-amber-400 text-amber-400" />
-          </div>
-        </div>
-        <div className="mt-1.5 flex flex-wrap gap-1.5 text-[10px]">
-          {metrics.items.map((item) => (
-            <span
-              className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 font-medium text-slate-500"
-              key={item.label}
-            >
-              <span className="font-semibold text-slate-800">{item.value}</span>
-              {item.label}
-            </span>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-};
-
 const BugStatusAnalytics = ({ issues = [] }) => {
   const statusData = useMemo(() => {
     const total = issues.length;
 
     return BUG_STATUS_ANALYTICS.map((item) => {
       const value = issues.filter((issue) =>
-        item.statuses.includes(normalizeBugStatusForIssue(issue))
+        item.statuses.includes(getDeveloperVisibleBugStatus(issue))
       ).length;
 
       return {
@@ -1032,9 +1012,9 @@ const BugBucketPanel = ({ issues, isLoading, onOpenIssue, onPickIssue, onViewAll
             </p>
             <CardTitle className="flex items-center gap-2 text-2xl tracking-tight text-slate-950">
               <FolderKanban className="h-6 w-6 text-cyan-600" />
-              Available Bugs Queue
+              Work Queue
             </CardTitle>
-            <CardDescription>Pickup-ready bugs waiting for developer ownership.</CardDescription>
+            <CardDescription>Pickup-ready work waiting for developer ownership.</CardDescription>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <Pill className="h-8 border-cyan-200 bg-cyan-50 px-3 text-cyan-700">
@@ -1047,7 +1027,7 @@ const BugBucketPanel = ({ issues, isLoading, onOpenIssue, onPickIssue, onViewAll
               onClick={onViewAllBugs}
             >
               <FolderKanban className="h-3.5 w-3.5" />
-              View All Bugs
+              View Queue
             </Button>
           </div>
         </div>
@@ -1066,7 +1046,7 @@ const BugBucketPanel = ({ issues, isLoading, onOpenIssue, onPickIssue, onViewAll
                 <span>ID</span>
                 <span>Title</span>
                 <span>Module / Page</span>
-                <span>Bug Type</span>
+                <span>Type</span>
                 <span>Severity</span>
                 <span className="text-right">Action</span>
               </div>
@@ -1074,16 +1054,19 @@ const BugBucketPanel = ({ issues, isLoading, onOpenIssue, onPickIssue, onViewAll
                 {sortedIssues.map((issue) => {
                   const canPick = issue.canPick !== false && issue.pickupEligibility?.canPick !== false;
                   const pickDisabled = pickingId === issue._id || !canPick;
-                  const pickLabel = pickingId === issue._id ? "Picking" : canPick ? "Pick Bug" : "Not Eligible";
+                  const isStory = issue.type === "Story";
+                  const pickLabel = pickingId === issue._id ? "Picking" : canPick ? `Pick ${isStory ? "Story" : "Bug"}` : "Not Eligible";
                   const severity = getBugSeverity(issue);
                   const bugDetails = resolveBugDetails(issue);
-                  const moduleName = bugDetails?.moduleName || "General";
-                  const category = bugDetails?.category || "Bug";
+                  const moduleName = isStory ? issue.projectId?.name || "Story" : bugDetails?.moduleName || "General";
+                  const category = isStory ? "Story" : bugDetails?.category || "Bug";
 
                   return (
                     <article
                       key={issue._id}
-                      className="grid gap-2 px-3 py-2.5 transition hover:bg-cyan-50/50 md:grid-cols-[108px_minmax(220px,1fr)_150px_140px_108px_172px] md:items-center md:gap-3 md:py-1.5"
+                      className={`grid gap-2 px-3 py-2.5 transition md:grid-cols-[108px_minmax(220px,1fr)_150px_140px_108px_172px] md:items-center md:gap-3 md:py-1.5 ${
+                        isStory ? "bg-amber-50/70 hover:bg-amber-50" : "hover:bg-cyan-50/50"
+                      }`}
                     >
                       <button
                         className="truncate text-left font-mono text-xs font-semibold text-slate-500"
@@ -1146,13 +1129,13 @@ const BugBucketPanel = ({ issues, isLoading, onOpenIssue, onPickIssue, onViewAll
             </div>
 
             <p className="border-t border-cyan-100/80 pt-3 text-xs font-medium text-slate-500">
-              Showing all {sortedIssues.length} available bugs
+              Showing all {sortedIssues.length} available work items
             </p>
           </>
         ) : (
           <EmptyState
-            title="No bugs in the bucket"
-            description="Unassigned tester bugs will appear here when they are added to the developer queue."
+            title="No work in the queue"
+            description="Unassigned bugs and Stories will appear here when they are added to the developer queue."
             icon={<FolderKanban className="h-5 w-5" />}
           />
         )}
@@ -1185,7 +1168,7 @@ const WorkTable = ({
       <div className="hidden">
         {issues.map((issue) => {
           const severity = getBugSeverity(issue);
-          const currentBugStatus = normalizeBugStatusForIssue(issue);
+          const currentBugStatus = getDeveloperVisibleBugStatus(issue);
           const bugOptions = developerBugTransitions[currentBugStatus] || [];
           const nextAction = getNextBugAction(issue);
 
@@ -1210,7 +1193,7 @@ const WorkTable = ({
                     {getProjectName(issue)}
                   </p>
                 </button>
-                <Pill className={getBadgeClass(statusStyleMap, issue.status)}>
+                <Pill className={getBadgeClass(statusStyleMap, getDisplayStatus(issue))}>
                   {getStatusLabel(issue)}
                 </Pill>
               </div>
@@ -1313,7 +1296,7 @@ const WorkTable = ({
         <tbody className="divide-y divide-slate-200/80">
           {issues.map((issue) => {
             const severity = getBugSeverity(issue);
-            const currentBugStatus = normalizeBugStatusForIssue(issue);
+            const currentBugStatus = getDeveloperVisibleBugStatus(issue);
             const bugOptions = developerBugTransitions[currentBugStatus] || [];
             const nextAction = getNextBugAction(issue);
 
@@ -1357,7 +1340,7 @@ const WorkTable = ({
                   </td>
                 ) : null}
                 <td className="px-3 py-2 align-middle">
-                  <Pill className={getBadgeClass(statusStyleMap, issue.status)}>
+                  <Pill className={getBadgeClass(statusStyleMap, getDisplayStatus(issue))}>
                     {getStatusLabel(issue)}
                   </Pill>
                 </td>
@@ -1459,6 +1442,14 @@ const DeveloperDashboardPage = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { user } = useAuth();
+  const currentHour = new Date().getHours();
+  const greeting = currentHour < 12
+    ? "Good morning"
+    : currentHour < 17
+      ? "Good afternoon"
+      : "Good evening";
+  const timeOfDay = currentHour < 12 ? "morning" : currentHour < 17 ? "afternoon" : "evening";
+  const developerName = String(user?.name || "Developer").trim().split(/\s+/)[0];
   const [activeTab, setActiveTab] = useState("bugs");
   const [filters, setFilters] = useState(defaultFilters);
   const [selectedIssue, setSelectedIssue] = useState(null);
@@ -1496,19 +1487,6 @@ const DeveloperDashboardPage = () => {
         excludeClosedBugs: true,
         limit: 200,
         sortBy: "recently-updated",
-      }),
-    enabled: Boolean(user?._id),
-  });
-
-  const {
-    data: activeSprintStats = null,
-    isLoading: isSprintProgressLoading,
-  } = useQuery({
-    queryKey: ["issues", "stats", "developer-dashboard", "active-sprint-tasks", user?._id],
-    queryFn: () =>
-      fetchIssueStats({
-        sprintState: "ACTIVE",
-        excludeType: "Bug",
       }),
     enabled: Boolean(user?._id),
   });
@@ -1562,13 +1540,16 @@ const DeveloperDashboardPage = () => {
     [allIssues]
   );
   const taskIssues = useMemo(
-    () => allIssues.filter((issue) => !isBugIssue(issue)),
+    () => allIssues.filter(isTaskWorkItem),
     [allIssues]
   );
   const sprintProgress = useMemo(
     () => {
-      const total = activeSprintStats?.total || 0;
-      const completed = activeSprintStats?.closed || 0;
+      const activeSprintTasks = taskIssues.filter(
+        (issue) => String(issue?.sprintId?.state || issue?.sprintId?.status || "") === "ACTIVE"
+      );
+      const total = activeSprintTasks.length;
+      const completed = activeSprintTasks.filter(isIssueClosed).length;
 
       return {
         completed,
@@ -1577,7 +1558,7 @@ const DeveloperDashboardPage = () => {
         hasActiveSprint: total > 0,
       };
     },
-    [activeSprintStats]
+    [taskIssues]
   );
   useEffect(() => {
     if (!selectedIssue) {
@@ -1673,48 +1654,6 @@ const DeveloperDashboardPage = () => {
     () => [...bugIssues, ...taskIssues],
     [bugIssues, taskIssues]
   );
-  const performanceRating = useMemo(() => {
-    const completedTasks = taskIssues.filter(isIssueClosed).length;
-    const taskCompletionRate = taskIssues.length
-      ? Math.round((completedTasks / taskIssues.length) * 100)
-      : 100;
-    const resolvedBugStatuses = new Set([
-      ISSUE_STATUS.READY_FOR_QA,
-      ISSUE_STATUS.TESTING,
-      ISSUE_STATUS.FIXED,
-      ISSUE_STATUS.QA,
-      ISSUE_STATUS.DONE,
-      ISSUE_STATUS.CLOSED,
-    ]);
-    const resolvedBugs = bugIssues.filter((issue) =>
-      resolvedBugStatuses.has(normalizeBugStatusForIssue(issue))
-    ).length;
-    const bugFixRate = bugIssues.length ? Math.round((resolvedBugs / bugIssues.length) * 100) : 100;
-    const reopenedBugs = bugIssues.filter(
-      (issue) => normalizeBugStatusForIssue(issue) === ISSUE_STATUS.REOPEN
-    ).length;
-    const slaIssues = workflowIssues.filter((issue) => issue.dueAt);
-    const slaMet = slaIssues.filter((issue) => {
-      const dueAt = new Date(issue.dueAt).getTime();
-      const finishedAt = issue.closedAt ? new Date(issue.closedAt).getTime() : Date.now();
-
-      return finishedAt <= dueAt;
-    }).length;
-    const slaRate = slaIssues.length ? Math.round((slaMet / slaIssues.length) * 100) : 100;
-    const reopenPenalty = bugIssues.length ? Math.round((reopenedBugs / bugIssues.length) * 100) : 0;
-    const score = clampScore(
-      taskCompletionRate * 0.42 + bugFixRate * 0.32 + slaRate * 0.2 + Math.max(0, 100 - reopenPenalty) * 0.06
-    );
-
-    return {
-      score,
-      items: [
-        { label: "Task Done", value: `${taskCompletionRate}%` },
-        { label: "Bug Fix", value: `${bugFixRate}%` },
-        { label: "SLA", value: `${slaRate}%` },
-      ],
-    };
-  }, [bugIssues, taskIssues, workflowIssues]);
   const stats = useMemo(() => getIssueStatusMetrics(workflowIssues), [workflowIssues]);
   const normalizedFilters = useMemo(
     () => ({
@@ -1768,8 +1707,23 @@ const DeveloperDashboardPage = () => {
         Icon: CheckCircle2,
         className: "bg-emerald-500",
       },
+      {
+        label: "My Overdue Tasks",
+        value: taskIssues.filter((issue) => isIssueOverdue(issue)).length,
+        helper: "Past due and still open",
+        Icon: AlertTriangle,
+        className: "bg-rose-500",
+      },
     ],
-    [bugIssues.length, stats.closed, stats.inProgress, stats.open, stats.total, taskIssues.length]
+    [
+      bugIssues.length,
+      stats.closed,
+      stats.inProgress,
+      stats.open,
+      stats.total,
+      taskIssues,
+      taskIssues.length,
+    ]
   );
   const activeStatusLabel = activeTab === "bugs" ? "Bugs / Issues" : "Tasks";
   const error = projectsError || issuesError;
@@ -1843,35 +1797,50 @@ const DeveloperDashboardPage = () => {
 
   return (
     <div className="page-wrapper space-y-5">
-      <section className="flex flex-wrap items-center gap-3 rounded-[26px] border border-white/70 bg-white/78 p-3 shadow-sm backdrop-blur-xl">
-        <Button
-          className="h-11 rounded-2xl"
-          type="button"
-          variant="outline"
-          onClick={() => navigate("/tasks")}
-        >
-          <ClipboardList className="h-4 w-4" />
-          View Tasks
-        </Button>
-        <Button
-          className="h-11 rounded-2xl"
-          type="button"
-          variant="outline"
-          onClick={() => navigate("/reports")}
-        >
-          <BarChart3 className="h-4 w-4" />
-          Reports
-        </Button>
-        <Button
-          className="h-11 rounded-2xl bg-[linear-gradient(90deg,#E11D48_0%,#F97316_55%,#EAB308_100%)] text-white shadow-[0_14px_28px_-18px_rgba(225,29,72,0.8)] hover:brightness-105"
-          type="button"
-          onClick={() => setIsPriorityOpen(true)}
-        >
-          <Flame className="h-4 w-4" />
-          Priority Queue
-        </Button>
-        <RoleRatingCard metrics={performanceRating} title="Developer Rating" />
-        <SprintProgressWidget metrics={sprintProgress} isLoading={isSprintProgressLoading} />
+      <section className="relative isolate flex flex-wrap items-center gap-3 overflow-hidden rounded-[26px] border border-blue-100/80 bg-white p-3 shadow-[0_24px_65px_-42px_rgba(37,99,235,0.65)]">
+        <GreetingBeachScene timeOfDay={timeOfDay} />
+        <div className="relative z-10 min-w-[240px] flex-1 px-3 py-1 [text-shadow:0_1px_12px_rgba(255,255,255,0.9)]">
+          <p className="text-xl font-semibold tracking-tight text-slate-950">
+            {greeting},{" "}
+            <span className="inline-flex rounded-lg bg-gradient-to-r from-blue-600 to-cyan-500 px-2.5 py-0.5 text-white shadow-[0_8px_20px_-10px_rgba(37,99,235,0.9)]">
+              {developerName}
+            </span>
+          </p>
+          <p className="mt-1 inline-flex rounded-lg bg-white/80 px-2 py-1 text-sm font-semibold text-slate-900 shadow-sm backdrop-blur-sm">
+            Welcome back. Here’s what’s happening with your work today.
+          </p>
+        </div>
+        <div className="relative z-10 ml-auto flex flex-wrap items-center justify-end gap-3">
+          <Button
+            className="h-11 rounded-2xl"
+            type="button"
+            variant="outline"
+            onClick={() => navigate("/tasks")}
+          >
+            <ClipboardList className="h-4 w-4" />
+            View Tasks
+          </Button>
+          <Button
+            className="h-11 rounded-2xl"
+            type="button"
+            variant="outline"
+            onClick={() => navigate("/reports")}
+          >
+            <BarChart3 className="h-4 w-4" />
+            Reports
+          </Button>
+          <Button
+            className="h-11 rounded-2xl bg-[linear-gradient(90deg,#E11D48_0%,#F97316_55%,#EAB308_100%)] text-white shadow-[0_14px_28px_-18px_rgba(225,29,72,0.8)] hover:brightness-105"
+            type="button"
+            onClick={() => setIsPriorityOpen(true)}
+          >
+            <Flame className="h-4 w-4" />
+            Priority Queue
+          </Button>
+        </div>
+        <div className="relative z-10">
+          <SprintProgressWidget metrics={sprintProgress} isLoading={isIssuesLoading} />
+        </div>
       </section>
 
       <BugBucketPanel
@@ -2145,7 +2114,7 @@ const DeveloperDashboardPage = () => {
                           {getIssueDisplayKey(issue)} - {formatDateTime(getLastUpdated(issue))}
                         </p>
                       </div>
-                      <Pill className={getBadgeClass(statusStyleMap, issue.status)}>
+                      <Pill className={getBadgeClass(statusStyleMap, getDisplayStatus(issue))}>
                         {getStatusLabel(issue)}
                       </Pill>
                     </button>

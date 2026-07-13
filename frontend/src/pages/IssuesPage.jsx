@@ -12,13 +12,14 @@ import {
   uploadIssueAttachment,
 } from "@/lib/api";
 import {
-  ISSUE_TYPE_OPTIONS,
   ISSUE_TYPES,
   ISSUE_STATUS,
   filterIssues,
   getIssueDisplayKey,
   getIssueStatusLabel,
   getIssueWorkflowLane,
+  getSprintLifecycleState,
+  isSprintLocked,
   normalizeIssueFilterAlias,
   sortIssues,
 } from "@/lib/issues";
@@ -30,19 +31,25 @@ import {
   resolveTeamId,
   resolveUserId,
 } from "@/lib/project-teams";
+import BulkTaskImportDialog from "@/components/issues/BulkTaskImportDialog";
 import IssueBoard from "@/components/issues/IssueBoard";
 import IssueCreateDialog from "@/components/issues/IssueCreateDialog";
 import IssueDetailsDialog from "@/components/issues/IssueDetailsDialog";
 import IssuesToolbar from "@/components/issues/IssuesToolbar";
 import EmptyState from "@/components/shared/EmptyState";
+import ToastNotice from "@/components/shared/ToastNotice";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/hooks/use-auth";
-import { canCreateIssues, canDeleteIssues, hasAdminPanelAccess } from "@/lib/roles";
+import {
+  canAssignIssues,
+  canCreateIssues,
+  canDeleteIssues,
+  hasAdminPanelAccess,
+  ROLE_TEAM_LEAD,
+} from "@/lib/roles";
 
-const WORK_ITEM_TYPE_OPTIONS = ISSUE_TYPE_OPTIONS.filter(
-  (type) => type !== ISSUE_TYPES.BUG
-);
+const WORK_ITEM_TYPE_OPTIONS = [ISSUE_TYPES.TASK];
 const isValidWorkItemType = (value) => WORK_ITEM_TYPE_OPTIONS.includes(value);
 const ALL_PROJECTS_VALUE = "ALL";
 const HIGH_PRIORITY_QUERY_VALUE = "high";
@@ -215,7 +222,7 @@ const IssuesPage = () => {
     epicId: searchParams.get("epicId") || "all",
     sprintId: searchParams.get("sprintId") || "all",
     assigneeId: searchParams.get("assigneeId") || "all",
-    type: "all",
+    type: ISSUE_TYPES.TASK,
     status: normalizeStatusFilterValue(searchParams.get("status")) || "all",
     statusGroup:
       initialFilterAlias === "open" || initialFilterAlias === "closed"
@@ -231,8 +238,12 @@ const IssuesPage = () => {
   });
   const [selectedIssue, setSelectedIssue] = useState(null);
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  const [isBulkImportOpen, setIsBulkImportOpen] = useState(false);
+  const [toast, setToast] = useState(null);
   const deferredSearch = useDeferredValue(filters.search);
   const isAdminView = hasAdminPanelAccess(role);
+  const isTeamLeadView = role === ROLE_TEAM_LEAD;
+  const canAssignIssue = canAssignIssues(role);
   const canCreateIssue = canCreateIssues(role);
   const canDeleteIssue = canDeleteIssues(role);
 
@@ -373,7 +384,8 @@ const IssuesPage = () => {
   const availableSprints = useMemo(
     () =>
       (Array.isArray(selectedProjectSprintsData) ? selectedProjectSprintsData : [])
-        .filter((sprint) => ["ACTIVE", "PLANNED"].includes(String(sprint?.state || "")))
+        .filter((sprint) => !isSprintLocked(sprint))
+        .filter((sprint) => ["ACTIVE", "PLANNED"].includes(getSprintLifecycleState(sprint)))
         .sort((left, right) => {
           const stateDelta =
             (left.state === "ACTIVE" ? 0 : 1) - (right.state === "ACTIVE" ? 0 : 1);
@@ -664,13 +676,25 @@ const IssuesPage = () => {
 
   const deleteIssueMutation = useMutation({
     mutationFn: deleteIssue,
-    onSuccess: async (_response, deletedIssueId) => {
+    onSuccess: (_response, deletedIssueId) => {
       syncIssueWorkspaceLists(deletedIssueId, "remove");
       syncIssueDependencyOptions(deletedIssueId, "remove");
       setSelectedIssue((current) =>
         String(current?._id || "") === String(deletedIssueId) ? null : current
       );
-      await invalidateIssueWorkspaceQueries();
+      setToast({
+        id: `delete-success-${Date.now()}`,
+        type: "success",
+        message: "Work item deleted successfully.",
+      });
+      invalidateIssueWorkspaceQueries();
+    },
+    onError: (error) => {
+      setToast({
+        id: `delete-error-${Date.now()}`,
+        type: "error",
+        message: error.response?.data?.message || "Unable to delete this work item.",
+      });
     },
   });
 
@@ -813,6 +837,7 @@ const IssuesPage = () => {
         activeStatusLabel={activeStatusLabel}
         selectedProject={selectedProject}
         canCreateIssue={canCreateIssue}
+        canBulkImport={isAdminView}
         isCreateDisabled={!projects.length || !canCreateIssue}
         onProjectChange={handleProjectChange}
         onTeamChange={handleTeamChange}
@@ -822,6 +847,7 @@ const IssuesPage = () => {
         onTypeChange={handleTypeChange}
         onSearchChange={handleSearchChange}
         onCreateIssue={() => setIsCreateDialogOpen(true)}
+        onOpenBulkImport={() => setIsBulkImportOpen(true)}
       />
 
       {isProjectsLoading || isIssuesLoading ? (
@@ -879,6 +905,20 @@ const IssuesPage = () => {
         onUploadAttachment={uploadIssueAttachment}
       />
 
+      <BulkTaskImportDialog
+        open={isAdminView && isBulkImportOpen}
+        onOpenChange={setIsBulkImportOpen}
+        onImported={async (result) => {
+          await invalidateIssueWorkspaceQueries();
+
+          setToast({
+            id: `task-import-${Date.now()}`,
+            type: result?.failedCount ? "warning" : "success",
+            message: result?.message || "Bulk task import finished successfully.",
+          });
+        }}
+      />
+
       <IssueDetailsDialog
         issue={selectedIssue}
         open={Boolean(selectedIssue)}
@@ -899,11 +939,13 @@ const IssuesPage = () => {
         onDeleteIssue={(id) => deleteIssueMutation.mutateAsync(id)}
         updatingId={updateIssueMutation.isPending ? updateIssueMutation.variables?.id : ""}
         deletingId={deleteIssueMutation.isPending ? deleteIssueMutation.variables : ""}
-        canEditCoreDetails={isAdminView}
-        canEditPriority={isAdminView}
-        canEditAssignee={isAdminView}
+        canEditCoreDetails={isAdminView || isTeamLeadView}
+        canEditPriority={isAdminView || isTeamLeadView}
+        canEditAssignee={canAssignIssue || isTeamLeadView}
         canDeleteIssue={canDeleteIssue}
       />
+
+      <ToastNotice toast={toast} onDismiss={() => setToast(null)} />
     </div>
   );
 };

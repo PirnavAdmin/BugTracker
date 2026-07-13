@@ -247,6 +247,7 @@ const TesterBugsPage = () => {
         groupedFilteredIssues.readyForQa.length +
         groupedFilteredIssues.reopened.length,
       qa: groupedFilteredIssues.readyForQa.length,
+      rejected: groupedFilteredIssues.rejected.length,
       closed: groupedFilteredIssues.closed.length,
     }),
     [groupedFilteredIssues]
@@ -308,12 +309,13 @@ const TesterBugsPage = () => {
   const handleStatusChange = (issue, status) => {
     const currentStatus = normalizeBugStatusForIssue(issue);
     const canTesterMove =
-      [ISSUE_STATUS.READY_FOR_QA, ISSUE_STATUS.FIXED, ISSUE_STATUS.TESTING, ISSUE_STATUS.QA].includes(
+      (([ISSUE_STATUS.READY_FOR_QA, ISSUE_STATUS.FIXED, ISSUE_STATUS.TESTING, ISSUE_STATUS.QA].includes(
         currentStatus
-      ) && [ISSUE_STATUS.CLOSED, ISSUE_STATUS.REOPEN].includes(status);
+      ) && [ISSUE_STATUS.CLOSED, ISSUE_STATUS.REOPEN].includes(status)) ||
+        (currentStatus === ISSUE_STATUS.REJECTED && status === ISSUE_STATUS.REOPEN));
 
     if (!canTesterMove) {
-      showToast("warning", "Tester updates are limited to closing or reopening bugs from Ready For QA.");
+      showToast("warning", "Tester updates are limited to closing or reopening bugs from Ready For QA, or reopening rejected bugs.");
       return Promise.reject(new Error("Unsupported tester bug transition"));
     }
 
@@ -447,11 +449,12 @@ const TesterBugsPage = () => {
           </div>
         </CardHeader>
         <CardContent className="space-y-3 p-4 sm:p-5">
-          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
             {[
               ["Reported", reviewStats.reported],
               ["Active", reviewStats.active],
               ["Ready For QA", reviewStats.qa],
+              ["Rejected", reviewStats.rejected],
               ["Closed", reviewStats.closed],
             ].map(([label, value]) => (
               <div key={label} className="rounded-lg border border-slate-200 bg-slate-50/80 px-4 py-3">
@@ -576,10 +579,7 @@ const TesterBugsPage = () => {
       <IssueDetailsDialog
         deletingId={deleteIssueMutation.isPending ? deleteIssueMutation.variables : ""}
         issue={selectedIssue}
-        onDeleteIssue={async (id) => {
-          setDeleteCandidate(selectedIssue || { _id: id });
-          return false;
-        }}
+        onDeleteIssue={(id) => deleteIssueMutation.mutateAsync(id)}
         onOpenChange={(open) => {
           if (!open) {
             setSelectedIssue(null);

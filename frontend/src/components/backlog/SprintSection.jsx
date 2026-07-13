@@ -1,7 +1,8 @@
-import { Flag, PencilLine, Play, Trash2 } from "lucide-react";
+import { AlertTriangle, Flag, PencilLine, Play, RotateCcw, Trash2 } from "lucide-react";
 import IssuePlanningCard from "@/components/backlog/IssuePlanningCard";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { getSprintLifecycleState, isSprintLocked } from "@/lib/issues";
 import { cn, formatDate } from "@/lib/utils";
 
 const stateMeta = {
@@ -25,6 +26,13 @@ const stateMeta = {
     shellClass:
       "border-slate-200/80 bg-[linear-gradient(180deg,rgba(255,255,255,0.95),rgba(241,245,249,0.82))]",
   },
+  EXPIRED: {
+    label: "Expired Sprint",
+    badgeClass:
+      "border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-50",
+    shellClass:
+      "border-slate-300/80 bg-[linear-gradient(180deg,rgba(248,250,252,0.96),rgba(226,232,240,0.9))] opacity-70",
+  },
 };
 
 const SprintSection = ({
@@ -46,8 +54,12 @@ const SprintSection = ({
   onDeleteSprint,
   onStartSprint,
   onCompleteSprint,
+  onReopenSprint,
+  canAdminReopen = false,
 }) => {
-  const meta = stateMeta[sprint.state] || stateMeta.PLANNED;
+  const lifecycleState = getSprintLifecycleState(sprint);
+  const isLocked = isSprintLocked(sprint);
+  const meta = stateMeta[lifecycleState] || stateMeta.PLANNED;
 
   return (
     <section
@@ -56,14 +68,14 @@ const SprintSection = ({
         meta.shellClass
       )}
       onDragOver={(event) => {
-        if (!canReorderIssues || sprint.state === "COMPLETED") {
+        if (!canReorderIssues || isLocked) {
           return;
         }
 
         event.preventDefault();
       }}
       onDrop={(event) => {
-        if (!canReorderIssues || sprint.state === "COMPLETED") {
+        if (!canReorderIssues || isLocked) {
           return;
         }
 
@@ -104,6 +116,12 @@ const SprintSection = ({
           <div className="mt-1.5 flex flex-wrap gap-3 text-xs text-slate-500">
             {sprint.startDate ? <span>Starts {formatDate(sprint.startDate)}</span> : null}
             {sprint.endDate ? <span>Ends {formatDate(sprint.endDate)}</span> : null}
+            {isLocked && sprint.lockReason ? (
+              <span className="inline-flex items-center gap-1 font-medium text-rose-700">
+                <AlertTriangle className="h-3.5 w-3.5" />
+                {sprint.lockReason}
+              </span>
+            ) : null}
             {!sprint.goal ? <span>Add a sprint goal when scope is clear.</span> : null}
           </div>
         </div>
@@ -133,10 +151,25 @@ const SprintSection = ({
               </>
             ) : null}
             {sprint.state === "ACTIVE" ? (
-              <Button className="h-8 rounded-xl px-2.5" type="button" size="sm" onClick={onCompleteSprint}>
-                <Flag className="h-3.5 w-3.5" />
-                Complete
-              </Button>
+              <>
+                <Button
+                  className="h-8 rounded-xl px-2.5"
+                  type="button"
+                  size="sm"
+                  onClick={onCompleteSprint}
+                  disabled={isLocked}
+                  title={isLocked ? sprint.lockReason : ""}
+                >
+                  <Flag className="h-3.5 w-3.5" />
+                  Complete
+                </Button>
+                {canAdminReopen && lifecycleState === "EXPIRED" ? (
+                  <Button className="h-8 rounded-xl px-2.5" type="button" variant="outline" size="sm" onClick={onReopenSprint}>
+                    <RotateCcw className="h-3.5 w-3.5" />
+                    Reopen
+                  </Button>
+                ) : null}
+              </>
             ) : null}
           </div>
         ) : null}
@@ -149,8 +182,8 @@ const SprintSection = ({
             <IssuePlanningCard
               key={issue._id}
               issue={issue}
-              canDrag={canReorderIssues && sprint.state !== "COMPLETED"}
-              canManagePlanning={canManagePlanning && sprint.state !== "COMPLETED"}
+              canDrag={canReorderIssues && !isLocked}
+              canManagePlanning={canManagePlanning && !isLocked}
               isUpdating={planningUpdatingIssueId === issue._id}
               availableSprints={availableSprints}
               onDragStart={onDragStartIssue}
@@ -162,8 +195,8 @@ const SprintSection = ({
           ))
         ) : (
           <div className="flex min-h-[84px] items-center justify-center rounded-[14px] bg-white/68 px-4 py-6 text-center text-sm text-slate-500">
-            {sprint.state === "COMPLETED"
-              ? "This completed sprint has no issues in the current planning view."
+            {isLocked
+              ? "This locked sprint has no issues in the current planning view."
               : "Drop issues here or move them in with the sprint picker."}
           </div>
         )}

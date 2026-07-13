@@ -3,7 +3,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { getInitials } from "@/lib/utils";
+import { formatDate, getInitials } from "@/lib/utils";
 import {
   Mail,
   Briefcase,
@@ -12,6 +12,7 @@ import {
   Calendar,
   ArrowRight,
   Edit2,
+  Download,
 } from "lucide-react";
 import { Link } from "react-router-dom";
 
@@ -30,11 +31,7 @@ const ProfilePage = () => {
   }
 
   const formattedJoinDate = user.createdAt
-    ? new Date(user.createdAt).toLocaleDateString("en-US", {
-        year: "numeric",
-        month: "long",
-        day: "numeric",
-      })
+    ? formatDate(user.createdAt, { fallback: "Not available" })
     : "Not available";
 
   const infoCards = [
@@ -210,8 +207,14 @@ const ProfilePage = () => {
               Check our documentation or contact support if you need assistance.
             </p>
             <div className="mt-4 flex gap-3">
-              <Button variant="outline" size="sm">
-                Documentation
+              <Button asChild variant="outline" size="sm">
+                <a
+                  href="/docs/pirnav-user-manual.html"
+                  download="Pirnav-User-Manual.html"
+                >
+                  <Download className="h-4 w-4" />
+                  Documentation
+                </a>
               </Button>
               <Button variant="outline" size="sm">
                 Contact Support

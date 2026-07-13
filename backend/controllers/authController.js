@@ -89,6 +89,16 @@ const buildAuthPayload = (user, { rememberMe = false } = {}) => {
   };
 };
 
+const buildCurrentUserPayload = (user) => ({
+  user: {
+    _id: user._id,
+    name: user.name,
+    email: user.email,
+    role: user.role,
+    workspaceId: normalizeWorkspaceId(user.workspaceId),
+  },
+});
+
 const syncUserForAuth = async (user, password) => {
   let requiresSave = false;
 
@@ -252,6 +262,10 @@ const getUsers = asyncHandler(async (req, res) => {
   );
 
   res.status(200).json(users);
+});
+
+const getCurrentUser = asyncHandler(async (req, res) => {
+  res.status(200).json(buildCurrentUserPayload(req.user));
 });
 
 const changePassword = asyncHandler(async (req, res) => {
@@ -455,6 +469,7 @@ module.exports = {
   register,
   login,
   adminLogin,
+  getCurrentUser,
   getUsers,
   changePassword,
   requestPasswordReset,

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import {
   deleteManagedUser,
   fetchManagedUsers,
@@ -11,6 +11,7 @@ import {
 import {
   getDashboardPathByRole,
   hasAdminPanelAccess,
+  hasTesterPanelAccess,
   ROLE_TESTER,
 } from "@/lib/roles";
 import { getWorkspaceSenderResponseState } from "@/lib/workspaceSender";
@@ -51,12 +52,13 @@ const USER_FILTER_KEY_ALL = "all";
 
 const UserSettingsPage = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const queryClient = useQueryClient();
   const redirectTimeoutRef = useRef(null);
   const workspaceSenderNoteRef = useRef("");
   const { token, user: authUser, setAuthSession } = useAuth();
   const canManageWorkspaceUsers = hasAdminPanelAccess(authUser?.role);
-  const isTesterSettingsMode = authUser?.role === ROLE_TESTER;
+  const isTesterSettingsMode = hasTesterPanelAccess(authUser?.role);
   const settingsItems = canManageWorkspaceUsers
     ? ADMIN_SETTINGS_ITEMS
     : TESTER_SETTINGS_ITEMS;
@@ -113,6 +115,25 @@ const UserSettingsPage = () => {
 
     setActiveSettingsItem(defaultSettingsItem);
   }, [activeSettingsItem, defaultSettingsItem, settingsItems]);
+
+  useEffect(() => {
+    if (!canManageWorkspaceUsers) {
+      return;
+    }
+
+    const searchParams = new URLSearchParams(location.search);
+    const requestedPanel = searchParams.get("panel");
+    const requestedRole = searchParams.get("role");
+
+    if (requestedPanel && settingsItems.some((item) => item.id === requestedPanel)) {
+      setActiveSettingsItem(requestedPanel);
+    }
+
+    if (requestedRole) {
+      setActiveUserFilter(requestedRole);
+      setActiveSettingsItem("users");
+    }
+  }, [canManageWorkspaceUsers, location.search, settingsItems]);
 
   const {
     data: users = [],

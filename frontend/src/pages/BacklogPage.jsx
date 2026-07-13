@@ -9,6 +9,7 @@ import {
   deleteSprint,
   fetchBacklogBoard,
   fetchProjects,
+  reopenSprint,
   reorderIssuePlanning,
   startSprint,
   updateEpic,
@@ -33,6 +34,9 @@ import EmptyState from "@/components/shared/EmptyState";
 import ToastNotice from "@/components/shared/ToastNotice";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useAuth } from "@/hooks/use-auth";
+import { isSprintLocked } from "@/lib/issues";
+import { ROLE_ADMIN } from "@/lib/roles";
 
 const BACKLOG_PROJECT_FILTER_STORAGE_KEY = "pirnav.backlog.projectId";
 
@@ -62,19 +66,16 @@ const createDefaultFilters = () => ({
   teamId: "all",
   assigneeId: "all",
   epicId: "all",
+  sprintId: "all",
+  priority: "all",
+  status: "all",
   search: "",
   dateFrom: "",
   dateTo: "",
   includeCompletedSprints: false,
 });
 
-const BACKLOG_PLANNING_TYPE_KEYS = new Set([
-  "TASK",
-  "STORY",
-  "FEATURE",
-  "ENHANCEMENT",
-  "EPIC",
-]);
+const BACKLOG_PLANNING_TYPE_KEYS = new Set(["STORY"]);
 
 const normalizeBacklogIssueType = (value = "") =>
   String(value || "")
@@ -135,6 +136,28 @@ const issueMatchesBacklogFilters = (issue, filters) => {
     filters.assigneeId !== "all" &&
     resolveBacklogAssigneeId(issue) !== String(filters.assigneeId)
   ) {
+    return false;
+  }
+
+  const sprintId = String(issue?.sprintId?._id || issue?.sprintId || "");
+
+  if (filters.sprintId === "backlog" && sprintId) {
+    return false;
+  }
+
+  if (
+    filters.sprintId !== "all" &&
+    filters.sprintId !== "backlog" &&
+    sprintId !== String(filters.sprintId)
+  ) {
+    return false;
+  }
+
+  if (filters.priority !== "all" && issue.priority !== filters.priority) {
+    return false;
+  }
+
+  if (filters.status !== "all" && issue.status !== filters.status) {
     return false;
   }
 
@@ -304,6 +327,7 @@ const findIssueById = (boardState, issueId) => {
     if (sprintIssue) {
       return sprintIssue;
     }
+
   }
 
   return null;
@@ -312,7 +336,7 @@ const findIssueById = (boardState, issueId) => {
 const getAllBoardIssues = (boardState) => [
   ...boardState.backlogIssues,
   ...boardState.sprintSections.flatMap((section) => section.issues),
-].filter(isBacklogPlanningIssue);
+];
 
 const moveIssueLocally = ({ boardState, issueId, destinationSprintId = "", overIssueId = "" }) => {
   const nextState = {
@@ -407,6 +431,7 @@ const moveIssueLocally = ({ boardState, issueId, destinationSprintId = "", overI
 };
 
 const BacklogPage = () => {
+  const { role } = useAuth();
   const queryClient = useQueryClient();
   const [filters, setFilters] = useState(createDefaultFilters);
   const [boardState, setBoardState] = useState(createBoardState(null));
@@ -461,6 +486,9 @@ const BacklogPage = () => {
       teamId: "all",
       assigneeId: "all",
       epicId: "all",
+      sprintId: "all",
+      priority: "all",
+      status: "all",
     }));
   }, [filters.projectId, isProjectsLoading, projects]);
 
@@ -602,7 +630,7 @@ const BacklogPage = () => {
     [boardState.sprintSections]
   );
   const assignableSprints = useMemo(
-    () => allSprints.filter((sprint) => sprint.state !== "COMPLETED"),
+    () => allSprints.filter((sprint) => !isSprintLocked(sprint)),
     [allSprints]
   );
   const plannedSprints = useMemo(
@@ -812,6 +840,10 @@ const BacklogPage = () => {
     mutationFn: completeSprint,
     onSuccess: async () => invalidatePlanningQueries(),
   });
+  const reopenSprintMutation = useMutation({
+    mutationFn: reopenSprint,
+    onSuccess: async () => invalidatePlanningQueries(),
+  });
   const updatePlanningMutation = useMutation({
     mutationFn: updateIssuePlanning,
     onSuccess: async () => invalidatePlanningQueries(),
@@ -846,6 +878,9 @@ const BacklogPage = () => {
           teamId: "all",
           assigneeId: "all",
           epicId: "all",
+          sprintId: "all",
+          priority: "all",
+          status: "all",
         };
       });
       return;
@@ -1030,6 +1065,7 @@ const BacklogPage = () => {
         teams={availableTeams}
         members={availableMembers}
         epics={backlogData?.epics || []}
+        sprints={(backlogData?.sprintSections || []).map((section) => section.sprint)}
         permissions={permissions}
         selectedEpic={selectedEpic}
         onChange={handleFilterChange}
@@ -1183,6 +1219,7 @@ const BacklogPage = () => {
                       issues={section.issues}
                       availableSprints={assignableSprints}
                       canManageSprints={permissions.canManageSprints}
+                      canAdminReopen={role === ROLE_ADMIN}
                       canManagePlanning={permissions.canAssignIssues}
                       canReorderIssues={permissions.canReorderIssues}
                       planningUpdatingIssueId={planningUpdatingIssueId}
@@ -1208,6 +1245,18 @@ const BacklogPage = () => {
                         })
                       }
                       onDeleteSprint={async () => {
+                        if (deleteSprintMutation.isPending) {
+                          return;
+                        }
+
+                        const confirmed = window.confirm(
+                          `Delete sprint "${section.sprint.name}"? This action cannot be undone.`
+                        );
+
+                        if (!confirmed) {
+                          return;
+                        }
+
                         try {
                           await deleteSprintMutation.mutateAsync(section.sprint._id);
                           setToast({
@@ -1260,7 +1309,47 @@ const BacklogPage = () => {
                         }
                       }}
                       isStartPending={startingSprintId === section.sprint._id}
-                      onCompleteSprint={() => setCompletionSprint(section.sprint)}
+                      onCompleteSprint={() => {
+                        if (isSprintLocked(section.sprint)) {
+                          setToast({
+                            type: "error",
+                            message:
+                              section.sprint.lockReason ||
+                              "Sprint has ended. Create a new sprint to continue working.",
+                          });
+                          return;
+                        }
+
+                        setCompletionSprint(section.sprint);
+                      }}
+                      onReopenSprint={async () => {
+                        if (reopenSprintMutation.isPending) {
+                          return;
+                        }
+
+                        const confirmed = window.confirm(
+                          `Reopen sprint "${section.sprint.name}"? Developers will be allowed to update tasks again.`
+                        );
+
+                        if (!confirmed) {
+                          return;
+                        }
+
+                        try {
+                          await reopenSprintMutation.mutateAsync(section.sprint._id);
+                          setToast({
+                            type: "success",
+                            message: `${section.sprint.name} was reopened.`,
+                          });
+                        } catch (error) {
+                          setToast({
+                            type: "error",
+                            message:
+                              error.response?.data?.message ||
+                              "Unable to reopen that sprint right now.",
+                          });
+                        }
+                      }}
                     />
                   ))
                 ) : (
@@ -1296,6 +1385,12 @@ const BacklogPage = () => {
             payload,
           })
         }
+        onUpdateIssue={(id, payload) =>
+          updateStatusMutation.mutateAsync({
+            id,
+            payload,
+          })
+        }
         onUpdateStatus={(id, status) =>
           updateStatusMutation.mutateAsync({
             id,
@@ -1316,6 +1411,7 @@ const BacklogPage = () => {
         }
         initialEpic={epicDialogState.epic}
         issues={planningIssues}
+        members={availableMembers}
         isPending={
           createEpicMutation.isPending || updateEpicMutation.isPending || isEpicSubmitting
         }

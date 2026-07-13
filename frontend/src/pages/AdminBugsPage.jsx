@@ -1,5 +1,5 @@
-import { useDeferredValue, useEffect, useMemo, useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useMemo, useState } from "react";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createPortal } from "react-dom";
 import { useSearchParams } from "react-router-dom";
 import {
@@ -175,6 +175,18 @@ const getResolutionEta = (issue) => {
 
 const isReopenedBug = (issue) =>
   normalizeBugStatusForIssue(issue) === ISSUE_STATUS.REOPEN;
+
+const BUG_WORK_QUEUE_STATUSES = new Set([
+  ISSUE_STATUS.NEW,
+  ISSUE_STATUS.NEEDS_TRIAGE,
+  ISSUE_STATUS.TRIAGED,
+  ISSUE_STATUS.AVAILABLE_QUEUE,
+  ISSUE_STATUS.OPEN,
+]);
+
+const isWorkQueueBug = (issue) =>
+  BUG_WORK_QUEUE_STATUSES.has(normalizeBugStatusForIssue(issue)) &&
+  !resolveUserId(getBugDeveloper(issue));
 
 const isReadyForQa = (issue) =>
   [ISSUE_STATUS.READY_FOR_QA, ISSUE_STATUS.TESTING, ISSUE_STATUS.FIXED, ISSUE_STATUS.QA].includes(
@@ -445,7 +457,7 @@ const quickFilterChips = [
 const BUG_CARD_VIEWS = [
   {
     id: "bucket",
-    label: "Bug Bucket",
+    label: "Work Queue",
     description: "Unassigned bugs ready for pickup",
     icon: Layers3,
     metricKey: "bucket",
@@ -500,6 +512,15 @@ const TOTAL_BUGS_VIEW = {
   icon: Bug,
   metricKey: "total",
   tone: "bg-slate-100 text-slate-700",
+};
+
+const OTHER_BUGS_VIEW = {
+  id: "other",
+  label: "Other Bugs",
+  description: "Bugs outside the main workflow buckets",
+  icon: AlertTriangle,
+  metricKey: "other",
+  tone: "bg-amber-50 text-amber-700",
 };
 
 const getBugCardView = (value) =>
@@ -562,6 +583,18 @@ const getCardViewFilterState = (viewId) => {
   }
 
   return baseFilters;
+};
+
+const setParamIfActive = (params, key, value, defaultValue = "all") => {
+  const normalizedValue = String(value || "");
+  const normalizedDefaultValue = String(defaultValue || "");
+
+  if (!normalizedValue || normalizedValue === normalizedDefaultValue) {
+    params.delete(key);
+    return;
+  }
+
+  params.set(key, normalizedValue);
 };
 
 const TRIAGE_ACTION_MENU_WIDTH = 248;
@@ -756,9 +789,25 @@ const AdminBugsPage = () => {
   const initialDashboardFilter = getDashboardFilterQueryValue(
     searchParams.get("filter") || searchParams.get("status")
   );
+  const hasInitialManualFilterParams = [
+    "projectId",
+    "teamId",
+    "testerId",
+    "developerId",
+    "severity",
+    "priority",
+    "sprintId",
+    "epicId",
+    "bucket",
+    "dateFrom",
+    "dateTo",
+    "search",
+  ].some((key) => searchParams.has(key));
   const initialCardView = searchParams.get("view")
     ? getBugCardView(searchParams.get("view")).id
     : searchParams.get("status") || searchParams.get("filter") || searchParams.get("lifecycle")
+      ? ""
+      : hasInitialManualFilterParams
       ? ""
       : getBugCardView().id;
   const initialCardFilters = initialCardView
@@ -800,7 +849,6 @@ const AdminBugsPage = () => {
     dateTo: searchParams.get("dateTo") || "",
     search: searchParams.get("search") || "",
   });
-  const deferredSearch = useDeferredValue(filters.search);
   const [debouncedSearch, setDebouncedSearch] = useState(filters.search);
 
   const {
@@ -904,7 +952,7 @@ const AdminBugsPage = () => {
         search: debouncedSearch.trim(),
         sortBy,
     }),
-    keepPreviousData: true,
+    placeholderData: keepPreviousData,
   });
   const { data: cardSummaryData = null } = useQuery({
     queryKey: [
@@ -934,7 +982,7 @@ const AdminBugsPage = () => {
         search: debouncedSearch.trim(),
         sortBy,
       }),
-    keepPreviousData: true,
+    placeholderData: keepPreviousData,
   });
 
   const bugs = useMemo(
@@ -973,10 +1021,10 @@ const AdminBugsPage = () => {
   }, [toast?.id]);
 
   useEffect(() => {
-    if (page > pagination.totalPages) {
+    if (bugsData?.pagination && page > pagination.totalPages) {
       setPage(pagination.totalPages);
     }
-  }, [page, pagination.totalPages]);
+  }, [bugsData?.pagination, page, pagination.totalPages]);
 
   useEffect(() => {
     if (!projects.length) {
@@ -1003,11 +1051,25 @@ const AdminBugsPage = () => {
       currentParams.get("filter") || currentParams.get("status")
     );
     const hasRequestedCardView = currentParams.has("view");
+    const hasManualFilterParams = [
+      "projectId",
+      "teamId",
+      "testerId",
+      "developerId",
+      "severity",
+      "priority",
+      "sprintId",
+      "epicId",
+      "bucket",
+      "dateFrom",
+      "dateTo",
+      "search",
+    ].some((key) => currentParams.has(key));
     const hasLegacyBugFilter =
       currentParams.has("status") || currentParams.has("filter") || currentParams.has("lifecycle");
     const nextCardView = hasRequestedCardView
       ? getBugCardView(currentParams.get("view"))
-      : hasLegacyBugFilter
+      : hasLegacyBugFilter || hasManualFilterParams
         ? null
         : getBugCardView();
     const cardViewFilters = nextCardView ? getCardViewFilterState(nextCardView.id) : null;
@@ -1056,6 +1118,44 @@ const AdminBugsPage = () => {
   }, [filters.projectId, projects, searchParamString]);
 
   useEffect(() => {
+    const nextParams = new URLSearchParams(searchParams);
+
+    setParamIfActive(nextParams, "projectId", filters.projectId, ALL_PROJECTS_VALUE);
+    setParamIfActive(nextParams, "teamId", filters.teamId);
+    setParamIfActive(nextParams, "testerId", filters.testerId);
+    setParamIfActive(nextParams, "developerId", filters.developerId);
+    setParamIfActive(nextParams, "severity", filters.severity);
+    setParamIfActive(nextParams, "priority", filters.priority);
+    setParamIfActive(nextParams, "status", filters.status);
+    setParamIfActive(nextParams, "sprintId", filters.sprintId);
+    setParamIfActive(nextParams, "epicId", filters.epicId);
+    setParamIfActive(nextParams, "bucket", filters.bucket);
+    setParamIfActive(nextParams, "lifecycle", filters.lifecycle);
+    setParamIfActive(nextParams, "filter", filters.filter);
+    setParamIfActive(nextParams, "dateFrom", filters.dateFrom, "");
+    setParamIfActive(nextParams, "dateTo", filters.dateTo, "");
+    setParamIfActive(nextParams, "search", filters.search.trim(), "");
+    setParamIfActive(nextParams, "sortBy", sortBy, "updated:desc");
+    setParamIfActive(nextParams, "pageSize", pageSize, DEFAULT_PAGE_SIZE);
+
+    if (page > 1) {
+      nextParams.set("page", String(page));
+    } else {
+      nextParams.delete("page");
+    }
+
+    if (activeCardView) {
+      nextParams.set("view", activeCardView);
+    } else {
+      nextParams.delete("view");
+    }
+
+    if (nextParams.toString() !== searchParams.toString()) {
+      setSearchParams(nextParams, { replace: true });
+    }
+  }, [activeCardView, filters, page, pageSize, searchParams, setSearchParams, sortBy]);
+
+  useEffect(() => {
     const bugParam = new URLSearchParams(searchParamString).get("bug");
 
     if (!bugParam || isBugsLoading) {
@@ -1075,8 +1175,6 @@ const AdminBugsPage = () => {
   }, [bugs, isBugsLoading, searchParamString, selectedBug?._id]);
 
   const filteredBugs = useMemo(() => {
-    const searchTerm = deferredSearch.trim().toLowerCase();
-
     return bugs.filter((bugIssue) => {
       const bugDetails = resolveBugDetails(bugIssue);
       const reporter = getReporter(bugIssue);
@@ -1131,47 +1229,44 @@ const AdminBugsPage = () => {
         return false;
       }
 
-      if (!searchTerm) {
-        return true;
-      }
-
-      return [
-        getIssueDisplayKey(bugIssue),
-        bugIssue.title,
-        bugIssue.description,
-        reporter?.name,
-        reporter?.email,
-        developer?.name,
-        developer?.email,
-        bugDetails.severity,
-        bugDetails.moduleName,
-        bugDetails.category,
-        bugDetails.affectedPlatform,
-      ]
-        .filter(Boolean)
-        .some((value) => String(value).toLowerCase().includes(searchTerm));
+      return true;
     });
-  }, [bugs, deferredSearch, filters.developerId, filters.filter, filters.lifecycle, filters.severity, filters.testerId]);
+  }, [bugs, filters.developerId, filters.filter, filters.lifecycle, filters.severity, filters.testerId]);
 
   const metrics = useMemo(
-    () => ({
-      total: cardSummary?.total ?? summary?.total ?? pagination.total,
-      bucket:
+    () => {
+      const total = cardSummary?.total ?? summary?.total ?? pagination.total;
+      const bucket =
         cardSummary?.bucket ??
         summary?.bucket ??
-        visibleBugs.filter((bugIssue) => !resolveUserId(getBugDeveloper(bugIssue))).length,
-      assigned: cardSummary?.assigned ?? summary?.assigned ?? visibleBugs.filter((bugIssue) => normalizeBugStatusForIssue(bugIssue) === ISSUE_STATUS.ASSIGNED).length,
-      open: cardSummary?.open ?? summary?.open ?? visibleBugs.filter((bugIssue) => !isClosedBug(bugIssue)).length,
-      critical: cardSummary?.critical ?? summary?.critical ?? getCriticalIssues(visibleBugs).length,
-      unassigned:
+        visibleBugs.filter(isWorkQueueBug).length;
+      const assigned = cardSummary?.assigned ?? summary?.assigned ?? visibleBugs.filter((bugIssue) => normalizeBugStatusForIssue(bugIssue) === ISSUE_STATUS.ASSIGNED).length;
+      const inProgress = cardSummary?.inProgress ?? summary?.inProgress ?? visibleBugs.filter(isInProgressBug).length;
+      const reopened = cardSummary?.reopened ?? summary?.reopened ?? getReopenedIssues(visibleBugs).length;
+      const readyForQa = cardSummary?.readyForQa ?? summary?.readyForQa ?? visibleBugs.filter(isReadyForQa).length;
+      const closed = cardSummary?.closed ?? summary?.closed ?? visibleBugs.filter(isClosedBug).length;
+      const other =
+        cardSummary?.other ??
+        summary?.other ??
+        Math.max(total - bucket - assigned - inProgress - reopened - readyForQa - closed, 0);
+
+      return {
+        total,
+        bucket,
+        assigned,
+        open: cardSummary?.open ?? summary?.open ?? visibleBugs.filter((bugIssue) => !isClosedBug(bugIssue)).length,
+        critical: cardSummary?.critical ?? summary?.critical ?? getCriticalIssues(visibleBugs).length,
+        unassigned:
         cardSummary?.unassigned ??
         summary?.unassigned ??
         visibleBugs.filter((bugIssue) => !resolveUserId(getBugDeveloper(bugIssue))).length,
-      inProgress: cardSummary?.inProgress ?? summary?.inProgress ?? visibleBugs.filter(isInProgressBug).length,
-      reopened: cardSummary?.reopened ?? summary?.reopened ?? getReopenedIssues(visibleBugs).length,
-      readyForQa: cardSummary?.readyForQa ?? summary?.readyForQa ?? visibleBugs.filter(isReadyForQa).length,
-      closed: cardSummary?.closed ?? summary?.closed ?? visibleBugs.filter(isClosedBug).length,
-    }),
+        inProgress,
+        reopened,
+        readyForQa,
+        closed,
+        other,
+      };
+    },
     [cardSummary, pagination.total, summary, visibleBugs]
   );
   const activeCard =
@@ -1309,14 +1404,14 @@ const AdminBugsPage = () => {
 
   const deleteIssueMutation = useMutation({
     mutationFn: deleteIssue,
-    onSuccess: async () => {
+    onSuccess: () => {
       setSelectedBug(null);
       setToast({
         id: `delete-success-${Date.now()}`,
         type: "success",
         message: "Bug deleted successfully.",
       });
-      await Promise.all([
+      Promise.all([
         queryClient.invalidateQueries({ queryKey: ["bugs"] }),
         queryClient.invalidateQueries({ queryKey: ["issues"] }),
         queryClient.invalidateQueries({ queryKey: ["reports"] }),
@@ -1381,6 +1476,9 @@ const AdminBugsPage = () => {
 
   const updateFilter = (key, value) => {
     setPage(1);
+    if (key !== "search") {
+      setActiveCardView("");
+    }
     if (searchParams.has("page")) {
       const nextParams = new URLSearchParams(searchParams);
       nextParams.delete("page");
@@ -1408,6 +1506,7 @@ const AdminBugsPage = () => {
   };
 
   const applyQuickFilter = (filterId) => {
+    setPage(1);
     setActiveCardView("");
     setFilters((current) => {
       const baseFilters = {
@@ -1729,7 +1828,7 @@ const AdminBugsPage = () => {
 
           <button className="flex h-8 w-full items-center gap-2 whitespace-nowrap rounded-lg px-2 text-left text-[12px] font-semibold text-slate-700 transition hover:bg-blue-50 hover:text-blue-700" type="button" onClick={() => { handleMoveToTriageBucket(bugIssue); closeActionMenu(); }}>
             <Layers3 className="h-3.5 w-3.5" />
-            Move to Bucket
+            Move to Work Queue
           </button>
           <button className="flex h-8 w-full items-center gap-2 whitespace-nowrap rounded-lg px-2 text-left text-[12px] font-semibold text-slate-700 transition hover:bg-blue-50 hover:text-blue-700" type="button" onClick={() => { setSelectedBug(bugIssue); closeActionMenu(); }}>
             <MessageSquarePlus className="h-3.5 w-3.5" />
@@ -1757,7 +1856,7 @@ const AdminBugsPage = () => {
 
   return (
     <div className="flex flex-col gap-4 text-[13px]">
-      <section className="order-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-7">
+      <section className="order-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-8">
         {BUG_CARD_VIEWS.map((view) => (
           <MetricTile
             key={view.id}
@@ -1769,6 +1868,12 @@ const AdminBugsPage = () => {
             onClick={() => applyCardView(view.id)}
           />
         ))}
+        <MetricTile
+          icon={OTHER_BUGS_VIEW.icon}
+          label={OTHER_BUGS_VIEW.label}
+          value={metrics.other}
+          tone={OTHER_BUGS_VIEW.tone}
+        />
         <MetricTile
           active={activeCardView === TOTAL_BUGS_VIEW.id}
           icon={TOTAL_BUGS_VIEW.icon}
@@ -2664,14 +2769,6 @@ const AdminBugsPage = () => {
         deletingId={deleteIssueMutation.isPending ? deleteIssueMutation.variables : ""}
         issue={selectedBug}
         onDeleteIssue={async (issueId) => {
-          const confirmed = window.confirm(
-            "Delete this bug? This will remove it from active bug lists."
-          );
-
-          if (!confirmed) {
-            return false;
-          }
-
           await deleteIssueMutation.mutateAsync(issueId);
           return true;
         }}

@@ -22,6 +22,26 @@ const epicSchema = new Schema(
       trim: true,
       default: "",
     },
+    owner: {
+      type: Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
+      index: true,
+    },
+    priority: {
+      type: String,
+      enum: ["Low", "Medium", "High", "Critical"],
+      default: "Medium",
+      index: true,
+    },
+    startDate: {
+      type: Date,
+      default: null,
+    },
+    targetDate: {
+      type: Date,
+      default: null,
+    },
     color: {
       type: String,
       trim: true,
@@ -42,8 +62,8 @@ const epicSchema = new Schema(
     status: {
       type: String,
       enum: {
-        values: ["ACTIVE", "ARCHIVED"],
-        message: "Epic status must be ACTIVE or ARCHIVED",
+        values: ["DRAFT", "PLANNED", "ACTIVE", "DONE", "ARCHIVED"],
+        message: "Epic status must be DRAFT, PLANNED, ACTIVE, DONE, or ARCHIVED",
       },
       default: "ACTIVE",
       index: true,

@@ -30,6 +30,7 @@ const getReporterName = (issue) =>
   "Unknown reporter";
 const getSeverity = (issue) => resolveBugDetails(issue)?.severity || "Not set";
 const getModuleName = (issue) => resolveBugDetails(issue)?.moduleName || "Unmapped module";
+const getCreatedTimeLabel = (issue) => formatDateTime(issue?.createdAt);
 
 const ActionButton = ({ action, disabled }) => {
   const Icon = action.icon || Eye;
@@ -100,7 +101,7 @@ const DraggableBugCard = ({
 }) => {
   const isDragDisabled =
     isUpdating ||
-    (actionMode === "developer" && ["readyForQa", "closed"].includes(columnKey));
+    (actionMode === "developer" && ["readyForQa", "closed", "rejected"].includes(columnKey));
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: issue._id,
     data: { issue },
@@ -137,7 +138,7 @@ const buildActions = ({ actionMode, columnKey, currentUserId, issue, onAction, o
     const actionsByColumn = {
       available: [
         {
-          label: "Pick Bug",
+          label: issue?.type === "Story" ? "Pick Story" : "Pick Bug",
           icon: Play,
           variant: "default",
           onClick: () => onAction?.("pick", issue),
@@ -150,6 +151,11 @@ const buildActions = ({ actionMode, columnKey, currentUserId, issue, onAction, o
           icon: Play,
           variant: "default",
           onClick: () => onAction?.("start", issue),
+        },
+        {
+          label: "Reject",
+          icon: Trash2,
+          onClick: () => onAction?.("reject", issue),
         },
         openAction,
       ],
@@ -165,10 +171,16 @@ const buildActions = ({ actionMode, columnKey, currentUserId, issue, onAction, o
           icon: ClipboardPenLine,
           onClick: () => onAction?.("notes", issue),
         },
+        {
+          label: "Reject",
+          icon: Trash2,
+          onClick: () => onAction?.("reject", issue),
+        },
         openAction,
       ],
       readyForQa: [openAction],
       closed: [openAction],
+      rejected: [openAction],
       reopened: [
         {
           label: "Resume Work",
@@ -216,6 +228,18 @@ const buildActions = ({ actionMode, columnKey, currentUserId, issue, onAction, o
         {
           label: "Reopen",
           icon: RotateCcw,
+          onClick: () => onAction?.("reopen", issue),
+        },
+        openAction,
+      ];
+    }
+
+    if (columnKey === "rejected") {
+      return [
+        {
+          label: "Reopen",
+          icon: RotateCcw,
+          variant: "default",
           onClick: () => onAction?.("reopen", issue),
         },
         openAction,
@@ -319,7 +343,7 @@ const BugCardSurface = ({
         </div>
         <div className="flex items-center gap-2">
           <CalendarClock className="h-3.5 w-3.5 shrink-0 text-slate-400" />
-          <span className="truncate">{formatDateTime(issue.updatedAt || issue.createdAt)}</span>
+          <span className="truncate">{getCreatedTimeLabel(issue)}</span>
         </div>
       </div>
 
@@ -341,6 +365,12 @@ const BugCardSurface = ({
       {actionMode === "developer" && columnKey === "closed" ? (
         <p className="mt-3 rounded-lg border border-emerald-100 bg-emerald-50 px-3 py-2 text-xs font-medium text-emerald-700">
           Closed by QA.
+        </p>
+      ) : null}
+
+      {columnKey === "rejected" ? (
+        <p className="mt-3 rounded-lg border border-rose-100 bg-rose-50 px-3 py-2 text-xs font-medium text-rose-700">
+          This bug was rejected and is now read-only on the board.
         </p>
       ) : null}
 

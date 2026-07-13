@@ -25,6 +25,7 @@ const TaskKanbanBoard = ({
   updatingId = "",
   onSelectIssue,
   onStatusChange,
+  readOnly = false,
   emptyStateTitle = "No assigned tasks",
   emptyStateDescription = "Assigned work will appear here once it is available.",
 }) => {
@@ -60,10 +61,19 @@ const TaskKanbanBoard = ({
   );
 
   const handleDragStart = (event) => {
+    if (readOnly) {
+      return;
+    }
+
     setActiveIssueId(String(event.active.id || ""));
   };
 
   const handleDragEnd = (event) => {
+    if (readOnly) {
+      setActiveIssueId("");
+      return;
+    }
+
     const issueId = String(event.active?.id || "");
     const nextStatus = String(event.over?.id || "");
     const currentIssue = issues.find((issue) => issue._id === issueId);
@@ -122,7 +132,7 @@ const TaskKanbanBoard = ({
       onDragEnd={handleDragEnd}
       onDragCancel={handleDragCancel}
     >
-      <div className="grid gap-4 xl:grid-cols-3">
+      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
         {columns.map((column) => (
           <TaskKanbanColumn
             key={column.key}
@@ -131,13 +141,19 @@ const TaskKanbanBoard = ({
             activeIssueId={activeIssueId}
             updatingId={updatingId}
             onSelectIssue={onSelectIssue}
+            readOnly={readOnly}
           />
         ))}
       </div>
 
       <DragOverlay dropAnimation={{ duration: 180, easing: "ease-out" }}>
         {activeIssue ? (
-          <TaskCard issue={activeIssue} isOverlay onSelectIssue={onSelectIssue} />
+          <TaskCard
+            issue={activeIssue}
+            isOverlay
+            onSelectIssue={onSelectIssue}
+            readOnly={readOnly}
+          />
         ) : null}
       </DragOverlay>
     </DndContext>

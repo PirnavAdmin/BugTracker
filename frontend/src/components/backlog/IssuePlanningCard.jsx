@@ -1,12 +1,17 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { GripVertical, MoreHorizontal, UserCircle2 } from "lucide-react";
+import {
+  GripVertical,
+  MoreHorizontal,
+  UserCircle2,
+} from "lucide-react";
 import {
   getIssueDisplayKey,
   getIssuePriorityVariant,
   getIssueStatusLabel,
   getIssueStatusVariant,
   getIssueTypeVariant,
+  isSprintLocked,
   resolveIssueAssignee,
   resolveIssueTeamId,
 } from "@/lib/issues";
@@ -259,12 +264,13 @@ const IssuePlanningCard = ({
   const sprintOptions = useMemo(
     () =>
       availableSprints.filter(
-        (sprint) => sprint?.state !== "COMPLETED" && isSprintAllowedForIssue(issue, sprint)
+        (sprint) => !isSprintLocked(sprint) && isSprintAllowedForIssue(issue, sprint)
       ),
     [availableSprints, issue]
   );
   const currentSprintId = getSprintId(issue?.sprintId);
   const issueKey = getIssueDisplayKey(issue);
+  const progress = issue?.storyProgress || {};
 
   return (
     <article
@@ -399,6 +405,24 @@ const IssuePlanningCard = ({
                 </div>
               )}
             </div>
+          </div>
+
+          <div className="mt-2 flex items-center gap-2">
+            <div className="h-1.5 min-w-20 flex-1 overflow-hidden rounded-full bg-slate-200">
+              <div
+                className="h-full rounded-full bg-emerald-500 transition-[width]"
+                style={{ width: `${Math.max(0, Math.min(100, Number(progress.percent || 0)))}%` }}
+              />
+            </div>
+            <span className="text-[11px] font-semibold text-slate-500">
+              {Number(progress.percent || 0)}%
+            </span>
+            <span className="text-[11px] text-slate-500">
+              {Number(progress.completedTaskCount || 0)}/{Number(progress.taskCount || 0)} tasks
+            </span>
+            <span className="text-[11px] text-slate-500">
+              {Number(progress.resolvedBugCount || 0)}/{Number(progress.bugCount || 0)} bugs
+            </span>
           </div>
         </div>
       </div>

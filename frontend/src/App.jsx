@@ -10,8 +10,10 @@ import {
   getDashboardPathByRole,
   ROLE_ADMIN,
   ROLE_DEVELOPER,
+  ROLE_QA_LEAD,
   ROLE_TEAM_LEAD,
   ROLE_TESTER,
+  TESTER_PANEL_ROLES,
 } from "@/lib/roles";
 
 const AuthPage = lazy(() => import("@/pages/AuthPage"));
@@ -27,6 +29,7 @@ const BacklogPage = lazy(() => import("@/pages/BacklogPage"));
 const ChatPage = lazy(() => import("@/pages/ChatPage"));
 const IssuesPage = lazy(() => import("@/pages/IssuesPage"));
 const TasksPage = lazy(() => import("@/pages/TasksPage"));
+const StoriesPage = lazy(() => import("@/pages/StoriesPage"));
 const ReportsPage = lazy(() => import("@/pages/ReportsPage"));
 const UserSettingsPage = lazy(() => import("@/pages/UserSettingsPage"));
 const TeamDetailsPage = lazy(() => import("@/pages/TeamDetailsPage"));
@@ -127,13 +130,19 @@ const LegacyDashboardRedirect = () => {
 const SelfSettingsRoute = () => {
   const { role } = useAuth();
 
-  return role === ROLE_TESTER ? <UserSettingsPage /> : <DeveloperSettingsPage />;
+  return TESTER_PANEL_ROLES.includes(role) ? <UserSettingsPage /> : <DeveloperSettingsPage />;
 };
 
 const BugsRoute = () => {
   const { role } = useAuth();
 
   return ADMIN_PANEL_ROLES.includes(role) ? <AdminBugsPage /> : <TesterBugsPage />;
+};
+
+const TasksRoute = () => {
+  const { role } = useAuth();
+
+  return ADMIN_PANEL_ROLES.includes(role) ? <IssuesPage /> : <TasksPage />;
 };
 
 const App = () => (
@@ -182,7 +191,7 @@ const App = () => (
       <Route
         path="/profile"
         element={
-          <ProtectedRoute roles={[...ADMIN_PANEL_ROLES, ROLE_DEVELOPER, ROLE_TEAM_LEAD, ROLE_TESTER]}>
+          <ProtectedRoute roles={[...ADMIN_PANEL_ROLES, ROLE_DEVELOPER, ROLE_TEAM_LEAD, ROLE_QA_LEAD, ROLE_TESTER]}>
             <Suspense fallback={<PublicRouteFallback />}>
               <ProfilePage />
             </Suspense>
@@ -192,7 +201,7 @@ const App = () => (
       <Route
         path="/settings"
         element={
-          <ProtectedRoute roles={[ROLE_DEVELOPER, ROLE_TEAM_LEAD, ROLE_TESTER, ...ADMIN_PANEL_ROLES]}>
+          <ProtectedRoute roles={[ROLE_DEVELOPER, ROLE_TEAM_LEAD, ROLE_QA_LEAD, ROLE_TESTER, ...ADMIN_PANEL_ROLES]}>
             <SelfSettingsRoute />
           </ProtectedRoute>
         }
@@ -232,7 +241,7 @@ const App = () => (
       <Route
         path="/dev/settings"
         element={
-          <ProtectedRoute roles={[ROLE_DEVELOPER, ROLE_TEAM_LEAD, ROLE_TESTER]}>
+          <ProtectedRoute roles={[ROLE_DEVELOPER, ROLE_TEAM_LEAD, ROLE_QA_LEAD, ROLE_TESTER]}>
             <SelfSettingsRoute />
           </ProtectedRoute>
         }
@@ -240,7 +249,7 @@ const App = () => (
       <Route
         path="/tester/dashboard"
         element={
-          <ProtectedRoute roles={[ROLE_TESTER]}>
+          <ProtectedRoute roles={TESTER_PANEL_ROLES}>
             <TesterDashboardPage />
           </ProtectedRoute>
         }
@@ -248,7 +257,7 @@ const App = () => (
       <Route
         path="/bugs"
         element={
-          <ProtectedRoute roles={[...ADMIN_PANEL_ROLES, ROLE_TESTER]}>
+          <ProtectedRoute roles={[...ADMIN_PANEL_ROLES, ...TESTER_PANEL_ROLES]}>
             <BugsRoute />
           </ProtectedRoute>
         }
@@ -312,10 +321,26 @@ const App = () => (
       <Route path="/issues" element={<IssuesPage />} />
       <Route path="/issues/:issueId" element={<IssuesPage />} />
       <Route
+        path="/stories"
+        element={
+          <ProtectedRoute roles={[...ADMIN_PANEL_ROLES, ROLE_TEAM_LEAD, ROLE_QA_LEAD, ROLE_DEVELOPER, ROLE_TESTER]}>
+            <StoriesPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/stories/:storyId"
+        element={
+          <ProtectedRoute roles={[...ADMIN_PANEL_ROLES, ROLE_TEAM_LEAD, ROLE_QA_LEAD, ROLE_DEVELOPER, ROLE_TESTER]}>
+            <StoriesPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
         path="/chat"
         element={
           <ProtectedRoute
-            roles={[...ADMIN_PANEL_ROLES, ROLE_TEAM_LEAD, ROLE_DEVELOPER, ROLE_TESTER]}
+            roles={[...ADMIN_PANEL_ROLES, ROLE_TEAM_LEAD, ROLE_QA_LEAD, ROLE_DEVELOPER, ROLE_TESTER]}
           >
             <ChatPage />
           </ProtectedRoute>
@@ -324,8 +349,8 @@ const App = () => (
       <Route
         path="/tasks"
         element={
-          <ProtectedRoute roles={[ROLE_DEVELOPER, ROLE_TEAM_LEAD, ROLE_TESTER]}>
-            <TasksPage />
+          <ProtectedRoute roles={[...ADMIN_PANEL_ROLES, ROLE_DEVELOPER, ROLE_TEAM_LEAD, ROLE_QA_LEAD, ROLE_TESTER]}>
+            <TasksRoute />
           </ProtectedRoute>
         }
       />

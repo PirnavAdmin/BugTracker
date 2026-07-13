@@ -3,6 +3,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import {
   BarChart3,
   Activity,
+  BookOpen,
   Bug,
   FolderKanban,
   KanbanSquare,
@@ -31,6 +32,7 @@ const iconMap = {
   projects: FolderKanban,
   teams: Users2,
   backlog: Layers3,
+  stories: BookOpen,
   issues: KanbanSquare,
   bugs: Bug,
   tasks: ListTodo,
@@ -41,6 +43,22 @@ const iconMap = {
 
 const navItemClassName =
   "group inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium transition duration-200 ease-out whitespace-nowrap";
+
+const REPORT_NAV_STORAGE_KEY = "jira-report-last-path";
+
+const resolveNavigationHref = (item, location) => {
+  if (item.icon !== "reports" || typeof window === "undefined") {
+    return item.href;
+  }
+
+  if (location.pathname.startsWith("/reports")) {
+    return `${location.pathname}${location.search}`;
+  }
+
+  const storedHref = window.localStorage.getItem(REPORT_NAV_STORAGE_KEY);
+
+  return storedHref?.startsWith("/reports") ? storedHref : item.href;
+};
 
 const Navbar = () => {
   const location = useLocation();
@@ -61,6 +79,25 @@ const Navbar = () => {
   useEffect(() => {
     setIsMenuOpen(false);
   }, [location.pathname]);
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia("(min-width: 1024px)");
+    const closeDesktopMenu = (event) => {
+      if (event.matches) {
+        setIsMenuOpen(false);
+      }
+    };
+
+    closeDesktopMenu(mediaQuery);
+
+    if (typeof mediaQuery.addEventListener === "function") {
+      mediaQuery.addEventListener("change", closeDesktopMenu);
+      return () => mediaQuery.removeEventListener("change", closeDesktopMenu);
+    }
+
+    mediaQuery.addListener(closeDesktopMenu);
+    return () => mediaQuery.removeListener(closeDesktopMenu);
+  }, []);
 
   useEffect(() => {
     if (!user || hasLoadedConversations) {
@@ -100,14 +137,15 @@ const Navbar = () => {
             />
           </NavLink>
 
-          <nav className="hidden items-center gap-1.5 lg:flex xl:gap-2">
+          <nav className="hidden items-center gap-1 lg:flex">
             {navigation.map((item) => {
               const Icon = iconMap[item.icon] || LayoutDashboard;
+              const href = resolveNavigationHref(item, location);
 
               return (
                 <NavLink
                   key={item.href}
-                  to={item.href}
+                  to={href}
                   className={({ isActive }) =>
                     cn(
                       navItemClassName,
@@ -192,11 +230,12 @@ const Navbar = () => {
                 <nav className="space-y-2">
                   {navigation.map((item) => {
                     const Icon = iconMap[item.icon] || LayoutDashboard;
+                    const href = resolveNavigationHref(item, location);
 
                     return (
                       <NavLink
                         key={item.href}
-                        to={item.href}
+                        to={href}
                         onClick={() => setIsMenuOpen(false)}
                         className={({ isActive }) =>
                           cn(

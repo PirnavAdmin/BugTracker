@@ -55,6 +55,17 @@ export const TESTER_BUG_COLUMNS = [
     badgeClassName: "border-cyan-200 bg-cyan-50 text-cyan-700",
   },
   {
+    key: "rejected",
+    label: "Rejected",
+    helper: "Rejected or invalid bugs",
+    statuses: [ISSUE_STATUS.REJECTED],
+    accentClassName: "bg-rose-500",
+    borderClassName: "border-rose-100",
+    surfaceClassName: "bg-rose-50/55",
+    activeClassName: "ring-2 ring-rose-300/60",
+    badgeClassName: "border-rose-200 bg-rose-50 text-rose-700",
+  },
+  {
     key: "closed",
     label: "Closed",
     helper: "Verified and closed",
@@ -70,7 +81,7 @@ export const TESTER_BUG_COLUMNS = [
 export const DEVELOPER_BUG_COLUMNS = [
   {
     key: "available",
-    label: "Available Bugs",
+    label: "Available Work",
     helper: "Ready for pickup",
     statuses: [ISSUE_STATUS.NEW, ISSUE_STATUS.OPEN, ISSUE_STATUS.TRIAGED],
     accentClassName: "bg-orange-500",
@@ -124,6 +135,17 @@ export const DEVELOPER_BUG_COLUMNS = [
     badgeClassName: "border-amber-200 bg-amber-50 text-amber-700",
   },
   {
+    key: "rejected",
+    label: "Rejected",
+    helper: "Rejected bugs",
+    statuses: [ISSUE_STATUS.REJECTED],
+    accentClassName: "bg-rose-500",
+    borderClassName: "border-rose-100",
+    surfaceClassName: "bg-rose-50/55",
+    activeClassName: "ring-2 ring-rose-300/60",
+    badgeClassName: "border-rose-200 bg-rose-50 text-rose-700",
+  },
+  {
     key: "closed",
     label: "Closed Bugs",
     helper: "Verified and closed",
@@ -144,6 +166,7 @@ const getTesterBugColumnKey = (issue, columns) => {
     [BUG_LIFECYCLE_STATUS.IN_PROGRESS]: "inProgress",
     [BUG_LIFECYCLE_STATUS.READY_FOR_QA]: "readyForQa",
     [BUG_LIFECYCLE_STATUS.REOPENED]: "inProgress",
+    [BUG_LIFECYCLE_STATUS.REJECTED]: "rejected",
     [BUG_LIFECYCLE_STATUS.CLOSED]: "closed",
   };
   const columnKey = keyByStatus[lifecycleStatus] || "";
@@ -173,16 +196,29 @@ export const getBugColumnKey = (issue, columns) => {
   }
 
   const hasAvailableColumn = columns.some((column) => column.key === "available");
+  const hasAssignedColumn = columns.some((column) => column.key === "assigned");
   const isUnassigned =
     !issue?.assignee &&
     !issue?.assignedDeveloperId &&
     !resolveBugDetails(issue)?.developerLead;
+  const hasAssignedDeveloper =
+    Boolean(issue?.assignee) ||
+    Boolean(issue?.assignedDeveloperId) ||
+    Boolean(resolveBugDetails(issue)?.developerLead);
+  const status = normalizeBugStatusForIssue(issue);
+
+  if (
+    hasAssignedColumn &&
+    hasAssignedDeveloper &&
+    [ISSUE_STATUS.NEW, ISSUE_STATUS.OPEN, ISSUE_STATUS.TRIAGED, ISSUE_STATUS.ASSIGNED].includes(status)
+  ) {
+    return "assigned";
+  }
 
   if (hasAvailableColumn && isUnassigned && issue?.pickupEligibility) {
     return "available";
   }
 
-  const status = normalizeBugStatusForIssue(issue);
   const matchedColumn = columns.find((column) => column.statuses.includes(status));
 
   return matchedColumn?.key || "";
@@ -195,6 +231,7 @@ export const getBugStatusForColumn = (columnKey, role = "tester") => {
       inProgress: ISSUE_STATUS.IN_PROGRESS,
       readyForQa: ISSUE_STATUS.READY_FOR_QA,
       reopened: ISSUE_STATUS.IN_PROGRESS,
+      rejected: ISSUE_STATUS.REJECTED,
     };
 
     return statusByColumn[columnKey] || "";

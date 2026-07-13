@@ -1,9 +1,16 @@
 export const ISSUE_STATUS = Object.freeze({
+  DRAFT: "DRAFT",
+  READY: "READY",
   TODO: "TODO",
+  SPRINT_BACKLOG: "SPRINT_BACKLOG",
   IN_PROGRESS: "IN_PROGRESS",
   BLOCKED: "BLOCKED",
   REVIEW: "REVIEW",
+  CODE_REVIEW: "CODE_REVIEW",
   QA: "QA",
+  QA_READY: "QA_READY",
+  DEVELOPMENT_COMPLETE: "DEVELOPMENT_COMPLETE",
+  READY_FOR_UAT: "READY_FOR_UAT",
   DONE: "DONE",
   NEW: "NEW",
   TRIAGED: "TRIAGED",
@@ -27,6 +34,7 @@ export const BUG_LIFECYCLE_STATUS = Object.freeze({
   IN_PROGRESS: "IN_PROGRESS",
   READY_FOR_QA: "READY_FOR_QA",
   REOPENED: "REOPENED",
+  REJECTED: "REJECTED",
   CLOSED: "CLOSED",
 });
 
@@ -261,11 +269,19 @@ export const ISSUE_CRITICAL_SEVERITY_VALUES = Object.freeze(["Critical"]);
 
 export const ISSUE_STATUS_OPTIONS = [
   { value: "all", label: "All" },
+  { value: ISSUE_STATUS.DRAFT, label: "Draft" },
+  { value: ISSUE_STATUS.READY, label: "Ready" },
   { value: ISSUE_STATUS.TODO, label: "To Do" },
+  { value: ISSUE_STATUS.SPRINT_BACKLOG, label: "Sprint Backlog" },
   { value: ISSUE_STATUS.IN_PROGRESS, label: "In Progress" },
   { value: ISSUE_STATUS.BLOCKED, label: "Blocked" },
   { value: ISSUE_STATUS.REVIEW, label: "Review" },
+  { value: ISSUE_STATUS.CODE_REVIEW, label: "Code Review" },
   { value: ISSUE_STATUS.QA, label: "QA" },
+  { value: ISSUE_STATUS.QA_READY, label: "QA Ready" },
+  { value: ISSUE_STATUS.DEVELOPMENT_COMPLETE, label: "Development Complete" },
+  { value: ISSUE_STATUS.TESTING, label: "Testing" },
+  { value: ISSUE_STATUS.READY_FOR_UAT, label: "Ready for UAT" },
   { value: ISSUE_STATUS.DONE, label: "Done" },
   ...BUG_STATUS_OPTIONS,
 ];
@@ -279,6 +295,24 @@ export const GENERIC_ISSUE_WORKFLOW_STATUS_OPTIONS = [
   { value: ISSUE_STATUS.BLOCKED, label: "Blocked" },
   { value: ISSUE_STATUS.REVIEW, label: "Review" },
   { value: ISSUE_STATUS.QA, label: "QA" },
+  { value: ISSUE_STATUS.DONE, label: "Done" },
+];
+export const STORY_WORKFLOW_STATUS_OPTIONS = [
+  { value: ISSUE_STATUS.DRAFT, label: "Draft" },
+  { value: ISSUE_STATUS.READY, label: "Ready" },
+  { value: ISSUE_STATUS.SPRINT_BACKLOG, label: "Sprint Backlog" },
+  { value: ISSUE_STATUS.IN_PROGRESS, label: "In Progress" },
+  { value: ISSUE_STATUS.DEVELOPMENT_COMPLETE, label: "Development Complete" },
+  { value: ISSUE_STATUS.TESTING, label: "Testing" },
+  { value: ISSUE_STATUS.READY_FOR_UAT, label: "Ready for UAT" },
+  { value: ISSUE_STATUS.DONE, label: "Done" },
+  { value: ISSUE_STATUS.CLOSED, label: "Closed" },
+];
+export const TASK_WORKFLOW_STATUS_OPTIONS = [
+  { value: ISSUE_STATUS.TODO, label: "To Do" },
+  { value: ISSUE_STATUS.IN_PROGRESS, label: "In Progress" },
+  { value: ISSUE_STATUS.CODE_REVIEW, label: "Code Review" },
+  { value: ISSUE_STATUS.QA_READY, label: "QA Ready" },
   { value: ISSUE_STATUS.DONE, label: "Done" },
 ];
 
@@ -410,7 +444,9 @@ export const normalizeBugLifecycleStatus = (
       : "";
   const rawStatus =
     typeof issueOrStatus === "object" ? issueOrStatus?.status : issueOrStatus;
-  const token = normalizeStatusToken(explicitLifecycle || rawStatus);
+  const rawToken = normalizeStatusToken(rawStatus);
+  const explicitToken = normalizeStatusToken(explicitLifecycle);
+  const token = rawToken || explicitToken;
 
   if (BUG_LIFECYCLE_STATUS_VALUES.includes(token)) {
     return token;
@@ -434,6 +470,10 @@ export const normalizeBugLifecycleStatus = (
 
   if (["REOPEN", "RE_OPEN", "REOPENED"].includes(token)) {
     return BUG_LIFECYCLE_STATUS.REOPENED;
+  }
+
+  if (token === "REJECTED") {
+    return BUG_LIFECYCLE_STATUS.REJECTED;
   }
 
   if (["CLOSED", "DONE", "RESOLVED"].includes(token)) {
@@ -507,6 +547,65 @@ export const isIssueReopened = (issueOrStatus) => {
   return normalizeIssueStatus(status, "") === ISSUE_STATUS.REOPEN;
 };
 
+export const getIssueDueAtTime = (issue) => {
+  if (!issue?.dueAt) {
+    return Number.NaN;
+  }
+
+  return new Date(issue.dueAt).getTime();
+};
+
+export const isIssueOverdue = (issue) => {
+  if (typeof issue?.isOverdue === "boolean") {
+    return issue.isOverdue;
+  }
+
+  const dueAtTime = getIssueDueAtTime(issue);
+
+  return Number.isFinite(dueAtTime) && !isIssueClosed(issue) && dueAtTime < Date.now();
+};
+
+export const isIssueNearDue = (issue) => {
+  if (typeof issue?.isNearDue === "boolean") {
+    return issue.isNearDue;
+  }
+
+  const dueAtTime = getIssueDueAtTime(issue);
+
+  if (!Number.isFinite(dueAtTime) || isIssueClosed(issue)) {
+    return false;
+  }
+
+  const diffMs = dueAtTime - Date.now();
+
+  return diffMs >= 0 && diffMs <= 24 * 60 * 60 * 1000;
+};
+
+export const getIssueOverdueDays = (issue) => {
+  if (typeof issue?.overdueDays === "number") {
+    return issue.overdueDays;
+  }
+
+  if (!isIssueOverdue(issue)) {
+    return 0;
+  }
+
+  return Math.max(1, Math.ceil((Date.now() - getIssueDueAtTime(issue)) / (24 * 60 * 60 * 1000)));
+};
+
+export const getIssueDeadlineLabel = (issue) => {
+  if (isIssueOverdue(issue)) {
+    const overdueDays = getIssueOverdueDays(issue);
+    return overdueDays === 1 ? "1 Day Late" : `${overdueDays} Days Late`;
+  }
+
+  if (isIssueNearDue(issue)) {
+    return "Due Within 24h";
+  }
+
+  return "";
+};
+
 export const isHighPriorityIssue = (issue = {}) =>
   ISSUE_HIGH_PRIORITY_VALUES.includes(issue.priority);
 
@@ -527,7 +626,7 @@ export const getHighPriorityIssues = (issues = []) => issues.filter(isHighPriori
 export const normalizeIssueFilterAlias = (value = "") => {
   const normalizedValue = String(value || "").trim().toLowerCase();
 
-  return ["open", "closed", "reopened", "critical"].includes(normalizedValue)
+  return ["open", "closed", "reopened", "critical", "overdue"].includes(normalizedValue)
     ? normalizedValue
     : "";
 };
@@ -545,10 +644,26 @@ export const isBugIssue = (issueOrType) =>
     ""
   ) === ISSUE_TYPES.BUG;
 
-export const getWorkflowStatusOptionsForIssue = (issueOrType) =>
-  isBugIssue(issueOrType)
-    ? BUG_STATUS_OPTIONS
-    : GENERIC_ISSUE_WORKFLOW_STATUS_OPTIONS;
+export const getWorkflowStatusOptionsForIssue = (issueOrType) => {
+  if (isBugIssue(issueOrType)) {
+    return BUG_STATUS_OPTIONS;
+  }
+
+  const type = normalizeIssueType(
+    typeof issueOrType === "object" ? issueOrType?.type : issueOrType,
+    ""
+  );
+
+  if (type === ISSUE_TYPES.STORY) {
+    return STORY_WORKFLOW_STATUS_OPTIONS;
+  }
+
+  if ([ISSUE_TYPES.TASK, ISSUE_TYPES.SUB_TASK].includes(type)) {
+    return TASK_WORKFLOW_STATUS_OPTIONS;
+  }
+
+  return GENERIC_ISSUE_WORKFLOW_STATUS_OPTIONS;
+};
 
 export const normalizeBugStatusForIssue = (issue) => {
   const lifecycleStatus = normalizeBugLifecycleStatus(issue, "");
@@ -603,6 +718,7 @@ export const groupBugsByLifecycle = (issues = []) =>
         [BUG_LIFECYCLE_STATUS.IN_PROGRESS]: "inProgress",
         [BUG_LIFECYCLE_STATUS.READY_FOR_QA]: "readyForQa",
         [BUG_LIFECYCLE_STATUS.REOPENED]: "reopened",
+        [BUG_LIFECYCLE_STATUS.REJECTED]: "rejected",
         [BUG_LIFECYCLE_STATUS.CLOSED]: "closed",
       };
       const key = keyByStatus[lifecycleStatus] || "reported";
@@ -616,6 +732,7 @@ export const groupBugsByLifecycle = (issues = []) =>
       inProgress: [],
       readyForQa: [],
       reopened: [],
+      rejected: [],
       closed: [],
     }
   );
@@ -741,6 +858,38 @@ export const resolveIssueAssigneeId = (issue) =>
 export const resolveIssueAssignee = (issue) =>
   issue?.assignee && typeof issue.assignee === "object" ? issue.assignee : null;
 
+export const resolveIssueAssignees = (issue) => {
+  const assignees = Array.isArray(issue?.assignees)
+    ? issue.assignees.filter((assignee) => assignee && typeof assignee === "object")
+    : [];
+  const primaryAssignee = resolveIssueAssignee(issue);
+
+  if (
+    primaryAssignee &&
+    !assignees.some((assignee) => String(assignee._id) === String(primaryAssignee._id))
+  ) {
+    return [primaryAssignee, ...assignees];
+  }
+
+  return assignees;
+};
+
+export const resolveIssueAssigneeIds = (issue) => {
+  const explicitIds = Array.isArray(issue?.assigneeIds) ? issue.assigneeIds : [];
+  const collaboratorIds = Array.isArray(issue?.assignees)
+    ? issue.assignees.map((assignee) => assignee?._id || assignee)
+    : [];
+  const ids = [
+    ...explicitIds,
+    ...collaboratorIds,
+    resolveIssueAssigneeId(issue),
+  ]
+    .map((id) => String(id || ""))
+    .filter(Boolean);
+
+  return [...new Set(ids)];
+};
+
 export const resolveIssueTeamId = (issue) =>
   String(issue?.teamId?._id || issue?.teamId || "");
 
@@ -749,6 +898,27 @@ export const resolveIssueEpicId = (issue) =>
 
 export const resolveIssueSprintId = (issue) =>
   String(issue?.sprintId?._id || issue?.sprintId || "");
+
+export const getSprintLifecycleState = (sprint) => {
+  const lifecycleState = String(sprint?.lifecycleState || "").trim().toUpperCase();
+
+  if (lifecycleState) {
+    return lifecycleState;
+  }
+
+  if (sprint?.isExpired) {
+    return "EXPIRED";
+  }
+
+  return String(sprint?.state || sprint?.status || "").trim().toUpperCase();
+};
+
+export const isSprintExpired = (sprint) =>
+  Boolean(sprint?.isExpired) || getSprintLifecycleState(sprint) === "EXPIRED";
+
+export const isSprintLocked = (sprint) =>
+  Boolean(sprint?.isLocked) ||
+  ["COMPLETED", "EXPIRED"].includes(getSprintLifecycleState(sprint));
 
 export const resolveIssueDependencyId = (issue) =>
   String(issue?.dependsOnIssueId?._id || issue?.dependsOnIssueId || "");
@@ -813,6 +983,10 @@ export const filterIssues = (issues, filters) => {
     }
 
     if (filterAlias === "critical" && !isCriticalIssue(issue)) {
+      return false;
+    }
+
+    if (filterAlias === "overdue" && !isIssueOverdue(issue)) {
       return false;
     }
 
@@ -888,7 +1062,7 @@ export const filterIssues = (issues, filters) => {
 
     if (
       assigneeFilter !== "all" &&
-      resolveIssueAssigneeId(issue) !== String(assigneeFilter)
+      !resolveIssueAssigneeIds(issue).includes(String(assigneeFilter))
     ) {
       return false;
     }
@@ -904,7 +1078,7 @@ export const filterIssues = (issues, filters) => {
       issue.projectId?.name,
       issue.teamId?.name,
       issue.epicId?.name,
-      resolveIssueAssignee(issue)?.name,
+      ...resolveIssueAssignees(issue).map((assignee) => assignee.name),
     ]
       .filter(Boolean)
       .some((value) => String(value).toLowerCase().includes(searchTerm));

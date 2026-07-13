@@ -188,6 +188,11 @@ export const adminLoginRequest = async (payload = {}) => {
   return response.data;
 };
 
+export const fetchCurrentUser = async () => {
+  const response = await api.get("/auth/me");
+  return response.data?.user || response.data;
+};
+
 export const registerRequest = async (payload) => {
   const response = await api.post("/auth/register", payload);
   return response.data;
@@ -450,6 +455,12 @@ export const fetchIssues = async (filters = {}) => {
   return response.data;
 };
 
+export const fetchStories = async (filters = {}) => {
+  const params = buildParams(normalizeIssueFilters(filters));
+  const response = await api.get("/issues/stories", { params });
+  return response.data;
+};
+
 export const fetchIssueStats = async (filters = {}) => {
   const params = buildParams(normalizeIssueFilters(filters));
   const response = await api.get("/issues/stats", {
@@ -535,6 +546,39 @@ export const createIssue = async (payload) => {
   const normalizedPayload = normalizeIssuePayload(payload);
   logIssuePayload("Create issue", normalizedPayload);
   const response = await api.post("/issues", normalizedPayload);
+  return response.data;
+};
+
+const parseDownloadFilename = (contentDisposition = "", fallback = "download.xlsx") => {
+  const utf8Match = /filename\*=UTF-8''([^;]+)/i.exec(contentDisposition);
+
+  if (utf8Match?.[1]) {
+    return decodeURIComponent(utf8Match[1]);
+  }
+
+  const basicMatch = /filename="?([^"]+)"?/i.exec(contentDisposition);
+  return basicMatch?.[1] || fallback;
+};
+
+export const downloadTaskImportSample = async () => {
+  const response = await api.get("/issues/import/tasks/sample", {
+    responseType: "blob",
+  });
+
+  return {
+    blob: response.data,
+    fileName: parseDownloadFilename(
+      response.headers?.["content-disposition"],
+      "task-import-template.xlsx"
+    ),
+  };
+};
+
+export const importTaskSpreadsheet = async (file) => {
+  const formData = new FormData();
+  formData.append("file", file);
+
+  const response = await api.post("/issues/import/tasks", formData);
   return response.data;
 };
 
@@ -809,6 +853,11 @@ export const startSprint = async (id) => {
 
 export const completeSprint = async ({ id, payload }) => {
   const response = await api.post(`/sprints/${id}/complete`, payload);
+  return response.data;
+};
+
+export const reopenSprint = async (id) => {
+  const response = await api.post(`/sprints/${id}/reopen`);
   return response.data;
 };
 

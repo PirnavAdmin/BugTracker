@@ -4,12 +4,22 @@ const {
 } = require("../utils/issueStatus");
 const { getBugLifecycleStatus } = require("../utils/bugLifecycle");
 const { getCanonicalIssueType, ISSUE_TYPES } = require("../utils/issueTypes");
+const { buildIssueTimingMeta } = require("./issueTiming");
+const { buildSprintLifecycleMeta } = require("./sprintLifecycle");
 
 const issuePopulation = [
   { path: "assignee", select: "name email role" },
+  { path: "assignees", select: "name email role" },
   { path: "bugDetails.testerOwner", select: "name email role" },
   { path: "bugDetails.developerLead", select: "name email role" },
   { path: "dependsOnIssueId", select: "title status dueAt" },
+  { path: "dependencyIds", select: "title type status priority dueAt" },
+  {
+    path: "parentStoryId",
+    select:
+      "title type status priority storyPoints storyProgress epicId sprintId acceptanceCriteria",
+  },
+  { path: "parentTaskId", select: "title type status priority" },
   { path: "reporter", select: "name email role" },
   {
     path: "projectId",
@@ -36,6 +46,11 @@ const serializeIssue = (issue) => {
         };
   const assigneeReference =
     serializedIssue?.assignee?._id || serializedIssue?.assignee || null;
+  const collaboratorReferences = Array.isArray(serializedIssue?.assignees)
+    ? serializedIssue.assignees
+        .map((assignee) => assignee?._id || assignee)
+        .filter(Boolean)
+    : [];
   const dependencyIssue =
     serializedIssue?.dependsOnIssueId &&
     typeof serializedIssue.dependsOnIssueId === "object"
@@ -51,11 +66,19 @@ const serializeIssue = (issue) => {
   const status = getCanonicalIssueStatus(serializedIssue.status, ISSUE_STATUS.TODO);
   const type = getCanonicalIssueType(serializedIssue.type, serializedIssue.type);
   const isBug = type === ISSUE_TYPES.BUG;
+  const sprintMeta =
+    serializedIssue?.sprintId && typeof serializedIssue.sprintId === "object"
+      ? {
+          ...serializedIssue.sprintId,
+          ...buildSprintLifecycleMeta(serializedIssue.sprintId),
+        }
+      : serializedIssue?.sprintId || null;
 
   return {
     ...serializedIssue,
     status,
     bugLifecycleStatus: isBug ? getBugLifecycleStatus(status) : null,
+    sprintId: sprintMeta,
     reporterName:
       serializedIssue.reporterName ||
       serializedIssue.reporter?.name ||
@@ -68,6 +91,11 @@ const serializeIssue = (issue) => {
       "",
     dependsOnIssueId: dependencyIssue,
     assigneeId: assigneeReference ? String(assigneeReference) : null,
+    assigneeIds: collaboratorReferences.length
+      ? collaboratorReferences.map((assignee) => String(assignee))
+      : assigneeReference
+        ? [String(assigneeReference)]
+        : [],
     assignedDeveloperId: serializedIssue.assignedDeveloperId
       ? String(serializedIssue.assignedDeveloperId)
       : null,
@@ -79,6 +107,10 @@ const serializeIssue = (issue) => {
       serializedIssue.bugDetails?.developerLead?.name ||
       serializedIssue.assignee?.name ||
       "",
+    ...buildIssueTimingMeta({
+      dueAt: serializedIssue.dueAt,
+      status,
+    }),
   };
 };
 

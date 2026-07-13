@@ -1,18 +1,22 @@
 const express = require("express");
 const {
   getIssues,
+  getStories,
   getIssueStats,
   getMyReportedBugs,
   getMyIssues,
   getBugBucket,
+  downloadTaskImportSample,
   getRecentIssueActivity,
   getNotifications,
   getUnreadNotificationCount,
+  importTasksFromSpreadsheet,
   markNotificationRead,
   markAllNotificationsRead,
   createIssue,
   updateIssue,
   pickIssue,
+  uploadTaskImportMiddleware,
   deleteIssue,
 } = require("../controllers/issueController");
 const {
@@ -41,6 +45,9 @@ router.get("/notifications/unread-count", protect, getUnreadNotificationCount);
 router.patch("/notifications/:id/read", protect, markNotificationRead);
 router.post("/notifications/read-all", protect, markAllNotificationsRead);
 router.get("/stats", protect, getIssueStats);
+router.get("/stories", protect, getStories);
+router.get("/import/tasks/sample", protect, downloadTaskImportSample);
+router.post("/import/tasks", protect, uploadTaskImportMiddleware, importTasksFromSpreadsheet);
 router.patch("/:id/planning", protect, updateIssuePlanning);
 router.post("/:id/sprint", protect, moveIssueToSprint);
 router.delete("/:id/sprint", protect, removeIssueFromSprint);

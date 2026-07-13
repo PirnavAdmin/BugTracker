@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   CalendarDays,
@@ -19,6 +19,7 @@ import {
   fetchIssueAttachments,
   fetchIssueHistory,
   fetchAttachmentBlob,
+  fetchIssueWorklogs,
   resolveApiAssetUrl,
   uploadIssueAttachment,
   downloadAttachment,
@@ -51,7 +52,21 @@ import {
   getProjectTeams,
   resolveUserId,
 } from "@/lib/project-teams";
-import { cn, formatDate, formatDateTime, formatTime, getInitials } from "@/lib/utils";
+import {
+  hasTaskStoryLeadAccess,
+  ROLE_DEVELOPER,
+  ROLE_QA_LEAD,
+  ROLE_TEAM_LEAD,
+  ROLE_TESTER,
+} from "@/lib/roles";
+import {
+  cn,
+  formatDate,
+  formatDateTime,
+  formatTime,
+  getInitials,
+  toDateTimeInputValue,
+} from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -60,6 +75,7 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -68,23 +84,17 @@ import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 
-const toDateTimeLocalValue = (value) => {
-  if (!value) {
-    return "";
-  }
-
-  const parsedValue = new Date(value);
-
-  if (Number.isNaN(parsedValue.getTime())) {
-    return "";
-  }
-
-  return new Date(parsedValue.getTime() - parsedValue.getTimezoneOffset() * 60000)
-    .toISOString()
-    .slice(0, 16);
-};
-
 const formatDueAt = (value) => (value ? formatDateTime(value) : "No due date");
+const formatMinutes = (minutes) => {
+  if (typeof minutes !== "number" || Number.isNaN(minutes)) {
+    return "Not set";
+  }
+
+  const hours = Math.floor(minutes / 60);
+  const remaining = minutes % 60;
+
+  return `${hours}h ${remaining}m`;
+};
 const ATTACHMENT_ACCEPT =
   "image/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.log,.csv,.json,.xml,.zip";
 const DETAIL_PANEL_TABS = [
@@ -98,6 +108,16 @@ const formatDependencyLabel = (issue) =>
   issue ? `${getIssueDisplayKey(issue)} ${issue.title}` : "No dependency";
 
 const resolveNestedUserId = (value) => String(value?._id || value || "");
+const getProjectAssignmentName = (value) => {
+  if (!value || typeof value !== "object") {
+    return "Unassigned";
+  }
+
+  const name = typeof value.name === "string" ? value.name.trim() : "";
+  const email = typeof value.email === "string" ? value.email.trim() : "";
+
+  return name || email || "Unassigned";
+};
 const isPreviewableImage = (attachment) =>
   String(attachment?.mimeType || "").toLowerCase().startsWith("image/");
 
@@ -127,8 +147,15 @@ const buildDetailDraft = (issue) => ({
   assigneeId: resolveIssueAssigneeId(issue),
   priority: issue?.priority || "Medium",
   status: isBugIssue(issue) ? normalizeBugStatusForIssue(issue) : normalizeIssueStatus(issue?.status),
-  dueAt: toDateTimeLocalValue(issue?.dueAt),
+  dueAt: toDateTimeInputValue(issue?.dueAt),
   dependsOnIssueId: resolveIssueDependencyId(issue),
+  storyPoints: issue?.storyPoints ?? "",
+  acceptanceCriteria: Array.isArray(issue?.acceptanceCriteria)
+    ? issue.acceptanceCriteria.map((criterion) => ({ ...criterion }))
+    : [],
+  definitionOfDone: issue?.definitionOfDone || "",
+  labels: Array.isArray(issue?.labels) ? issue.labels.join(", ") : "",
+  timeEstimateMinutes: issue?.timeEstimateMinutes || 0,
   bugDetails: getBugDetailsDraft(issue),
 });
 
@@ -147,6 +174,7 @@ const IssueDetailsDialog = ({
   canEditPriority = true,
   canEditAssignee = true,
   canDeleteIssue = true,
+  statusOptionsOverride = null,
   compactDrawer = false,
   contentClassName = "",
 }) => {
@@ -161,6 +189,9 @@ const IssueDetailsDialog = ({
   const [previewImageUrl, setPreviewImageUrl] = useState("");
   const [previewError, setPreviewError] = useState("");
   const [previewLoadingId, setPreviewLoadingId] = useState("");
+  const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
+  const [isMoreDetailsOpen, setIsMoreDetailsOpen] = useState(false);
+  const commentTextareaRef = useRef(null);
 
   const selectedProject = useMemo(
     () => findProjectById(projects, detailDraft.projectId),
@@ -174,6 +205,32 @@ const IssueDetailsDialog = ({
     () => getProjectTeamMembers(selectedProject, detailDraft.teamId),
     [detailDraft.teamId, selectedProject]
   );
+  const developerLeadOptions = useMemo(() => {
+    const developers = availableAssignees.filter((assignee) => assignee.role === ROLE_DEVELOPER);
+    return developers.length ? developers : availableAssignees;
+  }, [availableAssignees]);
+  const taskAssignableAssignees = useMemo(
+    () =>
+      hasTaskStoryLeadAccess(role) && ["Task", "Sub-task"].includes(detailDraft.type)
+        ? availableAssignees.filter((assignee) =>
+            [ROLE_DEVELOPER, ROLE_TEAM_LEAD, ROLE_QA_LEAD, ROLE_TESTER].includes(assignee.role)
+          )
+        : availableAssignees,
+    [availableAssignees, detailDraft.type, role]
+  );
+  const assigneeOptions = useMemo(() => {
+    if (!hasTaskStoryLeadAccess(role)) {
+      return taskAssignableAssignees;
+    }
+
+    if (detailDraft.type === "Bug") {
+      return availableAssignees.filter((assignee) =>
+        [ROLE_DEVELOPER, ROLE_TEAM_LEAD, ROLE_QA_LEAD].includes(assignee.role)
+      );
+    }
+
+    return taskAssignableAssignees;
+  }, [availableAssignees, detailDraft.type, role, taskAssignableAssignees]);
   const dependencyOptions = useMemo(
     () =>
       availableIssues
@@ -201,7 +258,20 @@ const IssueDetailsDialog = ({
     setActiveDetailTab("discussion");
     setPreviewAttachment(null);
     setPreviewError("");
+    setIsDeleteConfirmOpen(false);
+    setIsMoreDetailsOpen(false);
   }, [issue]);
+
+  useEffect(() => {
+    const textarea = commentTextareaRef.current;
+
+    if (!textarea) {
+      return;
+    }
+
+    textarea.style.height = "0px";
+    textarea.style.height = `${Math.min(textarea.scrollHeight, 320)}px`;
+  }, [commentText, open]);
 
   useEffect(() => {
     const issueId = issue?._id;
@@ -291,7 +361,7 @@ const IssueDetailsDialog = ({
 
   useEffect(() => {
     const assigneeIds = new Set(
-      availableAssignees.map((assignee) => resolveUserId(assignee))
+      assigneeOptions.map((assignee) => resolveUserId(assignee))
     );
 
     if (!detailDraft.assigneeId || assigneeIds.has(String(detailDraft.assigneeId))) {
@@ -302,7 +372,7 @@ const IssueDetailsDialog = ({
       ...current,
       assigneeId: "",
     }));
-  }, [availableAssignees, detailDraft.assigneeId]);
+  }, [assigneeOptions, detailDraft.assigneeId]);
 
   useEffect(() => {
     const assigneeIds = new Set(
@@ -388,10 +458,33 @@ const IssueDetailsDialog = ({
     },
   });
 
+  const { data: worklogs = [] } = useQuery({
+    queryKey: ["issue", issue?._id, "worklogs"],
+    queryFn: () => fetchIssueWorklogs(issue._id),
+    enabled: Boolean(issue?._id),
+  });
+
   const handleSubmitComment = async (event) => {
     event.preventDefault();
 
     if (!commentText.trim()) {
+      return;
+    }
+
+    await createCommentMutation.mutateAsync({
+      issueId: issue._id,
+      text: commentText.trim(),
+    });
+  };
+
+  const handleCommentComposerKeyDown = async (event) => {
+    if (event.key !== "Enter" || event.shiftKey) {
+      return;
+    }
+
+    event.preventDefault();
+
+    if (!commentText.trim() || createCommentMutation.isPending) {
       return;
     }
 
@@ -414,7 +507,10 @@ const IssueDetailsDialog = ({
   const issueKey = getIssueDisplayKey(issue);
   const isBug = isBugIssue(issue);
   const currentBugStatus = normalizeBugStatusForIssue(issue);
-  const statusOptions = getWorkflowStatusOptionsForIssue({ type: detailDraft.type });
+  const statusOptions =
+    statusOptionsOverride?.length
+      ? statusOptionsOverride
+      : getWorkflowStatusOptionsForIssue({ type: detailDraft.type });
   const bugDetails = resolveBugDetails(issue);
   const testerOwner = bugDetails.testerOwner;
   const developerLead = bugDetails.developerLead;
@@ -422,24 +518,53 @@ const IssueDetailsDialog = ({
     testerOwner?.name || issue.testerOwnerName || issue.reporterName || "Unassigned";
   const reporterName = issue.reporter?.name || issue.reporterName || "Unknown reporter";
   const reporterRole = issue.reporter?.role || "Tester";
+  const issueEpicName = issue.epicId?.name || "Unassigned";
+  const issueSprintName = issue.sprintId?.name || "Backlog";
+  const issueSprintGoal = issue.sprintId?.goal || "No sprint goal";
+  const storyOwnerName = issue.reporter?.name || issue.reporterName || "Unknown";
+  const projectManagerName = getProjectAssignmentName(
+    issue.projectId?.projectManager || issue.projectId?.manager
+  );
+  const issueLoggedMinutes = worklogs.reduce(
+    (sum, worklog) => sum + Number(worklog.minutes || 0),
+    0
+  );
   const canChangeStatusForRole = Boolean(role) && canEditStatus;
   const canShowDeleteAction = canDeleteIssue && typeof onDeleteIssue === "function";
   const deleteLabel = isBug ? "Delete Bug" : "Delete Task";
   const handleDeleteIssue = async () => {
-    const result = await onDeleteIssue(issue._id);
+    setIsDeleteConfirmOpen(true);
+  };
+  const handleConfirmDeleteIssue = async () => {
+    try {
+      setDetailsError("");
+      const result = await onDeleteIssue(issue._id);
 
-    if (result !== false) {
-      onOpenChange(false);
+      if (result !== false) {
+        setIsDeleteConfirmOpen(false);
+        onOpenChange(false);
+      }
+    } catch (error) {
+      setDetailsError(
+        error.response?.data?.message || `Unable to delete this ${isBug ? "bug" : "task"}.`
+      );
     }
   };
   const commentComposer = (
-    <form className="space-y-3 rounded-2xl border border-blue-100 bg-white p-3 shadow-sm" onSubmit={handleSubmitComment}>
-      <Input
-        className="rounded-xl border-slate-200 bg-slate-50"
+    <form className="space-y-3 rounded-[24px] border border-blue-100 bg-white p-4 shadow-sm" onSubmit={handleSubmitComment}>
+      <Textarea
+        ref={commentTextareaRef}
+        className="min-h-[140px] max-h-[320px] resize-none overflow-y-auto rounded-[20px] border-slate-200 bg-slate-50 text-base leading-7"
         placeholder="Add a status update or implementation note"
         value={commentText}
         onChange={(event) => setCommentText(event.target.value)}
+        onKeyDown={(event) => {
+          void handleCommentComposerKeyDown(event);
+        }}
       />
+      <p className="text-xs text-slate-500">
+        Press <span className="font-semibold">Enter</span> to post and <span className="font-semibold">Shift + Enter</span> for a new line.
+      </p>
       <Button
         className="w-full"
         disabled={createCommentMutation.isPending}
@@ -688,13 +813,14 @@ const IssueDetailsDialog = ({
   );
 
   return (
+    <>
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         overlayClassName="z-50 bg-black/40 backdrop-blur-sm"
         className={cn(
           compactDrawer
             ? "issue-detail-drawer grid grid-rows-[auto_minmax(0,1fr)] gap-0 overflow-hidden"
-            : "left-0 top-0 z-[60] grid h-[100dvh] w-screen max-w-none translate-x-0 translate-y-0 grid-rows-[auto_minmax(0,1fr)] gap-0 overflow-hidden rounded-none border-0 bg-white p-0 shadow-2xl sm:left-1/2 sm:top-20 sm:h-[88vh] sm:max-h-[calc(100vh-5.5rem)] sm:w-[92vw] sm:max-w-[1400px] sm:-translate-x-1/2 sm:rounded-3xl sm:border sm:border-white/80 lg:top-24 lg:max-h-[calc(100vh-7rem)]",
+            : "left-0 top-0 z-[60] grid h-[100dvh] w-screen max-w-none translate-x-0 translate-y-0 grid-rows-[auto_minmax(0,1fr)] gap-0 overflow-hidden rounded-none border-0 bg-white p-0 shadow-2xl sm:left-1/2 sm:top-3 sm:h-[calc(100dvh-1.5rem)] sm:max-h-[calc(100dvh-1.5rem)] sm:w-[96vw] sm:max-w-[1520px] sm:-translate-x-1/2 sm:rounded-3xl sm:border sm:border-white/80 lg:top-3 lg:max-h-[calc(100dvh-1.5rem)]",
           contentClassName
         )}
       >
@@ -738,7 +864,7 @@ const IssueDetailsDialog = ({
               </Badge>
             ) : null}
           </div>
-          <DialogTitle className={cn("min-w-0 truncate pr-4 text-lg leading-7 sm:text-xl", compactDrawer && "pr-0 text-base leading-6")}>
+          <DialogTitle className={cn("min-w-0 max-w-full pr-4 text-lg leading-7 break-words sm:text-xl", compactDrawer && "pr-0 text-base leading-6")}>
             {issue.title}
           </DialogTitle>
           <DialogDescription className="sr-only">
@@ -746,9 +872,9 @@ const IssueDetailsDialog = ({
           </DialogDescription>
         </DialogHeader>
 
-        <div className={cn("min-h-0 overflow-hidden", compactDrawer && "overflow-y-auto overscroll-contain scroll-smooth px-4 py-4")}>
-        <div className={cn("grid h-full min-h-0 grid-cols-1 overflow-hidden lg:grid-cols-[minmax(0,65%)_minmax(0,35%)]", compactDrawer && "h-auto gap-4 overflow-visible lg:grid-cols-1")}>
-          <section className={cn("min-h-0 space-y-6 overflow-y-auto overscroll-contain bg-white p-4 sm:p-6", compactDrawer && "overflow-visible p-0")}>
+        <div className={cn("min-h-0 min-w-0 overflow-hidden", compactDrawer && "overflow-y-auto overscroll-contain scroll-smooth px-4 py-4")}>
+        <div className={cn("grid h-full min-h-0 min-w-0 grid-cols-1 overflow-hidden lg:grid-cols-[minmax(0,1fr)_minmax(360px,420px)] xl:grid-cols-[minmax(0,1fr)_minmax(380px,460px)]", compactDrawer && "h-auto gap-4 overflow-visible lg:grid-cols-1")}>
+          <section className={cn("min-h-0 min-w-0 space-y-6 overflow-y-auto overscroll-contain bg-white p-4 sm:p-6", compactDrawer && "overflow-visible p-0")}>
             <div className="rounded-[28px] border border-slate-200/80 bg-gradient-to-br from-slate-50 to-white p-5 shadow-[0_18px_50px_-42px_rgba(15,23,42,0.5)]">
               <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">
                 Description
@@ -757,6 +883,90 @@ const IssueDetailsDialog = ({
                 {issue.description || "No detailed description has been added yet."}
               </p>
             </div>
+
+            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+              <div className="rounded-[24px] border border-gray-200 bg-white p-4 shadow-sm">
+                <div className="flex items-center gap-2 text-xs uppercase tracking-[0.22em] text-gray-500">
+                  <CalendarDays className="h-3.5 w-3.5" />
+                  Due Date
+                </div>
+                <p className="mt-2 text-sm font-semibold text-gray-900">
+                  {formatDueAt(issue.dueAt)}
+                </p>
+              </div>
+
+              <div className="rounded-[24px] border border-gray-200 bg-white p-4 shadow-sm">
+                <p className="text-xs uppercase tracking-[0.22em] text-gray-500">
+                  Project Manager
+                </p>
+                <p className="mt-3 text-sm font-semibold text-gray-900">
+                  {projectManagerName}
+                </p>
+              </div>
+
+              <div className="rounded-[24px] border border-gray-200 bg-white p-4 shadow-sm">
+                <p className="text-xs uppercase tracking-[0.22em] text-gray-500">Reporter</p>
+                <div className="mt-3 flex items-center gap-3">
+                  <Avatar className="h-10 w-10">
+                    <AvatarFallback>{getInitials(reporterName)}</AvatarFallback>
+                  </Avatar>
+                  <div>
+                    <p className="text-sm font-semibold text-gray-900">
+                      {reporterName}
+                    </p>
+                    <p className="text-xs text-gray-500">{reporterRole}</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-[24px] border border-gray-200 bg-white p-4 shadow-sm">
+                <p className="text-xs uppercase tracking-[0.22em] text-gray-500">
+                  Current owner
+                </p>
+                {issueAssignee ? (
+                  <div className="mt-3 flex items-center gap-3">
+                    <Avatar className="h-10 w-10">
+                      <AvatarFallback>{getInitials(issueAssignee.name)}</AvatarFallback>
+                    </Avatar>
+                    <div>
+                      <p className="text-sm font-semibold text-gray-900">
+                        {issueAssignee.name}
+                      </p>
+                      <p className="text-xs text-gray-500">{issueAssignee.role}</p>
+                    </div>
+                  </div>
+                ) : issueAssigneeId ? (
+                  <div className="mt-3 flex items-center gap-2 text-sm text-gray-600">
+                    <UserCircle2 className="h-4 w-4" />
+                    <span>Assigned user</span>
+                  </div>
+                ) : (
+                  <div className="mt-3 flex items-center gap-2 text-sm text-gray-600">
+                    <UserCircle2 className="h-4 w-4" />
+                    <span>No one is assigned yet.</span>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-[24px] border border-slate-200 bg-slate-50 px-4 py-3">
+              <div>
+                <p className="text-sm font-semibold text-slate-900">More Details</p>
+                <p className="text-xs text-slate-500">
+                  View project, sprint, workflow, and extended task or bug details.
+                </p>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setIsMoreDetailsOpen((current) => !current)}
+              >
+                {isMoreDetailsOpen ? "Hide Details" : "Show Details"}
+              </Button>
+            </div>
+
+            {isMoreDetailsOpen ? (
+              <>
 
             {canEditCoreDetails ? (
               <form
@@ -829,6 +1039,17 @@ const IssueDetailsDialog = ({
                       status: detailDraft.status,
                       dueAt: detailDraft.dueAt || null,
                       dependsOnIssueId: detailDraft.dependsOnIssueId || null,
+                      storyPoints:
+                        detailDraft.storyPoints === ""
+                          ? null
+                          : Number(detailDraft.storyPoints),
+                      acceptanceCriteria: detailDraft.acceptanceCriteria,
+                      definitionOfDone: detailDraft.definitionOfDone.trim(),
+                      labels: detailDraft.labels
+                        .split(",")
+                        .map((label) => label.trim())
+                        .filter(Boolean),
+                      timeEstimateMinutes: Number(detailDraft.timeEstimateMinutes || 0),
                     };
 
                     if (draftIsBug) {
@@ -930,32 +1151,6 @@ const IssueDetailsDialog = ({
 
                       <label className="space-y-2">
                         <span className="text-xs uppercase tracking-[0.22em] text-gray-500">
-                          Tester / QA Owner
-                        </span>
-                        <select
-                          className="field-select"
-                          value={detailDraft.bugDetails.testerOwnerId}
-                          onChange={(event) =>
-                            setDetailDraft((current) => ({
-                              ...current,
-                              bugDetails: {
-                                ...current.bugDetails,
-                                testerOwnerId: event.target.value,
-                              },
-                            }))
-                          }
-                        >
-                          <option value="">Unassigned</option>
-                          {availableAssignees.map((assignee) => (
-                            <option key={assignee._id} value={assignee._id}>
-                              {assignee.name} ({assignee.role})
-                            </option>
-                          ))}
-                        </select>
-                      </label>
-
-                      <label className="space-y-2">
-                        <span className="text-xs uppercase tracking-[0.22em] text-gray-500">
                           Developer / Dev Lead
                         </span>
                         <select
@@ -972,7 +1167,7 @@ const IssueDetailsDialog = ({
                           }
                         >
                           <option value="">Unassigned</option>
-                          {availableAssignees.map((assignee) => (
+                          {developerLeadOptions.map((assignee) => (
                             <option key={assignee._id} value={assignee._id}>
                               {assignee.name} ({assignee.role})
                             </option>
@@ -1120,7 +1315,7 @@ const IssueDetailsDialog = ({
                       disabled={!detailDraft.teamId}
                     >
                       <option value="">Unassigned</option>
-                      {availableAssignees.map((assignee) => (
+                      {taskAssignableAssignees.map((assignee) => (
                         <option key={assignee._id} value={assignee._id}>
                           {assignee.name} ({assignee.role})
                         </option>
@@ -1290,6 +1485,104 @@ const IssueDetailsDialog = ({
                   </label>
                 </div>
 
+                {detailDraft.type === "Story" ? (
+                  <div className="space-y-4 rounded-[20px] border border-blue-100 bg-blue-50/40 p-4">
+                    <div className="grid gap-4 sm:grid-cols-3">
+                      <label className="space-y-2">
+                        <span className="text-xs uppercase tracking-[0.22em] text-gray-500">
+                          Story Points
+                        </span>
+                        <Input
+                          type="number"
+                          min="0"
+                          value={detailDraft.storyPoints}
+                          onChange={(event) =>
+                            setDetailDraft((current) => ({
+                              ...current,
+                              storyPoints: event.target.value,
+                            }))
+                          }
+                        />
+                      </label>
+                      <label className="space-y-2">
+                        <span className="text-xs uppercase tracking-[0.22em] text-gray-500">
+                          Estimate (minutes)
+                        </span>
+                        <Input
+                          type="number"
+                          min="0"
+                          value={detailDraft.timeEstimateMinutes}
+                          onChange={(event) =>
+                            setDetailDraft((current) => ({
+                              ...current,
+                              timeEstimateMinutes: event.target.value,
+                            }))
+                          }
+                        />
+                      </label>
+                      <label className="space-y-2">
+                        <span className="text-xs uppercase tracking-[0.22em] text-gray-500">
+                          Labels
+                        </span>
+                        <Input
+                          value={detailDraft.labels}
+                          onChange={(event) =>
+                            setDetailDraft((current) => ({
+                              ...current,
+                              labels: event.target.value,
+                            }))
+                          }
+                        />
+                      </label>
+                    </div>
+
+                    <label className="space-y-2">
+                      <span className="text-xs uppercase tracking-[0.22em] text-gray-500">
+                        Definition of Done
+                      </span>
+                      <Textarea
+                        value={detailDraft.definitionOfDone}
+                        onChange={(event) =>
+                          setDetailDraft((current) => ({
+                            ...current,
+                            definitionOfDone: event.target.value,
+                          }))
+                        }
+                      />
+                    </label>
+
+                    <div className="space-y-2">
+                      <span className="text-xs uppercase tracking-[0.22em] text-gray-500">
+                        Acceptance Criteria
+                      </span>
+                      {detailDraft.acceptanceCriteria.map((criterion, index) => (
+                        <label
+                          key={criterion._id || `${criterion.text}-${index}`}
+                          className="flex items-start gap-3 rounded-xl border border-blue-100 bg-white px-3 py-2"
+                        >
+                          <input
+                            type="checkbox"
+                            className="mt-1 h-4 w-4"
+                            checked={Boolean(criterion.completed)}
+                            onChange={(event) =>
+                              setDetailDraft((current) => ({
+                                ...current,
+                                acceptanceCriteria: current.acceptanceCriteria.map(
+                                  (item, itemIndex) =>
+                                    itemIndex === index
+                                      ? { ...item, completed: event.target.checked }
+                                      : item
+                                ),
+                              }))
+                            }
+                          />
+                          <span className="text-sm text-slate-700">{criterion.text}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+
                 {!availableTeams.length ? (
                   <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
                     Attach a team to this project before assigning or moving this work item.
@@ -1376,6 +1669,78 @@ const IssueDetailsDialog = ({
                 ) : (
                   <p className="mt-2 text-sm font-semibold text-gray-900">No dependency</p>
                 )}
+              </div>
+
+              <div className="rounded-[24px] border border-gray-200 bg-white p-4 shadow-sm">
+                <p className="text-xs uppercase tracking-[0.22em] text-gray-500">
+                  Epic
+                </p>
+                <p className="mt-2 text-sm font-semibold text-gray-900">
+                  {issueEpicName}
+                </p>
+              </div>
+
+              <div className="rounded-[24px] border border-gray-200 bg-white p-4 shadow-sm">
+                <p className="text-xs uppercase tracking-[0.22em] text-gray-500">
+                  Sprint
+                </p>
+                <p className="mt-2 text-sm font-semibold text-gray-900">
+                  {issueSprintName}
+                </p>
+              </div>
+
+              <div className="rounded-[24px] border border-gray-200 bg-white p-4 shadow-sm">
+                <p className="text-xs uppercase tracking-[0.22em] text-gray-500">
+                  Sprint Goal
+                </p>
+                <p className="mt-2 text-sm font-semibold text-gray-900">
+                  {issueSprintGoal}
+                </p>
+              </div>
+
+              <div className="rounded-[24px] border border-gray-200 bg-white p-4 shadow-sm">
+                <p className="text-xs uppercase tracking-[0.22em] text-gray-500">
+                  Story Owner
+                </p>
+                <p className="mt-2 text-sm font-semibold text-gray-900">
+                  {storyOwnerName}
+                </p>
+              </div>
+
+              <div className="rounded-[24px] border border-gray-200 bg-white p-4 shadow-sm">
+                <p className="text-xs uppercase tracking-[0.22em] text-gray-500">
+                  Story Points
+                </p>
+                <p className="mt-2 text-sm font-semibold text-gray-900">
+                  {issue.storyPoints != null ? issue.storyPoints : "Not set"}
+                </p>
+              </div>
+
+              <div className="rounded-[24px] border border-gray-200 bg-white p-4 shadow-sm">
+                <p className="text-xs uppercase tracking-[0.22em] text-gray-500">
+                  Estimated Time
+                </p>
+                <p className="mt-2 text-sm font-semibold text-gray-900">
+                  {formatMinutes(issue.timeEstimateMinutes)}
+                </p>
+              </div>
+
+              <div className="rounded-[24px] border border-gray-200 bg-white p-4 shadow-sm">
+                <p className="text-xs uppercase tracking-[0.22em] text-gray-500">
+                  Logged Time
+                </p>
+                <p className="mt-2 text-sm font-semibold text-gray-900">
+                  {formatMinutes(issueLoggedMinutes)}
+                </p>
+              </div>
+
+              <div className="rounded-[24px] border border-gray-200 bg-white p-4 shadow-sm">
+                <p className="text-xs uppercase tracking-[0.22em] text-gray-500">
+                  Remaining Time
+                </p>
+                <p className="mt-2 text-sm font-semibold text-gray-900">
+                  {formatMinutes(issue.remainingEstimateMinutes)}
+                </p>
               </div>
             </div>
 
@@ -1633,7 +1998,7 @@ const IssueDetailsDialog = ({
                     disabled={!canEditAssignee || isUpdatingCurrentIssue || !issue.teamId?._id}
                   >
                     <option value="">Unassigned</option>
-                    {availableAssignees.map((assignee) => (
+                    {assigneeOptions.map((assignee) => (
                       <option key={assignee._id} value={assignee._id}>
                         {assignee.name} ({assignee.role})
                       </option>
@@ -1649,55 +2014,12 @@ const IssueDetailsDialog = ({
               </div>
             ) : null}
 
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="rounded-[24px] border border-gray-200 bg-white p-4 shadow-sm">
-                <p className="text-xs uppercase tracking-[0.22em] text-gray-500">Reporter</p>
-                <div className="mt-3 flex items-center gap-3">
-                  <Avatar className="h-10 w-10">
-                    <AvatarFallback>{getInitials(reporterName)}</AvatarFallback>
-                  </Avatar>
-                  <div>
-                    <p className="text-sm font-semibold text-gray-900">
-                      {reporterName}
-                    </p>
-                    <p className="text-xs text-gray-500">{reporterRole}</p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="rounded-[24px] border border-gray-200 bg-white p-4 shadow-sm">
-                <p className="text-xs uppercase tracking-[0.22em] text-gray-500">
-                  Current owner
-                </p>
-                {issueAssignee ? (
-                  <div className="mt-3 flex items-center gap-3">
-                    <Avatar className="h-10 w-10">
-                      <AvatarFallback>{getInitials(issueAssignee.name)}</AvatarFallback>
-                    </Avatar>
-                    <div>
-                      <p className="text-sm font-semibold text-gray-900">
-                        {issueAssignee.name}
-                      </p>
-                      <p className="text-xs text-gray-500">{issueAssignee.role}</p>
-                    </div>
-                  </div>
-                ) : issueAssigneeId ? (
-                  <div className="mt-3 flex items-center gap-2 text-sm text-gray-600">
-                    <UserCircle2 className="h-4 w-4" />
-                    <span>Assigned user</span>
-                  </div>
-                ) : (
-                  <div className="mt-3 flex items-center gap-2 text-sm text-gray-600">
-                    <UserCircle2 className="h-4 w-4" />
-                    <span>No one is assigned yet.</span>
-                  </div>
-                )}
-              </div>
-            </div>
+              </>
+            ) : null}
 
           </section>
 
-          <section className={cn("min-h-0 overflow-y-auto overscroll-contain border-t border-slate-200 bg-slate-50 p-4 sm:p-6 lg:border-l lg:border-t-0", compactDrawer && "rounded-2xl border border-gray-200 p-3")}>
+          <section className={cn("min-h-0 min-w-0 overflow-y-auto overscroll-contain border-t border-slate-200 bg-slate-50 p-4 sm:p-6 lg:border-l lg:border-t-0", compactDrawer && "rounded-2xl border border-gray-200 p-3")}>
             {compactDrawer ? (
               <>
                 <div className="mb-3 grid grid-cols-2 gap-1 rounded-xl border border-slate-200 bg-white p-1 sm:grid-cols-4">
@@ -1780,6 +2102,40 @@ const IssueDetailsDialog = ({
         </div>
       </DialogContent>
     </Dialog>
+    <Dialog open={isDeleteConfirmOpen} onOpenChange={setIsDeleteConfirmOpen}>
+      <DialogContent className="z-[80] max-w-md rounded-2xl p-6" overlayClassName="z-[70] bg-black/45 backdrop-blur-sm">
+        <DialogHeader>
+          <DialogTitle>Delete {isBug ? "bug" : "task"}?</DialogTitle>
+          <DialogDescription>
+            This will permanently delete {issueKey} from the active list. This action cannot be undone.
+          </DialogDescription>
+        </DialogHeader>
+        <DialogFooter>
+          <Button
+            type="button"
+            variant="outline"
+            disabled={deletingId === issue._id}
+            onClick={() => setIsDeleteConfirmOpen(false)}
+          >
+            Cancel
+          </Button>
+          <Button
+            type="button"
+            variant="destructive"
+            disabled={deletingId === issue._id}
+            onClick={handleConfirmDeleteIssue}
+          >
+            {deletingId === issue._id ? (
+              <LoaderCircle className="h-4 w-4 animate-spin" />
+            ) : (
+              <Trash2 className="h-4 w-4" />
+            )}
+            {deletingId === issue._id ? "Deleting..." : deleteLabel}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+    </>
   );
 };
 

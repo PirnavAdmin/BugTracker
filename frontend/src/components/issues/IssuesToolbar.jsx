@@ -1,4 +1,4 @@
-import { Plus, Search } from "lucide-react";
+import { FileSpreadsheet, Plus, Search } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -19,6 +19,7 @@ const IssuesToolbar = ({
   activeStatusLabel = "",
   selectedProject = null,
   canCreateIssue = true,
+  canBulkImport = false,
   isCreateDisabled = false,
   onProjectChange,
   onTeamChange,
@@ -28,6 +29,7 @@ const IssuesToolbar = ({
   onTypeChange,
   onSearchChange,
   onCreateIssue,
+  onOpenBulkImport,
 }) => {
   const showTeamWarning = Boolean(selectedProject) && !teams.length;
 
@@ -45,15 +47,29 @@ const IssuesToolbar = ({
             </p>
           </div>
 
-          <Button
-            className="w-full sm:w-auto"
-            type="button"
-            disabled={isCreateDisabled}
-            onClick={onCreateIssue}
-          >
-            <Plus className="h-4 w-4" />
-            Assign task
-          </Button>
+          <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row">
+            {canBulkImport ? (
+              <Button
+                className="w-full sm:w-auto"
+                type="button"
+                variant="outline"
+                onClick={onOpenBulkImport}
+              >
+                <FileSpreadsheet className="h-4 w-4" />
+                Bulk assign
+              </Button>
+            ) : null}
+
+            <Button
+              className="w-full sm:w-auto"
+              type="button"
+              disabled={isCreateDisabled}
+              onClick={onCreateIssue}
+            >
+              <Plus className="h-4 w-4" />
+              Assign task
+            </Button>
+          </div>
         </div>
 
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-[180px_180px_180px_180px_180px_160px_minmax(0,1fr)]">

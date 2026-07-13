@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import Select from "react-select";
-import { Layers3, Sparkles, Users2, X } from "lucide-react";
+import { Users2, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -135,29 +135,17 @@ const TeamComposer = ({
             </div>
           ) : null}
 
-          <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_220px]">
-            <label className="space-y-2">
-              <span className="text-sm font-medium text-gray-700">Team name</span>
-              <Input
-                id="name"
-                name="name"
-                className={inputClassName}
-                placeholder="Platform Squad"
-                value={formData.name}
-                onChange={handleFieldChange}
-              />
-            </label>
-
-            <div className="rounded-[24px] border border-sky-100 bg-gradient-to-br from-sky-50 to-cyan-50 p-4 shadow-sm">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-sky-700">
-                Workspace users
-              </p>
-              <p className="mt-3 text-3xl font-semibold text-slate-950">{users.length}</p>
-              <p className="mt-1 text-sm text-slate-600">
-                Available to add to this team
-              </p>
-            </div>
-          </div>
+          <label className="space-y-2">
+            <span className="text-sm font-medium text-gray-700">Team name</span>
+            <Input
+              id="name"
+              name="name"
+              className={inputClassName}
+              placeholder="Platform Squad"
+              value={formData.name}
+              onChange={handleFieldChange}
+            />
+          </label>
 
           <label className="space-y-2">
             <span className="text-sm font-medium text-gray-700">Description</span>
@@ -165,7 +153,7 @@ const TeamComposer = ({
               id="description"
               name="description"
               className={textAreaClassName}
-              placeholder="Explain what this team owns, how it collaborates, or where it fits in the workspace."
+              placeholder="Short team description"
               value={formData.description}
               onChange={handleFieldChange}
             />
@@ -173,35 +161,10 @@ const TeamComposer = ({
 
           <div className="space-y-4 rounded-2xl border border-slate-200 bg-white/86 p-4 shadow-sm backdrop-blur-xl">
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <label className="text-sm font-medium text-gray-700">Members</label>
-                <p className="mt-1 text-xs text-slate-500">
-                  Search by name, email, or role. Duplicate selections are prevented
-                  automatically.
-                </p>
-              </div>
+              <label className="text-sm font-medium text-gray-700">Members</label>
               <Badge className="border border-emerald-100 bg-emerald-50 text-emerald-700 hover:bg-emerald-50">
                 {selectedMemberOptions.length} selected
               </Badge>
-            </div>
-
-            <div className="rounded-2xl border border-slate-900/10 bg-gradient-to-r from-slate-950 via-slate-900 to-cyan-900 px-4 py-4 text-white shadow-[0_18px_40px_-28px_rgba(15,23,42,0.9)]">
-              <div className="flex items-center gap-3">
-                <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-white/15 bg-white/10 text-sm font-semibold">
-                  <Layers3 className="h-5 w-5" />
-                </div>
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-semibold">Workspace-only membership</p>
-                  <p className="mt-1 text-xs text-white/70">
-                    Every selected member will be validated against this workspace
-                    before the team is created.
-                  </p>
-                </div>
-                <div className="ml-auto hidden items-center gap-1 rounded-full bg-white/10 px-3 py-1 text-[11px] uppercase tracking-[0.24em] text-white/80 sm:inline-flex">
-                  <Sparkles className="h-3.5 w-3.5" />
-                  Secure scope
-                </div>
-              </div>
             </div>
 
             <Select
@@ -210,6 +173,8 @@ const TeamComposer = ({
               isDisabled={!memberOptions.length || isPending}
               closeMenuOnSelect={false}
               hideSelectedOptions={false}
+              menuPosition="absolute"
+              menuPlacement="bottom"
               options={memberOptions}
               value={selectedMemberOptions}
               styles={memberSelectStyles}
@@ -257,9 +222,7 @@ const TeamComposer = ({
                     </button>
                   ))
                 ) : (
-                  <p className="text-sm text-slate-500">
-                    Selected members will appear here as quick-remove chips.
-                  </p>
+                  <p className="text-sm text-slate-500">No members selected.</p>
                 )}
               </div>
             </div>
@@ -274,7 +237,7 @@ const TeamComposer = ({
           <div
             className={
               isModal
-                ? "sticky bottom-0 -mx-4 border-t border-slate-200/80 bg-white/94 px-4 py-3 backdrop-blur sm:-mx-5 sm:px-5"
+                ? "mt-2 border-t border-slate-200/80 bg-white/94 px-4 py-3 sm:px-5"
                 : "sticky bottom-0 -mx-6 border-t border-slate-200/80 bg-white/94 px-6 py-3 backdrop-blur"
             }
           >

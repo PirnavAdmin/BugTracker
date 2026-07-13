@@ -648,20 +648,16 @@ const ProjectsPage = () => {
       <Dialog open={isCreateTeamDialogOpen} onOpenChange={setIsCreateTeamDialogOpen}>
         <DialogContent
           className={projectDialogContentClass(
-            "grid max-h-[calc(100svh-6.5rem)] w-[92vw] max-w-[1100px] grid-rows-[auto_minmax(0,1fr)] rounded-[24px] sm:max-h-[calc(100vh-120px)]"
+            "!top-[1rem] max-h-[calc(100svh-2rem)] grid w-[96vw] max-w-[1280px] grid-rows-[auto_minmax(0,1fr)] rounded-[24px] sm:!top-[1.5rem] sm:max-h-[calc(100vh-3rem)]"
           )}
         >
           <DialogHeader className={projectDialogHeaderClass()}>
             <DialogTitle className="pr-10 text-xl font-semibold tracking-tight text-slate-950">
               Create Team
             </DialogTitle>
-            <DialogDescription className="max-w-[42rem] pr-10 text-sm leading-6 text-slate-600">
-              Build a workspace-scoped team and add members from the current
-              workspace.
-            </DialogDescription>
           </DialogHeader>
 
-          <div className={projectDialogBodyClass("py-3.5 sm:py-4")}>
+          <div className={projectDialogBodyClass("overflow-visible py-3.5 sm:py-4")}>
             {workspaceUsersErrorMessage && !isWorkspaceUsersLoading ? (
               <div className="mb-4 rounded-[20px] border border-rose-200 bg-rose-50/80 px-4 py-3 text-sm text-rose-700">
                 {workspaceUsersErrorMessage}

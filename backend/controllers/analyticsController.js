@@ -25,7 +25,19 @@ const {
   getProjectIdsForUserThroughTeams,
   mergeProjectTeamIds,
 } = require("../utils/projectRelations");
-const { ROLE_ADMIN, ROLE_DEVELOPER, ROLE_MANAGER, ROLE_TESTER } = require("../utils/roles");
+const {
+  formatDate,
+  formatMonthYear,
+  getIndianDateKey,
+} = require("../utils/dateTime");
+const {
+  ROLE_ADMIN,
+  ROLE_DEVELOPER,
+  ROLE_MANAGER,
+  ROLE_TEAM_LEAD,
+  hasTaskStoryLeadAccess,
+  hasTesterAccess,
+} = require("../utils/roles");
 const { applyActiveSprintVisibilityToIssueQuery } = require("../utils/sprintVisibility");
 const { normalizeWorkspaceId } = require("../utils/workspace");
 
@@ -109,8 +121,14 @@ const parseDateInput = (value, label, { end = false } = {}) => {
     };
   }
 
+  const hasExplicitTime = typeof value === "string" && value.includes("T");
+
   return {
-    value: end ? endOfDay(parsedValue) : startOfDay(parsedValue),
+    value: hasExplicitTime
+      ? parsedValue
+      : end
+        ? endOfDay(parsedValue)
+        : startOfDay(parsedValue),
   };
 };
 
@@ -239,14 +257,14 @@ const addPersonalAccess = (match, user) => {
   const userObjectId = user._id || user.id;
   let personalAccessQuery;
 
-  if (user.role === ROLE_TESTER) {
+  if (hasTesterAccess(user.role)) {
     personalAccessQuery = {
       $or: [
         { assignee: userObjectId },
         { reporter: userObjectId },
       ],
     };
-  } else if (user.role === ROLE_DEVELOPER) {
+  } else if (user.role === ROLE_DEVELOPER || hasTaskStoryLeadAccess(user.role)) {
     personalAccessQuery = {
       $or: [
         { assignee: userObjectId },
@@ -577,7 +595,7 @@ const buildAnalyticsMatch = async (req, res) => {
     addPersonalAccess(match, req.user);
   }
 
-  if (req.user.role === ROLE_DEVELOPER) {
+  if (req.user.role === ROLE_DEVELOPER || hasTaskStoryLeadAccess(req.user.role)) {
     await applyActiveSprintVisibilityToIssueQuery(match, Sprint);
   }
 
@@ -679,6 +697,24 @@ const serializeIssueRef = (issue, extra = {}) => {
       ? {
           _id: resolveObjectId(issue.epicId),
           name: issue.epicId.name || "Untitled epic",
+        }
+      : null,
+    story: issue.parentStoryId
+      ? {
+          _id: resolveObjectId(issue.parentStoryId),
+          title: issue.parentStoryId.title || "Untitled story",
+          issueKey: issue.parentStoryId.issueKey || "",
+          displayBugId: issue.parentStoryId.displayBugId || "",
+          reporter:
+            issue.parentStoryId.reporter &&
+            typeof issue.parentStoryId.reporter === "object"
+              ? {
+                  _id: issue.parentStoryId.reporter._id,
+                  name: issue.parentStoryId.reporter.name,
+                  email: issue.parentStoryId.reporter.email,
+                  role: issue.parentStoryId.reporter.role,
+                }
+              : null,
         }
       : null,
     sprint: issue.sprintId
@@ -1406,9 +1442,15 @@ const getTrendRange = async (query, match) => {
     }
   }
 
-  const end = query.dateTo ? endOfDay(query.dateTo) : defaultEnd;
+  const end = query.dateTo
+    ? String(query.dateTo).includes("T")
+      ? new Date(query.dateTo)
+      : endOfDay(query.dateTo)
+    : defaultEnd;
   const start = query.dateFrom
-    ? startOfDay(query.dateFrom)
+    ? String(query.dateFrom).includes("T")
+      ? new Date(query.dateFrom)
+      : startOfDay(query.dateFrom)
     : startOfDay(end.getTime() - 29 * DAY_IN_MS);
 
   return {
@@ -1417,31 +1459,14 @@ const getTrendRange = async (query, match) => {
   };
 };
 
-const getDateKey = (value) =>
-  new Intl.DateTimeFormat("en-CA", {
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(new Date(value));
+const getDateKey = (value) => getIndianDateKey(value);
 
 const getMonthKey = (value) =>
-  new Intl.DateTimeFormat("en-CA", {
-    year: "numeric",
-    month: "2-digit",
-  }).format(new Date(value));
+  formatMonthYear(value, { month: "2-digit" }).replace(" ", "-");
 
-const formatShortDateLabel = (value) =>
-  new Intl.DateTimeFormat("en-GB", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "2-digit",
-  }).format(new Date(value));
+const formatShortDateLabel = (value) => formatDate(value);
 
-const formatShortMonthLabel = (value) =>
-  new Intl.DateTimeFormat("en-GB", {
-    month: "2-digit",
-    year: "2-digit",
-  }).format(new Date(value));
+const formatShortMonthLabel = (value) => formatMonthYear(value);
 
 const buildTrendRows = async (match, req) => {
   const eventScopeMatch = cloneWithoutCreatedAt(match);
@@ -1981,6 +2006,11 @@ const getIssueAnalyticsRows = asyncHandler(async (req, res) => {
     .populate("reporter", "name email role")
     .populate("bugDetails.developerLead", "name email role")
     .populate("bugDetails.testerOwner", "name email role")
+    .populate({
+      path: "parentStoryId",
+      select: "title reporter issueKey displayBugId",
+      populate: { path: "reporter", select: "name email role" },
+    })
     .populate("epicId", "name")
     .populate("sprintId", "name state")
     .lean();

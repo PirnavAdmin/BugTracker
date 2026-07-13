@@ -103,6 +103,25 @@ const sprintSchema = new Schema(
       type: Date,
       default: null,
     },
+    expiredAt: {
+      type: Date,
+      default: null,
+    },
+    lockOverride: {
+      enabled: {
+        type: Boolean,
+        default: false,
+      },
+      reopenedAt: {
+        type: Date,
+        default: null,
+      },
+      reopenedBy: {
+        type: Schema.Types.ObjectId,
+        ref: "User",
+        default: null,
+      },
+    },
     createdBy: {
       type: Schema.Types.ObjectId,
       ref: "User",

@@ -1,6 +1,7 @@
 export const ROLE_ADMIN = "Admin";
 export const ROLE_MANAGER = "Manager";
 export const ROLE_TEAM_LEAD = "Team Lead";
+export const ROLE_QA_LEAD = "Q/A Lead";
 export const ROLE_DEVELOPER = "Developer";
 export const ROLE_TESTER = "Tester";
 
@@ -8,18 +9,24 @@ export const WORKSPACE_ROLE_OPTIONS = [
   ROLE_ADMIN,
   ROLE_MANAGER,
   ROLE_TEAM_LEAD,
+  ROLE_QA_LEAD,
   ROLE_DEVELOPER,
   ROLE_TESTER,
 ];
 
 export const ADMIN_PANEL_ROLES = [ROLE_ADMIN, ROLE_MANAGER];
+export const TESTER_PANEL_ROLES = [ROLE_TESTER, ROLE_QA_LEAD];
+export const TASK_STORY_LEAD_ROLES = [ROLE_TEAM_LEAD, ROLE_QA_LEAD];
 
 export const hasAdminPanelAccess = (role) => ADMIN_PANEL_ROLES.includes(role);
+export const hasTesterPanelAccess = (role) => TESTER_PANEL_ROLES.includes(role);
+export const hasTaskStoryLeadAccess = (role) => TASK_STORY_LEAD_ROLES.includes(role);
 
 export const dashboardPathByRole = {
   [ROLE_ADMIN]: "/admin/dashboard",
   [ROLE_MANAGER]: "/admin/dashboard",
   [ROLE_TEAM_LEAD]: "/dev/dashboard",
+  [ROLE_QA_LEAD]: "/tester/dashboard",
   [ROLE_DEVELOPER]: "/dev/dashboard",
   [ROLE_TESTER]: "/tester/dashboard",
 };
@@ -33,14 +40,15 @@ export const getRoleNavigation = (role) => {
       { label: "Dashboard", href: dashboardPathByRole[ROLE_ADMIN], icon: "dashboard" },
       { label: "Projects", href: "/projects", icon: "projects" },
       { label: "Backlog", href: "/backlog", icon: "backlog" },
-      { label: "Tasks", href: "/issues", icon: "issues" },
+      { label: "Stories", href: "/stories", icon: "stories" },
+      { label: "Tasks", href: "/tasks", icon: "tasks" },
       { label: "Bugs", href: "/admin/bugs", icon: "bugs" },
       { label: "Reports", href: "/reports", icon: "reports" },
       { label: "Chat", href: "/chat", icon: "chat" },
     ];
 
     if (role === ROLE_ADMIN) {
-      navigation.splice(6, 0, {
+      navigation.splice(7, 0, {
         label: "Team Activity",
         href: "/admin/team-activity",
         icon: "activity",
@@ -50,11 +58,12 @@ export const getRoleNavigation = (role) => {
     return navigation;
   }
 
-  if (role === ROLE_TESTER) {
+  if (hasTesterPanelAccess(role)) {
     return [
-      { label: "Dashboard", href: dashboardPathByRole[ROLE_TESTER], icon: "dashboard" },
-      { label: "Bugs", href: "/bugs", icon: "bugs" },
+      { label: "Dashboard", href: dashboardPathByRole[role] || dashboardPathByRole[ROLE_TESTER], icon: "dashboard" },
+      { label: "Stories", href: "/stories", icon: "stories" },
       { label: "Tasks", href: "/tasks", icon: "tasks" },
+      { label: "Bugs", href: "/bugs", icon: "bugs" },
       { label: "Reports", href: "/reports", icon: "reports" },
       { label: "Chat", href: "/chat", icon: "chat" },
     ];
@@ -62,16 +71,24 @@ export const getRoleNavigation = (role) => {
 
   return [
     { label: "Dashboard", href: dashboardPathByRole[ROLE_DEVELOPER], icon: "dashboard" },
-    { label: "Bugs", href: "/dev/bugs", icon: "bugs" },
+    { label: "Stories", href: "/stories", icon: "stories" },
     { label: "Tasks", href: "/tasks", icon: "tasks" },
+    { label: "Bugs", href: "/dev/bugs", icon: "bugs" },
     { label: "Reports", href: "/reports", icon: "reports" },
     { label: "Chat", href: "/chat", icon: "chat" },
   ];
 };
 
 export const getPageMeta = (pathname, role) => {
+  if (pathname.startsWith("/stories/")) {
+    return {
+      title: "Story Details",
+      description: "Review Story scope, linked work, discussion, files, and delivery activity.",
+    };
+  }
+
   if (pathname === "/dev/settings") {
-    if (role === ROLE_TESTER) {
+    if (hasTesterPanelAccess(role)) {
       return {
         title: "Mail Settings",
         description:
@@ -157,6 +174,10 @@ export const getPageMeta = (pathname, role) => {
       description:
         "Invite teammates, update workspace roles, configure mail senders, and manage workspace access controls.",
     },
+    "/stories": {
+      title: "Stories",
+      description: "Track Story outcomes and open focused delivery details for Tasks, Bugs, and collaboration.",
+    },
     "/admin/team-activity": {
       title: "Team Activity",
       description:
@@ -173,7 +194,7 @@ export const getPageMeta = (pathname, role) => {
       };
     }
 
-    if (role === ROLE_TESTER) {
+    if (hasTesterPanelAccess(role)) {
       return {
         title: "Assigned Project Bugs",
         description:
@@ -198,7 +219,8 @@ export const getPageMeta = (pathname, role) => {
 
 export const canManageUsers = (role) => hasAdminPanelAccess(role);
 export const canManageProjects = (role) => hasAdminPanelAccess(role);
-export const canAssignIssues = (role) => hasAdminPanelAccess(role);
+export const canAssignIssues = (role) =>
+  hasAdminPanelAccess(role) || hasTaskStoryLeadAccess(role);
 export const canDeleteIssues = (role) => hasAdminPanelAccess(role);
 export const canCreateIssues = (role) =>
-  hasAdminPanelAccess(role) || role === ROLE_TESTER;
+  hasAdminPanelAccess(role) || hasTesterPanelAccess(role);

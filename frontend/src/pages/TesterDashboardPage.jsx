@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Activity,
+  AlertTriangle,
   Bell,
   Bug,
   CalendarDays,
@@ -14,9 +15,7 @@ import {
   RefreshCcw,
   RotateCcw,
   Search,
-  Star,
   TimerReset,
-  Trophy,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import {
@@ -41,19 +40,21 @@ import {
   getIssuePriorityVariant,
   getIssueStatusLabel,
   getIssueStatusVariant,
+  isIssueOverdue,
   normalizeBugStatusForIssue,
   normalizeIssueStatus,
   resolveBugDetails,
   resolveIssueProjectId,
 } from "@/lib/issues";
 import { getProjectTeams, resolveUserId } from "@/lib/project-teams";
-import { ROLE_TESTER } from "@/lib/roles";
+import { hasTesterPanelAccess } from "@/lib/roles";
 import { cn, formatDate, formatDateTime } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
 import { readStoredSession } from "@/lib/session";
 import { getChatSocket } from "@/lib/socket";
 import EmptyState from "@/components/shared/EmptyState";
 import NotificationCard from "@/components/dashboard/NotificationCard";
+import GreetingBeachScene from "@/components/dashboard/GreetingBeachScene";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -117,32 +118,6 @@ const STATUS_CHART_META = [
     gradient: "from-cyan-500 to-teal-500",
     Icon: PauseCircle,
     track: "bg-cyan-100",
-  },
-];
-
-const PROJECT_CHIP_ACCENTS = [
-  {
-    dot: "bg-blue-500",
-    className: "border-blue-200/70 bg-blue-50/82 text-blue-700 hover:bg-blue-100/82",
-  },
-  {
-    dot: "bg-emerald-500",
-    className:
-      "border-emerald-200/70 bg-emerald-50/82 text-emerald-700 hover:bg-emerald-100/82",
-  },
-  {
-    dot: "bg-violet-500",
-    className:
-      "border-violet-200/70 bg-violet-50/82 text-violet-700 hover:bg-violet-100/82",
-  },
-  {
-    dot: "bg-amber-500",
-    className:
-      "border-amber-200/70 bg-amber-50/82 text-amber-700 hover:bg-amber-100/82",
-  },
-  {
-    dot: "bg-cyan-500",
-    className: "border-cyan-200/70 bg-cyan-50/82 text-cyan-700 hover:bg-cyan-100/82",
   },
 ];
 
@@ -283,34 +258,6 @@ const DashboardIconButton = ({ children, className, ...props }) => (
   </Button>
 );
 
-const AttachedProjectsTile = ({ projects = [] }) => (
-  <div className="flex min-h-11 min-w-0 flex-1 items-center gap-2 overflow-hidden rounded-2xl border border-white/70 bg-white/78 px-3 shadow-sm backdrop-blur-xl max-sm:w-full max-sm:flex-wrap sm:h-11">
-    <span className="shrink-0 text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
-      Attached Projects :
-    </span>
-
-    <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2 overflow-x-auto py-1 sm:flex-nowrap">
-      {projects.map((project, index) => {
-        const accent = PROJECT_CHIP_ACCENTS[index % PROJECT_CHIP_ACCENTS.length];
-
-        return (
-          <span
-            className={cn(
-              "inline-flex h-7 max-w-[150px] shrink-0 items-center gap-1.5 rounded-full border px-2.5 text-xs font-semibold shadow-sm transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_12px_24px_-18px_rgba(15,23,42,0.42)]",
-              accent.className
-            )}
-            key={project._id}
-            title={project.name}
-          >
-            <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", accent.dot)} />
-            <span className="truncate">{project.name || "Project"}</span>
-          </span>
-        );
-      })}
-    </div>
-  </div>
-);
-
 const SummaryCard = ({ Icon, className, label, value }) => (
   <Card className="group overflow-hidden border-white/70 bg-white/86 shadow-[0_18px_48px_-34px_rgba(15,23,42,0.34)] backdrop-blur-xl transition duration-300 hover:-translate-y-1 hover:border-blue-100 hover:shadow-[0_24px_54px_-30px_rgba(37,99,235,0.32)]">
     <CardContent className="relative overflow-hidden p-4">
@@ -335,50 +282,6 @@ const SummaryCard = ({ Icon, className, label, value }) => (
     </CardContent>
   </Card>
 );
-
-const clampScore = (value) => Math.min(100, Math.max(0, Math.round(Number(value) || 0)));
-const ratingLabel = (score) =>
-  score >= 85 ? "Excellent" : score >= 70 ? "Good" : score >= 55 ? "Average" : "Needs Improvement";
-
-const RoleRatingCard = ({ metrics }) => {
-  const stars = Math.max(1, Math.min(5, Math.round(metrics.score / 20)));
-
-  return (
-    <div className="flex min-h-11 min-w-[260px] flex-1 items-center gap-3 rounded-2xl border border-white/70 bg-[linear-gradient(135deg,rgba(15,23,42,0.96),rgba(79,70,229,0.9),rgba(14,165,233,0.82))] px-4 py-3 text-white shadow-[0_18px_42px_-28px_rgba(79,70,229,0.88)] backdrop-blur-xl max-sm:w-full lg:max-w-[430px]">
-      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-white/20 bg-white/12 text-amber-300">
-        <Trophy className="h-5 w-5" />
-      </div>
-      <div className="min-w-0 flex-1">
-        <div className="flex items-center justify-between gap-3">
-          <div className="min-w-0">
-            <p className="truncate text-xs font-bold uppercase tracking-[0.18em] text-blue-100">
-              Tester Rating
-            </p>
-            <p className="mt-0.5 text-sm font-semibold text-white">
-              {ratingLabel(metrics.score)} · {metrics.score}/100
-            </p>
-          </div>
-          <div className="flex shrink-0 gap-0.5 text-amber-300">
-            {Array.from({ length: 5 }).map((_, index) => (
-              <Star
-                className={cn("h-3.5 w-3.5", index < stars ? "fill-current" : "opacity-30")}
-                key={index}
-              />
-            ))}
-          </div>
-        </div>
-        <div className="mt-2 grid grid-cols-3 gap-2 text-center text-[11px]">
-          {metrics.items.map((item) => (
-            <div className="rounded-xl bg-white/12 px-2 py-1.5" key={item.label}>
-              <p className="font-bold text-white">{item.value}</p>
-              <p className="truncate text-blue-100">{item.label}</p>
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-};
 
 const ChartCard = ({ children, title }) => (
   <Card className="min-w-0 overflow-hidden rounded-2xl border-white/70 bg-white/88 shadow-[0_20px_56px_-36px_rgba(15,23,42,0.38)] backdrop-blur-xl">
@@ -492,8 +395,16 @@ const TesterDashboardPage = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { user } = useAuth();
+  const currentHour = new Date().getHours();
+  const greeting = currentHour < 12
+    ? "Good morning"
+    : currentHour < 17
+      ? "Good afternoon"
+      : "Good evening";
+  const timeOfDay = currentHour < 12 ? "morning" : currentHour < 17 ? "afternoon" : "evening";
+  const testerName = String(user?.name || "Tester").trim().split(/\s+/)[0];
   const testerId = String(user?._id || user?.id || "");
-  const isTester = user?.role === ROLE_TESTER;
+  const isTester = hasTesterPanelAccess(user?.role);
   const [searchTerm, setSearchTerm] = useState("");
   const [projectFilter, setProjectFilter] = useState("all");
   const [lastRefreshedAt, setLastRefreshedAt] = useState(() => new Date());
@@ -630,40 +541,10 @@ const TesterDashboardPage = () => {
 
     return metrics;
   }, [visibleIssues]);
-  const testerRating = useMemo(() => {
-    const verified = dashboardMetrics.closed + dashboardMetrics.resolved;
-    const verificationRate = dashboardMetrics.total
-      ? Math.round((verified / dashboardMetrics.total) * 100)
-      : 100;
-    const reopenRate = dashboardMetrics.total
-      ? Math.round((dashboardMetrics.reopened / dashboardMetrics.total) * 100)
-      : 0;
-    const rejectionRate = dashboardMetrics.total
-      ? Math.round((dashboardMetrics.deferred / dashboardMetrics.total) * 100)
-      : 0;
-    const completedRecentTasks = recentTasks.filter((task) =>
-      [ISSUE_STATUS.DONE, ISSUE_STATUS.CLOSED].includes(normalizeIssueStatus(task.status))
-    ).length;
-    const taskCompletionRate = recentTasks.length
-      ? Math.round((completedRecentTasks / recentTasks.length) * 100)
-      : 100;
-    const score = clampScore(
-      verificationRate * 0.45 +
-        Math.max(0, 100 - reopenRate) * 0.22 +
-        Math.max(0, 100 - rejectionRate) * 0.18 +
-        taskCompletionRate * 0.15
-    );
-
-    return {
-      score,
-      items: [
-        { label: "Verified", value: `${verificationRate}%` },
-        { label: "Reopen", value: `${reopenRate}%` },
-        { label: "QA Tasks", value: `${taskCompletionRate}%` },
-      ],
-    };
-  }, [dashboardMetrics, recentTasks]);
-
+  const overdueTasksCount = useMemo(
+    () => (Array.isArray(recentTasks) ? recentTasks : []).filter((issue) => isIssueOverdue(issue)).length,
+    [recentTasks]
+  );
   const statusChartData = useMemo(
     () =>
       STATUS_CHART_META.map((item) => ({
@@ -758,8 +639,9 @@ const TesterDashboardPage = () => {
 
   return (
     <div className="space-y-5">
-      <section className="flex flex-wrap items-center gap-3 rounded-[28px] border border-white/70 bg-white/82 p-3 shadow-[0_22px_58px_-38px_rgba(15,23,42,0.36)] backdrop-blur-xl lg:flex-nowrap">
-        <div className="relative w-full min-w-0 shrink-0 sm:flex-1 lg:w-[420px] lg:flex-none xl:w-[460px]">
+      <section className="relative isolate flex flex-wrap items-center gap-3 overflow-hidden rounded-[28px] border border-blue-100/80 bg-white p-3 shadow-[0_24px_65px_-42px_rgba(37,99,235,0.65)] lg:flex-nowrap">
+        <GreetingBeachScene timeOfDay={timeOfDay} />
+        <div className="relative z-10 w-full min-w-0 shrink-0 sm:flex-1 lg:w-[420px] lg:flex-none xl:w-[460px]">
           <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
           <Input
             aria-label="Search bugs"
@@ -771,7 +653,7 @@ const TesterDashboardPage = () => {
         </div>
 
         <Button
-          className="interactive-button h-11 w-full shrink-0 rounded-2xl border border-indigo-300/30 bg-[linear-gradient(90deg,#2563EB_0%,#6366F1_55%,#8B5CF6_100%)] px-4 text-white shadow-[0_14px_28px_-18px_rgba(99,102,241,0.82)] hover:brightness-105 sm:w-auto sm:px-5"
+          className="interactive-button relative z-10 h-11 w-full shrink-0 rounded-2xl border border-indigo-300/30 bg-[linear-gradient(90deg,#2563EB_0%,#6366F1_55%,#8B5CF6_100%)] px-4 text-white shadow-[0_14px_28px_-18px_rgba(99,102,241,0.82)] hover:brightness-105 sm:w-auto sm:px-5"
           onClick={() => navigate("/bugs?view=report")}
           type="button"
         >
@@ -779,9 +661,17 @@ const TesterDashboardPage = () => {
           New Bug
         </Button>
 
-        <AttachedProjectsTile projects={assignedProjects} />
-
-        <RoleRatingCard metrics={testerRating} />
+        <div className="relative z-10 min-w-[240px] flex-1 px-3 py-1 [text-shadow:0_1px_12px_rgba(255,255,255,0.9)] lg:text-right">
+          <p className="text-xl font-semibold tracking-tight text-slate-950">
+            {greeting},{" "}
+            <span className="inline-flex rounded-lg bg-gradient-to-r from-indigo-600 to-violet-500 px-2.5 py-0.5 text-white shadow-[0_8px_20px_-10px_rgba(99,102,241,0.9)]">
+              {testerName}
+            </span>
+          </p>
+          <p className="mt-1 text-sm font-medium text-slate-700">
+            Welcome back. Here’s what’s happening with your QA work today.
+          </p>
+        </div>
       </section>
 
       <section className="flex snap-x gap-3 overflow-x-auto pb-2 md:grid md:grid-cols-2 md:gap-4 md:overflow-visible md:pb-0 xl:grid-cols-5 [&>*]:min-w-[220px] [&>*]:snap-start md:[&>*]:min-w-0">
@@ -794,6 +684,12 @@ const TesterDashboardPage = () => {
             value={dashboardMetrics[item.key]}
           />
         ))}
+        <SummaryCard
+          Icon={AlertTriangle}
+          className="from-rose-500 to-orange-500"
+          label="My Overdue Tasks"
+          value={overdueTasksCount}
+        />
       </section>
 
       <section className="grid gap-5 xl:grid-cols-[0.86fr_1.14fr]">

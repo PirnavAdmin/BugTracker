@@ -3,10 +3,16 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSearchParams } from "react-router-dom";
 import {
   ListTodo,
+  Plus,
+  UserCircle2,
+  Users2,
 } from "lucide-react";
 import {
+  createIssue,
+  deleteIssue,
   fetchIssues,
   fetchProjects,
+  uploadIssueAttachment,
   updateIssue,
   updateTaskStatus,
 } from "@/lib/api";
@@ -14,6 +20,8 @@ import { useAuth } from "@/hooks/use-auth";
 import {
   ISSUE_TYPES,
 } from "@/lib/issues";
+import { canDeleteIssues, hasTaskStoryLeadAccess } from "@/lib/roles";
+import IssueCreateDialog from "@/components/issues/IssueCreateDialog";
 import IssueDetailsDialog from "@/components/issues/IssueDetailsDialog";
 import TaskKanbanBoard from "@/components/tasks/TaskKanbanBoard";
 import {
@@ -21,6 +29,7 @@ import {
   getTaskBoardStatus,
 } from "@/components/tasks/taskBoardStatus";
 import EmptyState from "@/components/shared/EmptyState";
+import ToastNotice from "@/components/shared/ToastNotice";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -33,9 +42,14 @@ import { Skeleton } from "@/components/ui/skeleton";
 
 const TasksPage = () => {
   const queryClient = useQueryClient();
-  const { user } = useAuth();
+  const { role, user } = useAuth();
   const [searchParams] = useSearchParams();
   const [selectedIssue, setSelectedIssue] = useState(null);
+  const [taskScope, setTaskScope] = useState("mine");
+  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  const [toast, setToast] = useState(null);
+  const isTeamLead = hasTaskStoryLeadAccess(role);
+  const canDeleteTask = canDeleteIssues(role);
   const statusFilter = useMemo(() => {
     const value = String(searchParams.get("status") || "all").trim().toUpperCase();
 
@@ -60,50 +74,124 @@ const TasksPage = () => {
     queryFn: () => fetchIssues({ type: ISSUE_TYPES.TASK, assigneeId: "me" }),
   });
 
+  const {
+    data: teamTaskIssues = [],
+    isLoading: isTeamTasksLoading,
+    error: teamTasksError,
+  } = useQuery({
+    queryKey: ["issues", "team-lead", "tasks", user?._id || user?.id || ""],
+    queryFn: () => fetchIssues({ type: ISSUE_TYPES.TASK, teamProgress: true }),
+    enabled: isTeamLead,
+  });
+
+  const {
+    data: dependencyIssues = [],
+  } = useQuery({
+    queryKey: ["issues", "tasks-page", "dependency-options", role],
+    queryFn: () => fetchIssues({ excludeType: ISSUE_TYPES.BUG }),
+    enabled: isTeamLead && isCreateDialogOpen,
+  });
+
+  const activeTaskIssues = isTeamLead && taskScope === "team" ? teamTaskIssues : taskIssues;
+  const isTeamProgressView = isTeamLead && taskScope === "team";
+
   useEffect(() => {
     if (!selectedIssue) {
       return;
     }
 
-    const nextIssue = taskIssues.find(
+    const nextIssue = activeTaskIssues.find(
       (issue) => issue._id === selectedIssue._id
     );
 
     if (nextIssue) {
       setSelectedIssue(nextIssue);
+      return;
     }
-  }, [selectedIssue, taskIssues]);
+
+    setSelectedIssue(null);
+  }, [activeTaskIssues, selectedIssue]);
+
+  const removeIssueFromCachedLists = (issueId) => {
+    queryClient
+      .getQueriesData({
+        queryKey: ["issues"],
+      })
+      .forEach(([queryKey, currentData]) => {
+        if (!Array.isArray(currentData)) {
+          return;
+        }
+
+        queryClient.setQueryData(
+          queryKey,
+          currentData.filter((issue) => String(issue._id) !== String(issueId))
+        );
+      });
+  };
+
+  const invalidateTaskWorkspaceQueries = async () => {
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ["issues"] }),
+      queryClient.invalidateQueries({ queryKey: ["tasks"] }),
+      queryClient.invalidateQueries({ queryKey: ["reports"] }),
+      queryClient.invalidateQueries({ queryKey: ["analytics"] }),
+    ]);
+  };
 
   const visibleTaskIssues = useMemo(
     () =>
       statusFilter === "all"
-        ? taskIssues
-        : taskIssues.filter((issue) => getTaskBoardStatus(issue) === statusFilter),
-    [statusFilter, taskIssues]
+        ? activeTaskIssues
+        : activeTaskIssues.filter((issue) => getTaskBoardStatus(issue) === statusFilter),
+    [activeTaskIssues, statusFilter]
   );
 
   const updateIssueMutation = useMutation({
     mutationFn: updateIssue,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["issues"] });
-      queryClient.invalidateQueries({ queryKey: ["tasks"] });
-      queryClient.invalidateQueries({ queryKey: ["reports"] });
-      queryClient.invalidateQueries({ queryKey: ["analytics"] });
+    onSuccess: async () => {
+      await invalidateTaskWorkspaceQueries();
     },
   });
 
   const updateTaskStatusMutation = useMutation({
     mutationFn: updateTaskStatus,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["issues"] });
-      queryClient.invalidateQueries({ queryKey: ["tasks"] });
-      queryClient.invalidateQueries({ queryKey: ["reports"] });
-      queryClient.invalidateQueries({ queryKey: ["analytics"] });
+    onSuccess: async () => {
+      await invalidateTaskWorkspaceQueries();
     },
   });
 
-  const error = projectsError || tasksError;
-  const isWorkLoading = isProjectsLoading || isTasksLoading;
+  const createIssueMutation = useMutation({
+    mutationFn: createIssue,
+    onSuccess: async () => {
+      await invalidateTaskWorkspaceQueries();
+    },
+  });
+
+  const deleteIssueMutation = useMutation({
+    mutationFn: deleteIssue,
+    onSuccess: (_response, deletedIssueId) => {
+      removeIssueFromCachedLists(deletedIssueId);
+      setSelectedIssue((current) =>
+        String(current?._id || "") === String(deletedIssueId) ? null : current
+      );
+      setToast({
+        id: `delete-success-${Date.now()}`,
+        type: "success",
+        message: "Task deleted successfully.",
+      });
+      invalidateTaskWorkspaceQueries();
+    },
+    onError: (error) => {
+      setToast({
+        id: `delete-error-${Date.now()}`,
+        type: "error",
+        message: error.response?.data?.message || "Unable to delete this task.",
+      });
+    },
+  });
+
+  const error = projectsError || tasksError || teamTasksError;
+  const isWorkLoading = isProjectsLoading || isTasksLoading || (isTeamLead && isTeamTasksLoading);
 
   if (error) {
     return (
@@ -129,15 +217,54 @@ const TasksPage = () => {
       ) : (
         <Card className="overflow-hidden border-white/70 bg-white/92 shadow-[0_18px_50px_-34px_rgba(15,23,42,0.45)] backdrop-blur">
           <CardHeader className="border-b border-slate-200/80 bg-[linear-gradient(135deg,rgba(255,255,255,0.94),rgba(239,246,255,0.92),rgba(238,242,255,0.88))]">
-            <div>
-              <CardTitle>Assigned Tasks</CardTitle>
-              <CardDescription>
-                Tasks assigned to you by managers or admins. For bug reporting and review, visit the Bugs page.
-              </CardDescription>
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+              <div>
+                <CardTitle>
+                  {isTeamProgressView ? "Team Progress" : "Assigned Tasks"}
+                </CardTitle>
+                <CardDescription>
+                  {isTeamLead
+                    ? "Switch between your own assigned tasks and read-only team progress."
+                    : "Tasks assigned to you by managers or admins. For bug reporting and review, visit the Bugs page."}
+                </CardDescription>
+              </div>
+
+              {isTeamLead ? (
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                  <div className="inline-flex rounded-2xl border border-slate-200 bg-white/80 p-1 shadow-sm">
+                    <Button
+                      className="h-9 rounded-xl px-3"
+                      type="button"
+                      variant={taskScope === "mine" ? "default" : "ghost"}
+                      onClick={() => setTaskScope("mine")}
+                    >
+                      <UserCircle2 className="h-4 w-4" />
+                      My tasks
+                    </Button>
+                    <Button
+                      className="h-9 rounded-xl px-3"
+                      type="button"
+                      variant={taskScope === "team" ? "default" : "ghost"}
+                      onClick={() => setTaskScope("team")}
+                    >
+                      <Users2 className="h-4 w-4" />
+                      Team progress
+                    </Button>
+                  </div>
+                  <Button
+                    className="h-10 rounded-2xl"
+                    type="button"
+                    onClick={() => setIsCreateDialogOpen(true)}
+                  >
+                    <Plus className="h-4 w-4" />
+                    Assign task
+                  </Button>
+                </div>
+              ) : null}
             </div>
           </CardHeader>
           <CardContent className="p-4 sm:p-5">
-            {taskIssues.length ? (
+            {activeTaskIssues.length ? (
               <TaskKanbanBoard
                 issues={visibleTaskIssues}
                 updatingId={
@@ -146,17 +273,33 @@ const TasksPage = () => {
                     : ""
                 }
                 onSelectIssue={setSelectedIssue}
-                onStatusChange={(id, status) =>
-                  updateTaskStatusMutation.mutateAsync({
-                    id,
-                    status,
-                  })
+                readOnly={isTeamProgressView}
+                onStatusChange={
+                  isTeamProgressView
+                    ? undefined
+                    : (id, status) =>
+                        updateTaskStatusMutation.mutateAsync({
+                          id,
+                          status,
+                        })
+                }
+                emptyStateTitle={
+                  isTeamProgressView ? "No team tasks found" : "No assigned tasks"
+                }
+                emptyStateDescription={
+                  isTeamProgressView
+                    ? "Team tasks will appear here once developers have assigned work."
+                    : "Assigned work will appear here once it is available."
                 }
               />
             ) : (
               <EmptyState
-                title="No tasks assigned yet"
-                description="Tasks assigned to you by managers or admins will appear here. For bug reporting and review, visit the Bugs page."
+                title={isTeamProgressView ? "No team tasks found" : "No tasks assigned yet"}
+                description={
+                  isTeamProgressView
+                    ? "Team tasks will appear here once developers have assigned work."
+                    : "Tasks assigned to you by managers or admins will appear here. For bug reporting and review, visit the Bugs page."
+                }
                 icon={<ListTodo className="h-5 w-5" />}
               />
             )}
@@ -165,9 +308,9 @@ const TasksPage = () => {
       )}
 
       <IssueDetailsDialog
-        deletingId=""
+        deletingId={deleteIssueMutation.isPending ? deleteIssueMutation.variables : ""}
         issue={selectedIssue}
-        onDeleteIssue={async () => {}}
+        onDeleteIssue={(id) => deleteIssueMutation.mutateAsync(id)}
         onOpenChange={(open) => {
           if (!open) {
             setSelectedIssue(null);
@@ -179,10 +322,33 @@ const TasksPage = () => {
         open={Boolean(selectedIssue)}
         projects={projects}
         updatingId={updateIssueMutation.isPending ? updateIssueMutation.variables?.id : ""}
-        canEditPriority={false}
-        canEditAssignee={false}
-        canDeleteIssue={false}
+        canEditCoreDetails={isTeamLead}
+        canEditStatus={!isTeamProgressView}
+        canEditPriority={isTeamLead}
+        canEditAssignee={isTeamLead}
+        canDeleteIssue={canDeleteTask && !isTeamProgressView}
       />
+
+      {isTeamLead ? (
+        <IssueCreateDialog
+          open={isCreateDialogOpen}
+          onOpenChange={setIsCreateDialogOpen}
+          projects={projects}
+          availableIssues={dependencyIssues}
+          defaultType={ISSUE_TYPES.TASK}
+          allowedTypes={[ISSUE_TYPES.TASK]}
+          lockType
+          isPending={createIssueMutation.isPending}
+          onSubmit={async (payload) => {
+            const createdIssue = await createIssueMutation.mutateAsync(payload);
+            setIsCreateDialogOpen(false);
+            return createdIssue;
+          }}
+          onUploadAttachment={uploadIssueAttachment}
+        />
+      ) : null}
+
+      <ToastNotice toast={toast} onDismiss={() => setToast(null)} />
     </div>
   );
 };
