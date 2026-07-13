@@ -3,7 +3,6 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { ISSUE_TYPE_OPTIONS } from "@/lib/issues";
 
 const ALL_PROJECTS_VALUE = "ALL";
 
@@ -11,9 +10,7 @@ const IssuesToolbar = ({
   filters,
   projects = [],
   teams = [],
-  sprints = [],
   assignees = [],
-  issueTypes = ISSUE_TYPE_OPTIONS,
   visibleIssueCount = 0,
   activeStatusLabel = "",
   selectedProject = null,
@@ -22,9 +19,7 @@ const IssuesToolbar = ({
   isCreateDisabled = false,
   onProjectChange,
   onTeamChange,
-  onSprintChange,
   onAssigneeChange,
-  onTypeChange,
   onDateFromChange,
   onDateToChange,
   onSearchChange,
@@ -72,7 +67,7 @@ const IssuesToolbar = ({
           </div>
         </div>
 
-        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-[180px_180px_180px_260px_180px_160px_minmax(0,1fr)]">
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-[minmax(180px,1fr)_minmax(180px,1fr)_minmax(180px,1fr)_minmax(260px,1.25fr)_minmax(240px,1.5fr)]">
           <label className="space-y-2">
             <span className="text-xs uppercase tracking-[0.22em] text-gray-500">
               Project
@@ -149,44 +144,6 @@ const IssuesToolbar = ({
                 onChange={(event) => onDateToChange(event.target.value)}
               />
             </div>
-          </label>
-
-          <label className="space-y-2">
-            <span className="text-xs uppercase tracking-[0.22em] text-gray-500">
-              Sprint
-            </span>
-            <select
-              className="field-select"
-              value={filters.sprintId}
-              onChange={(event) => onSprintChange(event.target.value)}
-              disabled={!selectedProject}
-            >
-              <option value="all">All sprints</option>
-              <option value="backlog">Backlog</option>
-              {sprints.map((sprint) => (
-                <option key={sprint._id} value={sprint._id}>
-                  {sprint.name}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <label className="space-y-2">
-            <span className="text-xs uppercase tracking-[0.22em] text-gray-500">
-              Type
-            </span>
-            <select
-              className="field-select"
-              value={filters.type}
-              onChange={(event) => onTypeChange(event.target.value)}
-            >
-              <option value="all">{issueTypes.join(" / ")}</option>
-              {issueTypes.map((type) => (
-                <option key={type} value={type}>
-                  {type}
-                </option>
-              ))}
-            </select>
           </label>
 
           <label className="space-y-2">
