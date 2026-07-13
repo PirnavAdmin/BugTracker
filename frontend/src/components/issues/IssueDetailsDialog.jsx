@@ -52,7 +52,7 @@ import {
   getProjectTeams,
   resolveUserId,
 } from "@/lib/project-teams";
-import { ROLE_DEVELOPER, ROLE_TEAM_LEAD } from "@/lib/roles";
+import { ROLE_DEVELOPER, ROLE_TEAM_LEAD, ROLE_TESTER } from "@/lib/roles";
 import { cn, formatDate, formatDateTime, formatTime, getInitials } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -203,7 +203,7 @@ const IssueDetailsDialog = ({
     () =>
       role === ROLE_TEAM_LEAD && ["Task", "Sub-task"].includes(detailDraft.type)
         ? availableAssignees.filter((assignee) =>
-            ["Developer", ROLE_TEAM_LEAD].includes(assignee.role)
+            [ROLE_DEVELOPER, ROLE_TEAM_LEAD, ROLE_TESTER].includes(assignee.role)
           )
         : availableAssignees,
     [availableAssignees, detailDraft.type, role]

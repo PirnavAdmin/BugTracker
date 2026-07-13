@@ -33,7 +33,7 @@ import {
   resolveTeamId,
   resolveUserId,
 } from "@/lib/project-teams";
-import { hasAdminPanelAccess, ROLE_DEVELOPER, ROLE_TEAM_LEAD } from "@/lib/roles";
+import { hasAdminPanelAccess, ROLE_DEVELOPER, ROLE_TEAM_LEAD, ROLE_TESTER } from "@/lib/roles";
 import { formatDate, getInitials } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
 
@@ -500,7 +500,7 @@ const IssueCreateDialog = ({
     () =>
       role === ROLE_TEAM_LEAD && ["Task", "Sub-task"].includes(formData.type)
         ? availableAssignees.filter((assignee) =>
-            ["Developer", ROLE_TEAM_LEAD].includes(assignee.role)
+            [ROLE_DEVELOPER, ROLE_TEAM_LEAD, ROLE_TESTER].includes(assignee.role)
           )
         : availableAssignees,
     [availableAssignees, formData.type, role]
@@ -1247,7 +1247,7 @@ const IssueCreateDialog = ({
                           noOptionsMessage={() =>
                             formData.teamId
                               ? role === ROLE_TEAM_LEAD && ["Task", "Sub-task"].includes(formData.type)
-                                ? "No developers or team leads available in this team."
+                                ? "No developers, team leads, or QA leads available in this team."
                                 : "No teammates available in this team."
                               : "Select a team first."
                           }
