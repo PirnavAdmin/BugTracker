@@ -460,6 +460,47 @@ const LiquidBugStatusCard = ({ row, fillPercent = 0, onOpen }) => {
   );
 };
 
+const TeamTaskWorkloadCard = ({ row, onOpen }) => {
+  const fillPercent = Math.max(5, Math.min(100, row.completionRate || 0));
+
+  return (
+    <button
+      type="button"
+      onClick={() => onOpen(row.teamId ? { teamId: row.teamId } : {})}
+      className="group relative min-h-[84px] w-full overflow-hidden rounded-[24px] border border-white/75 bg-white/58 px-4 py-3 text-left shadow-[0_18px_44px_-34px_rgba(79,70,229,0.55)] backdrop-blur-xl transition duration-300 hover:-translate-y-0.5 hover:border-violet-200/90 hover:bg-white/72 hover:shadow-[0_24px_58px_-36px_rgba(124,58,237,0.62)] dark:border-slate-800/70 dark:bg-slate-950/70"
+    >
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_0%,rgba(255,255,255,0.92),transparent_30%),radial-gradient(circle_at_84%_20%,rgba(147,197,253,0.25),transparent_36%),radial-gradient(circle_at_52%_92%,rgba(168,85,247,0.28),transparent_42%)]" />
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 h-10 overflow-hidden">
+        <div
+          className="absolute inset-x-0 bottom-0 h-full opacity-90 transition-all duration-700"
+          style={{
+            transform: `translateY(${100 - fillPercent}%)`,
+            background:
+              "linear-gradient(180deg, rgba(216,180,254,0.35) 0%, rgba(168,85,247,0.62) 48%, rgba(79,70,229,0.72) 100%)",
+          }}
+        />
+        <div className="absolute -left-8 -right-8 top-0 h-5 bg-[radial-gradient(ellipse_at_20%_90%,rgba(255,255,255,0.82),transparent_38%),linear-gradient(90deg,rgba(196,181,253,0.58),rgba(125,211,252,0.42),rgba(168,85,247,0.5))] opacity-80 [clip-path:polygon(0_52%,12%_44%,26%_50%,42%_38%,58%_44%,74%_30%,88%_42%,100%_34%,100%_100%,0_100%)] transition-transform duration-700 group-hover:translate-x-2" />
+      </div>
+
+      <div className="relative z-10 grid grid-cols-[minmax(0,1fr)_82px] items-center gap-3">
+        <div className="min-w-0">
+          <p className="truncate text-base font-extrabold tracking-tight text-slate-800 dark:text-slate-100">
+            {row.name}
+          </p>
+          <p className="mt-2 truncate text-xs font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-300">
+            {row.open} OPEN - {row.inProgress} IN PROGRESS - {row.done} DONE
+          </p>
+        </div>
+        <div className="relative flex h-[68px] w-[76px] shrink-0 flex-col items-center justify-center rounded-[26px] border border-white/80 bg-white/48 text-slate-700 shadow-[inset_0_1px_10px_rgba(255,255,255,0.78),0_12px_34px_-22px_rgba(99,102,241,0.72)] backdrop-blur-xl dark:border-white/10 dark:bg-white/10 dark:text-slate-100">
+          <span className="text-3xl font-black leading-none">{row.total}</span>
+          <span className="my-1 h-px w-11 bg-slate-300/80" />
+          <span className="text-base font-extrabold leading-none">{row.completionRate}%</span>
+        </div>
+      </div>
+    </button>
+  );
+};
+
 const PriorityDistribution = ({ rows, total }) => (
   <AnalyticsPanel
     title="Bug Priority Distribution"
@@ -1123,15 +1164,16 @@ const DashboardPage = () => {
         teamId,
         name: issue.teamId?.name || "Unassigned tasks",
         total: 0,
+        open: 0,
         inProgress: 0,
         done: 0,
       };
       const status = getTaskBoardStatus(issue);
 
       row.total += 1;
+      row.open += status === TASK_BOARD_STATUS.OPEN ? 1 : 0;
       row.inProgress += status === ISSUE_STATUS.IN_PROGRESS ? 1 : 0;
       row.done += status === ISSUE_STATUS.DONE ? 1 : 0;
-      row.open = Math.max(row.total - row.done, 0);
       row.completionRate = row.total ? Math.round((row.done / row.total) * 100) : 0;
       rowsByTeam.set(rowKey, row);
     });
@@ -1140,7 +1182,6 @@ const DashboardPage = () => {
       .sort((left, right) => right.open - left.open || right.total - left.total)
       .slice(0, 6);
   }, [taskIssues]);
-  const maxTeamTaskOpen = Math.max(...teamTaskRows.map((row) => row.open), 0);
   const userDistributionRows = useMemo(() => {
     const total = users.length;
 
@@ -1635,48 +1676,13 @@ const DashboardPage = () => {
         >
           {teamTaskRows.length ? (
             <div className="dashboard-scrollbar h-[500px] space-y-3 overflow-y-scroll overscroll-contain pr-2 [scrollbar-gutter:stable]">
-              {teamTaskRows.map((row) => {
-                const width = maxTeamTaskOpen
-                  ? Math.max(Math.round((row.open / maxTeamTaskOpen) * 100), row.open ? 8 : 0)
-                  : 0;
-
-                return (
-                  <button
-                    key={row.teamId || row.name}
-                    type="button"
-                    onClick={() => navigateToIssues(row.teamId ? { teamId: row.teamId } : {})}
-                    className={cn(
-                      ANALYTICS_SUBPANEL_CLASS,
-                      "w-full px-3 py-2 text-left hover:border-blue-200/80"
-                    )}
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <p className="truncate text-sm font-bold text-slate-950 dark:text-slate-100">
-                          {row.name}
-                        </p>
-                        <p className="mt-0.5 text-[10px] font-medium uppercase text-slate-500">
-                          {row.open} open - {row.inProgress} in progress - {row.done} done
-                        </p>
-                      </div>
-                      <Badge className="shrink-0 border-violet-100 bg-violet-50 text-violet-700">
-                        {row.total}
-                      </Badge>
-                    </div>
-                    <div className="mt-2 grid grid-cols-[minmax(0,1fr)_44px] items-center gap-3">
-                      <div className="h-1.5 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
-                        <div
-                          className="h-full rounded-full bg-violet-500 transition-all duration-500"
-                          style={{ width: `${width}%` }}
-                        />
-                      </div>
-                      <span className="text-right text-[10px] font-bold text-slate-500">
-                        {row.completionRate}%
-                      </span>
-                    </div>
-                  </button>
-                );
-              })}
+              {teamTaskRows.map((row) => (
+                <TeamTaskWorkloadCard
+                  key={row.teamId || row.name}
+                  row={row}
+                  onOpen={navigateToIssues}
+                />
+              ))}
             </div>
           ) : (
             <AnalyticsEmptyState
