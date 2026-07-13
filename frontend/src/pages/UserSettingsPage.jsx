@@ -24,6 +24,7 @@ import ImportUsersCSVSettings from "@/components/settings/ImportUsersCSVSettings
 import InviteUserSettings from "@/components/settings/InviteUserSettings";
 import ModifyRoleSettings from "@/components/settings/ModifyRoleSettings";
 import ModuleOwnershipSettings from "@/components/settings/ModuleOwnershipSettings";
+import ScreenPermissionsSettings from "@/components/settings/ScreenPermissionsSettings";
 import SMTPConfigurationSettings from "@/components/settings/SMTPConfigurationSettings";
 import UsersSettings from "@/components/settings/UsersSettings";
 import WorkspaceMailSenderSettings from "@/components/settings/WorkspaceMailSenderSettings";
@@ -34,6 +35,7 @@ const ADMIN_SETTINGS_ITEMS = [
   { id: "users", label: "Users" },
   { id: "invite", label: "Invite User" },
   { id: "roles", label: "Modify User Role" },
+  { id: "screens", label: "Screen Permissions" },
   { id: "ownership", label: "Module Ownership" },
   { id: "sender", label: "Workspace Mail Sender" },
   { id: "smtp", label: "SMTP Configuration" },
@@ -821,6 +823,10 @@ const UserSettingsPage = () => {
 
     if (canManageWorkspaceUsers && activeSettingsItem === "ownership") {
       return <ModuleOwnershipSettings showToast={showToast} />;
+    }
+
+    if (canManageWorkspaceUsers && activeSettingsItem === "screens") {
+      return <ScreenPermissionsSettings showToast={showToast} />;
     }
 
     if (activeSettingsItem === "smtp") {

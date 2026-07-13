@@ -5,6 +5,8 @@ const {
   getEmailConfig,
   saveEmailConfig,
   testEmailConfig,
+  getScreenPermissions,
+  saveScreenPermissions,
   getModuleOwnerships,
   saveModuleOwnerships,
   getWorkspaceSender,
@@ -14,11 +16,14 @@ const {
 
 const router = express.Router();
 
+router.get("/screen-permissions", protect, getScreenPermissions);
+
 router.use(protect, mailSettingsAccess);
 
 router.get("/email-config", getEmailConfig);
 router.post("/email-config", saveEmailConfig);
 router.post("/test-email", testEmailConfig);
+router.post("/screen-permissions", saveScreenPermissions);
 router.get("/module-ownerships", getModuleOwnerships);
 router.post("/module-ownerships", saveModuleOwnerships);
 router.get("/workspace-sender", getWorkspaceSender);

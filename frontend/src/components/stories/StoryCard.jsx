@@ -16,10 +16,21 @@ import {
 } from "@/lib/issues";
 import { cn } from "@/lib/utils";
 
-const StoryCard = ({ story, onClick }) => {
+const isPastDue = (value) => {
+  if (!value) {
+    return false;
+  }
+
+  const dueDate = new Date(value);
+
+  return !Number.isNaN(dueDate.getTime()) && dueDate.getTime() < Date.now();
+};
+
+const StoryCard = ({ story, onClick, fadeWhenOverdue = false }) => {
   const progress = story.storyProgress || {};
   const progressPercent = Number(progress.percent || 0);
   const isQueued = Boolean(story.bugDetails?.addToBucket);
+  const isFaded = fadeWhenOverdue && isPastDue(story.dueAt);
   const assignees = resolveIssueAssignees(story);
   const assigneeLabel = assignees.length
     ? assignees.map((assignee) => assignee.name).join(", ")
@@ -33,7 +44,8 @@ const StoryCard = ({ story, onClick }) => {
         "group min-w-0 rounded-lg border p-4 text-left backdrop-blur-xl transition hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500",
         isQueued
           ? "border-amber-300/90 bg-amber-50/85 shadow-[0_14px_34px_-28px_rgba(217,119,6,0.58)] hover:border-amber-400 hover:bg-amber-50 hover:shadow-[0_20px_42px_-28px_rgba(217,119,6,0.66)]"
-          : "border-blue-200/80 bg-blue-50/75 shadow-[0_14px_34px_-28px_rgba(37,99,235,0.55)] hover:border-blue-300 hover:bg-blue-50 hover:shadow-[0_20px_42px_-28px_rgba(37,99,235,0.62)]"
+          : "border-blue-200/80 bg-blue-50/75 shadow-[0_14px_34px_-28px_rgba(37,99,235,0.55)] hover:border-blue-300 hover:bg-blue-50 hover:shadow-[0_20px_42px_-28px_rgba(37,99,235,0.62)]",
+        isFaded && "opacity-45 grayscale hover:opacity-75"
       )}
     >
       <div className="flex items-start justify-between gap-3">

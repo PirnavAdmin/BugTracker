@@ -15,6 +15,10 @@ const { decryptSecret, encryptSecret } = require("../utils/emailCrypto");
 const {
   ROLE_ADMIN,
   ROLE_MANAGER,
+  ROLE_TEAM_LEAD,
+  ROLE_QA_LEAD,
+  ROLE_DEVELOPER,
+  ROLE_TESTER,
   hasAdminAccess,
   hasTesterAccess,
   isEligibleWorkspaceSenderRole,
@@ -150,10 +154,53 @@ const serializeModuleOwnership = (ownership = {}) => ({
   updatedAt: ownership.updatedAt || null,
 });
 
+const SCREEN_PERMISSION_ROLES = [
+  ROLE_TEAM_LEAD,
+  ROLE_QA_LEAD,
+  ROLE_DEVELOPER,
+  ROLE_TESTER,
+];
+
+const SCREEN_PERMISSION_PAGE_IDS = [
+  "dashboard",
+  "stories",
+  "tasks",
+  "bugs",
+  "reports",
+  "chat",
+];
+
+const DEFAULT_SCREEN_PERMISSIONS = Object.freeze({
+  [ROLE_TEAM_LEAD]: ["dashboard", "stories", "tasks", "bugs", "reports", "chat"],
+  [ROLE_QA_LEAD]: ["dashboard", "stories", "tasks", "bugs", "reports", "chat"],
+  [ROLE_DEVELOPER]: ["dashboard", "stories", "tasks", "bugs", "reports", "chat"],
+  [ROLE_TESTER]: ["dashboard", "stories", "tasks", "bugs", "reports", "chat"],
+});
+
+const serializeScreenPermissions = (screenPermissions = {}) =>
+  SCREEN_PERMISSION_ROLES.reduce((permissions, role) => {
+    const submittedPages = Array.isArray(screenPermissions?.[role])
+      ? screenPermissions[role]
+      : DEFAULT_SCREEN_PERMISSIONS[role];
+    const allowedPages = submittedPages.filter((pageId) =>
+      SCREEN_PERMISSION_PAGE_IDS.includes(pageId)
+    );
+
+    permissions[role] = Array.from(new Set(allowedPages));
+    return permissions;
+  }, {});
+
 const requireOwnershipSettingsAccess = (req, res) => {
   if (!hasAdminAccess(req.user?.role)) {
     res.status(403);
     throw new Error("Only admins and managers can manage module ownership");
+  }
+};
+
+const requireScreenPermissionSettingsAccess = (req, res) => {
+  if (!hasAdminAccess(req.user?.role)) {
+    res.status(403);
+    throw new Error("Only admins and managers can manage screen permissions");
   }
 };
 
@@ -274,6 +321,53 @@ const saveModuleOwnerships = asyncHandler(async (req, res) => {
     ownerships: (settings?.moduleOwnerships || [])
       .map(serializeModuleOwnership)
       .sort((left, right) => left.moduleName.localeCompare(right.moduleName)),
+  });
+});
+
+const getScreenPermissions = asyncHandler(async (req, res) => {
+  const workspaceId = normalizeWorkspaceId(req.user.workspaceId);
+  const settings = await WorkspaceSetting.findOne({
+    workspaceId,
+  })
+    .select("screenPermissions")
+    .lean();
+
+  res.status(200).json({
+    permissions: serializeScreenPermissions(settings?.screenPermissions || {}),
+  });
+});
+
+const saveScreenPermissions = asyncHandler(async (req, res) => {
+  requireScreenPermissionSettingsAccess(req, res);
+
+  const workspaceId = normalizeWorkspaceId(req.user.workspaceId);
+  const permissions = serializeScreenPermissions(req.body?.permissions || {});
+  const settings = await WorkspaceSetting.findOneAndUpdate(
+    {
+      workspaceId,
+    },
+    {
+      $set: {
+        workspaceId,
+        screenPermissions: permissions,
+        updatedAt: new Date(),
+      },
+      $setOnInsert: {
+        createdAt: new Date(),
+      },
+    },
+    {
+      upsert: true,
+      new: true,
+      setDefaultsOnInsert: true,
+    }
+  )
+    .select("screenPermissions")
+    .lean();
+
+  res.status(200).json({
+    message: "Screen permissions saved.",
+    permissions: serializeScreenPermissions(settings?.screenPermissions || permissions),
   });
 });
 
@@ -1213,6 +1307,8 @@ module.exports = {
   getEmailConfig,
   saveEmailConfig,
   testEmailConfig,
+  getScreenPermissions,
+  saveScreenPermissions,
   getModuleOwnerships,
   saveModuleOwnerships,
   getWorkspaceSender,

@@ -1056,6 +1056,18 @@ export const saveModuleOwnerships = async (ownerships = []) => {
   return response.data;
 };
 
+export const fetchScreenPermissions = async () => {
+  const response = await api.get("/settings/screen-permissions");
+  return response.data?.permissions || {};
+};
+
+export const saveScreenPermissions = async (permissions = {}) => {
+  const response = await api.post("/settings/screen-permissions", {
+    permissions,
+  });
+  return response.data;
+};
+
 export const importUsers = async (file) => {
   const formData = new FormData();
   formData.append("file", file);

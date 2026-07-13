@@ -106,6 +106,10 @@ const workspaceSettingSchema = new Schema(
         },
       },
     ],
+    screenPermissions: {
+      type: Schema.Types.Mixed,
+      default: {},
+    },
     createdAt: {
       type: Date,
       default: Date.now,

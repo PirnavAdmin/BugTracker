@@ -18,6 +18,34 @@ export const ADMIN_PANEL_ROLES = [ROLE_ADMIN, ROLE_MANAGER];
 export const TESTER_PANEL_ROLES = [ROLE_TESTER, ROLE_QA_LEAD];
 export const TASK_STORY_LEAD_ROLES = [ROLE_TEAM_LEAD, ROLE_QA_LEAD];
 
+export const SCREEN_PERMISSION_ROLES = [
+  ROLE_TEAM_LEAD,
+  ROLE_QA_LEAD,
+  ROLE_DEVELOPER,
+  ROLE_TESTER,
+];
+
+export const SCREEN_PERMISSION_PAGE_OPTIONS = [
+  { id: "dashboard", label: "Dashboard" },
+  { id: "stories", label: "Stories" },
+  { id: "tasks", label: "Tasks" },
+  { id: "bugs", label: "Bugs" },
+  { id: "reports", label: "Reports" },
+  { id: "chat", label: "Chat" },
+];
+
+const DEFAULT_SCREEN_PERMISSION_IDS = SCREEN_PERMISSION_PAGE_OPTIONS.map(
+  (page) => page.id
+);
+
+export const DEFAULT_SCREEN_PERMISSIONS = SCREEN_PERMISSION_ROLES.reduce(
+  (permissions, role) => ({
+    ...permissions,
+    [role]: DEFAULT_SCREEN_PERMISSION_IDS,
+  }),
+  {}
+);
+
 export const hasAdminPanelAccess = (role) => ADMIN_PANEL_ROLES.includes(role);
 export const hasTesterPanelAccess = (role) => TESTER_PANEL_ROLES.includes(role);
 export const hasTaskStoryLeadAccess = (role) => TASK_STORY_LEAD_ROLES.includes(role);
@@ -37,18 +65,19 @@ export const getDashboardPathByRole = (role) =>
 export const getRoleNavigation = (role) => {
   if (hasAdminPanelAccess(role)) {
     const navigation = [
-      { label: "Dashboard", href: dashboardPathByRole[ROLE_ADMIN], icon: "dashboard" },
-      { label: "Projects", href: "/projects", icon: "projects" },
-      { label: "Backlog", href: "/backlog", icon: "backlog" },
-      { label: "Stories", href: "/stories", icon: "stories" },
-      { label: "Tasks", href: "/tasks", icon: "tasks" },
-      { label: "Bugs", href: "/admin/bugs", icon: "bugs" },
-      { label: "Reports", href: "/reports", icon: "reports" },
-      { label: "Chat", href: "/chat", icon: "chat" },
+      { id: "dashboard", label: "Dashboard", href: dashboardPathByRole[ROLE_ADMIN], icon: "dashboard" },
+      { id: "projects", label: "Projects", href: "/projects", icon: "projects" },
+      { id: "backlog", label: "Backlog", href: "/backlog", icon: "backlog" },
+      { id: "stories", label: "Stories", href: "/stories", icon: "stories" },
+      { id: "tasks", label: "Tasks", href: "/tasks", icon: "tasks" },
+      { id: "bugs", label: "Bugs", href: "/admin/bugs", icon: "bugs" },
+      { id: "reports", label: "Reports", href: "/reports", icon: "reports" },
+      { id: "chat", label: "Chat", href: "/chat", icon: "chat" },
     ];
 
     if (role === ROLE_ADMIN) {
       navigation.splice(7, 0, {
+        id: "activity",
         label: "Team Activity",
         href: "/admin/team-activity",
         icon: "activity",
@@ -60,23 +89,51 @@ export const getRoleNavigation = (role) => {
 
   if (hasTesterPanelAccess(role)) {
     return [
-      { label: "Dashboard", href: dashboardPathByRole[role] || dashboardPathByRole[ROLE_TESTER], icon: "dashboard" },
-      { label: "Stories", href: "/stories", icon: "stories" },
-      { label: "Tasks", href: "/tasks", icon: "tasks" },
-      { label: "Bugs", href: "/bugs", icon: "bugs" },
-      { label: "Reports", href: "/reports", icon: "reports" },
-      { label: "Chat", href: "/chat", icon: "chat" },
+      { id: "dashboard", label: "Dashboard", href: dashboardPathByRole[role] || dashboardPathByRole[ROLE_TESTER], icon: "dashboard" },
+      { id: "stories", label: "Stories", href: "/stories", icon: "stories" },
+      { id: "tasks", label: "Tasks", href: "/tasks", icon: "tasks" },
+      { id: "bugs", label: "Bugs", href: "/bugs", icon: "bugs" },
+      { id: "reports", label: "Reports", href: "/reports", icon: "reports" },
+      { id: "chat", label: "Chat", href: "/chat", icon: "chat" },
     ];
   }
 
   return [
-    { label: "Dashboard", href: dashboardPathByRole[ROLE_DEVELOPER], icon: "dashboard" },
-    { label: "Stories", href: "/stories", icon: "stories" },
-    { label: "Tasks", href: "/tasks", icon: "tasks" },
-    { label: "Bugs", href: "/dev/bugs", icon: "bugs" },
-    { label: "Reports", href: "/reports", icon: "reports" },
-    { label: "Chat", href: "/chat", icon: "chat" },
+    { id: "dashboard", label: "Dashboard", href: dashboardPathByRole[ROLE_DEVELOPER], icon: "dashboard" },
+    { id: "stories", label: "Stories", href: "/stories", icon: "stories" },
+    { id: "tasks", label: "Tasks", href: "/tasks", icon: "tasks" },
+    { id: "bugs", label: "Bugs", href: "/dev/bugs", icon: "bugs" },
+    { id: "reports", label: "Reports", href: "/reports", icon: "reports" },
+    { id: "chat", label: "Chat", href: "/chat", icon: "chat" },
   ];
+};
+
+export const normalizeScreenPermissions = (permissions = {}) =>
+  SCREEN_PERMISSION_ROLES.reduce((normalized, role) => {
+    const pageIds = Array.isArray(permissions?.[role])
+      ? permissions[role]
+      : DEFAULT_SCREEN_PERMISSIONS[role];
+
+    normalized[role] = Array.from(
+      new Set(
+        pageIds.filter((pageId) =>
+          SCREEN_PERMISSION_PAGE_OPTIONS.some((page) => page.id === pageId)
+        )
+      )
+    );
+
+    return normalized;
+  }, {});
+
+export const filterRoleNavigation = (navigation = [], role, permissions = null) => {
+  if (hasAdminPanelAccess(role) || !SCREEN_PERMISSION_ROLES.includes(role)) {
+    return navigation;
+  }
+
+  const normalizedPermissions = normalizeScreenPermissions(permissions || {});
+  const allowedPages = normalizedPermissions[role] || DEFAULT_SCREEN_PERMISSIONS[role];
+
+  return navigation.filter((item) => allowedPages.includes(item.id || item.icon));
 };
 
 export const getPageMeta = (pathname, role) => {

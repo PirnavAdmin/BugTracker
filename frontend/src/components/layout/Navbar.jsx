@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   BarChart3,
@@ -21,8 +22,9 @@ import pirnavLogo from "@/assets/pirnav-logo.png";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/use-auth";
+import { fetchScreenPermissions } from "@/lib/api";
 import { useChatStore } from "@/lib/chatStore";
-import { getRoleNavigation } from "@/lib/roles";
+import { filterRoleNavigation, getRoleNavigation } from "@/lib/roles";
 import { cn, getInitials } from "@/lib/utils";
 import NotificationButton from "./NotificationButton";
 import UserProfileDropdown from "./UserProfileDropdown";
@@ -64,7 +66,17 @@ const Navbar = () => {
   const location = useLocation();
   const { user, logout } = useAuth();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const navigation = getRoleNavigation(user?.role);
+  const { data: screenPermissions = null } = useQuery({
+    queryKey: ["screen-permissions"],
+    queryFn: fetchScreenPermissions,
+    enabled: Boolean(user),
+    staleTime: 5 * 60 * 1000,
+  });
+  const navigation = filterRoleNavigation(
+    getRoleNavigation(user?.role),
+    user?.role,
+    screenPermissions
+  );
   const chatUnreadCount = useChatStore((state) =>
     state.conversations.reduce(
       (total, conversation) => total + Number(conversation.unreadCount || 0),
