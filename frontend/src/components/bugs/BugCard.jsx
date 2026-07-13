@@ -112,14 +112,6 @@ const DraggableBugCard = ({
     data: { issue },
     disabled: isDragDisabled,
   });
-  const displayedUser =
-    actionMode === "developer" && columnKey === "available"
-      ? getReporter(issue)
-      : getAssignee(issue);
-  const displayedName =
-    actionMode === "developer" && columnKey === "available"
-      ? getReporterName(issue)
-      : getAssigneeName(issue);
 
   return (
     <BugCardSurface
@@ -288,6 +280,14 @@ const BugCardSurface = ({
     onAction,
     onOpen,
   });
+  const displayedUser =
+    actionMode === "developer" && columnKey === "available"
+      ? getReporter(issue)
+      : getAssignee(issue);
+  const displayedName =
+    actionMode === "developer" && columnKey === "available"
+      ? getReporterName(issue)
+      : getAssigneeName(issue);
 
   return (
     <article
