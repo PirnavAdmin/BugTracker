@@ -94,10 +94,10 @@ const activityTone = {
 };
 
 const BUG_PRIORITY_META = [
-  { key: "Low", className: "bg-emerald-500", tone: "text-emerald-700" },
-  { key: "Medium", className: "bg-amber-500", tone: "text-amber-700" },
-  { key: "High", className: "bg-orange-500", tone: "text-orange-700" },
-  { key: "Critical", className: "bg-rose-500", tone: "text-rose-700" },
+  { key: "Low", className: "bg-emerald-500", tone: "text-emerald-700", color: "#10B981" },
+  { key: "Medium", className: "bg-amber-500", tone: "text-amber-700", color: "#F59E0B" },
+  { key: "High", className: "bg-orange-500", tone: "text-orange-700", color: "#F97316" },
+  { key: "Critical", className: "bg-rose-500", tone: "text-rose-700", color: "#F43F5E" },
 ];
 
 const USER_ROLE_DISTRIBUTION_META = [
@@ -400,7 +400,7 @@ const ProjectContributionPanel = ({ projects = [], total = 0, onOpen }) => {
       description="Track user contributions across multiple projects."
       action={
         projects.length ? (
-          <Badge className="rounded-full border-slate-200/80 bg-white/62 px-4 py-1.5 text-sm font-bold text-slate-600 shadow-sm">
+          <Badge className="rounded-full border-slate-200/80 bg-white/62 px-3.5 py-1 text-xs font-bold text-slate-600 shadow-sm">
             {projects.length} projects
           </Badge>
         ) : null
@@ -440,15 +440,15 @@ const ProjectContributionPanel = ({ projects = [], total = 0, onOpen }) => {
               </ResponsiveContainer>
               <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
                 <div className="flex h-40 w-40 flex-col items-center justify-center rounded-full bg-white/68 text-center shadow-[inset_0_1px_24px_rgba(255,255,255,0.88),0_22px_48px_-34px_rgba(37,99,235,0.62)] backdrop-blur-xl">
-                  <Users2 className="h-11 w-11 text-blue-500" />
-                  <p className="mt-3 text-4xl font-black leading-none text-slate-900">
+                  <Users2 className="h-10 w-10 text-blue-500" />
+                  <p className="mt-2.5 text-3xl font-black leading-none text-slate-900">
                     {formatCompactNumber(totalContributions)}
                   </p>
-                  <p className="mt-1 text-sm font-medium text-slate-600">Contributions</p>
+                  <p className="mt-1 text-xs font-medium text-slate-600">Contributions</p>
                 </div>
               </div>
             </div>
-            <div className="mt-3 grid w-full max-w-[430px] grid-cols-1 gap-2 text-sm font-semibold text-slate-700 sm:grid-cols-2">
+            <div className="mt-3 grid w-full max-w-[430px] grid-cols-1 gap-2 text-xs font-semibold text-slate-700 sm:grid-cols-2">
               {chartRows.slice(0, 6).map((project) => (
                 <button
                   key={project.projectId || project.name}
@@ -479,14 +479,14 @@ const ProjectContributionPanel = ({ projects = [], total = 0, onOpen }) => {
                 >
                   <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_0%,rgba(255,255,255,0.95),transparent_34%),radial-gradient(circle_at_88%_50%,rgba(96,165,250,0.18),transparent_44%)]" />
                   <span
-                    className="relative z-10 flex h-12 w-12 items-center justify-center rounded-full text-sm font-black text-white shadow-[0_14px_28px_-20px_rgba(37,99,235,0.72)]"
+                    className="relative z-10 flex h-12 w-12 items-center justify-center rounded-full text-xs font-black text-white shadow-[0_14px_28px_-20px_rgba(37,99,235,0.72)]"
                     style={{ background: `linear-gradient(135deg, ${project.color}, #2563EB)` }}
                   >
                     {getInitials(project.name)}
                   </span>
                   <div className="relative z-10 min-w-0">
-                    <p className="truncate text-lg font-extrabold text-slate-900">{project.name}</p>
-                    <p className="truncate text-sm font-medium text-slate-500">
+                    <p className="truncate text-base font-extrabold text-slate-900">{project.name}</p>
+                    <p className="truncate text-xs font-medium text-slate-500">
                       {project.open} open / {project.closed} closed
                     </p>
                     <div className="mt-2 grid grid-cols-[minmax(0,1fr)_44px] items-center gap-2">
@@ -502,7 +502,7 @@ const ProjectContributionPanel = ({ projects = [], total = 0, onOpen }) => {
                     </div>
                   </div>
                   <div className="relative z-10 text-right">
-                    <p className="text-3xl font-black leading-none text-slate-800">{project.total}</p>
+                    <p className="text-2xl font-black leading-none text-slate-800">{project.total}</p>
                     <p className="mt-2 text-xs font-semibold text-slate-500">
                       {project.open}/{project.closed}
                     </p>
@@ -661,39 +661,72 @@ const TeamTaskWorkloadCard = ({ row, onOpen }) => {
   );
 };
 
-const PriorityDistribution = ({ rows, total }) => (
-  <AnalyticsPanel
-    title="Bug Priority Distribution"
-    description="Live severity pressure across all tracked bug records."
-  >
-    {total ? (
-      <div className="space-y-4">
-        {rows.map((row) => (
-          <div className="space-y-2" key={row.key}>
-            <div className="flex items-center justify-between gap-3 text-sm">
-              <span className={cn("font-semibold", row.tone)}>{row.key}</span>
-              <span className="font-semibold text-slate-600 dark:text-slate-300">
-                {row.count}
+const PriorityDistribution = ({ rows, total }) => {
+  let segmentStart = 0;
+  const activeRows = rows.filter((row) => row.count > 0);
+  const donutBackground = `conic-gradient(${activeRows
+    .map((row) => {
+      const segmentEnd = segmentStart + (row.count / total) * 360;
+      const segment = `${row.color} ${segmentStart}deg ${segmentEnd}deg`;
+      segmentStart = segmentEnd;
+      return segment;
+    })
+    .join(", ")})`;
+
+  return (
+    <AnalyticsPanel
+      title="Bug Priority Distribution"
+      description="Live severity pressure across all tracked bug records."
+    >
+      {total ? (
+        <div className="grid min-h-[300px] gap-5 md:grid-cols-[190px_minmax(0,1fr)] md:items-center">
+          <div
+            className="relative mx-auto h-44 w-44 shrink-0 rounded-full shadow-[0_18px_38px_-24px_rgba(15,23,42,0.7)]"
+            style={{ background: donutBackground }}
+            role="img"
+            aria-label={`${total} bugs distributed across ${activeRows.length} priority levels`}
+          >
+            <div className="absolute inset-[22px] flex flex-col items-center justify-center rounded-full border border-white/85 bg-white/92 text-center shadow-inner backdrop-blur-sm dark:border-white/10 dark:bg-slate-950">
+              <Bug className="mb-2 h-7 w-7 text-blue-500" />
+              <span className="text-3xl font-black leading-none text-slate-950 dark:text-slate-100">
+                {formatCompactNumber(total)}
+              </span>
+              <span className="mt-1 text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                Total Bugs
               </span>
             </div>
-            <div className="h-1.5 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
-              <div
-                className={cn("h-full rounded-full transition-all duration-500", row.className)}
-                style={{ width: `${Math.max(row.percentage, row.count ? 6 : 0)}%` }}
-              />
-            </div>
           </div>
-        ))}
-      </div>
-    ) : (
-      <AnalyticsEmptyState
-        icon={Bug}
-        title="No bug priorities yet"
-        description="Priority distribution appears once bugs are reported."
-      />
-    )}
-  </AnalyticsPanel>
-);
+
+          <div className="grid gap-2">
+            {rows.map((row) => (
+              <div
+                key={row.key}
+                className="grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-3 rounded-2xl border border-white/70 bg-white/55 px-3 py-2.5 shadow-[0_14px_34px_-30px_rgba(15,23,42,0.55)] backdrop-blur-sm dark:border-white/10 dark:bg-white/5"
+              >
+                <span className="flex min-w-0 items-center gap-2">
+                  <span className="h-3 w-3 shrink-0 rounded-full" style={{ backgroundColor: row.color }} />
+                  <span className={cn("truncate text-sm font-bold", row.tone)}>{row.key}</span>
+                </span>
+                <span className="text-sm font-black text-slate-700 dark:text-slate-200">
+                  {row.count}
+                </span>
+                <span className="w-10 text-right text-xs font-bold text-slate-400">
+                  {row.percentage}%
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : (
+        <AnalyticsEmptyState
+          icon={Bug}
+          title="No bug priorities yet"
+          description="Priority distribution appears once bugs are reported."
+        />
+      )}
+    </AnalyticsPanel>
+  );
+};
 
 const UserDistributionCard = ({ rows, total, isLoading, hasError, onManageUsers }) => {
   let segmentStart = 0;
