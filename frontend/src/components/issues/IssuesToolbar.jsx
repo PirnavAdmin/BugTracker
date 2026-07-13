@@ -1,4 +1,4 @@
-import { FileSpreadsheet, Plus, Search } from "lucide-react";
+import { FileSpreadsheet, Plus, RotateCcw, Search } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -17,12 +17,14 @@ const IssuesToolbar = ({
   canCreateIssue = true,
   canBulkImport = false,
   isCreateDisabled = false,
+  isResetDisabled = false,
   onProjectChange,
   onTeamChange,
   onAssigneeChange,
   onDateFromChange,
   onDateToChange,
   onSearchChange,
+  onResetFilters,
   onCreateIssue,
   onOpenBulkImport,
 }) => {
@@ -67,7 +69,7 @@ const IssuesToolbar = ({
           </div>
         </div>
 
-        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-[minmax(180px,1fr)_minmax(180px,1fr)_minmax(180px,1fr)_minmax(260px,1.25fr)_minmax(240px,1.5fr)]">
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-[minmax(180px,1fr)_minmax(180px,1fr)_minmax(180px,1fr)_minmax(260px,1.2fr)_minmax(240px,1.45fr)_120px]">
           <label className="space-y-2">
             <span className="text-xs uppercase tracking-[0.22em] text-gray-500">
               Project
@@ -160,6 +162,22 @@ const IssuesToolbar = ({
               />
             </div>
           </label>
+
+          <div className="space-y-2">
+            <span className="block text-xs uppercase tracking-[0.22em] text-transparent">
+              Reset
+            </span>
+            <Button
+              className="h-11 w-full rounded-2xl"
+              type="button"
+              variant="outline"
+              disabled={isResetDisabled}
+              onClick={onResetFilters}
+            >
+              <RotateCcw className="h-4 w-4" />
+              Reset
+            </Button>
+          </div>
         </div>
 
         {showTeamWarning ? (

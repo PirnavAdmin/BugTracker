@@ -99,6 +99,22 @@ const sanitizeComposeParams = (searchParams, setSearchParams) => {
   setSearchParams(nextParams, { replace: true });
 };
 
+const TASK_FILTER_SEARCH_KEYS = [
+  "projectId",
+  "teamId",
+  "assigneeId",
+  "sprintId",
+  "epicId",
+  "status",
+  "statusGroup",
+  "priority",
+  "priorityGroup",
+  "filter",
+  "dateFrom",
+  "dateTo",
+  "search",
+];
+
 const getAvailableTeams = (projects = [], projectId = ALL_PROJECTS_VALUE) => {
   if (projectId !== ALL_PROJECTS_VALUE) {
     return getProjectTeams(findProjectById(projects, projectId));
@@ -680,6 +696,30 @@ const IssuesPage = () => {
     }));
   };
 
+  const handleResetFilters = () => {
+    setFilters((current) => ({
+      ...current,
+      projectId: ALL_PROJECTS_VALUE,
+      teamId: "all",
+      epicId: "all",
+      sprintId: "all",
+      assigneeId: "all",
+      type: ISSUE_TYPES.TASK,
+      status: "all",
+      statusGroup: "all",
+      priority: "all",
+      priorityGroup: "all",
+      dateFrom: "",
+      dateTo: "",
+      filter: "all",
+      search: "",
+    }));
+
+    const nextParams = new URLSearchParams(searchParams);
+    TASK_FILTER_SEARCH_KEYS.forEach((key) => nextParams.delete(key));
+    setSearchParams(nextParams, { replace: true });
+  };
+
   const error = projectsError || issuesError;
   const composeType = isValidWorkItemType(searchParams.get("type"))
     ? searchParams.get("type")
@@ -730,12 +770,14 @@ const IssuesPage = () => {
         canCreateIssue={canCreateIssue}
         canBulkImport={isAdminView}
         isCreateDisabled={!projects.length || !canCreateIssue}
+        isResetDisabled={!hasVisibleFilters}
         onProjectChange={handleProjectChange}
         onTeamChange={handleTeamChange}
         onAssigneeChange={handleAssigneeChange}
         onDateFromChange={handleDateFromChange}
         onDateToChange={handleDateToChange}
         onSearchChange={handleSearchChange}
+        onResetFilters={handleResetFilters}
         onCreateIssue={() => setIsCreateDialogOpen(true)}
         onOpenBulkImport={() => setIsBulkImportOpen(true)}
       />
