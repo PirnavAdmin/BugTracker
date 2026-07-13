@@ -330,12 +330,22 @@ const ProjectBugCard = ({ project, onOpen }) => (
   <button
     type="button"
     onClick={() => onOpen(project)}
-    className={cn(
-      ANALYTICS_SUBPANEL_CLASS,
-      "block w-full px-3 py-2 text-left hover:border-blue-200/80"
-    )}
+    className="group relative block min-h-[86px] w-full overflow-hidden rounded-[24px] border border-white/75 bg-white/60 px-4 py-3 text-left shadow-[0_18px_44px_-34px_rgba(14,165,233,0.58)] backdrop-blur-xl transition duration-300 hover:-translate-y-0.5 hover:border-sky-200/90 hover:bg-white/74 hover:shadow-[0_24px_58px_-36px_rgba(6,182,212,0.64)] dark:border-slate-800/70 dark:bg-slate-950/70"
   >
-    <div className="flex items-start justify-between gap-3">
+    <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_15%_0%,rgba(255,255,255,0.92),transparent_30%),radial-gradient(circle_at_86%_18%,rgba(14,165,233,0.28),transparent_36%),radial-gradient(circle_at_52%_100%,rgba(6,182,212,0.26),transparent_42%)]" />
+    <div className="pointer-events-none absolute inset-x-0 bottom-0 h-9 overflow-hidden">
+      <div
+        className="absolute inset-x-0 bottom-0 h-full opacity-90 transition-all duration-700"
+        style={{
+          transform: `translateY(${100 - Math.max(5, Math.min(100, project.resolutionRate || 0))}%)`,
+          background:
+            "linear-gradient(180deg, rgba(186,230,253,0.35) 0%, rgba(56,189,248,0.58) 48%, rgba(8,145,178,0.76) 100%)",
+        }}
+      />
+      <div className="absolute -left-8 -right-8 top-0 h-5 bg-[radial-gradient(ellipse_at_24%_90%,rgba(255,255,255,0.82),transparent_38%),linear-gradient(90deg,rgba(125,211,252,0.58),rgba(34,211,238,0.42),rgba(59,130,246,0.44))] opacity-80 [clip-path:polygon(0_54%,14%_42%,28%_50%,44%_35%,60%_43%,76%_30%,90%_41%,100%_34%,100%_100%,0_100%)] transition-transform duration-700 group-hover:translate-x-2" />
+    </div>
+
+    <div className="relative z-10 flex items-start justify-between gap-3">
       <div className="min-w-0">
         <p className="truncate text-sm font-bold text-slate-950 dark:text-slate-100">
           {project.name}
@@ -344,18 +354,20 @@ const ProjectBugCard = ({ project, onOpen }) => (
           {project.open} Open &bull; {project.closed} Closed &bull; {project.critical} Crit
         </p>
       </div>
-      <Badge className="shrink-0 h-5 px-1.5 text-[9px] font-bold border-blue-100 bg-blue-50 text-blue-700">
+      <Badge className="h-5 shrink-0 border-sky-100 bg-sky-50/90 px-1.5 text-[9px] font-bold text-sky-700 shadow-sm">
         {project.total} Bugs
       </Badge>
     </div>
-    <div className="mt-2 space-y-1">
+    <div className="relative z-10 mt-2 grid grid-cols-[minmax(0,1fr)_42px] items-end gap-3">
       <div className="flex items-center justify-between gap-3 text-[9px] font-bold uppercase text-slate-400">
         <span>Resolution</span>
-        <span>{project.resolutionRate}%</span>
       </div>
-      <div className="h-1 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
+      <span className="text-right text-[10px] font-black text-slate-500">
+        {project.resolutionRate}%
+      </span>
+      <div className="col-span-2 h-1.5 overflow-hidden rounded-full bg-sky-50/80 shadow-inner dark:bg-slate-800">
         <div
-          className="h-full rounded-full bg-blue-500 transition-all duration-500"
+          className="h-full rounded-full bg-[linear-gradient(90deg,#38BDF8,#06B6D4,#2563EB)] shadow-[0_0_14px_rgba(14,165,233,0.45)] transition-all duration-500"
           style={{ width: `${Math.max(project.resolutionRate, project.total ? 5 : 0)}%` }}
         />
       </div>
