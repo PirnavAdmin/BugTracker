@@ -504,8 +504,9 @@ const StoryDetails = ({ story, projects, stories, onBack, onChanged }) => {
         onDeleteIssue={async () => {}}
         updatingId={updateMutation.isPending ? updateMutation.variables?.id : ""}
         deletingId=""
-        canEditPriority={ADMIN_PANEL_ROLES.includes(role)}
-        canEditAssignee={ADMIN_PANEL_ROLES.includes(role)}
+        canEditCoreDetails={ADMIN_PANEL_ROLES.includes(role) || role === ROLE_TEAM_LEAD}
+        canEditPriority={ADMIN_PANEL_ROLES.includes(role) || role === ROLE_TEAM_LEAD}
+        canEditAssignee={ADMIN_PANEL_ROLES.includes(role) || role === ROLE_TEAM_LEAD}
         canDeleteIssue={false}
       />
     </div>

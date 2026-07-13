@@ -46,6 +46,7 @@ import {
   canCreateIssues,
   canDeleteIssues,
   hasAdminPanelAccess,
+  ROLE_TEAM_LEAD,
 } from "@/lib/roles";
 
 const WORK_ITEM_TYPE_OPTIONS = [ISSUE_TYPES.TASK];
@@ -241,6 +242,7 @@ const IssuesPage = () => {
   const [toast, setToast] = useState(null);
   const deferredSearch = useDeferredValue(filters.search);
   const isAdminView = hasAdminPanelAccess(role);
+  const isTeamLeadView = role === ROLE_TEAM_LEAD;
   const canAssignIssue = canAssignIssues(role);
   const canCreateIssue = canCreateIssues(role);
   const canDeleteIssue = canDeleteIssues(role);
@@ -937,9 +939,9 @@ const IssuesPage = () => {
         onDeleteIssue={(id) => deleteIssueMutation.mutateAsync(id)}
         updatingId={updateIssueMutation.isPending ? updateIssueMutation.variables?.id : ""}
         deletingId={deleteIssueMutation.isPending ? deleteIssueMutation.variables : ""}
-        canEditCoreDetails={isAdminView}
-        canEditPriority={isAdminView}
-        canEditAssignee={canAssignIssue}
+        canEditCoreDetails={isAdminView || isTeamLeadView}
+        canEditPriority={isAdminView || isTeamLeadView}
+        canEditAssignee={canAssignIssue || isTeamLeadView}
         canDeleteIssue={canDeleteIssue}
       />
 

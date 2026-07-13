@@ -134,10 +134,14 @@ const canAssignTaskWork = (user, type) =>
   isAdmin(user) ||
   (hasTaskStoryLeadAccess(user?.role) &&
     [ISSUE_TYPES.TASK, ISSUE_TYPES.SUB_TASK].includes(getCanonicalIssueType(type, "")));
+<<<<<<< HEAD
+const TEAM_LEAD_TASK_ASSIGNABLE_ROLES = [ROLE_DEVELOPER, ROLE_TEAM_LEAD, ROLE_TESTER];
+=======
 const canAssignBugWork = (user, type) =>
   isAdmin(user) ||
   (user?.role === ROLE_TEAM_LEAD &&
     getCanonicalIssueType(type, "") === ISSUE_TYPES.BUG);
+>>>>>>> b17c4066c1873c208a579ac9310d65ecabbf82d7
 const ISSUE_PRIORITY_VALUES = ["Critical", "High", "Medium", "Low"];
 const escapeRegExp = (value = "") =>
   value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -763,6 +767,15 @@ const buildTaskImportErrorCsv = (errors = []) =>
       ].join(",")
     ),
   ].join("\n");
+
+const haveSameUserIds = (leftValues = [], rightValues = []) => {
+  const normalize = (values) =>
+    values.map((value) => String(value || "")).filter(Boolean).sort();
+  const left = normalize(leftValues);
+  const right = normalize(rightValues);
+
+  return left.length === right.length && left.every((value, index) => value === right[index]);
+};
 
 const isAssignedToUser = (issue, userId) =>
   Boolean(userId) &&
@@ -4598,6 +4611,12 @@ const createIssue = asyncHandler(async (req, res) => {
 
       if (
         canTeamLeadAssignTask &&
+<<<<<<< HEAD
+        !TEAM_LEAD_TASK_ASSIGNABLE_ROLES.includes(assigneeResult.assignee?.role)
+      ) {
+        res.status(400);
+        throw new Error("Team Leads can assign tasks only to developers, team leads, or QA leads");
+=======
         ![ROLE_DEVELOPER, ROLE_TEAM_LEAD, ROLE_QA_LEAD].includes(
           assigneeResult.assignee?.role
         )
@@ -4606,6 +4625,7 @@ const createIssue = asyncHandler(async (req, res) => {
         throw new Error(
           "Team leads and Q/A leads can assign tasks only to developers, team leads, or Q/A leads"
         );
+>>>>>>> b17c4066c1873c208a579ac9310d65ecabbf82d7
       }
     }
   }
@@ -5011,7 +5031,7 @@ const updateIssue = asyncHandler(async (req, res) => {
       throw new Error("You can only update issues assigned to you");
     }
 
-    const allowedFields = hasProjectLeadershipAccess
+    const allowedFields = hasProjectLeadershipAccess || hasTeamLeadTaskAssignmentAccess
       ? [
           "title",
           "description",
@@ -5059,6 +5079,8 @@ const updateIssue = asyncHandler(async (req, res) => {
           "statusChangeComment",
           "comment",
         ]
+<<<<<<< HEAD
+=======
       : hasTeamLeadTaskAssignmentAccess
         ? [
             "assigneeId",
@@ -5076,6 +5098,7 @@ const updateIssue = asyncHandler(async (req, res) => {
             "devLeadId",
             "devLead",
           ]
+>>>>>>> b17c4066c1873c208a579ac9310d65ecabbf82d7
       : canTesterEditReportedBug
         ? [
             "title",
@@ -5155,8 +5178,12 @@ const updateIssue = asyncHandler(async (req, res) => {
     ? getEffectiveBugTransitionStatus(issue.status, issue)
     : "";
   const changeEntries = [];
+  const hasProjectChange =
+    hasOwnField(req.body, "projectId") &&
+    Boolean(req.body.projectId) &&
+    String(req.body.projectId) !== String(issue.projectId || "");
 
-  if (req.body.projectId) {
+  if (hasProjectChange) {
     if (!isAdmin(req.user)) {
       res.status(403);
       throw new Error("Only admins can move issues between projects");
@@ -5298,11 +5325,11 @@ const updateIssue = asyncHandler(async (req, res) => {
   const hasParentStoryChange = hasOwnField(req.body, "parentStoryId");
   const nextTeamId = hasTeamChange ? req.body.teamId || null : issue.teamId || null;
   const nextEpicId =
-    hasEpicChange || req.body.projectId
+    hasEpicChange || hasProjectChange
       ? req.body.epicId || null
       : issue.epicId || null;
   const nextSprintId =
-    hasSprintChange || req.body.projectId
+    hasSprintChange || hasProjectChange
       ? req.body.sprintId || null
       : issue.sprintId || null;
   const nextAssigneeId = hasAssigneeChange
@@ -5321,12 +5348,10 @@ const updateIssue = asyncHandler(async (req, res) => {
   const nextParentStoryId = hasParentStoryChange
     ? req.body.parentStoryId || null
     : issue.parentStoryId || null;
-  const hasProjectChange =
-    Boolean(req.body.projectId) && String(req.body.projectId) !== String(issue.projectId || "");
   const isTeamChanged =
     hasTeamChange && String(nextTeamId || "") !== String(issue.teamId || "");
   const isAssigneeChanged =
-    hasAssigneeChange && String(nextAssigneeId || "") !== String(issue.assignee || "");
+    hasAssigneeChange && !haveSameUserIds(previousAssigneeIds, nextAssigneeIds);
   let nextBugDetails = null;
   let nextDeveloperLeadUser = null;
 
@@ -5384,7 +5409,7 @@ const updateIssue = asyncHandler(async (req, res) => {
     }
   }
 
-  if (hasEpicChange || req.body.projectId) {
+  if (hasEpicChange || hasProjectChange) {
     const epicResult = await ensureEpicForProject({
       epicId: nextEpicId,
       projectId: targetProject?._id || issue.projectId,
@@ -5414,7 +5439,7 @@ const updateIssue = asyncHandler(async (req, res) => {
   // 2. Team is being CHANGED and there is an assignee
   // Do NOT validate if only status/other fields are changing and assignee stays the same
   const shouldValidateAssigneeTeamMembership =
-    nextAssigneeIds.length && (hasAssigneeChange || isTeamChanged || hasProjectChange);
+    nextAssigneeIds.length && (isAssigneeChanged || isTeamChanged || hasProjectChange);
 
   console.log("Updating bug", { id: req.params.id, updates: req.body });
 
@@ -5452,6 +5477,13 @@ const updateIssue = asyncHandler(async (req, res) => {
       }
 
       if (
+<<<<<<< HEAD
+        canTeamLeadAssignExistingTask &&
+        !TEAM_LEAD_TASK_ASSIGNABLE_ROLES.includes(assigneeResult.assignee?.role)
+      ) {
+        res.status(400);
+        throw new Error("Team Leads can assign tasks only to developers, team leads, or QA leads");
+=======
         (canTeamLeadAssignExistingTask || canTeamLeadAssignExistingBug) &&
         ![ROLE_DEVELOPER, ROLE_TEAM_LEAD, ROLE_QA_LEAD].includes(
           assigneeResult.assignee?.role
@@ -5463,6 +5495,7 @@ const updateIssue = asyncHandler(async (req, res) => {
             ? "Team Leads can assign bugs only to developers, team leads, or Q/A leads"
             : "Team leads and Q/A leads can assign tasks only to developers, team leads, or Q/A leads"
         );
+>>>>>>> b17c4066c1873c208a579ac9310d65ecabbf82d7
       }
     }
   }
@@ -5557,7 +5590,7 @@ const updateIssue = asyncHandler(async (req, res) => {
     issue.dueAt = dueAtResult.value;
   }
 
-  if (hasDependencyChange || req.body.projectId) {
+  if (hasDependencyChange || hasProjectChange) {
     const dependencyResult = await ensureDependencyIssueForProject({
       dependsOnIssueId: nextDependsOnIssueId,
       projectId: targetProject?._id || issue.projectId,
@@ -5604,7 +5637,7 @@ const updateIssue = asyncHandler(async (req, res) => {
     issue.teamId = nextTeamId;
   }
 
-  if (hasEpicChange || req.body.projectId) {
+  if (hasEpicChange || hasProjectChange) {
     changeEntries.push({
       field: "epicId",
       fromValue: issue.epicId || null,
@@ -5613,7 +5646,7 @@ const updateIssue = asyncHandler(async (req, res) => {
     issue.epicId = nextEpicId;
   }
 
-  if (hasSprintChange || req.body.projectId) {
+  if (hasSprintChange || hasProjectChange) {
     changeEntries.push({
       field: "sprintId",
       fromValue: issue.sprintId || null,
@@ -5622,7 +5655,7 @@ const updateIssue = asyncHandler(async (req, res) => {
     issue.sprintId = nextSprintId;
   }
 
-  if (hasAssigneeChange) {
+  if (isAssigneeChanged) {
     if (!canAssignTaskWork(req.user, issue.type)) {
       res.status(403);
       throw new Error("Only admins and team leads can reassign tasks");

@@ -35,6 +35,9 @@ import {
   resolveTeamId,
   resolveUserId,
 } from "@/lib/project-teams";
+<<<<<<< HEAD
+import { hasAdminPanelAccess, ROLE_DEVELOPER, ROLE_TEAM_LEAD, ROLE_TESTER } from "@/lib/roles";
+=======
 import {
   hasAdminPanelAccess,
   hasTaskStoryLeadAccess,
@@ -42,6 +45,7 @@ import {
   ROLE_QA_LEAD,
   ROLE_TEAM_LEAD,
 } from "@/lib/roles";
+>>>>>>> b17c4066c1873c208a579ac9310d65ecabbf82d7
 import { formatDate, getInitials } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
 
@@ -536,7 +540,11 @@ const IssueCreateDialog = ({
     () =>
       hasTaskStoryLeadAccess(role) && ["Task", "Sub-task"].includes(formData.type)
         ? availableAssignees.filter((assignee) =>
+<<<<<<< HEAD
+            [ROLE_DEVELOPER, ROLE_TEAM_LEAD, ROLE_TESTER].includes(assignee.role)
+=======
             [ROLE_DEVELOPER, ROLE_TEAM_LEAD, ROLE_QA_LEAD].includes(assignee.role)
+>>>>>>> b17c4066c1873c208a579ac9310d65ecabbf82d7
           )
         : availableAssignees,
     [availableAssignees, formData.type, role]
@@ -1283,8 +1291,13 @@ const IssueCreateDialog = ({
                           }
                           noOptionsMessage={() =>
                             formData.teamId
+<<<<<<< HEAD
+                              ? role === ROLE_TEAM_LEAD && ["Task", "Sub-task"].includes(formData.type)
+                                ? "No developers, team leads, or QA leads available in this team."
+=======
                               ? hasTaskStoryLeadAccess(role) && ["Task", "Sub-task"].includes(formData.type)
                                 ? "No developers or team leads available in this team."
+>>>>>>> b17c4066c1873c208a579ac9310d65ecabbf82d7
                                 : "No teammates available in this team."
                               : "Select a team first."
                           }
