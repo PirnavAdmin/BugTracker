@@ -4,7 +4,6 @@ import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import {
   createIssue,
   deleteIssue,
-  fetchEpics,
   fetchIssues,
   fetchProjects,
   fetchSprints,
@@ -219,7 +218,7 @@ const IssuesPage = () => {
   const [filters, setFilters] = useState({
     projectId: normalizeProjectFilterValue(searchParams.get("projectId")),
     teamId: searchParams.get("teamId") || "all",
-    epicId: searchParams.get("epicId") || "all",
+    epicId: "all",
     sprintId: searchParams.get("sprintId") || "all",
     assigneeId: searchParams.get("assigneeId") || "all",
     type: ISSUE_TYPES.TASK,
@@ -281,7 +280,6 @@ const IssuesPage = () => {
       )
         ? String(requestedTeamId)
         : "all";
-      const nextEpicId = searchParams.get("epicId") || current.epicId || "all";
       const nextSprintId = searchParams.get("sprintId") || current.sprintId || "all";
       const nextSearch = searchParams.get("search") || current.search;
       const requestedAssigneeId = searchParams.get("assigneeId") || current.assigneeId;
@@ -302,7 +300,7 @@ const IssuesPage = () => {
       if (
         current.projectId === nextProjectId &&
         current.teamId === nextTeamId &&
-        current.epicId === nextEpicId &&
+        current.epicId === "all" &&
         current.sprintId === nextSprintId &&
         current.assigneeId === requestedAssigneeId &&
         current.status === nextStatus &&
@@ -320,7 +318,7 @@ const IssuesPage = () => {
       return {
         projectId: nextProjectId,
         teamId: nextTeamId,
-        epicId: nextEpicId,
+        epicId: "all",
         sprintId: nextSprintId,
         assigneeId: requestedAssigneeId,
         type: current.type,
@@ -359,14 +357,6 @@ const IssuesPage = () => {
   const selectedProjectId =
     selectedProject && filters.projectId !== ALL_PROJECTS_VALUE ? selectedProject._id : "";
   const {
-    data: selectedProjectEpicsData = [],
-    isFetched: areSelectedProjectEpicsFetched,
-  } = useQuery({
-    queryKey: ["project-epics", selectedProjectId],
-    queryFn: () => fetchEpics({ projectId: selectedProjectId }),
-    enabled: Boolean(selectedProjectId),
-  });
-  const {
     data: selectedProjectSprintsData = [],
     isFetched: areSelectedProjectSprintsFetched,
   } = useQuery({
@@ -374,13 +364,6 @@ const IssuesPage = () => {
     queryFn: () => fetchSprints({ projectId: selectedProjectId }),
     enabled: Boolean(selectedProjectId),
   });
-  const availableEpics = useMemo(
-    () =>
-      (Array.isArray(selectedProjectEpicsData) ? selectedProjectEpicsData : []).filter(
-        (epic) => String(epic?.status || "ACTIVE") !== "ARCHIVED"
-      ),
-    [selectedProjectEpicsData]
-  );
   const availableSprints = useMemo(
     () =>
       (Array.isArray(selectedProjectSprintsData) ? selectedProjectSprintsData : [])
@@ -423,25 +406,6 @@ const IssuesPage = () => {
       assigneeId: "all",
     }));
   }, [availableAssignees, filters.assigneeId]);
-
-  useEffect(() => {
-    if (selectedProjectId && !areSelectedProjectEpicsFetched) {
-      return;
-    }
-
-    if (
-      filters.epicId === "all" ||
-      filters.epicId === "unassigned" ||
-      availableEpics.some((epic) => String(epic._id) === String(filters.epicId))
-    ) {
-      return;
-    }
-
-    setFilters((current) => ({
-      ...current,
-      epicId: "all",
-    }));
-  }, [areSelectedProjectEpicsFetched, availableEpics, filters.epicId, selectedProjectId]);
 
   useEffect(() => {
     if (selectedProjectId && !areSelectedProjectSprintsFetched) {
@@ -497,7 +461,6 @@ const IssuesPage = () => {
         projectId:
           filters.projectId === ALL_PROJECTS_VALUE ? "" : filters.projectId,
         teamId: filters.teamId,
-        epicId: filters.epicId,
         sprintId: filters.sprintId,
         assigneeId: filters.assigneeId,
         type: filters.type,
@@ -755,17 +718,24 @@ const IssuesPage = () => {
     }));
   };
 
-  const handleEpicChange = (epicId) => {
-    setFilters((current) => ({
-      ...current,
-      epicId,
-    }));
-  };
-
   const handleSprintChange = (sprintId) => {
     setFilters((current) => ({
       ...current,
       sprintId,
+    }));
+  };
+
+  const handleDateFromChange = (dateFrom) => {
+    setFilters((current) => ({
+      ...current,
+      dateFrom,
+    }));
+  };
+
+  const handleDateToChange = (dateTo) => {
+    setFilters((current) => ({
+      ...current,
+      dateTo,
     }));
   };
 
@@ -797,7 +767,6 @@ const IssuesPage = () => {
       filters.dateTo ||
       filters.projectId !== ALL_PROJECTS_VALUE ||
       filters.teamId !== "all" ||
-      filters.epicId !== "all" ||
       filters.sprintId !== "all" ||
       filters.assigneeId !== "all" ||
       filters.type !== "all" ||
@@ -829,7 +798,6 @@ const IssuesPage = () => {
         filters={filters}
         projects={projects}
         teams={availableTeams}
-        epics={availableEpics}
         sprints={availableSprints}
         assignees={availableAssignees}
         issueTypes={WORK_ITEM_TYPE_OPTIONS}
@@ -841,10 +809,11 @@ const IssuesPage = () => {
         isCreateDisabled={!projects.length || !canCreateIssue}
         onProjectChange={handleProjectChange}
         onTeamChange={handleTeamChange}
-        onEpicChange={handleEpicChange}
         onSprintChange={handleSprintChange}
         onAssigneeChange={handleAssigneeChange}
         onTypeChange={handleTypeChange}
+        onDateFromChange={handleDateFromChange}
+        onDateToChange={handleDateToChange}
         onSearchChange={handleSearchChange}
         onCreateIssue={() => setIsCreateDialogOpen(true)}
         onOpenBulkImport={() => setIsBulkImportOpen(true)}

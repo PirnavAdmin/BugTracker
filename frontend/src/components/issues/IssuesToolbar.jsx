@@ -11,7 +11,6 @@ const IssuesToolbar = ({
   filters,
   projects = [],
   teams = [],
-  epics = [],
   sprints = [],
   assignees = [],
   issueTypes = ISSUE_TYPE_OPTIONS,
@@ -23,10 +22,11 @@ const IssuesToolbar = ({
   isCreateDisabled = false,
   onProjectChange,
   onTeamChange,
-  onEpicChange,
   onSprintChange,
   onAssigneeChange,
   onTypeChange,
+  onDateFromChange,
+  onDateToChange,
   onSearchChange,
   onCreateIssue,
   onOpenBulkImport,
@@ -72,7 +72,7 @@ const IssuesToolbar = ({
           </div>
         </div>
 
-        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-[180px_180px_180px_180px_180px_160px_minmax(0,1fr)]">
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-[180px_180px_180px_260px_180px_160px_minmax(0,1fr)]">
           <label className="space-y-2">
             <span className="text-xs uppercase tracking-[0.22em] text-gray-500">
               Project
@@ -131,22 +131,24 @@ const IssuesToolbar = ({
 
           <label className="space-y-2">
             <span className="text-xs uppercase tracking-[0.22em] text-gray-500">
-              Epic
+              Created Date
             </span>
-            <select
-              className="field-select"
-              value={filters.epicId}
-              onChange={(event) => onEpicChange(event.target.value)}
-              disabled={!selectedProject}
-            >
-              <option value="all">All epics</option>
-              <option value="unassigned">No epic</option>
-              {epics.map((epic) => (
-                <option key={epic._id} value={epic._id}>
-                  {epic.name}
-                </option>
-              ))}
-            </select>
+            <div className="grid grid-cols-2 gap-2">
+              <Input
+                className="px-3"
+                type="date"
+                aria-label="Created from"
+                value={filters.dateFrom}
+                onChange={(event) => onDateFromChange(event.target.value)}
+              />
+              <Input
+                className="px-3"
+                type="date"
+                aria-label="Created to"
+                value={filters.dateTo}
+                onChange={(event) => onDateToChange(event.target.value)}
+              />
+            </div>
           </label>
 
           <label className="space-y-2">
