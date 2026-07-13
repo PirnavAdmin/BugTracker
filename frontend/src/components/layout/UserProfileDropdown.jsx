@@ -11,7 +11,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import StatusIndicator from "@/components/presence/StatusIndicator";
 import { useAuth } from "@/hooks/use-auth";
-import { hasAdminPanelAccess, ROLE_DEVELOPER, ROLE_TEAM_LEAD } from "@/lib/roles";
+import { hasAdminPanelAccess, hasWorkspaceMailAccess } from "@/lib/roles";
 import { getInitials } from "@/lib/utils";
 
 const UserProfileDropdown = () => {
@@ -63,7 +63,7 @@ const UserProfileDropdown = () => {
   const settingsPath = hasAdminPanelAccess(user?.role)
     ? "/settings/users"
     : "/dev/settings";
-  const showSettingsLinks = ![ROLE_DEVELOPER, ROLE_TEAM_LEAD].includes(user?.role);
+  const showSettingsLinks = hasAdminPanelAccess(user?.role) || hasWorkspaceMailAccess(user?.role);
 
   const menuItems = [
     {
