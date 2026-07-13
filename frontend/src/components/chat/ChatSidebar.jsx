@@ -1,11 +1,11 @@
 import { memo, useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Check, Hash, MessageCircle, Plus, Search, Trash2, UsersRound, X } from "lucide-react";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import UserAvatar from "@/components/shared/UserAvatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import StatusIndicator from "@/components/presence/StatusIndicator";
-import { cn, getInitials } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 
 const getId = (value) => String(value?._id || value?.id || value || "");
 
@@ -77,11 +77,12 @@ const ConversationButton = memo(
         >
           <div className="relative shrink-0">
             {conversation.type === "direct" ? (
-              <Avatar className="h-11 w-11 rounded-2xl">
-                <AvatarFallback className="text-xs">
-                  {getInitials(directUser?.name || title)}
-                </AvatarFallback>
-              </Avatar>
+              <UserAvatar
+                user={directUser}
+                name={directUser?.name || title}
+                className="h-11 w-11 rounded-2xl"
+                fallbackClassName="text-xs"
+              />
             ) : (
               <span
                 className={cn(
@@ -352,11 +353,11 @@ const ChatSidebar = memo(
                     className="flex w-full items-center gap-3 rounded-2xl px-3 py-2 text-left text-sm transition hover:bg-blue-50"
                   >
                     <span className="relative">
-                      <Avatar className="h-9 w-9 rounded-2xl">
-                        <AvatarFallback className="text-xs">
-                          {getInitials(user.name)}
-                        </AvatarFallback>
-                      </Avatar>
+                      <UserAvatar
+                        user={user}
+                        className="h-9 w-9 rounded-2xl"
+                        fallbackClassName="text-xs"
+                      />
                       <StatusIndicator userId={getId(user)} className="absolute -bottom-0.5 -right-0.5" />
                     </span>
                     <span className="min-w-0">

@@ -1,10 +1,10 @@
 import { memo } from "react";
 import { Camera, Hash, Menu, Phone, Trash2, UsersRound } from "lucide-react";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import UserAvatar from "@/components/shared/UserAvatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useCall } from "@/components/chat/CallProvider";
-import { cn, getInitials } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 
 const getId = (value) => String(value?._id || value?.id || value || "");
 
@@ -102,9 +102,11 @@ const ChatHeader = memo(({ conversation, currentUserId, onlineUsers, onDelete, o
 
       <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-white/70 bg-gradient-to-r from-blue-100 to-cyan-100 text-blue-700 shadow-sm sm:h-12 sm:w-12">
         {conversation?.type === "direct" ? (
-          <Avatar className="h-9 w-9 sm:h-11 sm:w-11">
-            <AvatarFallback>{getInitials(directUser?.name || title)}</AvatarFallback>
-          </Avatar>
+          <UserAvatar
+            user={directUser}
+            name={directUser?.name || title}
+            className="h-9 w-9 sm:h-11 sm:w-11"
+          />
         ) : (
           <Hash className="h-5 w-5" />
         )}
@@ -263,14 +265,12 @@ const ChatHeader = memo(({ conversation, currentUserId, onlineUsers, onDelete, o
 
       <div className="hidden items-center -space-x-2 sm:flex">
         {participants.slice(0, 4).map((participant) => (
-          <Avatar
+          <UserAvatar
             key={getId(participant)}
+            user={participant}
             className="h-9 w-9 rounded-2xl border-2 border-white"
-          >
-            <AvatarFallback className="text-[11px]">
-              {getInitials(participant.name)}
-            </AvatarFallback>
-          </Avatar>
+            fallbackClassName="text-[11px]"
+          />
         ))}
       </div>
     </header>

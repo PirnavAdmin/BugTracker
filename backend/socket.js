@@ -243,6 +243,7 @@ const serializeSocketUser = (user) => ({
   name: user?.name || "",
   email: user?.email || "",
   role: user?.role || "",
+  avatarUrl: user?.avatarUrl || "",
 });
 
 const emitCallParticipants = async (io, callId) => {
@@ -253,7 +254,7 @@ const emitCallParticipants = async (io, callId) => {
   }
 
   const participantRecords = await CallParticipant.find({ callId })
-    .populate("userId", "_id name email role designation")
+    .populate("userId", "_id name email role designation avatarUrl")
     .lean();
   const payload = {
     call: serializeCall(call),
