@@ -60,6 +60,28 @@ const ProjectsPage = () => {
   const [isCreateTeamDialogOpen, setIsCreateTeamDialogOpen] = useState(false);
   const [toast, setToast] = useState(null);
 
+  const updateActiveTab = (tab) => {
+    const nextTab = tab === "teams" ? "teams" : "projects";
+    setActiveTab(nextTab);
+
+    const params = new URLSearchParams(location.search);
+    if (nextTab === "teams") {
+      params.set("tab", "teams");
+    } else {
+      params.delete("tab");
+    }
+
+    navigate(`${location.pathname}${params.toString() ? `?${params}` : ""}`, {
+      replace: true,
+      state: location.state,
+    });
+  };
+
+  useEffect(() => {
+    const requestedTab = new URLSearchParams(location.search).get("tab");
+    setActiveTab(requestedTab === "teams" ? "teams" : "projects");
+  }, [location.search]);
+
   const showToast = (type, message) => {
     setToast({
       id: Date.now(),
@@ -369,7 +391,7 @@ const ProjectsPage = () => {
                     id={`${id}-tab`}
                     role="tab"
                     type="button"
-                    onClick={() => setActiveTab(id)}
+                    onClick={() => updateActiveTab(id)}
                   >
                     <Icon className="h-3.5 w-3.5" />
                     {label}

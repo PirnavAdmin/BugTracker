@@ -8,10 +8,10 @@ const { buildIssueTimingMeta } = require("./issueTiming");
 const { buildSprintLifecycleMeta } = require("./sprintLifecycle");
 
 const issuePopulation = [
-  { path: "assignee", select: "name email role" },
-  { path: "assignees", select: "name email role" },
-  { path: "bugDetails.testerOwner", select: "name email role" },
-  { path: "bugDetails.developerLead", select: "name email role" },
+  { path: "assignee", select: "name email role avatarUrl" },
+  { path: "assignees", select: "name email role avatarUrl" },
+  { path: "bugDetails.testerOwner", select: "name email role avatarUrl" },
+  { path: "bugDetails.developerLead", select: "name email role avatarUrl" },
   { path: "dependsOnIssueId", select: "title status dueAt" },
   { path: "dependencyIds", select: "title type status priority dueAt" },
   {
@@ -20,17 +20,23 @@ const issuePopulation = [
       "title type status priority storyPoints storyProgress epicId sprintId acceptanceCriteria",
   },
   { path: "parentTaskId", select: "title type status priority" },
-  { path: "reporter", select: "name email role" },
+  { path: "reporter", select: "name email role avatarUrl" },
   {
     path: "projectId",
     select:
       "name shortCode description createdBy isCompleted status priority themeColor manager projectManager teamLead qaLead",
+    populate: [
+      { path: "manager", select: "name email role avatarUrl" },
+      { path: "projectManager", select: "name email role avatarUrl" },
+      { path: "teamLead", select: "name email role avatarUrl" },
+      { path: "qaLead", select: "name email role avatarUrl" },
+    ],
   },
   { path: "teamId", select: "name description workspaceId" },
   { path: "epicId", select: "name color status planningOrder" },
   { path: "sprintId", select: "name state startDate endDate teamId startedAt completedAt" },
-  { path: "updatedBy", select: "name email role" },
-  { path: "closedBy", select: "name email role" },
+  { path: "updatedBy", select: "name email role avatarUrl" },
+  { path: "closedBy", select: "name email role avatarUrl" },
 ];
 
 const populateIssueQuery = (query) => query.populate(issuePopulation);

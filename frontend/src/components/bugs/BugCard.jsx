@@ -15,6 +15,7 @@ import {
   UserCircle2,
 } from "lucide-react";
 import { getIssueDisplayKey, getIssuePriorityVariant, resolveBugDetails } from "@/lib/issues";
+import UserAvatar from "@/components/shared/UserAvatar";
 import { cn, formatDateTime } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -22,12 +23,16 @@ import { Button } from "@/components/ui/button";
 const getProjectName = (issue) => issue?.projectId?.name || "Unknown project";
 const getAssigneeName = (issue) =>
   issue?.assignee?.name || resolveBugDetails(issue)?.developerLead?.name || "Unassigned";
+const getAssignee = (issue) =>
+  issue?.assignee || resolveBugDetails(issue)?.developerLead || null;
 const getReporterName = (issue) =>
   issue?.reporter?.name ||
   issue?.reporterName ||
   resolveBugDetails(issue)?.testerOwner?.name ||
   issue?.testerOwnerName ||
   "Unknown reporter";
+const getReporter = (issue) =>
+  issue?.reporter || resolveBugDetails(issue)?.testerOwner || null;
 const getSeverity = (issue) => resolveBugDetails(issue)?.severity || "Not set";
 const getModuleName = (issue) => resolveBugDetails(issue)?.moduleName || "Unmapped module";
 const getCreatedTimeLabel = (issue) => formatDateTime(issue?.createdAt);
@@ -275,6 +280,14 @@ const BugCardSurface = ({
     onAction,
     onOpen,
   });
+  const displayedUser =
+    actionMode === "developer" && columnKey === "available"
+      ? getReporter(issue)
+      : getAssignee(issue);
+  const displayedName =
+    actionMode === "developer" && columnKey === "available"
+      ? getReporterName(issue)
+      : getAssigneeName(issue);
 
   return (
     <article
@@ -334,12 +347,17 @@ const BugCardSurface = ({
           <span className="truncate font-medium text-slate-800">{getProjectName(issue)}</span>
         </div>
         <div className="flex items-center gap-2">
-          <UserCircle2 className="h-3.5 w-3.5 shrink-0 text-slate-400" />
-          <span className="truncate">
-            {actionMode === "developer" && columnKey === "available"
-              ? getReporterName(issue)
-              : getAssigneeName(issue)}
-          </span>
+          {displayedUser ? (
+            <UserAvatar
+              user={displayedUser}
+              name={displayedName}
+              className="h-3.5 w-3.5 shrink-0 rounded-full border border-slate-200"
+              fallbackClassName="text-[6px]"
+            />
+          ) : (
+            <UserCircle2 className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+          )}
+          <span className="truncate">{displayedName}</span>
         </div>
         <div className="flex items-center gap-2">
           <CalendarClock className="h-3.5 w-3.5 shrink-0 text-slate-400" />

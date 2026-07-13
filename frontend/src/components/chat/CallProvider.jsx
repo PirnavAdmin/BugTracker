@@ -19,11 +19,11 @@ import {
   PhoneOff,
   UsersRound,
 } from "lucide-react";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import UserAvatar from "@/components/shared/UserAvatar";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/use-auth";
 import { getChatSocket } from "@/lib/socket";
-import { cn, getInitials } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 
 const CallContext = createContext(null);
 const getId = (value) => String(value?._id || value?.id || value || "");
@@ -1782,11 +1782,12 @@ export const CallProvider = ({ children }) => {
       {incomingCall ? (
         <div className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/45 p-4 backdrop-blur-sm">
           <div className="w-full max-w-sm rounded-[28px] border border-white/70 bg-white p-6 text-center shadow-2xl">
-            <Avatar className="mx-auto h-20 w-20 rounded-[28px] border border-blue-100">
-              <AvatarFallback className="text-xl">
-                {getInitials(incomingCall.caller?.name || incomingCall.channelName)}
-              </AvatarFallback>
-            </Avatar>
+            <UserAvatar
+              user={incomingCall.caller}
+              name={incomingCall.caller?.name || incomingCall.channelName}
+              className="mx-auto h-20 w-20 rounded-[28px] border border-blue-100"
+              fallbackClassName="text-xl"
+            />
             <h2 className="mt-4 text-xl font-extrabold text-slate-950">
               {incomingCall.scope === "group"
                 ? incomingCall.channelName || "Group call"
@@ -1861,11 +1862,11 @@ export const CallProvider = ({ children }) => {
                     <LocalVideo stream={localStream} />
                   ) : (
                     <div className="flex h-full flex-col items-center justify-center">
-                      <Avatar className="h-20 w-20 rounded-lg border border-white/15">
-                        <AvatarFallback className="bg-blue-500 text-2xl text-white">
-                          {getInitials(user?.name)}
-                        </AvatarFallback>
-                      </Avatar>
+                      <UserAvatar
+                        user={user}
+                        className="h-20 w-20 rounded-lg border border-white/15"
+                        fallbackClassName="text-2xl"
+                      />
                     </div>
                   )}
                   <span className="absolute bottom-3 left-3 max-w-[75%] truncate rounded-full bg-black/60 px-3 py-1 text-xs font-bold">

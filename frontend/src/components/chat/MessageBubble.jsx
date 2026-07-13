@@ -1,10 +1,10 @@
 import { memo, useState } from "react";
 import { motion } from "framer-motion";
 import { CheckCheck, Clock3, Download, FileText, ImageIcon, X } from "lucide-react";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import UserAvatar from "@/components/shared/UserAvatar";
 import { Button } from "@/components/ui/button";
 import { resolveApiAssetUrl } from "@/lib/api";
-import { cn, formatTime, getInitials } from "@/lib/utils";
+import { cn, formatTime } from "@/lib/utils";
 
 const formatFileSize = (size = 0) => {
   if (!size) {
@@ -126,9 +126,11 @@ const MessageBubble = memo(({ message, currentUserId }) => {
         className={cn("flex w-full gap-3", isOwn ? "justify-end" : "justify-start")}
       >
         {!isOwn ? (
-          <Avatar className="mt-1 h-9 w-9 rounded-2xl border-emerald-100">
-            <AvatarFallback className="text-xs">{getInitials(sender?.name)}</AvatarFallback>
-          </Avatar>
+          <UserAvatar
+            user={sender}
+            className="mt-1 h-9 w-9 rounded-2xl border-emerald-100"
+            fallbackClassName="text-xs"
+          />
         ) : null}
 
         <div

@@ -67,7 +67,7 @@ fs.mkdirSync(chatAttachmentsRoot, {
   recursive: true,
 });
 
-const userSelect = "_id name email role designation workspaceId";
+const userSelect = "_id name email role designation avatarUrl workspaceId";
 const conversationPopulation = [
   { path: "participants", select: userSelect },
   { path: "createdBy", select: userSelect },
@@ -200,6 +200,7 @@ const serializeUser = (user) => {
     email: user.email || "",
     role: user.role || "",
     designation: user.designation || "",
+    avatarUrl: user.avatarUrl || "",
     workspaceId: normalizeWorkspaceId(user.workspaceId),
   };
 };

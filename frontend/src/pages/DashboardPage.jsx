@@ -1078,7 +1078,7 @@ const DashboardPage = () => {
       value: formatCompactNumber(allTeams.length),
       icon: Users2,
       iconClassName: "text-violet-600",
-      onClick: () => navigate("/teams"),
+      onClick: () => navigate("/projects?tab=teams"),
     },
   ];
   const recentCriticalBugs = useMemo(
@@ -1184,7 +1184,7 @@ const DashboardPage = () => {
         direction: "flat",
         label: `${teams.length} in reports`,
       },
-      onClick: () => navigate("/projects"),
+      onClick: () => navigate("/projects?tab=teams"),
     },
     {
       key: "rate",
