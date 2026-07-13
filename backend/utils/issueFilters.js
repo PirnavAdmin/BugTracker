@@ -73,7 +73,7 @@ const getHighPriorityIssues = (issues = []) =>
 const getFilterAlias = (value = "") => {
   const normalizedValue = String(value || "").trim().toLowerCase();
 
-  return ["open", "closed", "reopened", "critical"].includes(normalizedValue)
+  return ["open", "closed", "reopened", "critical", "overdue"].includes(normalizedValue)
     ? normalizedValue
     : "";
 };
@@ -124,6 +124,16 @@ const buildCriticalIssueCondition = () => ({
   ],
 });
 
+const buildOverdueIssueCondition = (now = new Date()) => ({
+  dueAt: {
+    $lt: now,
+    $ne: null,
+  },
+  status: {
+    $nin: COMPLETED_STATUS_QUERY_VALUES,
+  },
+});
+
 module.exports = {
   COMPLETED_STATUS_QUERY_VALUES,
   COMPLETED_STATUS_VALUES,
@@ -135,6 +145,7 @@ module.exports = {
   buildCriticalIssueCondition,
   buildHighPriorityIssueCondition,
   buildOpenIssueCondition,
+  buildOverdueIssueCondition,
   buildReopenedIssueCondition,
   getClosedIssues,
   getCriticalIssues,

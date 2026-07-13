@@ -62,6 +62,7 @@ const {
   buildCriticalIssueCondition,
   buildHighPriorityIssueCondition,
   buildOpenIssueCondition,
+  buildOverdueIssueCondition,
   buildReopenedIssueCondition,
   getClosedIssues,
   getFilterAlias,
@@ -2626,6 +2627,8 @@ const buildIssueQueryFromRequest = async (
     Object.assign(query, buildReopenedIssueCondition());
   } else if (filterAlias === "critical") {
     addAndCondition(query, buildCriticalIssueCondition());
+  } else if (filterAlias === "overdue") {
+    addAndCondition(query, buildOverdueIssueCondition());
   } else if (req.query.filter && req.query.filter !== "all") {
     res.status(400);
     throw new Error("Invalid issue filter");
