@@ -234,6 +234,15 @@ const BUG_LIQUID_THEME = {
   },
 };
 
+const PROJECT_CONTRIBUTION_COLORS = [
+  "#60A5FA",
+  "#8B5CF6",
+  "#22D3EE",
+  "#38BDF8",
+  "#6366F1",
+  "#14B8A6",
+];
+
 const BUG_RESOLVED_STATUSES = [
   ISSUE_STATUS.FIXED,
   ISSUE_STATUS.QA,
@@ -374,6 +383,144 @@ const ProjectBugCard = ({ project, onOpen }) => (
     </div>
   </button>
 );
+
+const ProjectContributionPanel = ({ projects = [], total = 0, onOpen }) => {
+  const chartRows = projects.map((project, index) => ({
+    ...project,
+    value: project.total,
+    color: PROJECT_CONTRIBUTION_COLORS[index % PROJECT_CONTRIBUTION_COLORS.length],
+  }));
+  const totalContributions = total || chartRows.reduce((sum, project) => sum + project.total, 0);
+  const maxTotal = Math.max(...chartRows.map((project) => project.total), 1);
+
+  return (
+    <AnalyticsPanel
+      title="Project Contribution"
+      description="Track user contributions across multiple projects."
+      action={
+        projects.length ? (
+          <Badge className="rounded-full border-slate-200/80 bg-white/62 px-4 py-1.5 text-sm font-bold text-slate-600 shadow-sm">
+            {projects.length} projects
+          </Badge>
+        ) : null
+      }
+    >
+      {projects.length ? (
+        <div className="grid gap-6 lg:grid-cols-[0.96fr_1.04fr]">
+          <div className="flex min-h-[390px] flex-col items-center justify-center">
+            <div className="relative h-[300px] w-full max-w-[360px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={chartRows}
+                    dataKey="value"
+                    nameKey="name"
+                    cx="50%"
+                    cy="50%"
+                    innerRadius="54%"
+                    outerRadius="86%"
+                    paddingAngle={1}
+                    stroke="rgba(255,255,255,0.72)"
+                    strokeWidth={2}
+                  >
+                    {chartRows.map((entry) => (
+                      <Cell key={entry.projectId || entry.name} fill={entry.color} />
+                    ))}
+                  </Pie>
+                  <Tooltip
+                    formatter={(value, name) => [`${value} contributions`, name]}
+                    contentStyle={{
+                      borderRadius: 18,
+                      border: "1px solid rgba(226,232,240,0.86)",
+                      boxShadow: "0 18px 40px -28px rgba(15,23,42,0.42)",
+                    }}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+              <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+                <div className="flex h-40 w-40 flex-col items-center justify-center rounded-full bg-white/68 text-center shadow-[inset_0_1px_24px_rgba(255,255,255,0.88),0_22px_48px_-34px_rgba(37,99,235,0.62)] backdrop-blur-xl">
+                  <Users2 className="h-11 w-11 text-blue-500" />
+                  <p className="mt-3 text-4xl font-black leading-none text-slate-900">
+                    {formatCompactNumber(totalContributions)}
+                  </p>
+                  <p className="mt-1 text-sm font-medium text-slate-600">Contributions</p>
+                </div>
+              </div>
+            </div>
+            <div className="mt-3 grid w-full max-w-[430px] grid-cols-1 gap-2 text-sm font-semibold text-slate-700 sm:grid-cols-2">
+              {chartRows.slice(0, 6).map((project) => (
+                <button
+                  key={project.projectId || project.name}
+                  type="button"
+                  onClick={() => onOpen(project)}
+                  className="flex min-w-0 items-center gap-2 rounded-full px-2 py-1 text-left transition hover:bg-white/70"
+                >
+                  <span
+                    className="h-3.5 w-3.5 shrink-0 rounded-full"
+                    style={{ backgroundColor: project.color }}
+                  />
+                  <span className="truncate">{project.name}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="dashboard-scrollbar dashboard-scroll-fade max-h-[390px] space-y-3 overflow-y-auto pr-2">
+            {chartRows.map((project, index) => {
+              const width = Math.max(Math.round((project.total / maxTotal) * 100), project.total ? 8 : 0);
+
+              return (
+                <button
+                  key={project.projectId || project.name}
+                  type="button"
+                  onClick={() => onOpen(project)}
+                  className="group relative grid min-h-[92px] w-full grid-cols-[52px_minmax(0,1fr)_78px] items-center gap-4 overflow-hidden rounded-[26px] border border-white/75 bg-white/62 px-4 py-3 text-left shadow-[0_20px_50px_-36px_rgba(37,99,235,0.5)] backdrop-blur-xl transition duration-300 hover:-translate-y-0.5 hover:border-blue-200/90 hover:bg-white/76"
+                >
+                  <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_0%,rgba(255,255,255,0.95),transparent_34%),radial-gradient(circle_at_88%_50%,rgba(96,165,250,0.18),transparent_44%)]" />
+                  <span
+                    className="relative z-10 flex h-12 w-12 items-center justify-center rounded-full text-sm font-black text-white shadow-[0_14px_28px_-20px_rgba(37,99,235,0.72)]"
+                    style={{ background: `linear-gradient(135deg, ${project.color}, #2563EB)` }}
+                  >
+                    {getInitials(project.name)}
+                  </span>
+                  <div className="relative z-10 min-w-0">
+                    <p className="truncate text-lg font-extrabold text-slate-900">{project.name}</p>
+                    <p className="truncate text-sm font-medium text-slate-500">
+                      {project.open} open / {project.closed} closed
+                    </p>
+                    <div className="mt-2 grid grid-cols-[minmax(0,1fr)_44px] items-center gap-2">
+                      <div className="h-2 overflow-hidden rounded-full bg-sky-100/80">
+                        <div
+                          className="h-full rounded-full bg-[linear-gradient(90deg,#38BDF8,#2563EB)] transition-all duration-500"
+                          style={{ width: `${width}%` }}
+                        />
+                      </div>
+                      <span className="text-right text-xs font-bold text-slate-500">
+                        {project.closed}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="relative z-10 text-right">
+                    <p className="text-3xl font-black leading-none text-slate-800">{project.total}</p>
+                    <p className="mt-2 text-xs font-semibold text-slate-500">
+                      {project.open}/{project.closed}
+                    </p>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      ) : (
+        <AnalyticsEmptyState
+          icon={FolderKanban}
+          title="No project contribution data yet"
+          description="Project contribution insights appear once bugs are linked."
+        />
+      )}
+    </AnalyticsPanel>
+  );
+};
 
 const LiquidBugStatusCard = ({ row, fillPercent = 0, onOpen }) => {
   const shouldReduceMotion = useReducedMotion();
@@ -1493,46 +1640,22 @@ const DashboardPage = () => {
             </div>
 
             <section className="grid gap-5 xl:grid-cols-[1.15fr_0.85fr]">
-              <AnalyticsPanel
-                title="Project Bug Status"
-                description="Live bug volume and resolution progress."
-                action={
-                  bugProjectRows.length ? (
-                    <Badge className="border-slate-100 bg-slate-50 text-slate-600 text-[10px] font-bold">
-                      {bugProjectRows.length} projects
-                    </Badge>
-                  ) : null
+              <ProjectContributionPanel
+                projects={bugProjectRows}
+                total={bugMetrics.total}
+                onOpen={(selectedProject) =>
+                  navigateToBugs({
+                    projectId:
+                      selectedProject.projectId === selectedProject.name
+                        ? ""
+                        : selectedProject.projectId,
+                    project:
+                      selectedProject.projectId === selectedProject.name
+                        ? selectedProject.name
+                        : "",
+                  })
                 }
-              >
-                {bugProjectRows.length ? (
-                  <div className="dashboard-scrollbar dashboard-scroll-fade max-h-[380px] space-y-3 overflow-y-auto pr-2">
-                    {bugProjectRows.map((project) => (
-                      <ProjectBugCard
-                        key={project.projectId}
-                        project={project}
-                        onOpen={(selectedProject) =>
-                          navigateToBugs({
-                            projectId:
-                              selectedProject.projectId === selectedProject.name
-                                ? ""
-                                : selectedProject.projectId,
-                            project:
-                              selectedProject.projectId === selectedProject.name
-                                ? selectedProject.name
-                                : "",
-                          })
-                        }
-                      />
-                    ))}
-                  </div>
-                ) : (
-                  <AnalyticsEmptyState
-                    icon={FolderKanban}
-                    title="No project bug data yet"
-                    description="Project bug insights appear once bugs are linked."
-                  />
-                )}
-              </AnalyticsPanel>
+              />
 
               <PriorityDistribution rows={priorityRows} total={bugMetrics.total} />
             </section>
