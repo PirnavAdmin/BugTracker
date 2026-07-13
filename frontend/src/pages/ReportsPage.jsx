@@ -671,11 +671,11 @@ const getReportDatePreset = (preset, now = new Date()) => {
 };
 
 const REPORT_DATE_PRESETS = [
-  { value: "overall", label: "Overall", icon: Layers3 },
+  { value: "overall", label: "All Time", icon: Layers3 },
   { value: "today", label: "Today", icon: CalendarDays },
-  { value: "week", label: "Last Week", icon: TimerReset },
-  { value: "month", label: "Month", icon: BarChart3 },
-  { value: "custom", label: "Calendar", icon: CalendarClock },
+  { value: "week", label: "Last 7 Days", icon: TimerReset },
+  { value: "month", label: "Last 30 Days", icon: BarChart3 },
+  { value: "custom", label: "Custom Dates", icon: CalendarClock },
 ];
 
 const toLocalDayBoundaryIso = (value, end = false) => {
@@ -4352,7 +4352,7 @@ const JiraReportsDashboard = () => {
               <option value="month">Current vs Previous Month</option>
               <option value="release">Current vs Previous Release</option>
             </select>
-            <div className="flex min-w-0 flex-wrap items-center gap-1.5 rounded-2xl border border-slate-200 bg-slate-50/80 p-1 md:col-span-2 xl:col-span-2">
+            <div className="grid min-w-0 grid-cols-2 gap-1.5 rounded-2xl border border-slate-200 bg-slate-50/80 p-1 sm:grid-cols-3 md:col-span-2 xl:col-span-3 2xl:grid-cols-5">
               {REPORT_DATE_PRESETS.map((preset) => {
                 const PresetIcon = preset.icon;
                 const isActive = datePreset === preset.value;
@@ -4362,16 +4362,16 @@ const JiraReportsDashboard = () => {
                     key={preset.value}
                     type="button"
                     className={cn(
-                      "inline-flex h-10 min-w-0 flex-1 items-center justify-center gap-2 rounded-xl px-3 text-sm font-semibold transition",
+                      "inline-flex h-10 min-w-[132px] items-center justify-center gap-2 whitespace-nowrap rounded-xl px-3 text-sm font-semibold transition-colors",
                       isActive
-                        ? "bg-white text-blue-700 shadow-sm ring-1 ring-blue-200"
+                        ? "bg-white text-blue-700 shadow-sm outline outline-1 outline-blue-200"
                         : "text-slate-600 hover:bg-white hover:text-slate-950"
                     )}
                     onClick={() => updateDatePreset(preset.value)}
                     aria-pressed={isActive}
                   >
                     <PresetIcon className="h-4 w-4 shrink-0" />
-                    <span className="truncate">{preset.label}</span>
+                    <span>{preset.label}</span>
                   </button>
                 );
               })}
