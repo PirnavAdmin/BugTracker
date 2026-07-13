@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
-import { motion, useReducedMotion } from "framer-motion";
+import { motion, useReducedMotion, useScroll, useTransform } from "framer-motion";
 import {
   Activity,
   AlertTriangle,
@@ -195,6 +195,45 @@ const BUG_STATUS_CARD_META = [
   },
 ];
 
+const BUG_LIQUID_THEME = {
+  bucket: {
+    dot: "#7C3AED",
+    top: "rgba(103, 232, 249, 0.68)",
+    bottom: "rgba(6, 182, 212, 0.92)",
+    glow: "rgba(34, 211, 238, 0.28)",
+  },
+  assigned: {
+    dot: "#3B82F6",
+    top: "rgba(191, 219, 254, 0.58)",
+    bottom: "rgba(59, 130, 246, 0.76)",
+    glow: "rgba(59, 130, 246, 0.22)",
+  },
+  closed: {
+    dot: "#10B981",
+    top: "rgba(110, 231, 183, 0.7)",
+    bottom: "rgba(16, 185, 129, 0.95)",
+    glow: "rgba(16, 185, 129, 0.3)",
+  },
+  inProgress: {
+    dot: "#8B5CF6",
+    top: "rgba(167, 139, 250, 0.74)",
+    bottom: "rgba(109, 40, 217, 0.94)",
+    glow: "rgba(139, 92, 246, 0.3)",
+  },
+  readyForQa: {
+    dot: "#06B6D4",
+    top: "rgba(153, 246, 228, 0.72)",
+    bottom: "rgba(6, 182, 212, 0.9)",
+    glow: "rgba(20, 184, 166, 0.28)",
+  },
+  reopened: {
+    dot: "#F43F5E",
+    top: "rgba(253, 164, 175, 0.72)",
+    bottom: "rgba(239, 68, 68, 0.9)",
+    glow: "rgba(244, 63, 94, 0.28)",
+  },
+};
+
 const BUG_RESOLVED_STATUSES = [
   ISSUE_STATUS.FIXED,
   ISSUE_STATUS.QA,
@@ -323,6 +362,103 @@ const ProjectBugCard = ({ project, onOpen }) => (
     </div>
   </button>
 );
+
+const LiquidBugStatusCard = ({ row, fillPercent = 0, onOpen }) => {
+  const shouldReduceMotion = useReducedMotion();
+  const { scrollYProgress } = useScroll();
+  const scrollWaveX = useTransform(scrollYProgress, [0, 1], shouldReduceMotion ? ["0%", "0%"] : ["-8%", "8%"]);
+  const scrollWaveY = useTransform(scrollYProgress, [0, 1], shouldReduceMotion ? [0, 0] : [6, -6]);
+  const theme = BUG_LIQUID_THEME[row.key] || BUG_LIQUID_THEME.bucket;
+  const safeFill = Math.max(0, Math.min(100, fillPercent));
+  const liquidOffset = 100 - safeFill;
+
+  return (
+    <button
+      type="button"
+      onClick={() => onOpen(row.routeParams)}
+      className="group relative min-h-[210px] w-full overflow-hidden rounded-[28px] border border-white/80 bg-white/90 px-5 py-5 text-left shadow-[0_22px_55px_-36px_rgba(15,23,42,0.5)] transition duration-300 hover:-translate-y-1 hover:border-blue-200/80 hover:shadow-[0_28px_72px_-42px_rgba(37,99,235,0.52)] dark:border-slate-800/80 dark:bg-slate-950/86"
+      style={{ boxShadow: `0 28px 70px -48px ${theme.bottom}` }}
+    >
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_12%,rgba(255,255,255,0.92),transparent_32%),linear-gradient(135deg,rgba(255,255,255,0.72),transparent_58%)]" />
+      <div
+        className="pointer-events-none absolute inset-x-0 bottom-0 h-[70%] overflow-hidden transition-transform duration-700 ease-out"
+        style={{ transform: `translateY(${liquidOffset}%)` }}
+      >
+        <motion.div
+          className="absolute -left-[18%] -right-[18%] -top-8 h-16 opacity-95"
+          style={{ x: scrollWaveX, y: scrollWaveY }}
+        >
+          <motion.div
+            className="h-full w-full"
+            animate={
+              shouldReduceMotion
+                ? undefined
+                : {
+                    x: ["-8%", "0%", "-8%"],
+                  }
+            }
+            transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
+          >
+            <svg className="h-full w-full" viewBox="0 0 1200 120" preserveAspectRatio="none" aria-hidden="true">
+              <path
+                d="M0,56 C150,88 300,28 450,54 C610,82 760,92 920,54 C1035,28 1110,40 1200,58 L1200,120 L0,120 Z"
+                fill={theme.top}
+              />
+              <path
+                d="M0,72 C165,42 310,74 470,58 C640,42 760,62 920,72 C1060,82 1130,50 1200,62 L1200,120 L0,120 Z"
+                fill="rgba(255,255,255,0.42)"
+              />
+            </svg>
+          </motion.div>
+        </motion.div>
+        <div
+          className="absolute inset-x-0 bottom-0 top-4"
+          style={{
+            background: `linear-gradient(180deg, ${theme.top} 0%, ${theme.bottom} 92%)`,
+          }}
+        />
+        <motion.div
+          className="absolute inset-x-0 bottom-0 top-8 opacity-55"
+          style={{ x: scrollWaveX }}
+          animate={
+            shouldReduceMotion
+              ? undefined
+              : {
+                  backgroundPosition: ["0px 0px", "80px 48px"],
+                }
+          }
+          transition={{ duration: 11, repeat: Infinity, ease: "linear" }}
+        >
+          <div className="h-full w-full bg-[radial-gradient(circle_at_24px_24px,rgba(255,255,255,0.72)_0_2px,transparent_3px),radial-gradient(circle_at_92px_58px,rgba(255,255,255,0.42)_0_3px,transparent_4px),radial-gradient(circle_at_146px_18px,rgba(255,255,255,0.5)_0_1px,transparent_2px)] bg-[length:180px_120px]" />
+        </motion.div>
+        <div
+          className="absolute inset-0 opacity-50"
+          style={{ background: `linear-gradient(90deg, rgba(255,255,255,0.34), transparent 14%, transparent 82%, ${theme.glow})` }}
+        />
+      </div>
+
+      <div className="relative z-10 flex min-w-0 items-start gap-3">
+        <span
+          className="mt-1 h-3.5 w-3.5 shrink-0 rounded-full shadow-sm"
+          style={{ backgroundColor: theme.dot }}
+        />
+        <div className="min-w-0">
+          <p className="truncate text-xl font-extrabold tracking-tight text-slate-950 dark:text-slate-50">
+            {row.label}
+          </p>
+          <p className="mt-1 text-sm font-medium text-slate-500">{row.helper}</p>
+        </div>
+      </div>
+
+      <div className="relative z-10 mt-14 flex justify-end text-right">
+        <div className={cn(safeFill > 42 ? "text-white drop-shadow" : "text-slate-950 dark:text-slate-50")}>
+          <p className="text-3xl font-black leading-none">{row.count}</p>
+          <p className="mt-1 text-sm font-semibold">bugs</p>
+        </div>
+      </div>
+    </button>
+  );
+};
 
 const PriorityDistribution = ({ rows, total }) => (
   <AnalyticsPanel
@@ -1419,44 +1555,17 @@ const DashboardPage = () => {
           {bugStatusRows.length ? (
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {bugStatusRows.map((row) => {
-                const width = maxBugStatusCount
-                  ? Math.max(Math.round((row.count / maxBugStatusCount) * 100), row.count ? 8 : 0)
+                const fillPercent = maxBugStatusCount
+                  ? Math.max(Math.round((row.count / maxBugStatusCount) * 100), row.count ? 18 : 5)
                   : 0;
 
                 return (
-                  <button
+                  <LiquidBugStatusCard
                     key={row.key}
-                    type="button"
-                    onClick={() => navigateToBugs(row.routeParams)}
-                    className={cn(
-                      ANALYTICS_SUBPANEL_CLASS,
-                      "flex min-h-[148px] w-full flex-col px-4 py-4 text-left"
-                    )}
-                  >
-                    <div className="flex min-w-0 items-center gap-3">
-                      <span className={cn("h-3 w-3 shrink-0 rounded-full", row.className)} />
-                      <div className="min-w-0">
-                        <p className="truncate text-sm font-semibold text-slate-950 dark:text-slate-100">
-                          {row.label}
-                        </p>
-                        <p className="text-xs text-slate-500">{row.helper}</p>
-                      </div>
-                    </div>
-                    <div className="mt-auto flex items-end gap-3 pt-4">
-                      <div className="mb-1 h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
-                        <div
-                          className={cn("h-full rounded-full transition-all duration-500", row.className)}
-                          style={{ width: `${width}%` }}
-                        />
-                      </div>
-                      <div className="shrink-0 text-right">
-                      <p className="text-lg font-semibold text-slate-950 dark:text-slate-100">
-                        {row.count}
-                      </p>
-                      <p className="text-xs text-slate-500">bugs</p>
-                      </div>
-                    </div>
-                  </button>
+                    row={row}
+                    fillPercent={fillPercent}
+                    onOpen={navigateToBugs}
+                  />
                 );
               })}
             </div>
