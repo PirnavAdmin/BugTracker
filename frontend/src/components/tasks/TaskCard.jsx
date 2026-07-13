@@ -16,6 +16,7 @@ import {
   isIssueOverdue,
   resolveIssueAssignee,
 } from "@/lib/issues";
+import UserAvatar from "@/components/shared/UserAvatar";
 import { cn, formatDateTime } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 
@@ -179,7 +180,15 @@ const TaskCardSurface = ({
         </div>
 
         <div className="flex items-center gap-2">
-          <UserCircle2 className="h-4 w-4 shrink-0 text-slate-400" />
+          {assignee ? (
+            <UserAvatar
+              user={assignee}
+              className="h-4 w-4 shrink-0 rounded-full border border-slate-200"
+              fallbackClassName="text-[7px]"
+            />
+          ) : (
+            <UserCircle2 className="h-4 w-4 shrink-0 text-slate-400" />
+          )}
           <span className="truncate font-medium text-slate-800">
             {assignee?.name || "Unassigned"}
           </span>

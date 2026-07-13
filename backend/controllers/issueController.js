@@ -4057,8 +4057,8 @@ const getRecentIssueActivity = asyncHandler(async (req, res) => {
       populate: [
         { path: "projectId", select: "name" },
         { path: "teamId", select: "name" },
-        { path: "assignee", select: "name email role" },
-        { path: "reporter", select: "name email role" },
+        { path: "assignee", select: "name email role avatarUrl" },
+        { path: "reporter", select: "name email role avatarUrl" },
       ],
     })
     .populate("actorId", "name role")
