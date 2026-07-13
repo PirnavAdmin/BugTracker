@@ -25,6 +25,12 @@ const issuePopulation = [
     path: "projectId",
     select:
       "name shortCode description createdBy isCompleted status priority themeColor manager projectManager teamLead qaLead",
+    populate: [
+      { path: "manager", select: "name email role avatarUrl" },
+      { path: "projectManager", select: "name email role avatarUrl" },
+      { path: "teamLead", select: "name email role avatarUrl" },
+      { path: "qaLead", select: "name email role avatarUrl" },
+    ],
   },
   { path: "teamId", select: "name description workspaceId" },
   { path: "epicId", select: "name color status planningOrder" },

@@ -118,6 +118,17 @@ const getProjectAssignmentName = (value) => {
 
   return name || email || "Unassigned";
 };
+const resolveProjectManager = (project = {}) => {
+  if (project.projectManager && typeof project.projectManager === "object") {
+    return project.projectManager;
+  }
+
+  if (project.manager && typeof project.manager === "object") {
+    return project.manager;
+  }
+
+  return project.projectManager || project.manager || null;
+};
 const isPreviewableImage = (attachment) =>
   String(attachment?.mimeType || "").toLowerCase().startsWith("image/");
 
@@ -522,9 +533,7 @@ const IssueDetailsDialog = ({
   const issueSprintName = issue.sprintId?.name || "Backlog";
   const issueSprintGoal = issue.sprintId?.goal || "No sprint goal";
   const storyOwnerName = issue.reporter?.name || issue.reporterName || "Unknown";
-  const projectManagerName = getProjectAssignmentName(
-    issue.projectId?.projectManager || issue.projectId?.manager
-  );
+  const projectManagerName = getProjectAssignmentName(resolveProjectManager(issue.projectId));
   const issueLoggedMinutes = worklogs.reduce(
     (sum, worklog) => sum + Number(worklog.minutes || 0),
     0
