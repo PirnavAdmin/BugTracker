@@ -19,13 +19,13 @@ import {
 } from "lucide-react";
 import { NavLink, useLocation } from "react-router-dom";
 import pirnavLogo from "@/assets/pirnav-logo.png";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import UserAvatar from "@/components/shared/UserAvatar";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/use-auth";
 import { fetchScreenPermissions } from "@/lib/api";
 import { useChatStore } from "@/lib/chatStore";
 import { filterRoleNavigation, getRoleNavigation } from "@/lib/roles";
-import { cn, getInitials } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 import NotificationButton from "./NotificationButton";
 import UserProfileDropdown from "./UserProfileDropdown";
 
@@ -279,11 +279,11 @@ const Navbar = () => {
                     <NotificationButton user={user} />
                   </div>
                   <div className="flex items-center gap-3 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 shadow-sm">
-                    <Avatar className="h-10 w-10 shrink-0 ring-2 ring-blue-100">
-                      <AvatarFallback className="font-bold bg-gradient-to-br from-blue-500 to-blue-600 text-white">
-                        {getInitials(user?.name)}
-                      </AvatarFallback>
-                    </Avatar>
+                    <UserAvatar
+                      user={user}
+                      className="h-10 w-10 shrink-0 ring-2 ring-blue-100"
+                      fallbackClassName="font-bold"
+                    />
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-semibold text-slate-900">
                         {user?.name}

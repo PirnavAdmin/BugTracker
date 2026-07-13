@@ -51,6 +51,7 @@ const serializeUser = (user) => ({
   employeeId: user.employeeId || "",
   designation: user.designation || "",
   role: user.role,
+  avatarUrl: user.avatarUrl || "",
   workspaceId: normalizeWorkspaceId(user.workspaceId),
   createdAt: user.createdAt,
 });
@@ -62,6 +63,7 @@ const serializeInvitedUser = (user) => ({
   employeeId: user.employeeId || "",
   designation: user.designation || "",
   role: user.role,
+  avatarUrl: user.avatarUrl || "",
 });
 
 const createInvitedUser = async ({
@@ -154,7 +156,7 @@ const getManagedUsers = asyncHandler(async (req, res) => {
   const users = await User.find({
     workspaceId,
   })
-    .select("name email employeeId designation role createdAt workspaceId")
+    .select("name email employeeId designation role avatarUrl createdAt workspaceId")
     .sort({ createdAt: -1 })
     .lean();
 

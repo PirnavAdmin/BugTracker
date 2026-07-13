@@ -20,8 +20,8 @@ import {
   resolveTeamId,
   resolveUserId,
 } from "@/lib/project-teams";
-import { cn, formatDateTime, getInitials } from "@/lib/utils";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import UserAvatar from "@/components/shared/UserAvatar";
+import { cn, formatDateTime } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -170,9 +170,7 @@ const AssigneeCell = ({ issue }) => {
 
   return assignee ? (
     <div className="flex items-center gap-3">
-      <Avatar className="h-9 w-9 rounded-xl">
-        <AvatarFallback>{getInitials(assignee.name)}</AvatarFallback>
-      </Avatar>
+      <UserAvatar user={assignee} className="h-9 w-9 rounded-xl" />
       <div className="min-w-0">
         <p className="truncate text-sm font-medium text-slate-900">
           {assignee.name}

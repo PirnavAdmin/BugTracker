@@ -153,7 +153,7 @@ const attachTeamsToProjects = async (projects = []) => {
       $in: projectIds,
     },
   })
-    .populate("userId", "name email role workspaceId")
+    .populate("userId", "name email role avatarUrl workspaceId")
     .sort({ createdAt: 1 })
     .lean();
   const directMembersByProjectId = new Map(

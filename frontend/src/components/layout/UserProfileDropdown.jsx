@@ -8,11 +8,10 @@ import {
   User,
 } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import UserAvatar from "@/components/shared/UserAvatar";
 import StatusIndicator from "@/components/presence/StatusIndicator";
 import { useAuth } from "@/hooks/use-auth";
 import { hasAdminPanelAccess, hasWorkspaceMailAccess } from "@/lib/roles";
-import { getInitials } from "@/lib/utils";
 
 const UserProfileDropdown = () => {
   const { user, logout } = useAuth();
@@ -98,11 +97,11 @@ const UserProfileDropdown = () => {
         aria-expanded={isOpen}
       >
         <span className="relative">
-          <Avatar className="h-8 w-8 ring-2 ring-white/70 group-hover:ring-blue-200 transition-all">
-            <AvatarFallback className="text-xs font-bold bg-gradient-to-br from-blue-500 to-blue-600 text-white">
-              {getInitials(user?.name)}
-            </AvatarFallback>
-          </Avatar>
+          <UserAvatar
+            user={user}
+            className="h-8 w-8 ring-2 ring-white/70 transition-all group-hover:ring-blue-200"
+            fallbackClassName="text-xs font-bold"
+          />
           <StatusIndicator userId={user?._id || user?.id} className="absolute -bottom-0.5 -right-0.5" />
         </span>
         <ChevronDown
@@ -127,11 +126,11 @@ const UserProfileDropdown = () => {
             <div className="sticky top-0 z-10 border-b border-slate-200/70 bg-white/95 px-3.5 py-3 backdrop-blur-xl">
               <div className="flex items-center gap-3">
                 <span className="relative shrink-0">
-                  <Avatar className="h-10 w-10 ring-2 ring-blue-100">
-                    <AvatarFallback className="text-sm font-bold bg-gradient-to-br from-blue-500 to-blue-600 text-white">
-                      {getInitials(user?.name)}
-                    </AvatarFallback>
-                  </Avatar>
+                  <UserAvatar
+                    user={user}
+                    className="h-10 w-10 ring-2 ring-blue-100"
+                    fallbackClassName="text-sm font-bold"
+                  />
                   <StatusIndicator userId={user?._id || user?.id} className="absolute -bottom-0.5 -right-0.5" />
                 </span>
                 <div className="min-w-0 flex-1">

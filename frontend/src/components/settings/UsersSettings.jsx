@@ -12,7 +12,7 @@ import {
 } from "lucide-react";
 import EmptyState from "@/components/shared/EmptyState";
 import SettingsPanel from "@/components/settings/SettingsPanel";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import UserAvatar from "@/components/shared/UserAvatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -26,7 +26,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { WORKSPACE_ROLE_OPTIONS } from "@/lib/roles";
-import { cn, formatDate, getInitials } from "@/lib/utils";
+import { cn, formatDate } from "@/lib/utils";
 
 const USER_FILTER_KEY_ALL = "all";
 
@@ -351,9 +351,7 @@ const UsersSettings = ({
                     className="flex flex-col gap-4 px-4 py-4 transition hover:bg-slate-50/70 sm:flex-row sm:items-center sm:justify-between"
                   >
                     <div className="flex min-w-0 items-center gap-3">
-                      <Avatar className="h-11 w-11 rounded-[14px]">
-                        <AvatarFallback>{getInitials(user.name)}</AvatarFallback>
-                      </Avatar>
+                      <UserAvatar user={user} className="h-11 w-11 rounded-[14px]" />
                       <div className="min-w-0">
                         <p className="truncate text-sm font-semibold text-slate-950">
                           {user.name}

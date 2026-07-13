@@ -15,6 +15,7 @@ const sanitizeUser = (user) => {
     name: user.name,
     email: user.email,
     role: user.role,
+    avatarUrl: user.avatarUrl || "",
     workspaceId: normalizeWorkspaceId(user.workspaceId),
   };
 };
@@ -38,7 +39,7 @@ const attachMembersToTeams = async (teams = []) => {
       $in: teamIds,
     },
   })
-    .populate("userId", "name email role workspaceId")
+    .populate("userId", "name email role avatarUrl workspaceId")
     .sort({ createdAt: 1 })
     .lean();
 
