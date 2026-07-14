@@ -254,6 +254,28 @@ const BUG_STATUS_CARD_META = [
   },
 ];
 
+const BUG_STATUS_PANEL_META = [
+  ...BUG_STATUS_CARD_META,
+  {
+    key: "critical",
+    label: "Critical Bugs",
+    helper: "High-risk bug pressure",
+    icon: AlertTriangle,
+    tone: "rose",
+    className: "bg-rose-500",
+    routeParams: { filter: "critical" },
+  },
+  {
+    key: "total",
+    label: "Total Bugs",
+    helper: "All tracked bug records",
+    icon: Bug,
+    tone: "blue",
+    className: "bg-blue-600",
+    routeParams: { view: "total" },
+  },
+];
+
 const BUG_LIQUID_THEME = {
   bucket: {
     dot: "#7C3AED",
@@ -995,6 +1017,48 @@ const TaskStatusDistributionPanel = ({ rows = [], total = 0, overdue = 0, onOpen
   );
 };
 
+const BugStatusMetricCard = ({ row, onOpen }) => (
+  <button
+    type="button"
+    onClick={() => onOpen(row.routeParams)}
+    className="group relative min-h-[118px] w-full overflow-hidden rounded-[24px] border border-white/80 bg-white/84 px-4 py-3 text-left shadow-[0_18px_42px_-34px_rgba(15,23,42,0.34)] transition duration-300 hover:-translate-y-0.5 hover:border-blue-200/80 hover:bg-white"
+  >
+    <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_14%_0%,rgba(255,255,255,0.96),transparent_32%),radial-gradient(circle_at_88%_18%,rgba(96,165,250,0.12),transparent_34%),linear-gradient(180deg,rgba(255,255,255,0.65),rgba(248,250,252,0.88))]" />
+    <div
+      className="pointer-events-none absolute inset-x-0 bottom-0 h-2.5 opacity-90"
+      style={{
+        background:
+          row.tone === "emerald"
+            ? "linear-gradient(90deg, rgba(110,231,183,0.72), rgba(16,185,129,0.95))"
+            : row.tone === "violet"
+              ? "linear-gradient(90deg, rgba(196,181,253,0.74), rgba(124,58,237,0.92))"
+              : row.tone === "rose"
+                ? "linear-gradient(90deg, rgba(253,164,175,0.72), rgba(244,63,94,0.92))"
+                : row.tone === "cyan"
+                  ? "linear-gradient(90deg, rgba(165,243,252,0.72), rgba(6,182,212,0.92))"
+                  : "linear-gradient(90deg, rgba(191,219,254,0.72), rgba(37,99,235,0.92))",
+      }}
+    />
+    <div className="relative z-10 flex h-full items-start justify-between gap-4">
+      <div className="min-w-0">
+        <div className="flex items-center gap-2">
+          <span className={cn("h-3 w-3 shrink-0 rounded-full", row.className)} />
+          <p className="truncate text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
+            {row.label}
+          </p>
+        </div>
+        <p className="mt-2 text-3xl font-semibold leading-none text-slate-900">
+          {row.count}
+        </p>
+        <p className="mt-2 text-sm text-slate-500">{row.helper}</p>
+      </div>
+      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-white/80 bg-white/72 text-slate-600 shadow-sm">
+        <row.icon className="h-4.5 w-4.5" />
+      </div>
+    </div>
+  </button>
+);
+
 const PriorityDistribution = ({ rows, total }) => {
   let segmentStart = 0;
   const activeRows = rows.filter((row) => row.count > 0);
@@ -1658,18 +1722,6 @@ const DashboardPage = () => {
       resolvedToday,
     };
   }, [bugs, previousWeekStart, todayStart, weekStart]);
-  const bugStatusRows = useMemo(
-    () =>
-      BUG_STATUS_CARD_META.map((item) => ({
-        ...item,
-        count: bugMetrics[item.key] || 0,
-        percentage: bugMetrics.total
-          ? Math.round(((bugMetrics[item.key] || 0) / bugMetrics.total) * 100)
-          : 0,
-      })),
-    [bugMetrics]
-  );
-  const maxBugStatusCount = Math.max(...bugStatusRows.map((row) => row.count), 0);
   const bugContributionProjectOptions = useMemo(() => {
     const rowsByProject = new Map();
 
@@ -1919,27 +1971,19 @@ const DashboardPage = () => {
         .slice(0, 7),
     [bugs]
   );
-  const bugKpiCards = [
-    ...BUG_STATUS_CARD_META.map((item) => ({
-      key: item.key,
-      title: item.label,
-      value: formatCompactNumber(bugMetrics[item.key] || 0),
-      helper: item.helper,
-      icon: item.icon,
-      tone: item.tone,
-      onClick: () => navigateToBugs(item.routeParams),
-    })),
-    {
-      key: "total-bugs",
-      title: "Total Bugs",
-      value: formatCompactNumber(bugMetrics.total),
-      helper: "All bug records",
-      icon: Bug,
-      tone: "blue",
-      trend: buildTrend(bugMetrics.thisWeek, bugMetrics.previousWeek),
-      onClick: () => navigateToBugs({ view: "total" }),
-    },
-  ];
+  const bugStatusPanelRows = useMemo(
+    () =>
+      BUG_STATUS_PANEL_META.map((item) => ({
+        ...item,
+        count:
+          item.key === "total"
+            ? bugMetrics.total
+            : item.key === "critical"
+              ? bugMetrics.critical
+              : bugMetrics[item.key] || 0,
+      })),
+    [bugMetrics]
+  );
   const taskKpiCards = taskStatusRows.map((item) => ({
     key: item.key,
     title: item.label,
@@ -2115,16 +2159,12 @@ const DashboardPage = () => {
                 </Badge>
               </div>
 
-              <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-7">
-                {bugKpiCards.map((card) => (
-                  <AnalyticsKpiCard
-                    key={card.key}
-                    compact
-                    title={card.title}
-                    value={card.value}
-                    icon={card.icon}
-                    tone={card.tone}
-                    onClick={card.onClick}
+              <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                {bugStatusPanelRows.map((row) => (
+                  <BugStatusMetricCard
+                    key={row.key}
+                    row={row}
+                    onOpen={navigateToBugs}
                   />
                 ))}
               </section>
@@ -2161,41 +2201,7 @@ const DashboardPage = () => {
           onNavigate={() => navigateToBugs({ filter: "critical" })}
         />
 
-        <AnalyticsPanel
-          className="h-full"
-          title="Bug Status"
-          description="Bug lifecycle cards synced with the admin Bugs page."
-          action={
-            <Badge className="border-white/60 bg-white/72 text-slate-600">
-              {bugMetrics.total || 0} bugs
-            </Badge>
-          }
-        >
-          {bugStatusRows.length ? (
-            <div className="grid gap-3 sm:grid-cols-2">
-              {bugStatusRows.map((row) => {
-                const fillPercent = maxBugStatusCount
-                  ? Math.max(Math.round((row.count / maxBugStatusCount) * 100), row.count ? 18 : 5)
-                  : 0;
-
-                return (
-                  <LiquidBugStatusCard
-                    key={row.key}
-                    row={row}
-                    fillPercent={fillPercent}
-                    onOpen={navigateToBugs}
-                  />
-                );
-              })}
-            </div>
-          ) : (
-            <AnalyticsEmptyState
-              icon={Bug}
-              title="No bug status data yet"
-              description="Bug lifecycle counts appear once bugs are reported."
-            />
-          )}
-        </AnalyticsPanel>
+        <PriorityDistribution rows={priorityRows} total={bugMetrics.total} />
       </section>
 
       <section>
