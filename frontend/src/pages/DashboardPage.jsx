@@ -40,6 +40,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import UserAvatar from "@/components/shared/UserAvatar";
 import GreetingBeachScene from "@/components/dashboard/GreetingBeachScene";
+import WeeklyTaskCompletionTrend from "@/components/dashboard/WeeklyTaskCompletionTrend";
 import { useAuth } from "@/hooks/use-auth";
 import { ROLE_MANAGER } from "@/lib/roles";
 import {
@@ -2247,6 +2248,8 @@ const DashboardPage = () => {
             )}
           </div>
         </AnalyticsPanel>
+
+        <WeeklyTaskCompletionTrend />
       </section>
     </div>
   );
