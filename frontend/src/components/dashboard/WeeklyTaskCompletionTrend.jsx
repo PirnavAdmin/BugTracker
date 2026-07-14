@@ -73,7 +73,7 @@ const tooltipStyle = {
 const WeeklyTaskCompletionTrend = ({ className }) => (
   <Card
     className={cn(
-      "h-full min-h-[380px] overflow-hidden rounded-[16px] border border-white/55 bg-white/70 p-0 shadow-sm backdrop-blur-2xl transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md dark:border-white/10 dark:bg-slate-950/62 dark:text-slate-100",
+      "h-[380px] self-start overflow-hidden rounded-[16px] border border-white/55 bg-white/70 p-0 shadow-sm backdrop-blur-2xl transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md dark:border-white/10 dark:bg-slate-950/62 dark:text-slate-100",
       className
     )}
   >
@@ -87,7 +87,7 @@ const WeeklyTaskCompletionTrend = ({ className }) => (
         </p>
       </div>
 
-      <div className="mt-4 min-h-[170px] flex-1">
+      <div className="mt-4 h-[178px] shrink-0">
         <ResponsiveContainer width="100%" height="100%">
           <LineChart
             data={WEEKLY_TASK_COMPLETION_DATA}
@@ -140,10 +140,10 @@ const WeeklyTaskCompletionTrend = ({ className }) => (
           return (
             <div
               key={item.label}
-              className={cn("rounded-[16px] border p-3 shadow-sm", item.className)}
+              className={cn("rounded-[16px] border p-2.5 shadow-sm", item.className)}
             >
               <div className="flex items-center gap-2">
-                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-white/72 shadow-sm dark:bg-white/10">
+                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-xl bg-white/72 shadow-sm dark:bg-white/10">
                   <Icon className="h-4 w-4" />
                 </span>
                 <div className="min-w-0">
@@ -155,7 +155,7 @@ const WeeklyTaskCompletionTrend = ({ className }) => (
                   </p>
                 </div>
               </div>
-              <p className="mt-2 text-xs font-semibold opacity-70">{item.helper}</p>
+              <p className="mt-1.5 text-xs font-semibold opacity-70">{item.helper}</p>
             </div>
           );
         })}

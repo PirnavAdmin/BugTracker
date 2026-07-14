@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { motion, useReducedMotion, useScroll, useTransform } from "framer-motion";
@@ -431,7 +431,7 @@ const ProjectContributionPanel = ({ projects = [], total = 0, onOpen }) => {
             </div>
           </div>
 
-          <div className="dashboard-scrollbar dashboard-scroll-fade max-h-[390px] space-y-3 overflow-y-auto pr-2">
+          <div className="dashboard-scrollbar dashboard-scroll-fade max-h-[390px] space-y-3 overflow-y-scroll overscroll-contain pr-2">
             {chartRows.map((project, index) => {
               const width = Math.max(Math.round((project.total / maxTotal) * 100), project.total ? 8 : 0);
 
@@ -488,7 +488,14 @@ const ProjectContributionPanel = ({ projects = [], total = 0, onOpen }) => {
   );
 };
 
-const BugContributionTracker = ({ contributors = [], totalBugs = 0, onOpen }) => {
+const BugContributionTracker = ({
+  contributors = [],
+  totalBugs = 0,
+  projectOptions = [],
+  selectedProjectId = "all",
+  onProjectChange,
+  onOpen,
+}) => {
   const chartRows = contributors.map((contributor, index) => ({
     ...contributor,
     value: contributor.score,
@@ -529,11 +536,26 @@ const BugContributionTracker = ({ contributors = [], totalBugs = 0, onOpen }) =>
       title="Bug Contribution Tracker"
       description="Team member contributions to bugs, based on opened, resolved, and critical bugs."
       action={
-        chartRows.length ? (
-          <Badge className="rounded-full border-white/70 bg-white/72 px-3.5 py-1 text-sm font-semibold text-slate-600 shadow-sm">
-            <Bug className="mr-1.5 h-3.5 w-3.5 text-orange-500" />
-            {formatCompactNumber(totalBugs)} bugs
-          </Badge>
+        chartRows.length || projectOptions.length ? (
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <select
+              value={selectedProjectId}
+              onChange={(event) => onProjectChange?.(event.target.value)}
+              className="h-9 max-w-[220px] rounded-full border border-white/70 bg-white/78 px-3 text-sm font-semibold text-slate-700 shadow-sm outline-none transition focus:border-blue-200 focus:ring-2 focus:ring-blue-500/20 dark:border-white/10 dark:bg-slate-950/70 dark:text-slate-100"
+              aria-label="Filter bug contributions by project"
+            >
+              <option value="all">All projects</option>
+              {projectOptions.map((project) => (
+                <option key={project.projectId} value={project.projectId}>
+                  {project.name}
+                </option>
+              ))}
+            </select>
+            <Badge className="rounded-full border-white/70 bg-white/72 px-3.5 py-1 text-sm font-semibold text-slate-600 shadow-sm">
+              <Bug className="mr-1.5 h-3.5 w-3.5 text-orange-500" />
+              {formatCompactNumber(totalBugs)} bugs
+            </Badge>
+          </div>
         ) : null
       }
     >
@@ -1289,6 +1311,7 @@ const DashboardLoading = () => (
 
 const DashboardPage = () => {
   const navigate = useNavigate();
+  const [bugContributionProjectId, setBugContributionProjectId] = useState("all");
   const { user } = useAuth();
   const analytics = useAnalytics();
   const {
@@ -1510,6 +1533,25 @@ const DashboardPage = () => {
     [bugMetrics]
   );
   const maxBugStatusCount = Math.max(...bugStatusRows.map((row) => row.count), 0);
+  const bugContributionProjectOptions = useMemo(() => {
+    const rowsByProject = new Map();
+
+    bugs.forEach((bug) => {
+      const projectId = resolveIssueProjectId(bug) || getBugProjectName(bug);
+      const row = rowsByProject.get(projectId) || {
+        projectId,
+        name: getBugProjectName(bug),
+        total: 0,
+      };
+
+      row.total += 1;
+      rowsByProject.set(projectId, row);
+    });
+
+    return Array.from(rowsByProject.values()).sort(
+      (left, right) => right.total - left.total || left.name.localeCompare(right.name)
+    );
+  }, [bugs]);
   const bugProjectRows = useMemo(() => {
     const rowsByProject = new Map();
 
@@ -1536,10 +1578,21 @@ const DashboardPage = () => {
       .sort((left, right) => right.total - left.total)
       .slice(0, 6);
   }, [bugs]);
+  const bugContributionBugs = useMemo(() => {
+    if (bugContributionProjectId === "all") {
+      return bugs;
+    }
+
+    return bugs.filter((bug) => {
+      const projectId = resolveIssueProjectId(bug) || getBugProjectName(bug);
+
+      return projectId === bugContributionProjectId;
+    });
+  }, [bugContributionProjectId, bugs]);
   const bugContributorRows = useMemo(() => {
     const rowsByContributor = new Map();
 
-    bugs.forEach((bug) => {
+    bugContributionBugs.forEach((bug) => {
       const assignee = getBugAssignee(bug);
       const rawId = String(assignee?._id || assignee?.id || "").trim();
       const rawEmail = String(assignee?.email || "").trim().toLowerCase();
@@ -1590,8 +1643,7 @@ const DashboardPage = () => {
           right.resolved - left.resolved ||
           right.open - left.open ||
           left.name.localeCompare(right.name)
-      )
-      .slice(0, 4);
+      );
     const totalScore = rows.reduce((sum, row) => sum + row.score, 0);
 
     return rows.map((row) => ({
@@ -1599,7 +1651,7 @@ const DashboardPage = () => {
       shortName: row.name.split(" ")[0] || row.name,
       percent: totalScore ? Math.round((row.score / totalScore) * 100) : 0,
     }));
-  }, [bugs, userLookup]);
+  }, [bugContributionBugs, userLookup]);
   const priorityRows = useMemo(
     () =>
       BUG_PRIORITY_META.map((item) => {
@@ -2058,7 +2110,10 @@ const DashboardPage = () => {
       <section>
         <BugContributionTracker
           contributors={bugContributorRows}
-          totalBugs={bugMetrics.total}
+          totalBugs={bugContributionBugs.length}
+          projectOptions={bugContributionProjectOptions}
+          selectedProjectId={bugContributionProjectId}
+          onProjectChange={setBugContributionProjectId}
           onOpen={(contributor) =>
             navigateToBugs(
               contributor.userId
