@@ -11,7 +11,8 @@ const UserAvatar = ({
   imageClassName,
 }) => {
   const displayName = name || user?.name || "";
-  const avatarUrl = src || user?.avatarUrl || user?.profileImageUrl || "";
+  const avatarUrl =
+    src || user?.avatarUrl || user?.profileUrl || user?.profileImageUrl || "";
   const resolvedAvatarUrl = resolveApiAssetUrl(avatarUrl);
 
   return (

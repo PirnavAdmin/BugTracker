@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { motion, useReducedMotion, useScroll, useTransform } from "framer-motion";
+import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
 import {
   Activity,
   AlertTriangle,
@@ -37,6 +38,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import UserAvatar from "@/components/shared/UserAvatar";
 import GreetingBeachScene from "@/components/dashboard/GreetingBeachScene";
 import { useAuth } from "@/hooks/use-auth";
 import { ROLE_MANAGER } from "@/lib/roles";
@@ -93,10 +95,10 @@ const activityTone = {
 };
 
 const BUG_PRIORITY_META = [
-  { key: "Low", className: "bg-emerald-500", tone: "text-emerald-700" },
-  { key: "Medium", className: "bg-amber-500", tone: "text-amber-700" },
-  { key: "High", className: "bg-orange-500", tone: "text-orange-700" },
-  { key: "Critical", className: "bg-rose-500", tone: "text-rose-700" },
+  { key: "Low", className: "bg-emerald-500", tone: "text-emerald-700", color: "#10B981" },
+  { key: "Medium", className: "bg-amber-500", tone: "text-amber-700", color: "#F59E0B" },
+  { key: "High", className: "bg-orange-500", tone: "text-orange-700", color: "#F97316" },
+  { key: "Critical", className: "bg-rose-500", tone: "text-rose-700", color: "#F43F5E" },
 ];
 
 const USER_ROLE_DISTRIBUTION_META = [
@@ -237,6 +239,24 @@ const BUG_LIQUID_THEME = {
   },
 };
 
+const PROJECT_CONTRIBUTION_COLORS = [
+  "#60A5FA",
+  "#8B5CF6",
+  "#22D3EE",
+  "#38BDF8",
+  "#6366F1",
+  "#14B8A6",
+];
+
+const BUG_CONTRIBUTION_COLORS = [
+  "#3B82F6",
+  "#6366F1",
+  "#14B8A6",
+  "#FBBF24",
+  "#8B5CF6",
+  "#06B6D4",
+];
+
 const BUG_RESOLVED_STATUSES = [
   ISSUE_STATUS.FIXED,
   ISSUE_STATUS.QA,
@@ -250,11 +270,8 @@ const BUG_CLOSED_STATUSES = [
 ];
 
 const getBugProjectName = (bug) => bug?.projectId?.name || "Unknown project";
-const getBugAssigneeName = (bug) => {
-  const developer = resolveBugDetails(bug)?.developerLead || bug?.assignee;
-
-  return developer?.name || developer?.email || "Unassigned";
-};
+const getBugAssignee = (bug) =>
+  resolveBugDetails(bug)?.developerLead || bug?.assignee || bug?.assignedDeveloperId || null;
 const getBugSeverity = (bug) => resolveBugDetails(bug)?.severity || "";
 const isCriticalBug = (bug) => getCriticalIssues([bug]).length > 0;
 const isOpenBug = (bug) => !BUG_CLOSED_STATUSES.includes(normalizeBugStatusForIssue(bug));
@@ -329,54 +346,357 @@ const buildTrend = (current, previous, suffix = "vs last week") => {
   };
 };
 
-const ProjectBugCard = ({ project, onOpen }) => (
-  <button
-    type="button"
-    onClick={() => onOpen(project)}
-    className="group relative block min-h-[86px] w-full overflow-hidden rounded-[24px] border border-white/75 bg-white/60 px-4 py-3 text-left shadow-[0_18px_44px_-34px_rgba(14,165,233,0.58)] backdrop-blur-xl transition duration-300 hover:-translate-y-0.5 hover:border-sky-200/90 hover:bg-white/74 hover:shadow-[0_24px_58px_-36px_rgba(6,182,212,0.64)] dark:border-slate-800/70 dark:bg-slate-950/70"
-  >
-    <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_15%_0%,rgba(255,255,255,0.92),transparent_30%),radial-gradient(circle_at_86%_18%,rgba(14,165,233,0.28),transparent_36%),radial-gradient(circle_at_52%_100%,rgba(6,182,212,0.26),transparent_42%)]" />
-    <div className="pointer-events-none absolute inset-x-0 bottom-0 h-9 overflow-hidden">
-      <div
-        className="absolute inset-x-0 bottom-0 h-full opacity-90 transition-all duration-700"
-        style={{
-          transform: `translateY(${100 - Math.max(5, Math.min(100, project.resolutionRate || 0))}%)`,
-          background:
-            "linear-gradient(180deg, rgba(186,230,253,0.35) 0%, rgba(56,189,248,0.58) 48%, rgba(8,145,178,0.76) 100%)",
-        }}
-      />
-      <div className="absolute -left-8 -right-8 top-0 h-5 bg-[radial-gradient(ellipse_at_24%_90%,rgba(255,255,255,0.82),transparent_38%),linear-gradient(90deg,rgba(125,211,252,0.58),rgba(34,211,238,0.42),rgba(59,130,246,0.44))] opacity-80 [clip-path:polygon(0_54%,14%_42%,28%_50%,44%_35%,60%_43%,76%_30%,90%_41%,100%_34%,100%_100%,0_100%)] transition-transform duration-700 group-hover:translate-x-2" />
-    </div>
+const ProjectContributionPanel = ({ projects = [], total = 0, onOpen }) => {
+  const chartRows = projects.map((project, index) => ({
+    ...project,
+    value: project.total,
+    color: PROJECT_CONTRIBUTION_COLORS[index % PROJECT_CONTRIBUTION_COLORS.length],
+  }));
+  const totalContributions = total || chartRows.reduce((sum, project) => sum + project.total, 0);
+  const maxTotal = Math.max(...chartRows.map((project) => project.total), 1);
 
-    <div className="relative z-10 flex items-start justify-between gap-3">
-      <div className="min-w-0">
-        <p className="truncate text-sm font-bold text-slate-950 dark:text-slate-100">
-          {project.name}
-        </p>
-        <p className="mt-0.5 text-[10px] font-medium text-slate-500 uppercase">
-          {project.open} Open &bull; {project.closed} Closed &bull; {project.critical} Crit
-        </p>
-      </div>
-      <Badge className="h-5 shrink-0 border-sky-100 bg-sky-50/90 px-1.5 text-[9px] font-bold text-sky-700 shadow-sm">
-        {project.total} Bugs
-      </Badge>
-    </div>
-    <div className="relative z-10 mt-2 grid grid-cols-[minmax(0,1fr)_42px] items-end gap-3">
-      <div className="flex items-center justify-between gap-3 text-[9px] font-bold uppercase text-slate-400">
-        <span>Resolution</span>
-      </div>
-      <span className="text-right text-[10px] font-black text-slate-500">
-        {project.resolutionRate}%
-      </span>
-      <div className="col-span-2 h-1.5 overflow-hidden rounded-full bg-sky-50/80 shadow-inner dark:bg-slate-800">
-        <div
-          className="h-full rounded-full bg-[linear-gradient(90deg,#38BDF8,#06B6D4,#2563EB)] shadow-[0_0_14px_rgba(14,165,233,0.45)] transition-all duration-500"
-          style={{ width: `${Math.max(project.resolutionRate, project.total ? 5 : 0)}%` }}
+  return (
+    <AnalyticsPanel
+      title="Project Contribution"
+      description="Track user contributions across multiple projects."
+      action={
+        projects.length ? (
+          <Badge className="rounded-full border-slate-200/80 bg-white/62 px-3.5 py-1 text-xs font-bold text-slate-600 shadow-sm">
+            {projects.length} projects
+          </Badge>
+        ) : null
+      }
+    >
+      {projects.length ? (
+        <div className="grid gap-6 lg:grid-cols-[0.96fr_1.04fr]">
+          <div className="flex min-h-[390px] flex-col items-center justify-center">
+            <div className="relative h-[300px] w-full max-w-[360px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={chartRows}
+                    dataKey="value"
+                    nameKey="name"
+                    cx="50%"
+                    cy="50%"
+                    innerRadius="54%"
+                    outerRadius="86%"
+                    paddingAngle={1}
+                    stroke="rgba(255,255,255,0.72)"
+                    strokeWidth={2}
+                  >
+                    {chartRows.map((entry) => (
+                      <Cell key={entry.projectId || entry.name} fill={entry.color} />
+                    ))}
+                  </Pie>
+                  <Tooltip
+                    formatter={(value, name) => [`${value} contributions`, name]}
+                    contentStyle={{
+                      borderRadius: 18,
+                      border: "1px solid rgba(226,232,240,0.86)",
+                      boxShadow: "0 18px 40px -28px rgba(15,23,42,0.42)",
+                    }}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+              <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+                <div className="flex h-40 w-40 flex-col items-center justify-center rounded-full bg-white/68 text-center shadow-[inset_0_1px_24px_rgba(255,255,255,0.88),0_22px_48px_-34px_rgba(37,99,235,0.62)] backdrop-blur-xl">
+                  <Users2 className="h-10 w-10 text-blue-500" />
+                  <p className="mt-2.5 text-3xl font-black leading-none text-slate-900">
+                    {formatCompactNumber(totalContributions)}
+                  </p>
+                  <p className="mt-1 text-xs font-medium text-slate-600">Contributions</p>
+                </div>
+              </div>
+            </div>
+            <div className="mt-3 grid w-full max-w-[430px] grid-cols-1 gap-2 text-xs font-semibold text-slate-700 sm:grid-cols-2">
+              {chartRows.slice(0, 6).map((project) => (
+                <button
+                  key={project.projectId || project.name}
+                  type="button"
+                  onClick={() => onOpen(project)}
+                  className="flex min-w-0 items-center gap-2 rounded-full px-2 py-1 text-left transition hover:bg-white/70"
+                >
+                  <span
+                    className="h-3.5 w-3.5 shrink-0 rounded-full"
+                    style={{ backgroundColor: project.color }}
+                  />
+                  <span className="truncate">{project.name}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="dashboard-scrollbar dashboard-scroll-fade max-h-[390px] space-y-3 overflow-y-auto pr-2">
+            {chartRows.map((project, index) => {
+              const width = Math.max(Math.round((project.total / maxTotal) * 100), project.total ? 8 : 0);
+
+              return (
+                <button
+                  key={project.projectId || project.name}
+                  type="button"
+                  onClick={() => onOpen(project)}
+                  className="group relative grid min-h-[92px] w-full grid-cols-[52px_minmax(0,1fr)_78px] items-center gap-4 overflow-hidden rounded-[26px] border border-white/75 bg-white/62 px-4 py-3 text-left shadow-[0_20px_50px_-36px_rgba(37,99,235,0.5)] backdrop-blur-xl transition duration-300 hover:-translate-y-0.5 hover:border-blue-200/90 hover:bg-white/76"
+                >
+                  <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_0%,rgba(255,255,255,0.95),transparent_34%),radial-gradient(circle_at_88%_50%,rgba(96,165,250,0.18),transparent_44%)]" />
+                  <span
+                    className="relative z-10 flex h-12 w-12 items-center justify-center rounded-full text-xs font-black text-white shadow-[0_14px_28px_-20px_rgba(37,99,235,0.72)]"
+                    style={{ background: `linear-gradient(135deg, ${project.color}, #2563EB)` }}
+                  >
+                    {getInitials(project.name)}
+                  </span>
+                  <div className="relative z-10 min-w-0">
+                    <p className="truncate text-base font-extrabold text-slate-900">{project.name}</p>
+                    <p className="truncate text-xs font-medium text-slate-500">
+                      {project.open} open / {project.closed} closed
+                    </p>
+                    <div className="mt-2 grid grid-cols-[minmax(0,1fr)_44px] items-center gap-2">
+                      <div className="h-2 overflow-hidden rounded-full bg-sky-100/80">
+                        <div
+                          className="h-full rounded-full bg-[linear-gradient(90deg,#38BDF8,#2563EB)] transition-all duration-500"
+                          style={{ width: `${width}%` }}
+                        />
+                      </div>
+                      <span className="text-right text-xs font-bold text-slate-500">
+                        {project.closed}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="relative z-10 text-right">
+                    <p className="text-2xl font-black leading-none text-slate-800">{project.total}</p>
+                    <p className="mt-2 text-xs font-semibold text-slate-500">
+                      {project.open}/{project.closed}
+                    </p>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      ) : (
+        <AnalyticsEmptyState
+          icon={FolderKanban}
+          title="No project contribution data yet"
+          description="Project contribution insights appear once bugs are linked."
         />
-      </div>
-    </div>
-  </button>
-);
+      )}
+    </AnalyticsPanel>
+  );
+};
+
+const BugContributionTracker = ({ contributors = [], totalBugs = 0, onOpen }) => {
+  const chartRows = contributors.map((contributor, index) => ({
+    ...contributor,
+    value: contributor.score,
+    color: BUG_CONTRIBUTION_COLORS[index % BUG_CONTRIBUTION_COLORS.length],
+  }));
+  const pieSize = 300;
+  const chartLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, percent, payload }) => {
+    if (!payload?.value || percent < 0.12) {
+      return null;
+    }
+
+    const angle = (-midAngle * Math.PI) / 180;
+    const radius = innerRadius + (outerRadius - innerRadius) * 0.62;
+    const x = cx + radius * Math.cos(angle);
+    const y = cy + radius * Math.sin(angle);
+
+    return (
+      <text
+        x={x}
+        y={y}
+        fill="#ffffff"
+        textAnchor="middle"
+        dominantBaseline="central"
+        className="pointer-events-none"
+      >
+        <tspan x={x} dy="-0.2em" className="text-[11px] font-semibold">
+          {`${Math.round(percent * 100)}%`}
+        </tspan>
+        <tspan x={x} dy="1.15em" className="text-[9px] font-medium">
+          {payload.shortName}
+        </tspan>
+      </text>
+    );
+  };
+
+  return (
+    <AnalyticsPanel
+      title="Bug Contribution Tracker"
+      description="Team member contributions to bugs, based on opened, resolved, and critical bugs."
+      action={
+        chartRows.length ? (
+          <Badge className="rounded-full border-white/70 bg-white/72 px-3.5 py-1 text-sm font-semibold text-slate-600 shadow-sm">
+            <Bug className="mr-1.5 h-3.5 w-3.5 text-orange-500" />
+            {formatCompactNumber(totalBugs)} bugs
+          </Badge>
+        ) : null
+      }
+    >
+      {chartRows.length ? (
+        <div className="grid gap-5 xl:grid-cols-[1.5fr_0.9fr]">
+          <div className="grid gap-3">
+            <div className="grid gap-3">
+              {chartRows.map((contributor) => (
+                <button
+                  key={contributor.userKey}
+                  type="button"
+                  onClick={() => onOpen(contributor)}
+                  className="group relative overflow-hidden rounded-[24px] border border-white/80 bg-white/72 px-4 py-3 text-left shadow-[0_18px_42px_-34px_rgba(56,189,248,0.42)] backdrop-blur-xl transition duration-300 hover:-translate-y-0.5 hover:border-sky-200/90 hover:bg-white/84"
+                >
+                  <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_0%,rgba(255,255,255,0.96),transparent_34%),radial-gradient(circle_at_86%_14%,rgba(96,165,250,0.18),transparent_34%),radial-gradient(circle_at_50%_100%,rgba(34,211,238,0.18),transparent_42%)]" />
+                  <div className="relative z-10 grid gap-3 md:grid-cols-[auto_minmax(0,1fr)_auto] md:items-center">
+                    <div className="flex items-start gap-3">
+                      <div className="relative">
+                        <UserAvatar
+                          user={contributor.user}
+                          name={contributor.name}
+                          className="h-14 w-14 border-2 border-white/90 shadow-[0_16px_30px_-18px_rgba(15,23,42,0.28)]"
+                          imageClassName="object-cover"
+                          fallbackClassName="text-base font-semibold"
+                        />
+                        <span
+                          className="absolute -bottom-1 -right-1 flex h-6 w-6 items-center justify-center rounded-full border-2 border-white text-white shadow-sm"
+                          style={{ backgroundColor: contributor.color }}
+                        >
+                          <Bug className="h-3.5 w-3.5" />
+                        </span>
+                      </div>
+                      <div className="min-w-0">
+                        <p className="truncate text-[22px] font-semibold tracking-tight text-slate-900">
+                          {contributor.name}
+                        </p>
+                        <p className="mt-1 text-[11px] font-medium uppercase tracking-[0.2em] text-slate-400">
+                          Contribution score {contributor.score}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="grid gap-2 sm:grid-cols-3 md:grid-cols-3">
+                      <div className="flex items-center justify-between gap-3 rounded-2xl border border-white/70 bg-white/64 px-3 py-2 text-sm text-slate-700">
+                        <span className="flex items-center gap-2">
+                          <span className="h-2.5 w-2.5 rounded-full bg-blue-500" />
+                          Open
+                        </span>
+                        <span className="font-semibold text-slate-900">{contributor.open}</span>
+                      </div>
+                      <div className="flex items-center justify-between gap-3 rounded-2xl border border-white/70 bg-white/64 px-3 py-2 text-sm text-slate-700">
+                        <span className="flex items-center gap-2">
+                          <span className="h-2.5 w-2.5 rounded-full bg-emerald-500" />
+                          Resolved
+                        </span>
+                        <span className="font-semibold text-slate-900">{contributor.resolved}</span>
+                      </div>
+                      <div className="flex items-center justify-between gap-3 rounded-2xl border border-white/70 bg-white/64 px-3 py-2 text-sm text-slate-700">
+                        <span className="flex items-center gap-2">
+                          <span className="h-2.5 w-2.5 rounded-full bg-rose-500" />
+                          Critical
+                        </span>
+                        <span className="font-semibold text-slate-900">{contributor.critical}</span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between md:justify-end">
+                      <div className="rounded-full border border-white/80 bg-white/75 px-3 py-1.5 text-right shadow-sm">
+                        <p className="text-base font-semibold leading-none text-slate-900">
+                          {contributor.percent}%
+                        </p>
+                        <p className="mt-0.5 text-[10px] font-medium uppercase tracking-[0.16em] text-slate-500">
+                          Share
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="rounded-[28px] border border-white/80 bg-[radial-gradient(circle_at_18%_0%,rgba(255,255,255,0.96),transparent_34%),radial-gradient(circle_at_100%_0%,rgba(56,189,248,0.16),transparent_32%),linear-gradient(180deg,rgba(255,255,255,0.84),rgba(240,249,255,0.9))] p-5 shadow-[0_22px_58px_-38px_rgba(56,189,248,0.4)] backdrop-blur-xl">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-xl font-semibold tracking-tight text-slate-900">
+                  Bug Contributions %
+                </p>
+                <p className="mt-1 text-sm text-slate-500">
+                  Share of tracked bug work across the top contributors.
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-4 flex justify-center">
+              <PieChart width={pieSize} height={pieSize}>
+                  <Pie
+                    data={chartRows}
+                    dataKey="value"
+                    nameKey="name"
+                    cx={pieSize / 2}
+                    cy={pieSize / 2}
+                    innerRadius={0}
+                    outerRadius={122}
+                    paddingAngle={2}
+                    stroke="rgba(255,255,255,0.82)"
+                    strokeWidth={2}
+                    labelLine={false}
+                    label={chartLabel}
+                  >
+                    {chartRows.map((entry) => (
+                      <Cell key={entry.userKey} fill={entry.color} />
+                    ))}
+                  </Pie>
+                  <Tooltip
+                    formatter={(value, _name, item) => [
+                      `${value} contribution points`,
+                      item?.payload?.name || "Contributor",
+                    ]}
+                    contentStyle={{
+                      borderRadius: 18,
+                      border: "1px solid rgba(226,232,240,0.86)",
+                      boxShadow: "0 18px 40px -28px rgba(15,23,42,0.42)",
+                    }}
+                  />
+                </PieChart>
+            </div>
+
+            <div className="grid gap-2 sm:grid-cols-2">
+              {chartRows.map((contributor) => (
+                <button
+                  key={`${contributor.userKey}-legend`}
+                  type="button"
+                  onClick={() => onOpen(contributor)}
+                  className="flex items-center justify-between gap-3 rounded-2xl border border-white/75 bg-white/72 px-3 py-2 text-left shadow-[0_14px_34px_-30px_rgba(15,23,42,0.32)] transition hover:bg-white/86"
+                >
+                  <span className="flex min-w-0 items-center gap-2">
+                    <span
+                      className="h-3 w-3 shrink-0 rounded-full"
+                      style={{ backgroundColor: contributor.color }}
+                    />
+                    <span className="truncate text-sm font-medium text-slate-800">
+                      {contributor.name}
+                    </span>
+                  </span>
+                  <span className="text-sm font-medium text-slate-500">
+                    {contributor.open}/{contributor.resolved}/{contributor.critical}
+                  </span>
+                </button>
+              ))}
+            </div>
+
+            <p className="mt-3 text-xs font-medium text-slate-500">
+              Open / Resolved / Critical
+            </p>
+          </div>
+        </div>
+      ) : (
+        <AnalyticsEmptyState
+          icon={Users2}
+          title="No bug contribution data yet"
+          description="Contributor insights appear once bugs are assigned to team members."
+        />
+      )}
+    </AnalyticsPanel>
+  );
+};
 
 const LiquidBugStatusCard = ({ row, fillPercent = 0, onOpen }) => {
   const shouldReduceMotion = useReducedMotion();
@@ -516,39 +836,72 @@ const TeamTaskWorkloadCard = ({ row, onOpen }) => {
   );
 };
 
-const PriorityDistribution = ({ rows, total }) => (
-  <AnalyticsPanel
-    title="Bug Priority Distribution"
-    description="Live severity pressure across all tracked bug records."
-  >
-    {total ? (
-      <div className="space-y-4">
-        {rows.map((row) => (
-          <div className="space-y-2" key={row.key}>
-            <div className="flex items-center justify-between gap-3 text-sm">
-              <span className={cn("font-semibold", row.tone)}>{row.key}</span>
-              <span className="font-semibold text-slate-600 dark:text-slate-300">
-                {row.count}
+const PriorityDistribution = ({ rows, total }) => {
+  let segmentStart = 0;
+  const activeRows = rows.filter((row) => row.count > 0);
+  const donutBackground = `conic-gradient(${activeRows
+    .map((row) => {
+      const segmentEnd = segmentStart + (row.count / total) * 360;
+      const segment = `${row.color} ${segmentStart}deg ${segmentEnd}deg`;
+      segmentStart = segmentEnd;
+      return segment;
+    })
+    .join(", ")})`;
+
+  return (
+    <AnalyticsPanel
+      title="Bug Priority Distribution"
+      description="Live severity pressure across all tracked bug records."
+    >
+      {total ? (
+        <div className="grid min-h-[300px] gap-5 md:grid-cols-[190px_minmax(0,1fr)] md:items-center">
+          <div
+            className="relative mx-auto h-44 w-44 shrink-0 rounded-full shadow-[0_18px_38px_-24px_rgba(15,23,42,0.7)]"
+            style={{ background: donutBackground }}
+            role="img"
+            aria-label={`${total} bugs distributed across ${activeRows.length} priority levels`}
+          >
+            <div className="absolute inset-[22px] flex flex-col items-center justify-center rounded-full border border-white/85 bg-white/92 text-center shadow-inner backdrop-blur-sm dark:border-white/10 dark:bg-slate-950">
+              <Bug className="mb-2 h-7 w-7 text-blue-500" />
+              <span className="text-3xl font-black leading-none text-slate-950 dark:text-slate-100">
+                {formatCompactNumber(total)}
+              </span>
+              <span className="mt-1 text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                Total Bugs
               </span>
             </div>
-            <div className="h-1.5 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
-              <div
-                className={cn("h-full rounded-full transition-all duration-500", row.className)}
-                style={{ width: `${Math.max(row.percentage, row.count ? 6 : 0)}%` }}
-              />
-            </div>
           </div>
-        ))}
-      </div>
-    ) : (
-      <AnalyticsEmptyState
-        icon={Bug}
-        title="No bug priorities yet"
-        description="Priority distribution appears once bugs are reported."
-      />
-    )}
-  </AnalyticsPanel>
-);
+
+          <div className="grid gap-2">
+            {rows.map((row) => (
+              <div
+                key={row.key}
+                className="grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-3 rounded-2xl border border-white/70 bg-white/55 px-3 py-2.5 shadow-[0_14px_34px_-30px_rgba(15,23,42,0.55)] backdrop-blur-sm dark:border-white/10 dark:bg-white/5"
+              >
+                <span className="flex min-w-0 items-center gap-2">
+                  <span className="h-3 w-3 shrink-0 rounded-full" style={{ backgroundColor: row.color }} />
+                  <span className={cn("truncate text-sm font-bold", row.tone)}>{row.key}</span>
+                </span>
+                <span className="text-sm font-black text-slate-700 dark:text-slate-200">
+                  {row.count}
+                </span>
+                <span className="w-10 text-right text-xs font-bold text-slate-400">
+                  {row.percentage}%
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : (
+        <AnalyticsEmptyState
+          icon={Bug}
+          title="No bug priorities yet"
+          description="Priority distribution appears once bugs are reported."
+        />
+      )}
+    </AnalyticsPanel>
+  );
+};
 
 const UserDistributionCard = ({ rows, total, isLoading, hasError, onManageUsers }) => {
   let segmentStart = 0;
@@ -984,6 +1337,29 @@ const DashboardPage = () => {
   );
   const bugs = useMemo(() => (Array.isArray(bugsData) ? bugsData : []), [bugsData]);
   const users = useMemo(() => (Array.isArray(usersData) ? usersData : []), [usersData]);
+  const userLookup = useMemo(() => {
+    const byId = new Map();
+    const byEmail = new Map();
+    const byName = new Map();
+
+    users.forEach((user) => {
+      const id = String(user?._id || user?.id || "").trim();
+      const email = String(user?.email || "").trim().toLowerCase();
+      const name = String(user?.name || "").trim().toLowerCase();
+
+      if (id) {
+        byId.set(id, user);
+      }
+      if (email) {
+        byEmail.set(email, user);
+      }
+      if (name) {
+        byName.set(name, user);
+      }
+    });
+
+    return { byId, byEmail, byName };
+  }, [users]);
   const allProjects = useMemo(
     () => (Array.isArray(allProjectsData) ? allProjectsData : []),
     [allProjectsData]
@@ -1156,6 +1532,70 @@ const DashboardPage = () => {
       .sort((left, right) => right.total - left.total)
       .slice(0, 6);
   }, [bugs]);
+  const bugContributorRows = useMemo(() => {
+    const rowsByContributor = new Map();
+
+    bugs.forEach((bug) => {
+      const assignee = getBugAssignee(bug);
+      const rawId = String(assignee?._id || assignee?.id || "").trim();
+      const rawEmail = String(assignee?.email || "").trim().toLowerCase();
+      const rawName = String(assignee?.name || assignee?.fullName || "").trim();
+      const matchedUser =
+        (rawId && userLookup.byId.get(rawId)) ||
+        (rawEmail && userLookup.byEmail.get(rawEmail)) ||
+        (rawName && userLookup.byName.get(rawName.toLowerCase())) ||
+        assignee ||
+        null;
+      const resolvedId = String(matchedUser?._id || matchedUser?.id || rawId).trim();
+      const resolvedEmail = String(matchedUser?.email || rawEmail).trim().toLowerCase();
+      const resolvedName = String(
+        matchedUser?.name || matchedUser?.fullName || rawName || "Unassigned"
+      ).trim();
+      const rowKey = resolvedId || resolvedEmail || resolvedName.toLowerCase();
+
+      if (!rowKey) {
+        return;
+      }
+
+      const row = rowsByContributor.get(rowKey) || {
+        userKey: rowKey,
+        userId: resolvedId,
+        name: resolvedName,
+        open: 0,
+        resolved: 0,
+        critical: 0,
+        total: 0,
+        score: 0,
+        user: matchedUser,
+      };
+
+      row.total += 1;
+      row.open += isOpenBug(bug) ? 1 : 0;
+      row.resolved += isResolvedBug(bug) ? 1 : 0;
+      row.critical += isCriticalBug(bug) ? 1 : 0;
+      row.score = row.open + row.resolved + row.critical;
+      row.user = matchedUser || row.user;
+      rowsByContributor.set(rowKey, row);
+    });
+
+    const rows = Array.from(rowsByContributor.values())
+      .filter((row) => row.name !== "Unassigned")
+      .sort(
+        (left, right) =>
+          right.score - left.score ||
+          right.resolved - left.resolved ||
+          right.open - left.open ||
+          left.name.localeCompare(right.name)
+      )
+      .slice(0, 4);
+    const totalScore = rows.reduce((sum, row) => sum + row.score, 0);
+
+    return rows.map((row) => ({
+      ...row,
+      shortName: row.name.split(" ")[0] || row.name,
+      percent: totalScore ? Math.round((row.score / totalScore) * 100) : 0,
+    }));
+  }, [bugs, userLookup]);
   const priorityRows = useMemo(
     () =>
       BUG_PRIORITY_META.map((item) => {
@@ -1496,46 +1936,22 @@ const DashboardPage = () => {
             </div>
 
             <section className="grid gap-5 xl:grid-cols-[1.15fr_0.85fr]">
-              <AnalyticsPanel
-                title="Project Bug Status"
-                description="Live bug volume and resolution progress."
-                action={
-                  bugProjectRows.length ? (
-                    <Badge className="border-slate-100 bg-slate-50 text-slate-600 text-[10px] font-bold">
-                      {bugProjectRows.length} projects
-                    </Badge>
-                  ) : null
+              <ProjectContributionPanel
+                projects={bugProjectRows}
+                total={bugMetrics.total}
+                onOpen={(selectedProject) =>
+                  navigateToBugs({
+                    projectId:
+                      selectedProject.projectId === selectedProject.name
+                        ? ""
+                        : selectedProject.projectId,
+                    project:
+                      selectedProject.projectId === selectedProject.name
+                        ? selectedProject.name
+                        : "",
+                  })
                 }
-              >
-                {bugProjectRows.length ? (
-                  <div className="dashboard-scrollbar dashboard-scroll-fade max-h-[380px] space-y-3 overflow-y-auto pr-2">
-                    {bugProjectRows.map((project) => (
-                      <ProjectBugCard
-                        key={project.projectId}
-                        project={project}
-                        onOpen={(selectedProject) =>
-                          navigateToBugs({
-                            projectId:
-                              selectedProject.projectId === selectedProject.name
-                                ? ""
-                                : selectedProject.projectId,
-                            project:
-                              selectedProject.projectId === selectedProject.name
-                                ? selectedProject.name
-                                : "",
-                          })
-                        }
-                      />
-                    ))}
-                  </div>
-                ) : (
-                  <AnalyticsEmptyState
-                    icon={FolderKanban}
-                    title="No project bug data yet"
-                    description="Project bug insights appear once bugs are linked."
-                  />
-                )}
-              </AnalyticsPanel>
+              />
 
               <PriorityDistribution rows={priorityRows} total={bugMetrics.total} />
             </section>
@@ -1635,18 +2051,18 @@ const DashboardPage = () => {
         </AnalyticsPanel>
       </section>
 
-      <section className="grid gap-5 xl:grid-cols-[1.2fr_0.8fr]">
-
-        <AnalyticsPanel
-          title="Active Project Bugs"
-          description="Bug volume by active project, sorted by open pressure and resolution progress."
-          action={
-            bugProjectRows.length ? (
-              <Badge className="border-white/60 bg-white/72 text-slate-600">
-                {bugProjectRows.length} bug projects
-              </Badge>
-            ) : null
+      <section>
+        <BugContributionTracker
+          contributors={bugContributorRows}
+          totalBugs={bugMetrics.total}
+          onOpen={(contributor) =>
+            navigateToBugs(
+              contributor.userId
+                ? { developerId: contributor.userId }
+                : { search: contributor.name }
+            )
           }
+<<<<<<< HEAD
         >
           {bugProjectRows.length ? (
             <div className={DASHBOARD_TALL_SCROLL_CLASS}>
@@ -1677,7 +2093,12 @@ const DashboardPage = () => {
             />
           )}
         </AnalyticsPanel>
+=======
+        />
+      </section>
+>>>>>>> 0df526ff155a129b0da7debdd32f5b83fb51d4d4
 
+      <section className="grid gap-5 xl:grid-cols-[0.92fr_1.08fr]">
         <AnalyticsPanel
           title="Team Task Workload"
           description="Compact active task pressure by team."
@@ -1707,9 +2128,7 @@ const DashboardPage = () => {
             />
           )}
         </AnalyticsPanel>
-      </section>
 
-      <section className="grid gap-5 xl:grid-cols-[1fr_0.9fr]">
         <AnalyticsPanel
           title="Live Activity Feed"
           description="Recently created issues, resolved tickets, assignments, and critical alerts."
