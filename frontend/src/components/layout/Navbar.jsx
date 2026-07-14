@@ -145,7 +145,7 @@ const Navbar = () => {
             <img
               src={pirnavLogo}
               alt="CureCode logo"
-              className="h-auto max-h-16 w-auto max-w-[260px] object-contain sm:max-h-[72px] sm:max-w-[320px]"
+              className="h-auto max-h-[72px] w-auto max-w-[300px] object-contain sm:max-h-[84px] sm:max-w-[360px]"
             />
           </NavLink>
 
