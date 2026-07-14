@@ -311,6 +311,13 @@ const BUG_CONTRIBUTION_COLORS = [
   "#06B6D4",
 ];
 
+const TASK_STATUS_DISTRIBUTION_COLORS = {
+  [TASK_BOARD_STATUS.OPEN]: "#94A3B8",
+  [ISSUE_STATUS.IN_PROGRESS]: "#3B82F6",
+  [ISSUE_STATUS.DONE]: "#10B981",
+  overdue: "#F97316",
+};
+
 const BUG_RESOLVED_STATUSES = [
   ISSUE_STATUS.FIXED,
   ISSUE_STATUS.QA,
@@ -862,6 +869,131 @@ const TeamTaskWorkloadCard = ({ row, onOpen }) => {
         </div>
       </div>
     </button>
+  );
+};
+
+const TaskStatusDistributionPanel = ({ rows = [], total = 0, overdue = 0, onOpen }) => {
+  const chartRows = rows
+    .map((row) => ({
+      ...row,
+      value: row.count,
+      color: TASK_STATUS_DISTRIBUTION_COLORS[row.key] || "#64748B",
+    }))
+    .concat(
+      overdue > 0
+        ? [
+            {
+              key: "overdue",
+              label: "Overdue",
+              helper: "Need attention now",
+              count: overdue,
+              value: overdue,
+              color: TASK_STATUS_DISTRIBUTION_COLORS.overdue,
+              routeParams: { type: ISSUE_TYPES.TASK, filter: "overdue" },
+            },
+          ]
+        : []
+    );
+  const totalSignals = chartRows.reduce((sum, row) => sum + row.value, 0);
+
+  return (
+    <AnalyticsPanel
+      className="h-full"
+      title="Task Status"
+      description="Task workload mix across To Do, In Progress, Done, and overdue tasks."
+      action={
+        <Badge className="border-white/60 bg-white/72 text-slate-600">
+          {total || 0} total
+        </Badge>
+      }
+    >
+      {chartRows.length ? (
+        <div className="grid gap-5 lg:grid-cols-[0.92fr_1.08fr] lg:items-center">
+          <div className="flex min-h-[300px] flex-col items-center justify-center">
+            <div className="relative h-[280px] w-full max-w-[320px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={chartRows}
+                    dataKey="value"
+                    nameKey="label"
+                    cx="50%"
+                    cy="50%"
+                    innerRadius="56%"
+                    outerRadius="84%"
+                    paddingAngle={2}
+                    stroke="rgba(255,255,255,0.82)"
+                    strokeWidth={2}
+                  >
+                    {chartRows.map((entry) => (
+                      <Cell key={entry.key} fill={entry.color} />
+                    ))}
+                  </Pie>
+                  <Tooltip
+                    formatter={(value, _name, item) => [
+                      `${value} tasks`,
+                      item?.payload?.label || "Tasks",
+                    ]}
+                    contentStyle={{
+                      borderRadius: 18,
+                      border: "1px solid rgba(226,232,240,0.86)",
+                      boxShadow: "0 18px 40px -28px rgba(15,23,42,0.42)",
+                    }}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+              <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+                <div className="flex h-36 w-36 flex-col items-center justify-center rounded-full bg-white/72 text-center shadow-[inset_0_1px_24px_rgba(255,255,255,0.88),0_18px_40px_-30px_rgba(37,99,235,0.45)] backdrop-blur-xl">
+                  <Layers3 className="h-8 w-8 text-blue-500" />
+                  <p className="mt-2 text-3xl font-semibold leading-none text-slate-900">
+                    {formatCompactNumber(total)}
+                  </p>
+                  <p className="mt-1 text-xs font-medium text-slate-600">Tasks</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid gap-2.5">
+            {chartRows.map((row) => {
+              const percentage = totalSignals ? Math.round((row.value / totalSignals) * 100) : 0;
+
+              return (
+                <button
+                  key={row.key}
+                  type="button"
+                  onClick={() => onOpen(row.routeParams)}
+                  className="grid w-full grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-3 rounded-[22px] border border-white/70 bg-white/58 px-4 py-3 text-left shadow-[0_14px_34px_-30px_rgba(15,23,42,0.34)] backdrop-blur-sm transition hover:bg-white/82"
+                >
+                  <span className="flex min-w-0 items-center gap-3">
+                    <span
+                      className="h-3 w-3 shrink-0 rounded-full"
+                      style={{ backgroundColor: row.color }}
+                    />
+                    <span className="min-w-0">
+                      <span className="block truncate text-sm font-semibold text-slate-900">
+                        {row.label}
+                      </span>
+                      <span className="block text-xs text-slate-500">{row.helper}</span>
+                    </span>
+                  </span>
+                  <span className="text-base font-semibold text-slate-800">{row.count}</span>
+                  <span className="w-10 text-right text-xs font-semibold text-slate-400">
+                    {percentage}%
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      ) : (
+        <AnalyticsEmptyState
+          icon={Layers3}
+          title="No task status data yet"
+          description="Create task work to populate the task status overview."
+        />
+      )}
+    </AnalyticsPanel>
   );
 };
 
@@ -1425,6 +1557,10 @@ const DashboardPage = () => {
       };
     });
   }, [taskIssues]);
+  const overdueTaskCount = useMemo(
+    () => taskIssues.filter((issue) => isIssueOverdue(issue)).length,
+    [taskIssues]
+  );
   const now = useMemo(() => new Date(), []);
   const weekStart = useMemo(() => startOfWeek(now), [now]);
   const previousWeekStart = useMemo(() => {
@@ -1818,7 +1954,7 @@ const DashboardPage = () => {
   taskKpiCards.push({
     key: "overdue-tasks",
     title: "Overdue Tasks",
-    value: formatCompactNumber(taskIssues.filter((issue) => isIssueOverdue(issue)).length),
+    value: formatCompactNumber(overdueTaskCount),
     helper: "Need attention now",
     icon: AlertTriangle,
     tone: "rose",
@@ -1957,10 +2093,11 @@ const DashboardPage = () => {
         ) : (
           <>
             <div className="grid gap-5 lg:grid-cols-2">
-              <RecentCriticalBugs
-                bugs={recentCriticalBugs}
-                onOpen={(bug) => navigateToBugs(getBugDetailRouteParams(bug))}
-                onNavigate={() => navigateToBugs({ filter: "critical" })}
+              <TaskStatusDistributionPanel
+                rows={taskStatusRows}
+                total={issueStats.total}
+                overdue={overdueTaskCount}
+                onOpen={navigateToTasks}
               />
 
               <TriageBoardWidget
@@ -2019,60 +2156,12 @@ const DashboardPage = () => {
         )}
       </section>
 
-      <section className="grid items-stretch gap-3 xl:grid-cols-[0.65fr_1.35fr]">
-        <AnalyticsPanel
-          className="h-full"
-          title="Task Status"
-          description="Task workload only: To Do, In Progress, and Done."
-          action={
-            <Badge className="border-white/60 bg-white/72 text-slate-600">
-              {issueStats.total || 0} total
-            </Badge>
-          }
-        >
-          {taskStatusRows.length ? (
-            <div className="space-y-3">
-              {taskStatusRows.map((row) => (
-                  <button
-                    key={row.key}
-                    type="button"
-                    onClick={() => navigateToIssues({ status: row.key })}
-                    className={cn(
-                      ANALYTICS_SUBPANEL_CLASS,
-                      "flex min-h-[82px] w-full items-center justify-between gap-3 px-4 py-3 text-left"
-                    )}
-                  >
-                    <div className="flex min-w-0 items-center gap-3">
-                      <span
-                        className={cn(
-                          "h-3 w-3 shrink-0 rounded-full",
-                          row.className || statusTone[row.key] || "bg-slate-400"
-                        )}
-                      />
-                      <div className="min-w-0">
-                        <p className="truncate text-sm font-semibold text-slate-950 dark:text-slate-100">
-                          {row.label}
-                        </p>
-                        <p className="text-xs text-slate-500">{row.helper}</p>
-                      </div>
-                    </div>
-                    <div className="shrink-0 text-right">
-                      <p className="text-lg font-semibold text-slate-950 dark:text-slate-100">
-                        {row.count}
-                      </p>
-                      <p className="text-xs text-slate-500">issues</p>
-                    </div>
-                  </button>
-              ))}
-            </div>
-          ) : (
-            <AnalyticsEmptyState
-              icon={Layers3}
-              title="No task status data yet"
-              description="Create task work to populate the task status overview."
-            />
-          )}
-        </AnalyticsPanel>
+      <section className="grid items-stretch gap-3 xl:grid-cols-2">
+        <RecentCriticalBugs
+          bugs={recentCriticalBugs}
+          onOpen={(bug) => navigateToBugs(getBugDetailRouteParams(bug))}
+          onNavigate={() => navigateToBugs({ filter: "critical" })}
+        />
 
         <AnalyticsPanel
           className="h-full"
@@ -2085,7 +2174,7 @@ const DashboardPage = () => {
           }
         >
           {bugStatusRows.length ? (
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="grid gap-3 sm:grid-cols-2">
               {bugStatusRows.map((row) => {
                 const fillPercent = maxBugStatusCount
                   ? Math.max(Math.round((row.count / maxBugStatusCount) * 100), row.count ? 18 : 5)
