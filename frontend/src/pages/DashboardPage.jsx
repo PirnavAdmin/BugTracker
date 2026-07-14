@@ -451,8 +451,8 @@ const ProjectContributionPanel = ({ projects = [], total = 0, onOpen }) => {
       }
     >
       {projects.length ? (
-        <div className="grid min-h-[420px] gap-5 lg:grid-cols-[0.92fr_1.08fr] lg:items-center">
-          <div className="flex min-h-[320px] flex-col items-center justify-center">
+        <div className="grid min-h-[340px] gap-5 lg:grid-cols-[0.92fr_1.08fr] lg:items-center">
+          <div className="flex min-h-[280px] flex-col items-center justify-center">
             <div className="flex justify-center">
               <PieChart width={pieSize} height={pieSize}>
                 <Pie
@@ -525,28 +525,6 @@ const ProjectContributionPanel = ({ projects = [], total = 0, onOpen }) => {
                 </button>
               );
             })}
-            <div className="grid gap-2 rounded-[24px] border border-white/70 bg-white/50 px-5 py-4 shadow-[0_14px_34px_-30px_rgba(15,23,42,0.26)]">
-              {chartRows.map((project) => (
-                <div
-                  key={`${project.projectId || project.name}-meta`}
-                  className="flex items-center justify-between gap-3 text-sm"
-                >
-                  <span className="flex min-w-0 items-center gap-2 text-slate-600">
-                    <span
-                      className="h-3 w-3 shrink-0 rounded-full"
-                      style={{ backgroundColor: project.color }}
-                    />
-                    <span className="truncate">{project.name}</span>
-                  </span>
-                  <span className="shrink-0 font-medium text-slate-500">
-                    {project.open}/{project.closed}
-                  </span>
-                </div>
-              ))}
-              <p className="pt-1 text-xs font-medium text-slate-500">
-                Open / Closed by project
-              </p>
-            </div>
           </div>
         </div>
       ) : (
