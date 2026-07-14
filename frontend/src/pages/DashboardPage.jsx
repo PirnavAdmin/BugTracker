@@ -908,53 +908,18 @@ const TaskStatusDistributionPanel = ({ rows = [], total = 0, overdue = 0, onOpen
       }
     >
       {chartRows.length ? (
-        <div className="grid gap-5 lg:grid-cols-[0.92fr_1.08fr] lg:items-center">
-          <div className="flex min-h-[300px] flex-col items-center justify-center">
-            <div className="relative h-[280px] w-full max-w-[320px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={chartRows}
-                    dataKey="value"
-                    nameKey="label"
-                    cx="50%"
-                    cy="50%"
-                    innerRadius="56%"
-                    outerRadius="84%"
-                    paddingAngle={2}
-                    stroke="rgba(255,255,255,0.82)"
-                    strokeWidth={2}
-                  >
-                    {chartRows.map((entry) => (
-                      <Cell key={entry.key} fill={entry.color} />
-                    ))}
-                  </Pie>
-                  <Tooltip
-                    formatter={(value, _name, item) => [
-                      `${value} tasks`,
-                      item?.payload?.label || "Tasks",
-                    ]}
-                    contentStyle={{
-                      borderRadius: 18,
-                      border: "1px solid rgba(226,232,240,0.86)",
-                      boxShadow: "0 18px 40px -28px rgba(15,23,42,0.42)",
-                    }}
-                  />
-                </PieChart>
-              </ResponsiveContainer>
-              <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-                <div className="flex h-36 w-36 flex-col items-center justify-center rounded-full bg-white/72 text-center shadow-[inset_0_1px_24px_rgba(255,255,255,0.88),0_18px_40px_-30px_rgba(37,99,235,0.45)] backdrop-blur-xl">
-                  <Layers3 className="h-8 w-8 text-blue-500" />
-                  <p className="mt-2 text-3xl font-semibold leading-none text-slate-900">
-                    {formatCompactNumber(total)}
-                  </p>
-                  <p className="mt-1 text-xs font-medium text-slate-600">Tasks</p>
-                </div>
-              </div>
+        <div className="grid min-h-[420px] gap-6 lg:grid-cols-[0.9fr_1.1fr] lg:items-center">
+          <div className="flex min-h-[280px] items-center justify-center">
+            <div className="flex h-44 w-44 flex-col items-center justify-center rounded-full bg-white/78 text-center shadow-[inset_0_1px_24px_rgba(255,255,255,0.92),0_24px_50px_-34px_rgba(37,99,235,0.4)] backdrop-blur-xl">
+              <Layers3 className="h-10 w-10 text-blue-500" />
+              <p className="mt-3 text-5xl font-semibold leading-none text-slate-900">
+                {formatCompactNumber(total)}
+              </p>
+              <p className="mt-2 text-[15px] font-medium text-slate-600">Tasks</p>
             </div>
           </div>
 
-          <div className="grid gap-2.5">
+          <div className="grid gap-4">
             {chartRows.map((row) => {
               const percentage = totalSignals ? Math.round((row.value / totalSignals) * 100) : 0;
 
@@ -963,22 +928,24 @@ const TaskStatusDistributionPanel = ({ rows = [], total = 0, overdue = 0, onOpen
                   key={row.key}
                   type="button"
                   onClick={() => onOpen(row.routeParams)}
-                  className="grid w-full grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-3 rounded-[22px] border border-white/70 bg-white/58 px-4 py-3 text-left shadow-[0_14px_34px_-30px_rgba(15,23,42,0.34)] backdrop-blur-sm transition hover:bg-white/82"
+                  className="grid w-full grid-cols-[minmax(0,1fr)_64px_52px] items-center gap-3 rounded-[24px] border border-white/70 bg-white/58 px-5 py-4 text-left shadow-[0_14px_34px_-30px_rgba(15,23,42,0.34)] backdrop-blur-sm transition hover:bg-white/82"
                 >
                   <span className="flex min-w-0 items-center gap-3">
                     <span
-                      className="h-3 w-3 shrink-0 rounded-full"
+                      className="h-4 w-4 shrink-0 rounded-full"
                       style={{ backgroundColor: row.color }}
                     />
                     <span className="min-w-0">
-                      <span className="block truncate text-sm font-semibold text-slate-900">
+                      <span className="block truncate text-[17px] font-semibold text-slate-900">
                         {row.label}
                       </span>
-                      <span className="block text-xs text-slate-500">{row.helper}</span>
+                      <span className="block text-sm text-slate-500">{row.helper}</span>
                     </span>
                   </span>
-                  <span className="text-base font-semibold text-slate-800">{row.count}</span>
-                  <span className="w-10 text-right text-xs font-semibold text-slate-400">
+                  <span className="text-right text-[17px] font-semibold text-slate-800">
+                    {row.count}
+                  </span>
+                  <span className="text-right text-sm font-semibold text-slate-400">
                     {percentage}%
                   </span>
                 </button>
