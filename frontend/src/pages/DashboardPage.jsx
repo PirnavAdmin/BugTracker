@@ -112,10 +112,60 @@ const USER_ROLE_DISTRIBUTION_META = [
 ];
 
 const DASHBOARD_TALL_SCROLL_CLASS =
-  "dashboard-scrollbar h-[calc(100svh-var(--app-navbar-height)-7.5rem)] min-h-[500px] space-y-3 overflow-y-scroll overscroll-contain pr-2 [scrollbar-gutter:stable]";
+  "dashboard-scrollbar h-[calc(100svh-var(--app-navbar-height)-6.5rem)] min-h-[560px] space-y-3 overflow-y-scroll overscroll-auto pr-2 [scrollbar-gutter:stable]";
 
 const DASHBOARD_SPLIT_PANEL_SCROLL_CLASS =
-  "dashboard-scrollbar h-[452px] space-y-3 overflow-y-scroll overscroll-contain pr-2 [scrollbar-gutter:stable]";
+  "dashboard-scrollbar h-[620px] min-h-[620px] space-y-3 overflow-y-scroll overscroll-auto pr-2 [scrollbar-gutter:stable]";
+
+const getScrollableAncestor = (element) => {
+  let current = element?.parentElement || null;
+
+  while (current) {
+    const style = window.getComputedStyle(current);
+    const canScrollY =
+      /(auto|scroll|overlay)/.test(style.overflowY) &&
+      current.scrollHeight > current.clientHeight + 1;
+
+    if (canScrollY) {
+      return current;
+    }
+
+    current = current.parentElement;
+  }
+
+  return null;
+};
+
+const forwardWheelToAncestor = (event) => {
+  const container = event.currentTarget;
+
+  if (!(container instanceof HTMLElement)) {
+    return;
+  }
+
+  const maxScrollTop = container.scrollHeight - container.clientHeight;
+  const direction = Math.sign(event.deltaY);
+  const atTop = container.scrollTop <= 0;
+  const atBottom = container.scrollTop >= maxScrollTop - 1;
+  const cannotScroll = maxScrollTop <= 1;
+  const shouldForward =
+    cannotScroll || (direction < 0 && atTop) || (direction > 0 && atBottom);
+
+  if (!shouldForward) {
+    return;
+  }
+
+  const ancestor = getScrollableAncestor(container);
+
+  if (ancestor) {
+    event.preventDefault();
+    ancestor.scrollTop += event.deltaY;
+    return;
+  }
+
+  event.preventDefault();
+  window.scrollBy({ top: event.deltaY, left: 0, behavior: "auto" });
+};
 
 const TASK_STATUS_META = [
   {
@@ -431,7 +481,10 @@ const ProjectContributionPanel = ({ projects = [], total = 0, onOpen }) => {
             </div>
           </div>
 
-          <div className="dashboard-scrollbar dashboard-scroll-fade max-h-[390px] space-y-3 overflow-y-scroll overscroll-contain pr-2">
+          <div
+            className="dashboard-scrollbar dashboard-scroll-fade max-h-[390px] space-y-3 overflow-y-scroll overscroll-auto pr-2"
+            onWheelCapture={forwardWheelToAncestor}
+          >
             {chartRows.map((project, index) => {
               const width = Math.max(Math.round((project.total / maxTotal) * 100), project.total ? 8 : 0);
 
@@ -778,7 +831,7 @@ const TeamTaskWorkloadCard = ({ row, onOpen }) => {
     <button
       type="button"
       onClick={() => onOpen(row.teamId ? { teamId: row.teamId } : {})}
-      className="group relative min-h-[84px] w-full overflow-hidden rounded-[24px] border border-white/75 bg-white/58 px-4 py-3 text-left shadow-[0_18px_44px_-34px_rgba(79,70,229,0.55)] backdrop-blur-xl transition duration-300 hover:-translate-y-0.5 hover:border-violet-200/90 hover:bg-white/72 hover:shadow-[0_24px_58px_-36px_rgba(124,58,237,0.62)] dark:border-slate-800/70 dark:bg-slate-950/70"
+      className="group relative min-h-[96px] w-full overflow-hidden rounded-[24px] border border-white/75 bg-white/58 px-5 py-3.5 text-left shadow-[0_18px_44px_-34px_rgba(79,70,229,0.55)] backdrop-blur-xl transition duration-300 hover:-translate-y-0.5 hover:border-violet-200/90 hover:bg-white/72 hover:shadow-[0_24px_58px_-36px_rgba(124,58,237,0.62)] dark:border-slate-800/70 dark:bg-slate-950/70"
     >
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_0%,rgba(255,255,255,0.92),transparent_30%),radial-gradient(circle_at_84%_20%,rgba(147,197,253,0.25),transparent_36%),radial-gradient(circle_at_52%_92%,rgba(168,85,247,0.28),transparent_42%)]" />
       <div className="pointer-events-none absolute inset-x-0 bottom-0 h-10 overflow-hidden">
@@ -793,19 +846,19 @@ const TeamTaskWorkloadCard = ({ row, onOpen }) => {
         <div className="absolute -left-8 -right-8 top-0 h-5 bg-[radial-gradient(ellipse_at_20%_90%,rgba(255,255,255,0.82),transparent_38%),linear-gradient(90deg,rgba(196,181,253,0.58),rgba(125,211,252,0.42),rgba(168,85,247,0.5))] opacity-80 [clip-path:polygon(0_52%,12%_44%,26%_50%,42%_38%,58%_44%,74%_30%,88%_42%,100%_34%,100%_100%,0_100%)] transition-transform duration-700 group-hover:translate-x-2" />
       </div>
 
-      <div className="relative z-10 grid grid-cols-[minmax(0,1fr)_82px] items-center gap-3">
+      <div className="relative z-10 grid grid-cols-[minmax(0,1fr)_88px] items-center gap-4">
         <div className="min-w-0">
-          <p className="truncate text-base font-extrabold tracking-tight text-slate-800 dark:text-slate-100">
+          <p className="truncate text-[15px] font-semibold tracking-tight text-slate-800 dark:text-slate-100">
             {row.name}
           </p>
-          <p className="mt-2 truncate text-xs font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-300">
+          <p className="mt-2 truncate text-[11px] font-medium uppercase tracking-[0.12em] text-slate-600 dark:text-slate-300">
             {row.open} OPEN - {row.inProgress} IN PROGRESS - {row.done} DONE
           </p>
         </div>
-        <div className="relative flex h-[68px] w-[76px] shrink-0 flex-col items-center justify-center rounded-[26px] border border-white/80 bg-white/48 text-slate-700 shadow-[inset_0_1px_10px_rgba(255,255,255,0.78),0_12px_34px_-22px_rgba(99,102,241,0.72)] backdrop-blur-xl dark:border-white/10 dark:bg-white/10 dark:text-slate-100">
-          <span className="text-3xl font-black leading-none">{row.total}</span>
+        <div className="relative flex h-[72px] w-[82px] shrink-0 flex-col items-center justify-center rounded-[26px] border border-white/80 bg-white/48 text-slate-700 shadow-[inset_0_1px_10px_rgba(255,255,255,0.78),0_12px_34px_-22px_rgba(99,102,241,0.72)] backdrop-blur-xl dark:border-white/10 dark:bg-white/10 dark:text-slate-100">
+          <span className="text-[2rem] font-semibold leading-none">{row.total}</span>
           <span className="my-1 h-px w-11 bg-slate-300/80" />
-          <span className="text-base font-extrabold leading-none">{row.completionRate}%</span>
+          <span className="text-[15px] font-semibold leading-none">{row.completionRate}%</span>
         </div>
       </div>
     </button>
@@ -1594,7 +1647,7 @@ const DashboardPage = () => {
           right.open - left.open ||
           left.name.localeCompare(right.name)
       )
-      .slice(0, 5);
+      .slice(0, 6);
     const totalScore = rows.reduce((sum, row) => sum + row.score, 0);
 
     return rows.map((row) => ({
@@ -2075,7 +2128,7 @@ const DashboardPage = () => {
         />
       </section>
 
-      <section className="grid gap-5 xl:grid-cols-[0.92fr_1.08fr]">
+      <section className="grid gap-5 xl:grid-cols-[1fr_1.12fr]">
         <AnalyticsPanel
           title="Team Task Workload"
           description="Compact active task pressure by team."
@@ -2088,7 +2141,10 @@ const DashboardPage = () => {
           }
         >
           {teamTaskRows.length ? (
-            <div className={DASHBOARD_SPLIT_PANEL_SCROLL_CLASS}>
+            <div
+              className={DASHBOARD_SPLIT_PANEL_SCROLL_CLASS}
+              onWheelCapture={forwardWheelToAncestor}
+            >
               {teamTaskRows.map((row) => (
                 <TeamTaskWorkloadCard
                   key={row.teamId || row.name}
@@ -2121,7 +2177,11 @@ const DashboardPage = () => {
             </Button>
           }
         >
-          <div id="dashboard-activity" className={DASHBOARD_SPLIT_PANEL_SCROLL_CLASS}>
+          <div
+            id="dashboard-activity"
+            className={DASHBOARD_SPLIT_PANEL_SCROLL_CLASS}
+            onWheelCapture={forwardWheelToAncestor}
+          >
             {activity.length ? (
               activity.slice(0, 8).map((item) => {
                 const Icon = activityIcon[item.activityType] || Activity;
