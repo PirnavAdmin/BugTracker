@@ -8,6 +8,7 @@ import {
   markAllNotificationsAsRead,
   markNotificationAsRead,
 } from "@/lib/api";
+import { ROLE_DEVELOPER, ROLE_TEAM_LEAD } from "@/lib/roles";
 import { readStoredSession } from "@/lib/session";
 import { getChatSocket } from "@/lib/socket";
 import { cn, formatDateTime } from "@/lib/utils";
@@ -17,6 +18,57 @@ const normalizeNotification = (notification = {}) => ({
   id: notification.id || notification._id?.toString?.() || notification._id || "",
   timestamp: notification.timestamp || notification.createdAt || new Date().toISOString(),
 });
+
+const BUG_KEY_PATTERN = /\b(?:BTT|BUG)[A-Z0-9-]*\b/i;
+
+const resolveNotificationTarget = (notification, user) => {
+  const rawLink = String(notification?.link || "").trim();
+
+  if (!rawLink) {
+    return "";
+  }
+
+  const isDeveloperBugRouteRole =
+    user?.role === ROLE_DEVELOPER || user?.role === ROLE_TEAM_LEAD;
+
+  if (!isDeveloperBugRouteRole || !rawLink.startsWith("/issues")) {
+    return rawLink;
+  }
+
+  const text = `${notification?.text || ""} ${notification?.title || ""}`.toLowerCase();
+  const queryString = rawLink.includes("?") ? rawLink.slice(rawLink.indexOf("?") + 1) : "";
+  const params = new URLSearchParams(queryString);
+  const searchValue = params.get("search") || "";
+  const bugId = params.get("bug") || "";
+  const looksLikeBugKey = BUG_KEY_PATTERN.test(searchValue) || BUG_KEY_PATTERN.test(text);
+  const looksLikeBugText =
+    /\bbug\b/.test(text) ||
+    /\bdefect\b/.test(text) ||
+    /\bready for qa\b/.test(text) ||
+    /\breopen(?:ed)?\b/.test(text) ||
+    /\bwork queue\b/.test(text) ||
+    /\bdeveloper\b/.test(text);
+
+  if (!looksLikeBugKey && !looksLikeBugText && !bugId) {
+    return rawLink;
+  }
+
+  const nextParams = new URLSearchParams();
+
+  if (searchValue) {
+    nextParams.set("search", searchValue);
+  }
+
+  if (bugId) {
+    nextParams.set("bug", bugId);
+  }
+
+  if (/\bwork queue\b/.test(text) || /\bavailable\b/.test(text) || /\bunassigned\b/.test(text)) {
+    nextParams.set("status", "available");
+  }
+
+  return `/dev/bugs${nextParams.toString() ? `?${nextParams}` : ""}`;
+};
 
 const NotificationButton = ({ user }) => {
   const navigate = useNavigate();
@@ -114,8 +166,10 @@ const NotificationButton = ({ user }) => {
 
     setIsOpen(false);
 
-    if (normalizedNotification.link) {
-      navigate(normalizedNotification.link);
+    const target = resolveNotificationTarget(normalizedNotification, user);
+
+    if (target) {
+      navigate(target);
     }
   };
 
