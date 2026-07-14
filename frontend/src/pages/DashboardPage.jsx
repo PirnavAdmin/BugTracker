@@ -436,7 +436,7 @@ const ProjectContributionPanel = ({ projects = [], total = 0, onOpen }) => {
     color: PROJECT_CONTRIBUTION_COLORS[index % PROJECT_CONTRIBUTION_COLORS.length],
   }));
   const totalContributions = total || chartRows.reduce((sum, project) => sum + project.total, 0);
-  const maxTotal = Math.max(...chartRows.map((project) => project.total), 1);
+  const pieSize = 280;
 
   return (
     <AnalyticsPanel
@@ -451,112 +451,102 @@ const ProjectContributionPanel = ({ projects = [], total = 0, onOpen }) => {
       }
     >
       {projects.length ? (
-        <div className="grid gap-6 lg:grid-cols-[0.96fr_1.04fr]">
-          <div className="flex min-h-[390px] flex-col items-center justify-center">
-            <div className="relative h-[300px] w-full max-w-[360px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={chartRows}
-                    dataKey="value"
-                    nameKey="name"
-                    cx="50%"
-                    cy="50%"
-                    innerRadius="54%"
-                    outerRadius="86%"
-                    paddingAngle={1}
-                    stroke="rgba(255,255,255,0.72)"
-                    strokeWidth={2}
-                  >
-                    {chartRows.map((entry) => (
-                      <Cell key={entry.projectId || entry.name} fill={entry.color} />
-                    ))}
-                  </Pie>
-                  <Tooltip
-                    formatter={(value, name) => [`${value} contributions`, name]}
-                    contentStyle={{
-                      borderRadius: 18,
-                      border: "1px solid rgba(226,232,240,0.86)",
-                      boxShadow: "0 18px 40px -28px rgba(15,23,42,0.42)",
-                    }}
-                  />
-                </PieChart>
-              </ResponsiveContainer>
-              <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-                <div className="flex h-40 w-40 flex-col items-center justify-center rounded-full bg-white/68 text-center shadow-[inset_0_1px_24px_rgba(255,255,255,0.88),0_22px_48px_-34px_rgba(37,99,235,0.62)] backdrop-blur-xl">
-                  <Users2 className="h-10 w-10 text-blue-500" />
-                  <p className="mt-2.5 text-3xl font-black leading-none text-slate-900">
-                    {formatCompactNumber(totalContributions)}
-                  </p>
-                  <p className="mt-1 text-xs font-medium text-slate-600">Contributions</p>
-                </div>
-              </div>
-            </div>
-            <div className="mt-3 grid w-full max-w-[430px] grid-cols-1 gap-2 text-xs font-semibold text-slate-700 sm:grid-cols-2">
-              {chartRows.slice(0, 6).map((project) => (
-                <button
-                  key={project.projectId || project.name}
-                  type="button"
-                  onClick={() => onOpen(project)}
-                  className="flex min-w-0 items-center gap-2 rounded-full px-2 py-1 text-left transition hover:bg-white/70"
+        <div className="grid min-h-[420px] gap-5 lg:grid-cols-[0.92fr_1.08fr] lg:items-center">
+          <div className="flex min-h-[320px] flex-col items-center justify-center">
+            <div className="flex justify-center">
+              <PieChart width={pieSize} height={pieSize}>
+                <Pie
+                  data={chartRows}
+                  dataKey="value"
+                  nameKey="name"
+                  cx={pieSize / 2}
+                  cy={pieSize / 2}
+                  innerRadius={0}
+                  outerRadius={118}
+                  paddingAngle={2}
+                  stroke="rgba(255,255,255,0.84)"
+                  strokeWidth={2}
                 >
-                  <span
-                    className="h-3.5 w-3.5 shrink-0 rounded-full"
-                    style={{ backgroundColor: project.color }}
-                  />
-                  <span className="truncate">{project.name}</span>
-                </button>
-              ))}
+                  {chartRows.map((entry) => (
+                    <Cell key={entry.projectId || entry.name} fill={entry.color} />
+                  ))}
+                </Pie>
+                <Tooltip
+                  formatter={(value, _name, item) => [
+                    `${value} contributions`,
+                    item?.payload?.name || "Project",
+                  ]}
+                  contentStyle={{
+                    borderRadius: 18,
+                    border: "1px solid rgba(226,232,240,0.86)",
+                    boxShadow: "0 18px 40px -28px rgba(15,23,42,0.42)",
+                  }}
+                />
+              </PieChart>
             </div>
+            <p className="mt-2 text-center text-xs font-medium text-slate-500">
+              Project contribution distribution across tracked bug work.
+            </p>
           </div>
 
-          <div
-            className="dashboard-scrollbar dashboard-scroll-fade max-h-[390px] space-y-3 overflow-y-scroll overscroll-auto pr-2"
-            onWheelCapture={forwardWheelToAncestor}
-          >
-            {chartRows.map((project, index) => {
-              const width = Math.max(Math.round((project.total / maxTotal) * 100), project.total ? 8 : 0);
+          <div className="grid gap-4">
+            {chartRows.map((project) => {
+              const percentage = totalContributions
+                ? Math.round((project.total / totalContributions) * 100)
+                : 0;
 
               return (
                 <button
                   key={project.projectId || project.name}
                   type="button"
                   onClick={() => onOpen(project)}
-                  className="group relative grid min-h-[92px] w-full grid-cols-[52px_minmax(0,1fr)_78px] items-center gap-4 overflow-hidden rounded-[26px] border border-white/75 bg-white/62 px-4 py-3 text-left shadow-[0_20px_50px_-36px_rgba(37,99,235,0.5)] backdrop-blur-xl transition duration-300 hover:-translate-y-0.5 hover:border-blue-200/90 hover:bg-white/76"
+                  className="grid w-full grid-cols-[minmax(0,1fr)_74px_56px] items-center gap-3 rounded-[24px] border border-white/70 bg-white/58 px-5 py-4 text-left shadow-[0_14px_34px_-30px_rgba(15,23,42,0.34)] backdrop-blur-sm transition hover:bg-white/82"
                 >
-                  <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_0%,rgba(255,255,255,0.95),transparent_34%),radial-gradient(circle_at_88%_50%,rgba(96,165,250,0.18),transparent_44%)]" />
-                  <span
-                    className="relative z-10 flex h-12 w-12 items-center justify-center rounded-full text-xs font-black text-white shadow-[0_14px_28px_-20px_rgba(37,99,235,0.72)]"
-                    style={{ background: `linear-gradient(135deg, ${project.color}, #2563EB)` }}
-                  >
-                    {getInitials(project.name)}
-                  </span>
-                  <div className="relative z-10 min-w-0">
-                    <p className="truncate text-base font-extrabold text-slate-900">{project.name}</p>
-                    <p className="truncate text-xs font-medium text-slate-500">
-                      {project.open} open / {project.closed} closed
-                    </p>
-                    <div className="mt-2 grid grid-cols-[minmax(0,1fr)_44px] items-center gap-2">
-                      <div className="h-2 overflow-hidden rounded-full bg-sky-100/80">
-                        <div
-                          className="h-full rounded-full bg-[linear-gradient(90deg,#38BDF8,#2563EB)] transition-all duration-500"
-                          style={{ width: `${width}%` }}
-                        />
-                      </div>
-                      <span className="text-right text-xs font-bold text-slate-500">
-                        {project.closed}
+                  <span className="flex min-w-0 items-center gap-3">
+                    <span
+                      className="h-4 w-4 shrink-0 rounded-full"
+                      style={{ backgroundColor: project.color }}
+                    />
+                    <span className="min-w-0">
+                      <span className="block truncate text-[17px] font-semibold text-slate-900">
+                        {project.name}
                       </span>
-                    </div>
-                  </div>
-                  <div className="relative z-10 text-right">
-                    <p className="text-2xl font-black leading-none text-slate-800">{project.total}</p>
-                    <p className="mt-2 text-xs font-semibold text-slate-500">
-                      {project.open}/{project.closed}
-                    </p>
-                  </div>
+                      <span className="block text-sm text-slate-500">
+                        {project.open} open / {project.closed} closed
+                      </span>
+                    </span>
+                  </span>
+                  <span className="text-right text-[17px] font-semibold text-slate-800">
+                    {project.total}
+                  </span>
+                  <span className="text-right text-sm font-semibold text-slate-400">
+                    {percentage}%
+                  </span>
                 </button>
               );
             })}
+            <div className="grid gap-2 rounded-[24px] border border-white/70 bg-white/50 px-5 py-4 shadow-[0_14px_34px_-30px_rgba(15,23,42,0.26)]">
+              {chartRows.map((project) => (
+                <div
+                  key={`${project.projectId || project.name}-meta`}
+                  className="flex items-center justify-between gap-3 text-sm"
+                >
+                  <span className="flex min-w-0 items-center gap-2 text-slate-600">
+                    <span
+                      className="h-3 w-3 shrink-0 rounded-full"
+                      style={{ backgroundColor: project.color }}
+                    />
+                    <span className="truncate">{project.name}</span>
+                  </span>
+                  <span className="shrink-0 font-medium text-slate-500">
+                    {project.open}/{project.closed}
+                  </span>
+                </div>
+              ))}
+              <p className="pt-1 text-xs font-medium text-slate-500">
+                Open / Closed by project
+              </p>
+            </div>
           </div>
         </div>
       ) : (
@@ -2170,7 +2160,7 @@ const DashboardPage = () => {
               </section>
             </div>
 
-            <section className="grid gap-5 xl:grid-cols-[1.15fr_0.85fr]">
+            <section>
               <ProjectContributionPanel
                 projects={bugProjectRows}
                 total={bugMetrics.total}
@@ -2187,21 +2177,17 @@ const DashboardPage = () => {
                   })
                 }
               />
-
-              <PriorityDistribution rows={priorityRows} total={bugMetrics.total} />
             </section>
           </>
         )}
       </section>
 
-      <section className="grid items-stretch gap-3 xl:grid-cols-2">
+      <section>
         <RecentCriticalBugs
           bugs={recentCriticalBugs}
           onOpen={(bug) => navigateToBugs(getBugDetailRouteParams(bug))}
           onNavigate={() => navigateToBugs({ filter: "critical" })}
         />
-
-        <PriorityDistribution rows={priorityRows} total={bugMetrics.total} />
       </section>
 
       <section>
