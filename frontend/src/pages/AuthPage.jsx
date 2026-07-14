@@ -473,7 +473,7 @@ const AuthPage = () => {
                 <img
                   src={pirnavLogo}
                   alt="CureCode logo"
-                  className="mb-3 h-12 w-auto object-contain sm:h-14"
+                  className="mb-3 h-14 w-auto object-contain sm:h-16"
                 />
               </div>
               <p className="text-[13px] font-medium text-white/72">{eyebrowCopy}</p>

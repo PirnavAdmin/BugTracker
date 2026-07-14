@@ -145,7 +145,7 @@ const Navbar = () => {
             <img
               src={pirnavLogo}
               alt="CureCode logo"
-              className="h-auto max-h-10 w-auto max-w-[168px] object-contain sm:max-h-11 sm:max-w-[220px]"
+              className="h-auto max-h-11 w-auto max-w-[184px] object-contain sm:max-h-12 sm:max-w-[244px]"
             />
           </NavLink>
 
@@ -224,7 +224,7 @@ const Navbar = () => {
                 <img
                   src={pirnavLogo}
                   alt="CureCode logo"
-                  className="h-auto max-h-9 w-auto max-w-[132px] object-contain"
+                  className="h-auto max-h-10 w-auto max-w-[152px] object-contain"
                 />
                 <Button
                   variant="ghost"
