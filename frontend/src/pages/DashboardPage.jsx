@@ -2062,41 +2062,8 @@ const DashboardPage = () => {
                 : { search: contributor.name }
             )
           }
-<<<<<<< HEAD
-        >
-          {bugProjectRows.length ? (
-            <div className={DASHBOARD_TALL_SCROLL_CLASS}>
-              {bugProjectRows.map((project) => (
-                <ProjectBugCard
-                  key={project.projectId || project.name}
-                  project={project}
-                  onOpen={(selectedProject) =>
-                    navigateToBugs({
-                      projectId:
-                        selectedProject.projectId === selectedProject.name
-                          ? ""
-                          : selectedProject.projectId,
-                      project:
-                        selectedProject.projectId === selectedProject.name
-                          ? selectedProject.name
-                          : "",
-                    })
-                  }
-                />
-              ))}
-            </div>
-          ) : (
-            <AnalyticsEmptyState
-              icon={FolderKanban}
-              title="No active project bugs yet"
-              description="Project bug analytics appear once bugs are linked."
-            />
-          )}
-        </AnalyticsPanel>
-=======
         />
       </section>
->>>>>>> 0df526ff155a129b0da7debdd32f5b83fb51d4d4
 
       <section className="grid gap-5 xl:grid-cols-[0.92fr_1.08fr]">
         <AnalyticsPanel
