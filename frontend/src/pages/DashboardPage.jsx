@@ -895,6 +895,7 @@ const TaskStatusDistributionPanel = ({ rows = [], total = 0, overdue = 0, onOpen
         : []
     );
   const totalSignals = chartRows.reduce((sum, row) => sum + row.value, 0);
+  const pieSize = 280;
 
   return (
     <AnalyticsPanel
@@ -908,15 +909,42 @@ const TaskStatusDistributionPanel = ({ rows = [], total = 0, overdue = 0, onOpen
       }
     >
       {chartRows.length ? (
-        <div className="grid min-h-[420px] gap-6 lg:grid-cols-[0.9fr_1.1fr] lg:items-center">
-          <div className="flex min-h-[280px] items-center justify-center">
-            <div className="flex h-44 w-44 flex-col items-center justify-center rounded-full bg-white/78 text-center shadow-[inset_0_1px_24px_rgba(255,255,255,0.92),0_24px_50px_-34px_rgba(37,99,235,0.4)] backdrop-blur-xl">
-              <Layers3 className="h-10 w-10 text-blue-500" />
-              <p className="mt-3 text-5xl font-semibold leading-none text-slate-900">
-                {formatCompactNumber(total)}
-              </p>
-              <p className="mt-2 text-[15px] font-medium text-slate-600">Tasks</p>
+        <div className="grid min-h-[420px] gap-5 lg:grid-cols-[0.92fr_1.08fr] lg:items-center">
+          <div className="flex min-h-[320px] flex-col items-center justify-center">
+            <div className="relative h-[300px] w-full max-w-[320px]">
+              <PieChart width={pieSize} height={pieSize}>
+                <Pie
+                  data={chartRows}
+                  dataKey="value"
+                  nameKey="label"
+                  cx={pieSize / 2}
+                  cy={pieSize / 2}
+                  innerRadius={0}
+                  outerRadius={118}
+                  paddingAngle={2}
+                  stroke="rgba(255,255,255,0.88)"
+                  strokeWidth={2}
+                >
+                  {chartRows.map((entry) => (
+                    <Cell key={entry.key} fill={entry.color} />
+                  ))}
+                </Pie>
+                <Tooltip
+                  formatter={(value, _name, item) => [
+                    `${value} tasks`,
+                    item?.payload?.label || "Tasks",
+                  ]}
+                  contentStyle={{
+                    borderRadius: 18,
+                    border: "1px solid rgba(226,232,240,0.86)",
+                    boxShadow: "0 18px 40px -28px rgba(15,23,42,0.42)",
+                  }}
+                />
+              </PieChart>
             </div>
+            <p className="mt-2 text-center text-xs font-medium text-slate-500">
+              Task status distribution across active workload.
+            </p>
           </div>
 
           <div className="grid gap-4">
@@ -951,6 +979,9 @@ const TaskStatusDistributionPanel = ({ rows = [], total = 0, overdue = 0, onOpen
                 </button>
               );
             })}
+            <p className="px-2 text-xs font-medium text-slate-500">
+              Labels below the chart show To Do, In Progress, Done, and Overdue counts.
+            </p>
           </div>
         </div>
       ) : (
