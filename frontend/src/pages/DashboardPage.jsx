@@ -487,6 +487,7 @@ const BugContributionTracker = ({ contributors = [], totalBugs = 0, onOpen }) =>
     value: contributor.score,
     color: BUG_CONTRIBUTION_COLORS[index % BUG_CONTRIBUTION_COLORS.length],
   }));
+  const pieSize = 300;
   const chartLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, percent, payload }) => {
     if (!payload?.value || percent < 0.12) {
       return null;
@@ -506,10 +507,10 @@ const BugContributionTracker = ({ contributors = [], totalBugs = 0, onOpen }) =>
         dominantBaseline="central"
         className="pointer-events-none"
       >
-        <tspan x={x} dy="-0.2em" className="text-[12px] font-black">
+        <tspan x={x} dy="-0.2em" className="text-[11px] font-semibold">
           {`${Math.round(percent * 100)}%`}
         </tspan>
-        <tspan x={x} dy="1.2em" className="text-[10px] font-bold">
+        <tspan x={x} dy="1.15em" className="text-[9px] font-medium">
           {payload.shortName}
         </tspan>
       </text>
@@ -530,26 +531,26 @@ const BugContributionTracker = ({ contributors = [], totalBugs = 0, onOpen }) =>
       }
     >
       {chartRows.length ? (
-        <div className="grid gap-5 xl:grid-cols-[1.15fr_0.85fr]">
-          <div className="grid gap-4">
-            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <div className="grid gap-5 xl:grid-cols-[1.5fr_0.9fr]">
+          <div className="grid gap-3">
+            <div className="grid gap-3">
               {chartRows.map((contributor) => (
                 <button
                   key={contributor.userKey}
                   type="button"
                   onClick={() => onOpen(contributor)}
-                  className="group relative overflow-hidden rounded-[26px] border border-white/80 bg-white/72 p-4 text-left shadow-[0_20px_52px_-38px_rgba(56,189,248,0.56)] backdrop-blur-xl transition duration-300 hover:-translate-y-1 hover:border-sky-200/90 hover:bg-white/84"
+                  className="group relative overflow-hidden rounded-[24px] border border-white/80 bg-white/72 px-4 py-3 text-left shadow-[0_18px_42px_-34px_rgba(56,189,248,0.42)] backdrop-blur-xl transition duration-300 hover:-translate-y-0.5 hover:border-sky-200/90 hover:bg-white/84"
                 >
                   <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_0%,rgba(255,255,255,0.96),transparent_34%),radial-gradient(circle_at_86%_14%,rgba(96,165,250,0.18),transparent_34%),radial-gradient(circle_at_50%_100%,rgba(34,211,238,0.18),transparent_42%)]" />
-                  <div className="relative z-10">
-                    <div className="flex items-start justify-between gap-3">
+                  <div className="relative z-10 grid gap-3 md:grid-cols-[auto_minmax(0,1fr)_auto] md:items-center">
+                    <div className="flex items-start gap-3">
                       <div className="relative">
                         <UserAvatar
                           user={contributor.user}
                           name={contributor.name}
-                          className="h-16 w-16 border-2 border-white/90 shadow-[0_18px_36px_-20px_rgba(15,23,42,0.38)]"
+                          className="h-14 w-14 border-2 border-white/90 shadow-[0_16px_30px_-18px_rgba(15,23,42,0.28)]"
                           imageClassName="object-cover"
-                          fallbackClassName="text-lg font-bold"
+                          fallbackClassName="text-base font-semibold"
                         />
                         <span
                           className="absolute -bottom-1 -right-1 flex h-6 w-6 items-center justify-center rounded-full border-2 border-white text-white shadow-sm"
@@ -558,46 +559,48 @@ const BugContributionTracker = ({ contributors = [], totalBugs = 0, onOpen }) =>
                           <Bug className="h-3.5 w-3.5" />
                         </span>
                       </div>
-                      <div className="rounded-full border border-white/80 bg-white/75 px-2.5 py-1 text-right shadow-sm">
-                        <p className="text-lg font-black leading-none text-slate-900">
-                          {contributor.percent}%
+                      <div className="min-w-0">
+                        <p className="truncate text-[22px] font-semibold tracking-tight text-slate-900">
+                          {contributor.name}
                         </p>
-                        <p className="mt-0.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                          Share
+                        <p className="mt-1 text-[11px] font-medium uppercase tracking-[0.2em] text-slate-400">
+                          Contribution score {contributor.score}
                         </p>
                       </div>
                     </div>
 
-                    <div className="mt-4">
-                      <p className="truncate text-2xl font-extrabold tracking-tight text-slate-900">
-                        {contributor.name}
-                      </p>
-                      <p className="mt-1 text-xs font-semibold uppercase tracking-[0.22em] text-slate-400">
-                        Contribution score {contributor.score}
-                      </p>
-                    </div>
-
-                    <div className="mt-4 space-y-2 text-sm text-slate-700">
-                      <div className="flex items-center justify-between gap-3">
+                    <div className="grid gap-2 sm:grid-cols-3 md:grid-cols-3">
+                      <div className="flex items-center justify-between gap-3 rounded-2xl border border-white/70 bg-white/64 px-3 py-2 text-sm text-slate-700">
                         <span className="flex items-center gap-2">
                           <span className="h-2.5 w-2.5 rounded-full bg-blue-500" />
                           Open
                         </span>
-                        <span className="font-black text-slate-900">{contributor.open}</span>
+                        <span className="font-semibold text-slate-900">{contributor.open}</span>
                       </div>
-                      <div className="flex items-center justify-between gap-3">
+                      <div className="flex items-center justify-between gap-3 rounded-2xl border border-white/70 bg-white/64 px-3 py-2 text-sm text-slate-700">
                         <span className="flex items-center gap-2">
                           <span className="h-2.5 w-2.5 rounded-full bg-emerald-500" />
                           Resolved
                         </span>
-                        <span className="font-black text-slate-900">{contributor.resolved}</span>
+                        <span className="font-semibold text-slate-900">{contributor.resolved}</span>
                       </div>
-                      <div className="flex items-center justify-between gap-3">
+                      <div className="flex items-center justify-between gap-3 rounded-2xl border border-white/70 bg-white/64 px-3 py-2 text-sm text-slate-700">
                         <span className="flex items-center gap-2">
                           <span className="h-2.5 w-2.5 rounded-full bg-rose-500" />
                           Critical
                         </span>
-                        <span className="font-black text-slate-900">{contributor.critical}</span>
+                        <span className="font-semibold text-slate-900">{contributor.critical}</span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between md:justify-end">
+                      <div className="rounded-full border border-white/80 bg-white/75 px-3 py-1.5 text-right shadow-sm">
+                        <p className="text-base font-semibold leading-none text-slate-900">
+                          {contributor.percent}%
+                        </p>
+                        <p className="mt-0.5 text-[10px] font-medium uppercase tracking-[0.16em] text-slate-500">
+                          Share
+                        </p>
                       </div>
                     </div>
                   </div>
@@ -606,10 +609,10 @@ const BugContributionTracker = ({ contributors = [], totalBugs = 0, onOpen }) =>
             </div>
           </div>
 
-          <div className="rounded-[30px] border border-white/80 bg-[radial-gradient(circle_at_18%_0%,rgba(255,255,255,0.96),transparent_34%),radial-gradient(circle_at_100%_0%,rgba(56,189,248,0.16),transparent_32%),linear-gradient(180deg,rgba(255,255,255,0.84),rgba(240,249,255,0.9))] p-5 shadow-[0_22px_58px_-38px_rgba(56,189,248,0.48)] backdrop-blur-xl">
+          <div className="rounded-[28px] border border-white/80 bg-[radial-gradient(circle_at_18%_0%,rgba(255,255,255,0.96),transparent_34%),radial-gradient(circle_at_100%_0%,rgba(56,189,248,0.16),transparent_32%),linear-gradient(180deg,rgba(255,255,255,0.84),rgba(240,249,255,0.9))] p-5 shadow-[0_22px_58px_-38px_rgba(56,189,248,0.4)] backdrop-blur-xl">
             <div className="flex items-start justify-between gap-3">
               <div>
-                <p className="text-xl font-extrabold tracking-tight text-slate-900">
+                <p className="text-xl font-semibold tracking-tight text-slate-900">
                   Bug Contributions %
                 </p>
                 <p className="mt-1 text-sm text-slate-500">
@@ -618,18 +621,17 @@ const BugContributionTracker = ({ contributors = [], totalBugs = 0, onOpen }) =>
               </div>
             </div>
 
-            <div className="relative mx-auto mt-4 h-[320px] w-full max-w-[360px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
+            <div className="mt-4 flex justify-center">
+              <PieChart width={pieSize} height={pieSize}>
                   <Pie
                     data={chartRows}
                     dataKey="value"
                     nameKey="name"
-                    cx="50%"
-                    cy="50%"
-                    innerRadius="0%"
-                    outerRadius="82%"
-                    paddingAngle={1}
+                    cx={pieSize / 2}
+                    cy={pieSize / 2}
+                    innerRadius={0}
+                    outerRadius={122}
+                    paddingAngle={2}
                     stroke="rgba(255,255,255,0.82)"
                     strokeWidth={2}
                     labelLine={false}
@@ -651,7 +653,6 @@ const BugContributionTracker = ({ contributors = [], totalBugs = 0, onOpen }) =>
                     }}
                   />
                 </PieChart>
-              </ResponsiveContainer>
             </div>
 
             <div className="grid gap-2 sm:grid-cols-2">
@@ -667,11 +668,11 @@ const BugContributionTracker = ({ contributors = [], totalBugs = 0, onOpen }) =>
                       className="h-3 w-3 shrink-0 rounded-full"
                       style={{ backgroundColor: contributor.color }}
                     />
-                    <span className="truncate text-sm font-bold text-slate-800">
+                    <span className="truncate text-sm font-medium text-slate-800">
                       {contributor.name}
                     </span>
                   </span>
-                  <span className="text-sm font-black text-slate-500">
+                  <span className="text-sm font-medium text-slate-500">
                     {contributor.open}/{contributor.resolved}/{contributor.critical}
                   </span>
                 </button>
@@ -2047,7 +2048,7 @@ const DashboardPage = () => {
         </AnalyticsPanel>
       </section>
 
-      <section className="grid gap-5 xl:grid-cols-[1.2fr_0.8fr]">
+      <section>
         <BugContributionTracker
           contributors={bugContributorRows}
           totalBugs={bugMetrics.total}
@@ -2059,7 +2060,9 @@ const DashboardPage = () => {
             )
           }
         />
+      </section>
 
+      <section className="grid gap-5 xl:grid-cols-[0.92fr_1.08fr]">
         <AnalyticsPanel
           title="Team Task Workload"
           description="Compact active task pressure by team."
@@ -2089,9 +2092,7 @@ const DashboardPage = () => {
             />
           )}
         </AnalyticsPanel>
-      </section>
 
-      <section className="grid gap-5 xl:grid-cols-[1fr_0.9fr]">
         <AnalyticsPanel
           title="Live Activity Feed"
           description="Recently created issues, resolved tickets, assignments, and critical alerts."
