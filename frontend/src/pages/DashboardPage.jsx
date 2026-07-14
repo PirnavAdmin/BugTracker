@@ -501,35 +501,7 @@ const BugContributionTracker = ({
     value: contributor.score,
     color: BUG_CONTRIBUTION_COLORS[index % BUG_CONTRIBUTION_COLORS.length],
   }));
-  const pieSize = 300;
-  const chartLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, percent, payload }) => {
-    if (!payload?.value || percent < 0.12) {
-      return null;
-    }
-
-    const angle = (-midAngle * Math.PI) / 180;
-    const radius = innerRadius + (outerRadius - innerRadius) * 0.62;
-    const x = cx + radius * Math.cos(angle);
-    const y = cy + radius * Math.sin(angle);
-
-    return (
-      <text
-        x={x}
-        y={y}
-        fill="#ffffff"
-        textAnchor="middle"
-        dominantBaseline="central"
-        className="pointer-events-none"
-      >
-        <tspan x={x} dy="-0.2em" className="text-[11px] font-semibold">
-          {`${Math.round(percent * 100)}%`}
-        </tspan>
-        <tspan x={x} dy="1.15em" className="text-[9px] font-medium">
-          {payload.shortName}
-        </tspan>
-      </text>
-    );
-  };
+  const pieSize = 260;
 
   return (
     <AnalyticsPanel
@@ -541,7 +513,7 @@ const BugContributionTracker = ({
             <select
               value={selectedProjectId}
               onChange={(event) => onProjectChange?.(event.target.value)}
-              className="h-9 max-w-[220px] rounded-full border border-white/70 bg-white/78 px-3 text-sm font-semibold text-slate-700 shadow-sm outline-none transition focus:border-blue-200 focus:ring-2 focus:ring-blue-500/20 dark:border-white/10 dark:bg-slate-950/70 dark:text-slate-100"
+              className="h-8 max-w-[190px] rounded-full border border-white/70 bg-white/78 px-3 text-sm font-medium text-slate-700 shadow-sm outline-none transition focus:border-blue-200 focus:ring-2 focus:ring-blue-500/20 dark:border-white/10 dark:bg-slate-950/70 dark:text-slate-100"
               aria-label="Filter bug contributions by project"
             >
               <option value="all">All projects</option>
@@ -560,7 +532,7 @@ const BugContributionTracker = ({
       }
     >
       {chartRows.length ? (
-        <div className="grid gap-5 xl:grid-cols-[1.5fr_0.9fr]">
+        <div className="grid gap-4 xl:grid-cols-[1.6fr_0.78fr]">
           <div className="grid gap-3">
             <div className="grid gap-3">
               {chartRows.map((contributor) => (
@@ -638,7 +610,7 @@ const BugContributionTracker = ({
             </div>
           </div>
 
-          <div className="rounded-[28px] border border-white/80 bg-[radial-gradient(circle_at_18%_0%,rgba(255,255,255,0.96),transparent_34%),radial-gradient(circle_at_100%_0%,rgba(56,189,248,0.16),transparent_32%),linear-gradient(180deg,rgba(255,255,255,0.84),rgba(240,249,255,0.9))] p-5 shadow-[0_22px_58px_-38px_rgba(56,189,248,0.4)] backdrop-blur-xl">
+          <div className="rounded-[28px] border border-white/80 bg-[radial-gradient(circle_at_18%_0%,rgba(255,255,255,0.96),transparent_34%),radial-gradient(circle_at_100%_0%,rgba(56,189,248,0.16),transparent_32%),linear-gradient(180deg,rgba(255,255,255,0.84),rgba(240,249,255,0.9))] p-4 shadow-[0_22px_58px_-38px_rgba(56,189,248,0.4)] backdrop-blur-xl">
             <div className="flex items-start justify-between gap-3">
               <div>
                 <p className="text-xl font-semibold tracking-tight text-slate-900">
@@ -650,7 +622,7 @@ const BugContributionTracker = ({
               </div>
             </div>
 
-            <div className="mt-4 flex justify-center">
+            <div className="mt-3 flex justify-center">
               <PieChart width={pieSize} height={pieSize}>
                   <Pie
                     data={chartRows}
@@ -659,22 +631,25 @@ const BugContributionTracker = ({
                     cx={pieSize / 2}
                     cy={pieSize / 2}
                     innerRadius={0}
-                    outerRadius={122}
+                    outerRadius={110}
                     paddingAngle={2}
                     stroke="rgba(255,255,255,0.82)"
                     strokeWidth={2}
                     labelLine={false}
-                    label={chartLabel}
                   >
                     {chartRows.map((entry) => (
                       <Cell key={entry.userKey} fill={entry.color} />
                     ))}
                   </Pie>
                   <Tooltip
-                    formatter={(value, _name, item) => [
-                      `${value} contribution points`,
-                      item?.payload?.name || "Contributor",
-                    ]}
+                    formatter={(value, _name, item) => {
+                      const contributor = item?.payload;
+
+                      return [
+                        `${contributor?.open || 0}/${contributor?.resolved || 0}/${contributor?.critical || 0}`,
+                        `${contributor?.name || "Contributor"} (${contributor?.percent || 0}%)`,
+                      ];
+                    }}
                     contentStyle={{
                       borderRadius: 18,
                       border: "1px solid rgba(226,232,240,0.86)",
@@ -683,33 +658,8 @@ const BugContributionTracker = ({
                   />
                 </PieChart>
             </div>
-
-            <div className="grid gap-2 sm:grid-cols-2">
-              {chartRows.map((contributor) => (
-                <button
-                  key={`${contributor.userKey}-legend`}
-                  type="button"
-                  onClick={() => onOpen(contributor)}
-                  className="flex items-center justify-between gap-3 rounded-2xl border border-white/75 bg-white/72 px-3 py-2 text-left shadow-[0_14px_34px_-30px_rgba(15,23,42,0.32)] transition hover:bg-white/86"
-                >
-                  <span className="flex min-w-0 items-center gap-2">
-                    <span
-                      className="h-3 w-3 shrink-0 rounded-full"
-                      style={{ backgroundColor: contributor.color }}
-                    />
-                    <span className="truncate text-sm font-medium text-slate-800">
-                      {contributor.name}
-                    </span>
-                  </span>
-                  <span className="text-sm font-medium text-slate-500">
-                    {contributor.open}/{contributor.resolved}/{contributor.critical}
-                  </span>
-                </button>
-              ))}
-            </div>
-
-            <p className="mt-3 text-xs font-medium text-slate-500">
-              Open / Resolved / Critical
+            <p className="mt-3 text-center text-xs font-medium text-slate-500">
+              Hover chart slices to see contributor names and bug counts.
             </p>
           </div>
         </div>
@@ -1643,7 +1593,8 @@ const DashboardPage = () => {
           right.resolved - left.resolved ||
           right.open - left.open ||
           left.name.localeCompare(right.name)
-      );
+      )
+      .slice(0, 5);
     const totalScore = rows.reduce((sum, row) => sum + row.score, 0);
 
     return rows.map((row) => ({
