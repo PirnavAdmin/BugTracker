@@ -108,6 +108,9 @@ const USER_ROLE_DISTRIBUTION_META = [
   { key: "Tester", label: "Testers", color: "#f59e0b" },
 ];
 
+const DASHBOARD_TALL_SCROLL_CLASS =
+  "dashboard-scrollbar h-[calc(100svh-var(--app-navbar-height)-7.5rem)] min-h-[500px] space-y-3 overflow-y-scroll overscroll-contain pr-2 [scrollbar-gutter:stable]";
+
 const TASK_STATUS_META = [
   {
     key: TASK_BOARD_STATUS.OPEN,
@@ -1646,7 +1649,7 @@ const DashboardPage = () => {
           }
         >
           {bugProjectRows.length ? (
-            <div className="dashboard-scrollbar h-[500px] space-y-3 overflow-y-scroll overscroll-contain pr-2 [scrollbar-gutter:stable]">
+            <div className={DASHBOARD_TALL_SCROLL_CLASS}>
               {bugProjectRows.map((project) => (
                 <ProjectBugCard
                   key={project.projectId || project.name}
@@ -1687,7 +1690,7 @@ const DashboardPage = () => {
           }
         >
           {teamTaskRows.length ? (
-            <div className="dashboard-scrollbar h-[500px] space-y-3 overflow-y-scroll overscroll-contain pr-2 [scrollbar-gutter:stable]">
+            <div className={DASHBOARD_TALL_SCROLL_CLASS}>
               {teamTaskRows.map((row) => (
                 <TeamTaskWorkloadCard
                   key={row.teamId || row.name}
