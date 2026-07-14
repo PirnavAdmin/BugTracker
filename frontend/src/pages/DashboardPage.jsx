@@ -113,6 +113,9 @@ const USER_ROLE_DISTRIBUTION_META = [
 const DASHBOARD_TALL_SCROLL_CLASS =
   "dashboard-scrollbar h-[calc(100svh-var(--app-navbar-height)-7.5rem)] min-h-[500px] space-y-3 overflow-y-scroll overscroll-contain pr-2 [scrollbar-gutter:stable]";
 
+const TEAM_TASK_SCROLL_CLASS =
+  "dashboard-scrollbar max-h-[314px] space-y-3 overflow-y-scroll overscroll-contain pb-3 pr-2 [scrollbar-gutter:stable]";
+
 const TASK_STATUS_META = [
   {
     key: TASK_BOARD_STATUS.OPEN,
@@ -2078,7 +2081,7 @@ const DashboardPage = () => {
           }
         >
           {teamTaskRows.length ? (
-            <div className={DASHBOARD_TALL_SCROLL_CLASS}>
+            <div className={TEAM_TASK_SCROLL_CLASS}>
               {teamTaskRows.map((row) => (
                 <TeamTaskWorkloadCard
                   key={row.teamId || row.name}
