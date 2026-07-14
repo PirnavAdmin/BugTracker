@@ -170,6 +170,73 @@ const buildDetailDraft = (issue) => ({
   bugDetails: getBugDetailsDraft(issue),
 });
 
+const normalizeList = (value) =>
+  Array.isArray(value)
+    ? value.map((item) => String(item || "").trim()).filter(Boolean)
+    : String(value || "")
+        .split(",")
+        .map((item) => item.trim())
+        .filter(Boolean);
+
+const valuesMatch = (left, right) => JSON.stringify(left) === JSON.stringify(right);
+
+const pruneUnchangedDetailPayload = (issue, payload = {}) => {
+  const originalDraft = buildDetailDraft(issue);
+
+  return Object.fromEntries(
+    Object.entries(payload).filter(([field, value]) => {
+      switch (field) {
+        case "title":
+          return value !== originalDraft.title.trim();
+        case "description":
+          return value !== originalDraft.description.trim();
+        case "type":
+          return value !== originalDraft.type;
+        case "projectId":
+          return String(value || "") !== String(originalDraft.projectId || "");
+        case "teamId":
+          return String(value || "") !== String(originalDraft.teamId || "");
+        case "assigneeId":
+          return String(value || "") !== String(originalDraft.assigneeId || "");
+        case "priority":
+          return value !== originalDraft.priority;
+        case "status":
+          return normalizeIssueStatus(value) !== normalizeIssueStatus(originalDraft.status);
+        case "dueAt":
+          return String(value || "") !== String(originalDraft.dueAt || "");
+        case "dependsOnIssueId":
+          return String(value || "") !== String(originalDraft.dependsOnIssueId || "");
+        case "storyPoints":
+          return String(value ?? "") !== String(originalDraft.storyPoints ?? "");
+        case "acceptanceCriteria":
+          return !valuesMatch(value, originalDraft.acceptanceCriteria);
+        case "definitionOfDone":
+          return value !== originalDraft.definitionOfDone.trim();
+        case "labels":
+          return !valuesMatch(normalizeList(value), normalizeList(originalDraft.labels));
+        case "timeEstimateMinutes":
+          return Number(value || 0) !== Number(originalDraft.timeEstimateMinutes || 0);
+        case "bugDetails":
+          return !valuesMatch(value, {
+            severity: originalDraft.bugDetails.severity,
+            testerOwnerId: originalDraft.bugDetails.testerOwnerId || null,
+            developerLeadId: originalDraft.bugDetails.developerLeadId || null,
+            stepsToReproduce: originalDraft.bugDetails.stepsToReproduce.trim(),
+            expectedResult: originalDraft.bugDetails.expectedResult.trim(),
+            actualResult: originalDraft.bugDetails.actualResult.trim(),
+            reopenReason: originalDraft.bugDetails.reopenReason.trim(),
+            rejectionReason: originalDraft.bugDetails.rejectionReason.trim(),
+            targetRelease: originalDraft.bugDetails.targetRelease.trim(),
+          });
+        case "statusChangeComment":
+          return Boolean(value);
+        default:
+          return true;
+      }
+    })
+  );
+};
+
 const IssueDetailsDialog = ({
   issue,
   open,
@@ -1078,7 +1145,14 @@ const IssueDetailsDialog = ({
                         detailDraft.bugDetails.statusChangeComment.trim();
                     }
 
-                    await onUpdateIssue(issue._id, updatePayload);
+                    const changedPayload = pruneUnchangedDetailPayload(issue, updatePayload);
+
+                    if (!Object.keys(changedPayload).length) {
+                      onOpenChange(false);
+                      return;
+                    }
+
+                    await onUpdateIssue(issue._id, changedPayload);
                   } catch (error) {
                     setDetailsError(
                       error.response?.data?.message || "Unable to save work item details."
