@@ -357,6 +357,16 @@ const buildTaskImportAssigneeLabel = (user, duplicateNameCounts = new Map()) => 
 const buildTaskImportParentStoryLabel = (story) =>
   resolveImportText(story?.displayBugId || story?.issueKey || story?.title);
 
+const createTaskImportSampleDueDate = (offset = 0) => {
+  const baseDate = new Date();
+  baseDate.setSeconds(0, 0);
+  baseDate.setMinutes(0);
+  baseDate.setHours(10);
+  baseDate.setDate(baseDate.getDate() + 1 + offset);
+  baseDate.setHours(10 + (offset % 7));
+  return baseDate;
+};
+
 const extractAssigneeEmailFromImport = (value) => {
   const trimmedValue = resolveImportText(value);
   const emailMatch = trimmedValue.match(/<([^<>]+)>$/);
@@ -715,6 +725,7 @@ const getTaskImportTemplateOptions = async ({ workspaceId }) => {
   );
 
   const sampleRows = [];
+  let sampleRowIndex = 0;
   projectNames.forEach((projectName) => {
     const projectTeams = teamsByProjectName.get(projectName) || [];
     const projectEpics = epicsByProjectName.get(projectName) || [];
@@ -727,11 +738,12 @@ const getTaskImportTemplateOptions = async ({ workspaceId }) => {
         description: "",
         team: "",
         assignee: "",
-        dueDate: "",
+        dueDate: createTaskImportSampleDueDate(sampleRowIndex),
         epic: projectEpics[0] || "",
         priority: ISSUE_PRIORITY_VALUES[0] || "",
         parentStory: projectStories[0] || "",
       });
+      sampleRowIndex += 1;
       return;
     }
 
@@ -751,11 +763,12 @@ const getTaskImportTemplateOptions = async ({ workspaceId }) => {
           description: "",
           team: teamName,
           assignee: "",
-          dueDate: "",
+          dueDate: createTaskImportSampleDueDate(sampleRowIndex),
           epic: sampleEpic,
           priority: samplePriority,
           parentStory: sampleStory,
         });
+        sampleRowIndex += 1;
         return;
       }
 
@@ -766,7 +779,7 @@ const getTaskImportTemplateOptions = async ({ workspaceId }) => {
           description: "",
           team: teamName,
           assignee,
-          dueDate: "",
+          dueDate: createTaskImportSampleDueDate(sampleRowIndex),
           epic:
             projectEpics[
               (teamIndex + assigneeIndex) % Math.max(projectEpics.length, 1)
@@ -780,6 +793,7 @@ const getTaskImportTemplateOptions = async ({ workspaceId }) => {
               (teamIndex + assigneeIndex) % Math.max(projectStories.length, 1)
             ] || "",
         });
+        sampleRowIndex += 1;
       });
     });
   });
@@ -3302,7 +3316,7 @@ const downloadTaskImportSample = asyncHandler(async (req, res) => {
   );
 
   for (let rowNumber = 2; rowNumber <= totalTemplateRows + 1; rowNumber += 1) {
-    worksheet.getCell(`F${rowNumber}`).numFmt = "dd-mmm-yyyy";
+    worksheet.getCell(`F${rowNumber}`).numFmt = "dd-mmm-yyyy hh:mm AM/PM";
   }
 
   const projectsSheet = createTaskImportLookupSheet({
@@ -3495,9 +3509,9 @@ const downloadTaskImportSample = asyncHandler(async (req, res) => {
       showErrorMessage: true,
       formulae: [new Date(2000, 0, 1), new Date(2100, 11, 31)],
       promptTitle: "Due date",
-      prompt: "Enter a valid Excel date or use the dd-mmm-yyyy format.",
+      prompt: "Enter a valid Excel date and time or use the dd-mmm-yyyy hh:mm AM/PM format.",
       errorTitle: "Invalid date",
-      error: "Provide a valid due date using an Excel date value.",
+      error: "Provide a valid due date and time using an Excel date value.",
     };
     worksheet.getCell(`H${rowNumber}`).dataValidation = {
       type: "list",
@@ -3517,7 +3531,7 @@ const downloadTaskImportSample = asyncHandler(async (req, res) => {
   worksheet.getCell("C1").note = "Free text. Required during upload.";
   worksheet.getCell("D1").note = "Choose a project first. This dropdown shows only teams attached to that project.";
   worksheet.getCell("E1").note = "Choose a team first. This dropdown shows only members of that team.";
-  worksheet.getCell("F1").note = "Use an Excel date value or the dd-mmm-yyyy format.";
+  worksheet.getCell("F1").note = "Use an Excel date/time value or the dd-mmm-yyyy hh:mm AM/PM format.";
   worksheet.getCell("G1").note = "Optional. Enter an active epic name from the selected project or leave blank.";
   worksheet.getCell("H1").note = "Optional. Leave blank to assign Medium priority.";
   worksheet.getCell("I1").note = "Optional. Enter the parent story title or key from the selected project or leave blank.";
