@@ -1188,7 +1188,7 @@ const addAndCondition = (query, condition) => {
 const buildHighPriorityCondition = buildHighPriorityIssueCondition;
 
 const isTeamProgressRequest = (req) =>
-  req.user?.role === ROLE_TEAM_LEAD &&
+  (hasAdminAccess(req.user?.role) || req.user?.role === ROLE_TEAM_LEAD) &&
   ["true", "1"].includes(String(req.query.teamProgress || "").trim().toLowerCase());
 
 const getAccessibleProjectIds = async (user) => {
@@ -3232,6 +3232,20 @@ const buildIssueQueryFromRequest = async (
   }
 
   if (isTeamProgressRequest(req)) {
+    if (hasAdminAccess(req.user?.role)) {
+      if (
+        !query.type ||
+        query.type === ISSUE_TYPES.TASK ||
+        query.type === ISSUE_TYPES.SUB_TASK
+      ) {
+        query.type = {
+          $in: [ISSUE_TYPES.TASK, ISSUE_TYPES.SUB_TASK],
+        };
+      }
+
+      return query;
+    }
+
     const userTeamIds = await getWorkspaceTeamIdsForUser(req.user);
     const storyIds = userTeamIds.length
       ? await Issue.find({

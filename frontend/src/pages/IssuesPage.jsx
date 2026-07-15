@@ -49,6 +49,8 @@ const WORK_ITEM_TYPE_OPTIONS = [ISSUE_TYPES.TASK];
 const isValidWorkItemType = (value) => WORK_ITEM_TYPE_OPTIONS.includes(value);
 const ALL_PROJECTS_VALUE = "ALL";
 const HIGH_PRIORITY_QUERY_VALUE = "high";
+const TASK_SCOPE_ALL = "all";
+const TASK_SCOPE_MINE = "mine";
 
 const normalizeStatusFilterValue = (value) => {
   if (!value) {
@@ -221,7 +223,7 @@ const IssueBoardSkeleton = () => (
 
 const IssuesPage = () => {
   const queryClient = useQueryClient();
-  const { role } = useAuth();
+  const { role, user } = useAuth();
   const navigate = useNavigate();
   const { issueId: routeIssueId = "" } = useParams();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -251,10 +253,15 @@ const IssuesPage = () => {
   const [selectedIssue, setSelectedIssue] = useState(null);
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [isBulkImportOpen, setIsBulkImportOpen] = useState(false);
+  const [taskScope, setTaskScope] = useState(TASK_SCOPE_ALL);
   const [toast, setToast] = useState(null);
   const deferredSearch = useDeferredValue(filters.search);
   const isAdminView = hasAdminPanelAccess(role);
   const isTeamLeadView = role === ROLE_TEAM_LEAD;
+  const canToggleTaskScope = isAdminView || isTeamLeadView;
+  const currentUserId = resolveUserId(user);
+  const effectiveAssigneeId =
+    taskScope === TASK_SCOPE_MINE ? currentUserId || "me" : filters.assigneeId;
   const canAssignIssue = canAssignIssues(role);
   const canCreateIssue = canCreateIssues(role);
   const canDeleteIssue = canDeleteIssues(role);
@@ -405,7 +412,7 @@ const IssuesPage = () => {
       filters.teamId,
       filters.epicId,
       filters.sprintId,
-      filters.assigneeId,
+      effectiveAssigneeId,
       filters.type,
       deferredSearch,
       filters.status,
@@ -421,7 +428,7 @@ const IssuesPage = () => {
         projectId:
           filters.projectId === ALL_PROJECTS_VALUE ? "" : filters.projectId,
         teamId: filters.teamId,
-        assigneeId: filters.assigneeId,
+        assigneeId: effectiveAssigneeId,
         type: ISSUE_TYPES.TASK,
         excludeType: ISSUE_TYPES.BUG,
         status: filters.status,
@@ -669,6 +676,7 @@ const IssuesPage = () => {
   };
 
   const handleAssigneeChange = (assigneeId) => {
+    setTaskScope(TASK_SCOPE_ALL);
     setFilters((current) => ({
       ...current,
       assigneeId,
@@ -714,6 +722,7 @@ const IssuesPage = () => {
       filter: "all",
       search: "",
     }));
+    setTaskScope(TASK_SCOPE_ALL);
 
     const nextParams = new URLSearchParams(searchParams);
     TASK_FILTER_SEARCH_KEYS.forEach((key) => nextParams.delete(key));
@@ -735,6 +744,7 @@ const IssuesPage = () => {
       filters.projectId !== ALL_PROJECTS_VALUE ||
       filters.teamId !== "all" ||
       filters.assigneeId !== "all" ||
+      taskScope !== TASK_SCOPE_ALL ||
       filters.search.trim()
   );
 
@@ -767,10 +777,14 @@ const IssuesPage = () => {
         visibleIssueCount={filteredIssues.length}
         activeStatusLabel={activeStatusLabel}
         selectedProject={selectedProject}
+        taskScope={taskScope}
         canCreateIssue={canCreateIssue}
         canBulkImport={isAdminView}
+        canToggleTaskScope={canToggleTaskScope}
+        isAssigneeDisabled={taskScope === TASK_SCOPE_MINE}
         isCreateDisabled={!projects.length || !canCreateIssue}
         isResetDisabled={!hasVisibleFilters}
+        onTaskScopeChange={setTaskScope}
         onProjectChange={handleProjectChange}
         onTeamChange={handleTeamChange}
         onAssigneeChange={handleAssigneeChange}

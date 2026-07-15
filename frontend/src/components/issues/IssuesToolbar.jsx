@@ -1,4 +1,4 @@
-import { FileSpreadsheet, Plus, RotateCcw, Search } from "lucide-react";
+import { FileSpreadsheet, Globe2, Plus, RotateCcw, Search, UserCircle2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -14,10 +14,14 @@ const IssuesToolbar = ({
   visibleIssueCount = 0,
   activeStatusLabel = "",
   selectedProject = null,
+  taskScope = "all",
   canCreateIssue = true,
   canBulkImport = false,
+  canToggleTaskScope = false,
+  isAssigneeDisabled = false,
   isCreateDisabled = false,
   isResetDisabled = false,
+  onTaskScopeChange,
   onProjectChange,
   onTeamChange,
   onAssigneeChange,
@@ -45,6 +49,29 @@ const IssuesToolbar = ({
           </div>
 
           <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row">
+            {canToggleTaskScope ? (
+              <div className="inline-flex rounded-2xl border border-slate-200 bg-white/80 p-1 shadow-sm">
+                <Button
+                  className="h-10 rounded-xl px-3"
+                  type="button"
+                  variant={taskScope === "all" ? "default" : "ghost"}
+                  onClick={() => onTaskScopeChange?.("all")}
+                >
+                  <Globe2 className="h-4 w-4" />
+                  All projects
+                </Button>
+                <Button
+                  className="h-10 rounded-xl px-3"
+                  type="button"
+                  variant={taskScope === "mine" ? "default" : "ghost"}
+                  onClick={() => onTaskScopeChange?.("mine")}
+                >
+                  <UserCircle2 className="h-4 w-4" />
+                  My tasks
+                </Button>
+              </div>
+            ) : null}
+
             {canBulkImport ? (
               <Button
                 className="w-full sm:w-auto"
@@ -115,7 +142,7 @@ const IssuesToolbar = ({
               className="field-select"
               value={filters.assigneeId}
               onChange={(event) => onAssigneeChange(event.target.value)}
-              disabled={!assignees.length}
+              disabled={isAssigneeDisabled || !assignees.length}
             >
               <option value="all">All assignees</option>
               {assignees.map((assignee) => (
