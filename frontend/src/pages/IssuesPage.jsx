@@ -42,6 +42,7 @@ import {
   canCreateIssues,
   canDeleteIssues,
   hasAdminPanelAccess,
+  ROLE_ADMIN,
   ROLE_TEAM_LEAD,
 } from "@/lib/roles";
 
@@ -257,8 +258,9 @@ const IssuesPage = () => {
   const [toast, setToast] = useState(null);
   const deferredSearch = useDeferredValue(filters.search);
   const isAdminView = hasAdminPanelAccess(role);
+  const isAdminRole = role === ROLE_ADMIN;
   const isTeamLeadView = role === ROLE_TEAM_LEAD;
-  const canToggleTaskScope = isAdminView || isTeamLeadView;
+  const canToggleTaskScope = !isAdminRole && (isAdminView || isTeamLeadView);
   const currentUserId = resolveUserId(user);
   const effectiveAssigneeId =
     taskScope === TASK_SCOPE_MINE ? currentUserId || "me" : filters.assigneeId;
@@ -278,6 +280,12 @@ const IssuesPage = () => {
     () => (Array.isArray(projectsData) ? projectsData : []),
     [projectsData]
   );
+
+  useEffect(() => {
+    if (isAdminRole && taskScope !== TASK_SCOPE_ALL) {
+      setTaskScope(TASK_SCOPE_ALL);
+    }
+  }, [isAdminRole, taskScope]);
 
   useEffect(() => {
     if (!projects.length) {
