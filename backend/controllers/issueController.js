@@ -822,6 +822,21 @@ const getTaskImportTemplateOptions = async ({ workspaceId }) => {
     });
   });
 
+  while (sampleRows.length < TASK_IMPORT_TEMPLATE_ROW_COUNT) {
+    sampleRows.push({
+      title: "",
+      project: "",
+      description: "",
+      team: "",
+      assignee: "",
+      dueDate: createTaskImportSampleDueDate(sampleRowIndex),
+      epic: "",
+      priority: "",
+      parentStory: "",
+    });
+    sampleRowIndex += 1;
+  }
+
   return {
     projects: projectNames,
     teamsByProjectName,
@@ -888,12 +903,16 @@ const serializeTaskImportErrorValue = (value) => {
 
 const shouldIgnoreTaskImportRow = ({
   title,
+  projectName,
   description,
-  dueDateInput,
+  teamName,
+  assigneeInput,
 }) =>
   !resolveImportText(title) &&
+  !resolveImportText(projectName) &&
   !resolveImportText(description) &&
-  !resolveImportText(dueDateInput);
+  !resolveImportText(teamName) &&
+  !resolveImportText(assigneeInput);
 
 const resolveTaskImportProject = async ({ workspaceId, projectName }) => {
   const trimmedProjectName = resolveImportText(projectName);
@@ -3687,8 +3706,10 @@ const importTasksFromSpreadsheet = asyncHandler(async (req, res) => {
     if (
       shouldIgnoreTaskImportRow({
         title,
+        projectName,
         description,
-        dueDateInput,
+        teamName,
+        assigneeInput,
       })
     ) {
       continue;
