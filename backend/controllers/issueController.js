@@ -322,7 +322,7 @@ const TASK_IMPORT_TEMPLATE_COLUMNS = Object.freeze([
   { header: "Description", key: "description", width: 48 },
   { header: "Team", key: "team", width: 26 },
   { header: "Assignee", key: "assignee", width: 30 },
-  { header: "Due Date", key: "dueDate", width: 16 },
+  { header: "Due Date", key: "dueDate", width: 22 },
   { header: "Epic", key: "epic", width: 28 },
   { header: "Priority", key: "priority", width: 16 },
   { header: "Parent Story", key: "parentStory", width: 28 },
@@ -3316,7 +3316,7 @@ const downloadTaskImportSample = asyncHandler(async (req, res) => {
   );
 
   for (let rowNumber = 2; rowNumber <= totalTemplateRows + 1; rowNumber += 1) {
-    worksheet.getCell(`F${rowNumber}`).numFmt = "dd-mmm-yyyy hh:mm AM/PM";
+    worksheet.getCell(`F${rowNumber}`).numFmt = "dd-mmm-yy h:mm AM/PM";
   }
 
   const projectsSheet = createTaskImportLookupSheet({
@@ -3509,7 +3509,7 @@ const downloadTaskImportSample = asyncHandler(async (req, res) => {
       showErrorMessage: true,
       formulae: [new Date(2000, 0, 1), new Date(2100, 11, 31)],
       promptTitle: "Due date",
-      prompt: "Enter a valid Excel date and time or use the dd-mmm-yyyy hh:mm AM/PM format.",
+      prompt: "Enter a valid Excel date and time or use the dd-mmm-yy h:mm AM/PM format.",
       errorTitle: "Invalid date",
       error: "Provide a valid due date and time using an Excel date value.",
     };
@@ -3531,7 +3531,7 @@ const downloadTaskImportSample = asyncHandler(async (req, res) => {
   worksheet.getCell("C1").note = "Free text. Required during upload.";
   worksheet.getCell("D1").note = "Choose a project first. This dropdown shows only teams attached to that project.";
   worksheet.getCell("E1").note = "Choose a team first. This dropdown shows only members of that team.";
-  worksheet.getCell("F1").note = "Use an Excel date/time value or the dd-mmm-yyyy hh:mm AM/PM format.";
+  worksheet.getCell("F1").note = "Use an Excel date/time value or the dd-mmm-yy h:mm AM/PM format.";
   worksheet.getCell("G1").note = "Optional. Enter an active epic name from the selected project or leave blank.";
   worksheet.getCell("H1").note = "Optional. Leave blank to assign Medium priority.";
   worksheet.getCell("I1").note = "Optional. Enter the parent story title or key from the selected project or leave blank.";
