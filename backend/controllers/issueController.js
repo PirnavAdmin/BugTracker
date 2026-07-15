@@ -359,16 +359,6 @@ const buildTaskImportAssigneeLabel = (user, duplicateNameCounts = new Map()) => 
 const buildTaskImportParentStoryLabel = (story) =>
   resolveImportText(story?.displayBugId || story?.issueKey || story?.title);
 
-const createTaskImportSampleDueDate = (offset = 0) => {
-  const baseDate = new Date();
-  baseDate.setSeconds(0, 0);
-  baseDate.setMinutes(0);
-  baseDate.setHours(10);
-  baseDate.setDate(baseDate.getDate() + 1 + offset);
-  baseDate.setHours(10 + (offset % 7));
-  return baseDate;
-};
-
 const createTaskImportDueDateOptions = ({
   dayCount = 120,
   hours = [9, 11, 14, 16],
@@ -749,7 +739,6 @@ const getTaskImportTemplateOptions = async ({ workspaceId }) => {
   );
 
   const sampleRows = [];
-  let sampleRowIndex = 0;
   projectNames.forEach((projectName) => {
     const projectTeams = teamsByProjectName.get(projectName) || [];
     const projectEpics = epicsByProjectName.get(projectName) || [];
@@ -762,12 +751,11 @@ const getTaskImportTemplateOptions = async ({ workspaceId }) => {
         description: "",
         team: "",
         assignee: "",
-        dueDate: createTaskImportSampleDueDate(sampleRowIndex),
+        dueDate: "",
         epic: projectEpics[0] || "",
         priority: ISSUE_PRIORITY_VALUES[0] || "",
         parentStory: projectStories[0] || "",
       });
-      sampleRowIndex += 1;
       return;
     }
 
@@ -787,12 +775,11 @@ const getTaskImportTemplateOptions = async ({ workspaceId }) => {
           description: "",
           team: teamName,
           assignee: "",
-          dueDate: createTaskImportSampleDueDate(sampleRowIndex),
+          dueDate: "",
           epic: sampleEpic,
           priority: samplePriority,
           parentStory: sampleStory,
         });
-        sampleRowIndex += 1;
         return;
       }
 
@@ -803,7 +790,7 @@ const getTaskImportTemplateOptions = async ({ workspaceId }) => {
           description: "",
           team: teamName,
           assignee,
-          dueDate: createTaskImportSampleDueDate(sampleRowIndex),
+          dueDate: "",
           epic:
             projectEpics[
               (teamIndex + assigneeIndex) % Math.max(projectEpics.length, 1)
@@ -817,7 +804,6 @@ const getTaskImportTemplateOptions = async ({ workspaceId }) => {
               (teamIndex + assigneeIndex) % Math.max(projectStories.length, 1)
             ] || "",
         });
-        sampleRowIndex += 1;
       });
     });
   });
@@ -829,12 +815,11 @@ const getTaskImportTemplateOptions = async ({ workspaceId }) => {
       description: "",
       team: "",
       assignee: "",
-      dueDate: createTaskImportSampleDueDate(sampleRowIndex),
+      dueDate: "",
       epic: "",
       priority: "",
       parentStory: "",
     });
-    sampleRowIndex += 1;
   }
 
   return {
