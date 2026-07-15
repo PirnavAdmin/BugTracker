@@ -20,7 +20,12 @@ import { useAuth } from "@/hooks/use-auth";
 import {
   ISSUE_TYPES,
 } from "@/lib/issues";
-import { canDeleteIssues, hasAdminPanelAccess, hasTaskStoryLeadAccess } from "@/lib/roles";
+import {
+  canDeleteIssues,
+  hasAdminPanelAccess,
+  hasTaskStoryLeadAccess,
+  ROLE_ADMIN,
+} from "@/lib/roles";
 import IssueCreateDialog from "@/components/issues/IssueCreateDialog";
 import IssueDetailsDialog from "@/components/issues/IssueDetailsDialog";
 import TaskKanbanBoard from "@/components/tasks/TaskKanbanBoard";
@@ -60,6 +65,7 @@ const TasksPage = () => {
   const [toast, setToast] = useState(null);
   const canCoordinateTasks = hasAdminPanelAccess(role) || hasTaskStoryLeadAccess(role);
   const canDeleteTask = canDeleteIssues(role);
+  const isAdminRole = role === ROLE_ADMIN;
   const statusFilter = useMemo(() => {
     const value = String(searchParams.get("status") || "all").trim().toUpperCase();
 
@@ -104,6 +110,12 @@ const TasksPage = () => {
 
   const activeTaskIssues = canCoordinateTasks && taskScope === "team" ? teamTaskIssues : taskIssues;
   const isTeamProgressView = canCoordinateTasks && taskScope === "team";
+
+  useEffect(() => {
+    if (isAdminRole && taskScope === "mine") {
+      setTaskScope("team");
+    }
+  }, [isAdminRole, taskScope]);
 
   useEffect(() => {
     if (!selectedIssue) {
@@ -247,15 +259,17 @@ const TasksPage = () => {
               {canCoordinateTasks ? (
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
                   <div className="inline-flex rounded-2xl border border-slate-200 bg-white/80 p-1 shadow-sm">
-                    <Button
-                      className="h-9 rounded-xl px-3"
-                      type="button"
-                      variant={taskScope === "mine" ? "default" : "ghost"}
-                      onClick={() => setTaskScope("mine")}
-                    >
-                      <UserCircle2 className="h-4 w-4" />
-                      My tasks
-                    </Button>
+                    {!isAdminRole ? (
+                      <Button
+                        className="h-9 rounded-xl px-3"
+                        type="button"
+                        variant={taskScope === "mine" ? "default" : "ghost"}
+                        onClick={() => setTaskScope("mine")}
+                      >
+                        <UserCircle2 className="h-4 w-4" />
+                        My tasks
+                      </Button>
+                    ) : null}
                     <Button
                       className="h-9 rounded-xl px-3"
                       type="button"
