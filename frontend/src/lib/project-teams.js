@@ -65,19 +65,39 @@ const getDirectProjectMembers = (project) => {
   return Array.from(uniqueMembers.values());
 };
 
+const getProjectLeadershipMembers = (project) => {
+  const uniqueMembers = new Map();
+
+  [
+    project?.manager,
+    project?.projectManager,
+    project?.teamLead,
+    project?.qaLead,
+  ].forEach((member) => {
+    const memberId = resolveUserId(member);
+
+    if (!memberId || uniqueMembers.has(memberId)) {
+      return;
+    }
+
+    uniqueMembers.set(memberId, {
+      ...member,
+      membershipSource: "project-leadership",
+    });
+  });
+
+  return Array.from(uniqueMembers.values());
+};
+
 export const findProjectTeamById = (project, teamId = "") =>
   getProjectTeams(project).find((team) => resolveTeamId(team) === String(teamId)) || null;
 
 export const getProjectTeamMembers = (project, teamId = "") => {
   const team = findProjectTeamById(project, teamId);
 
-  if (!team?.members?.length) {
-    return [];
-  }
-
   const uniqueMembers = new Map();
 
-  team.members.forEach((member) => {
+  (team?.members || []).forEach((member) => {
     const memberId = resolveUserId(member);
 
     if (!memberId || uniqueMembers.has(memberId)) {
@@ -88,6 +108,16 @@ export const getProjectTeamMembers = (project, teamId = "") => {
   });
 
   getDirectProjectMembers(project).forEach((member) => {
+    const memberId = resolveUserId(member);
+
+    if (!memberId || uniqueMembers.has(memberId)) {
+      return;
+    }
+
+    uniqueMembers.set(memberId, member);
+  });
+
+  getProjectLeadershipMembers(project).forEach((member) => {
     const memberId = resolveUserId(member);
 
     if (!memberId || uniqueMembers.has(memberId)) {

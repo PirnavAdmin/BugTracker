@@ -5136,6 +5136,7 @@ const createIssue = asyncHandler(async (req, res) => {
 
       if (
         !isWorkspaceAdmin(req.user) &&
+        req.user.role !== ROLE_MANAGER &&
         canTeamLeadAssignTask &&
         !TEAM_LEAD_TASK_ASSIGNABLE_ROLES.includes(assigneeResult.assignee?.role)
       ) {
@@ -5979,6 +5980,7 @@ const updateIssue = asyncHandler(async (req, res) => {
 
       if (
         !isWorkspaceAdmin(req.user) &&
+        req.user.role !== ROLE_MANAGER &&
         canTeamLeadAssignExistingTask &&
         !TEAM_LEAD_TASK_ASSIGNABLE_ROLES.includes(assigneeResult.assignee?.role)
       ) {

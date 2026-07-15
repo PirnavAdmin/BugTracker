@@ -971,6 +971,7 @@ const IssueCreateDialog = ({
 
     if (
       !assignEntireTeam &&
+      !assignToSelf &&
       formData.assigneeId &&
       !taskAssignableAssignees.some(
         (assignee) => resolveUserId(assignee) === String(formData.assigneeId)
@@ -986,6 +987,7 @@ const IssueCreateDialog = ({
 
     if (
       !assignEntireTeam &&
+      !assignToSelf &&
       selectedAssigneeIds.some(
         (assigneeId) =>
           !taskAssignableAssignees.some(
