@@ -343,10 +343,6 @@ const TasksPage = () => {
         }}
         open={Boolean(selectedIssue)}
         projects={projects}
-<<<<<<< HEAD
-        updatingId={updateIssueMutation.isPending ? updateIssueMutation.variables?.id : ""}
-        canEditCoreDetails={canCoordinateTasks}
-=======
         updatingId={
           updateTaskStatusMutation.isPending
             ? updateTaskStatusMutation.variables?.id
@@ -354,8 +350,7 @@ const TasksPage = () => {
               ? updateIssueMutation.variables?.id
               : ""
         }
-        canEditCoreDetails={isTeamLead}
->>>>>>> b4d15f9233fd43af3ccb26ed2c7d819b75c11be5
+        canEditCoreDetails={canCoordinateTasks}
         canEditStatus={!isTeamProgressView}
         canEditPriority={canCoordinateTasks}
         canEditAssignee={canCoordinateTasks}
