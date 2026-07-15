@@ -8,7 +8,7 @@ import {
   markAllNotificationsAsRead,
   markNotificationAsRead,
 } from "@/lib/api";
-import { ROLE_DEVELOPER, ROLE_TEAM_LEAD } from "@/lib/roles";
+import { hasAdminPanelAccess, ROLE_DEVELOPER, ROLE_TEAM_LEAD } from "@/lib/roles";
 import { readStoredSession } from "@/lib/session";
 import { getChatSocket } from "@/lib/socket";
 import { cn, formatDateTime } from "@/lib/utils";
@@ -30,8 +30,9 @@ const resolveNotificationTarget = (notification, user) => {
 
   const isDeveloperBugRouteRole =
     user?.role === ROLE_DEVELOPER || user?.role === ROLE_TEAM_LEAD;
+  const isAdminBugRouteRole = hasAdminPanelAccess(user?.role);
 
-  if (!isDeveloperBugRouteRole || !rawLink.startsWith("/issues")) {
+  if ((!isDeveloperBugRouteRole && !isAdminBugRouteRole) || !rawLink.startsWith("/issues")) {
     return rawLink;
   }
 
@@ -54,20 +55,23 @@ const resolveNotificationTarget = (notification, user) => {
   }
 
   const nextParams = new URLSearchParams();
+  const resolvedBugParam = bugId || (looksLikeBugKey ? searchValue : "");
 
   if (searchValue) {
     nextParams.set("search", searchValue);
   }
 
-  if (bugId) {
-    nextParams.set("bug", bugId);
+  if (resolvedBugParam) {
+    nextParams.set("bug", resolvedBugParam);
   }
 
   if (/\bwork queue\b/.test(text) || /\bavailable\b/.test(text) || /\bunassigned\b/.test(text)) {
     nextParams.set("status", "available");
   }
 
-  return `/dev/bugs${nextParams.toString() ? `?${nextParams}` : ""}`;
+  const basePath = isAdminBugRouteRole ? "/admin/bugs" : "/dev/bugs";
+
+  return `${basePath}${nextParams.toString() ? `?${nextParams}` : ""}`;
 };
 
 const NotificationButton = ({ user }) => {

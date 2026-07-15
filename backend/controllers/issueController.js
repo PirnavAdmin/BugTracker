@@ -302,6 +302,7 @@ const TASK_IMPORT_SAMPLE_HEADERS = Object.freeze([
 const TASK_IMPORT_TEMPLATE_ROW_COUNT = 200;
 const TASK_IMPORT_LOOKUP_SHEET_NAMES = Object.freeze({
   projects: "Projects",
+  dueDateOptions: "DueDateOptions",
   projectTeamMap: "ProjectTeamMap",
   teamOptions: "TeamOptions",
   teamAssigneeMap: "TeamAssigneeMap",
@@ -314,6 +315,7 @@ const TASK_IMPORT_LOOKUP_SHEET_NAMES = Object.freeze({
 });
 const TASK_IMPORT_LOOKUP_RANGE_NAMES = Object.freeze({
   projects: "TaskImportProjects",
+  dueDates: "TaskImportDueDates",
   empty: "TaskImportEmpty",
 });
 const TASK_IMPORT_TEMPLATE_COLUMNS = Object.freeze([
@@ -365,6 +367,28 @@ const createTaskImportSampleDueDate = (offset = 0) => {
   baseDate.setDate(baseDate.getDate() + 1 + offset);
   baseDate.setHours(10 + (offset % 7));
   return baseDate;
+};
+
+const createTaskImportDueDateOptions = ({
+  dayCount = 120,
+  hours = [9, 11, 14, 16],
+} = {}) => {
+  const options = [];
+  const startDate = new Date();
+  startDate.setSeconds(0, 0);
+  startDate.setMinutes(0);
+  startDate.setHours(0, 0, 0, 0);
+
+  for (let dayOffset = 0; dayOffset < dayCount; dayOffset += 1) {
+    hours.forEach((hour) => {
+      const nextDate = new Date(startDate);
+      nextDate.setDate(startDate.getDate() + dayOffset + 1);
+      nextDate.setHours(hour, 0, 0, 0);
+      options.push(nextDate);
+    });
+  }
+
+  return options;
 };
 
 const extractAssigneeEmailFromImport = (value) => {
@@ -3340,6 +3364,24 @@ const downloadTaskImportSample = asyncHandler(async (req, res) => {
     TASK_IMPORT_LOOKUP_RANGE_NAMES.empty
   );
 
+  const dueDateOptionsSheet = createTaskImportLookupSheet({
+    workbook,
+    sheetName: TASK_IMPORT_LOOKUP_SHEET_NAMES.dueDateOptions,
+  });
+  const dueDateOptions = createTaskImportDueDateOptions();
+  dueDateOptions.forEach((dueDate, index) => {
+    const cell = dueDateOptionsSheet.getCell(`A${index + 1}`);
+    cell.value = dueDate;
+    cell.numFmt = "dd-mmm-yy h:mm AM/PM";
+  });
+
+  if (dueDateOptions.length) {
+    workbook.definedNames.add(
+      `'${dueDateOptionsSheet.name}'!$A$1:$A$${dueDateOptions.length}`,
+      TASK_IMPORT_LOOKUP_RANGE_NAMES.dueDates
+    );
+  }
+
   const teamOptionsSheet = createTaskImportLookupSheet({
     workbook,
     sheetName: TASK_IMPORT_LOOKUP_SHEET_NAMES.teamOptions,
@@ -3428,6 +3470,14 @@ const downloadTaskImportSample = asyncHandler(async (req, res) => {
       : "",
     rowCount: totalTemplateRows,
   });
+  applyTaskImportListValidation({
+    worksheet,
+    column: "F",
+    rangeName: dueDateOptions.length
+      ? TASK_IMPORT_LOOKUP_RANGE_NAMES.dueDates
+      : "",
+    rowCount: totalTemplateRows,
+  });
 
   for (let rowNumber = 2; rowNumber <= totalTemplateRows + 1; rowNumber += 1) {
     worksheet.getCell(`D${rowNumber}`).dataValidation = {
@@ -3501,18 +3551,6 @@ const downloadTaskImportSample = asyncHandler(async (req, res) => {
   }
 
   for (let rowNumber = 2; rowNumber <= totalTemplateRows + 1; rowNumber += 1) {
-    worksheet.getCell(`F${rowNumber}`).dataValidation = {
-      type: "date",
-      operator: "between",
-      allowBlank: true,
-      showInputMessage: true,
-      showErrorMessage: true,
-      formulae: [new Date(2000, 0, 1), new Date(2100, 11, 31)],
-      promptTitle: "Due date",
-      prompt: "Enter a valid Excel date and time or use the dd-mmm-yy h:mm AM/PM format.",
-      errorTitle: "Invalid date",
-      error: "Provide a valid due date and time using an Excel date value.",
-    };
     worksheet.getCell(`H${rowNumber}`).dataValidation = {
       type: "list",
       allowBlank: true,
@@ -3531,7 +3569,7 @@ const downloadTaskImportSample = asyncHandler(async (req, res) => {
   worksheet.getCell("C1").note = "Free text. Required during upload.";
   worksheet.getCell("D1").note = "Choose a project first. This dropdown shows only teams attached to that project.";
   worksheet.getCell("E1").note = "Choose a team first. This dropdown shows only members of that team.";
-  worksheet.getCell("F1").note = "Use an Excel date/time value or the dd-mmm-yy h:mm AM/PM format.";
+  worksheet.getCell("F1").note = "Choose a due date/time from the dropdown or enter an Excel date/time value in dd-mmm-yy h:mm AM/PM format.";
   worksheet.getCell("G1").note = "Optional. Enter an active epic name from the selected project or leave blank.";
   worksheet.getCell("H1").note = "Optional. Leave blank to assign Medium priority.";
   worksheet.getCell("I1").note = "Optional. Enter the parent story title or key from the selected project or leave blank.";
