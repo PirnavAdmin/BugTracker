@@ -960,11 +960,6 @@ const IssueCreateDialog = ({
     }
 
     if (canManagePlanningFields) {
-      if (activeEpicOptions.length && !formData.epicId) {
-        setError("Epic is required for this project.");
-        return;
-      }
-
       if (
         formData.epicId &&
         !activeEpicOptions.some((epic) => epic.value === String(formData.epicId))
@@ -1329,13 +1324,13 @@ const IssueCreateDialog = ({
                 <div className="space-y-3">
                   <SectionLabel
                     title="Planning"
-                    description="Map the work item into an epic and sprint."
+                    description="Map the work item into an epic and sprint when needed."
                   />
 
                   <div className="grid items-start gap-3 md:grid-cols-2">
                     <div className="space-y-1.5">
                       <span className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">
-                        Epic
+                        Epic (Optional)
                       </span>
                       <Select
                         options={activeEpicOptions}
@@ -1348,7 +1343,7 @@ const IssueCreateDialog = ({
                         }
                         styles={issueSelectStyles}
                         formatOptionLabel={formatEpicOptionLabel}
-                        isClearable={!activeEpicOptions.length}
+                        isClearable
                         isSearchable
                         isDisabled={!formData.projectId || !activeEpicOptions.length || isSubmitPending}
                         menuPortalTarget={menuPortalTarget}

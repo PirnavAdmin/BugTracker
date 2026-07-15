@@ -174,7 +174,7 @@ const TASK_STATUS_META = [
     helper: "Ready for pickup",
     className: "bg-slate-400",
     icon: Layers3,
-    routeParams: { status: TASK_BOARD_STATUS.OPEN, type: ISSUE_TYPES.TASK },
+    routeParams: { status: ISSUE_STATUS.TODO, type: ISSUE_TYPES.TASK },
     tone: "blue",
   },
   {

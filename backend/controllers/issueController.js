@@ -164,6 +164,9 @@ const TASK_IMPORT_FIELD_ALIASES = Object.freeze({
   team: ["team", "teamname"],
   assignee: ["assignee", "assigneename", "assignedto", "owner"],
   dueDate: ["duedate", "due", "duedateyyyyMMdd"],
+  epic: ["epic", "epicname"],
+  priority: ["priority"],
+  parentStory: ["parentstory", "parentalstory", "story", "storykey"],
 });
 
 const getTaskImportValue = (row = {}, field) => {
@@ -291,6 +294,9 @@ const TASK_IMPORT_SAMPLE_HEADERS = Object.freeze([
   "Team",
   "Assignee",
   "Due Date",
+  "Epic",
+  "Priority",
+  "Parent Story",
 ]);
 
 const TASK_IMPORT_TEMPLATE_ROW_COUNT = 200;
@@ -313,6 +319,9 @@ const TASK_IMPORT_TEMPLATE_COLUMNS = Object.freeze([
   { header: "Team", key: "team", width: 26 },
   { header: "Assignee", key: "assignee", width: 30 },
   { header: "Due Date", key: "dueDate", width: 16 },
+  { header: "Epic", key: "epic", width: 28 },
+  { header: "Priority", key: "priority", width: 16 },
+  { header: "Parent Story", key: "parentStory", width: 28 },
 ]);
 
 const escapeCsvValue = (value) => `"${String(value || "").replace(/"/g, '""')}"`;
@@ -641,6 +650,9 @@ const getTaskImportTemplateOptions = async ({ workspaceId }) => {
         team: "",
         assignee: "",
         dueDate: "",
+        epic: "",
+        priority: "",
+        parentStory: "",
       });
       return;
     }
@@ -658,6 +670,9 @@ const getTaskImportTemplateOptions = async ({ workspaceId }) => {
           team: teamName,
           assignee: "",
           dueDate: "",
+          epic: "",
+          priority: "",
+          parentStory: "",
         });
         return;
       }
@@ -670,6 +685,9 @@ const getTaskImportTemplateOptions = async ({ workspaceId }) => {
           team: teamName,
           assignee,
           dueDate: "",
+          epic: "",
+          priority: "",
+          parentStory: "",
         });
       });
     });
@@ -751,6 +769,30 @@ const resolveTaskImportProject = async ({ workspaceId, projectName }) => {
   });
 };
 
+const resolveTaskImportPriority = (priorityInput) => {
+  const trimmedPriority = resolveImportText(priorityInput);
+
+  if (!trimmedPriority) {
+    return {
+      value: "Medium",
+    };
+  }
+
+  const matchedPriority = ISSUE_PRIORITY_VALUES.find(
+    (priority) => priority.toLowerCase() === trimmedPriority.toLowerCase()
+  );
+
+  if (!matchedPriority) {
+    return {
+      error: `Priority "${trimmedPriority}" must be one of: ${ISSUE_PRIORITY_VALUES.join(", ")}`,
+    };
+  }
+
+  return {
+    value: matchedPriority,
+  };
+};
+
 const resolveTaskImportTeam = async ({ workspaceId, teamName, project }) => {
   const trimmedTeamName = resolveImportText(teamName);
 
@@ -773,6 +815,80 @@ const resolveTaskImportTeam = async ({ workspaceId, teamName, project }) => {
   })
     .select("_id name workspaceId")
     .lean();
+};
+
+const resolveTaskImportEpic = async ({ workspaceId, projectId, epicInput }) => {
+  const trimmedEpicInput = resolveImportText(epicInput);
+
+  if (!trimmedEpicInput || !projectId) {
+    return { epic: null };
+  }
+
+  const epic = await Epic.findOne({
+    workspaceId: normalizeWorkspaceId(workspaceId),
+    projectId,
+    status: "ACTIVE",
+    name: buildExactMatchRegex(trimmedEpicInput),
+  })
+    .select("_id name projectId status")
+    .lean();
+
+  if (!epic) {
+    return {
+      error: `Epic "${trimmedEpicInput}" was not found in the selected project`,
+    };
+  }
+
+  return { epic };
+};
+
+const resolveTaskImportParentStory = async ({
+  workspaceId,
+  projectId,
+  parentStoryInput,
+}) => {
+  const trimmedParentStoryInput = resolveImportText(parentStoryInput);
+
+  if (!trimmedParentStoryInput || !projectId) {
+    return { story: null };
+  }
+
+  const baseQuery = {
+    workspaceId: normalizeWorkspaceId(workspaceId),
+    projectId,
+    type: ISSUE_TYPES.STORY,
+    isDeleted: { $ne: true },
+  };
+  const projection = "_id title displayBugId issueKey epicId sprintId projectId";
+
+  const storyByKey = await Issue.findOne({
+    ...baseQuery,
+    $or: [
+      { displayBugId: buildExactMatchRegex(trimmedParentStoryInput) },
+      { issueKey: buildExactMatchRegex(trimmedParentStoryInput) },
+    ],
+  })
+    .select(projection)
+    .lean();
+
+  if (storyByKey) {
+    return { story: storyByKey };
+  }
+
+  const storyByTitle = await Issue.findOne({
+    ...baseQuery,
+    title: buildExactMatchRegex(trimmedParentStoryInput),
+  })
+    .select(projection)
+    .lean();
+
+  if (!storyByTitle) {
+    return {
+      error: `Parent Story "${trimmedParentStoryInput}" was not found in the selected project`,
+    };
+  }
+
+  return { story: storyByTitle };
 };
 
 const resolveTaskImportAssignee = async ({ workspaceId, assigneeInput }) => {
@@ -843,6 +959,9 @@ const buildTaskImportErrorCsv = (errors = []) =>
         escapeCsvValue(serializeTaskImportErrorValue(item.team)),
         escapeCsvValue(serializeTaskImportErrorValue(item.assignee)),
         escapeCsvValue(serializeTaskImportErrorValue(item.dueDate)),
+        escapeCsvValue(serializeTaskImportErrorValue(item.epic)),
+        escapeCsvValue(serializeTaskImportErrorValue(item.priority)),
+        escapeCsvValue(serializeTaskImportErrorValue(item.parentStory)),
       ].join(",")
     ),
   ].join("\n");
@@ -3205,6 +3324,17 @@ const downloadTaskImportSample = asyncHandler(async (req, res) => {
       errorTitle: "Invalid date",
       error: "Provide a valid due date using an Excel date value.",
     };
+    worksheet.getCell(`H${rowNumber}`).dataValidation = {
+      type: "list",
+      allowBlank: true,
+      showInputMessage: true,
+      showErrorMessage: true,
+      formulae: [`"${ISSUE_PRIORITY_VALUES.join(",")}"`],
+      promptTitle: "Priority",
+      prompt: "Choose Low, Medium, High, or Critical. Leave blank to use Medium.",
+      errorTitle: "Invalid priority",
+      error: `Choose one of: ${ISSUE_PRIORITY_VALUES.join(", ")}.`,
+    };
   }
 
   worksheet.getCell("A1").note = "Free text. Required during upload.";
@@ -3213,6 +3343,9 @@ const downloadTaskImportSample = asyncHandler(async (req, res) => {
   worksheet.getCell("D1").note = "Choose a project first. This dropdown shows only teams attached to that project.";
   worksheet.getCell("E1").note = "Choose a team first. This dropdown shows only members of that team.";
   worksheet.getCell("F1").note = "Use an Excel date value or the dd-mmm-yyyy format.";
+  worksheet.getCell("G1").note = "Optional. Enter an active epic name from the selected project or leave blank.";
+  worksheet.getCell("H1").note = "Optional. Leave blank to assign Medium priority.";
+  worksheet.getCell("I1").note = "Optional. Enter the parent story title or key from the selected project or leave blank.";
 
   const referenceSheet = workbook.addWorksheet(
     TASK_IMPORT_LOOKUP_SHEET_NAMES.reference,
@@ -3314,6 +3447,9 @@ const importTasksFromSpreadsheet = asyncHandler(async (req, res) => {
     const teamName = resolveImportText(getTaskImportValue(row, "team"));
     const assigneeInput = resolveImportText(getTaskImportValue(row, "assignee"));
     const dueDateInput = getTaskImportValue(row, "dueDate");
+    const epicInput = resolveImportText(getTaskImportValue(row, "epic"));
+    const priorityInput = resolveImportText(getTaskImportValue(row, "priority"));
+    const parentStoryInput = resolveImportText(getTaskImportValue(row, "parentStory"));
 
     if (
       shouldIgnoreTaskImportRow({
@@ -3382,6 +3518,40 @@ const importTasksFromSpreadsheet = asyncHandler(async (req, res) => {
         throw new Error(assigneeResult.error.message);
       }
 
+      const parentStoryResult = await resolveTaskImportParentStory({
+        workspaceId,
+        projectId: project._id,
+        parentStoryInput,
+      });
+
+      if (parentStoryResult.error) {
+        throw new Error(parentStoryResult.error);
+      }
+
+      const epicResult = await resolveTaskImportEpic({
+        workspaceId,
+        projectId: project._id,
+        epicInput,
+      });
+
+      if (epicResult.error) {
+        throw new Error(epicResult.error);
+      }
+
+      if (
+        parentStoryResult.story?.epicId &&
+        epicResult.epic?._id &&
+        String(parentStoryResult.story.epicId) !== String(epicResult.epic._id)
+      ) {
+        throw new Error("Parent Story and Epic must belong to the same planning path");
+      }
+
+      const priorityResult = resolveTaskImportPriority(priorityInput);
+
+      if (priorityResult.error) {
+        throw new Error(priorityResult.error);
+      }
+
       const parsedSpreadsheetDate = parseSpreadsheetDate(dueDateInput);
 
       if (!parsedSpreadsheetDate) {
@@ -3396,7 +3566,7 @@ const importTasksFromSpreadsheet = asyncHandler(async (req, res) => {
 
       const planningOrder = await getNextPlanningOrder(Issue, {
         projectId: project._id,
-        sprintId: null,
+        sprintId: parentStoryResult.story?.sprintId || null,
       });
       const displayBugId = await getNextIssueDisplayId({
         Project,
@@ -3410,16 +3580,19 @@ const importTasksFromSpreadsheet = asyncHandler(async (req, res) => {
         displayBugId,
         type: ISSUE_TYPES.TASK,
         status: ISSUE_STATUS.TODO,
-        priority: "Medium",
+        priority: priorityResult.value,
         assignee: assigneeResolution.assignee._id,
         assignees: [assigneeResolution.assignee._id],
         reporter: req.user._id,
         reporterName,
         projectId: project._id,
         teamId: team._id,
+        epicId: parentStoryResult.story?.epicId || epicResult.epic?._id || null,
+        sprintId: parentStoryResult.story?.sprintId || null,
         dueAt: dueAtResult.value,
         timeEstimateMinutes: 0,
         remainingEstimateMinutes: 0,
+        parentStoryId: parentStoryResult.story?._id || null,
         planningOrder,
         updatedBy: req.user._id,
       });
@@ -3436,6 +3609,9 @@ const importTasksFromSpreadsheet = asyncHandler(async (req, res) => {
         team: teamName,
         assignee: assigneeInput,
         dueDate: dueDateInput,
+        epic: epicInput,
+        priority: priorityInput,
+        parentStory: parentStoryInput,
       });
     }
   }
@@ -4721,17 +4897,6 @@ const createIssue = asyncHandler(async (req, res) => {
   };
 
   if (canAssignPlanningFields) {
-    const activeEpicCount = await Epic.countDocuments({
-      projectId: project._id,
-      workspaceId,
-      status: "ACTIVE",
-    });
-
-    if (activeEpicCount > 0 && !epicId && !parentStory?.epicId) {
-      res.status(400);
-      throw new Error("Epic is required for projects that contain epics");
-    }
-
     epicResult = await ensureEpicForProject({
       epicId: parentStory?.epicId || epicId || null,
       projectId: project._id,
