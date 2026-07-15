@@ -39,6 +39,7 @@ import {
   hasAdminPanelAccess,
   hasTaskStoryLeadAccess,
   ROLE_DEVELOPER,
+  ROLE_MANAGER,
   ROLE_QA_LEAD,
   ROLE_TEAM_LEAD,
   ROLE_TESTER,
@@ -434,10 +435,12 @@ const IssueCreateDialog = ({
   );
   const [assignEntireTeam, setAssignEntireTeam] = useState(false);
   const [assignToQueue, setAssignToQueue] = useState(false);
+  const [assignToSelf, setAssignToSelf] = useState(false);
   const [isSequenceSubmitting, setIsSequenceSubmitting] = useState(false);
   const [error, setError] = useState("");
   const { role, user } = useAuth();
   const canManagePlanningFields = hasAdminPanelAccess(role);
+  const currentUserId = resolveUserId(user);
 
   const menuPortalTarget =
     typeof document !== "undefined" ? document.body : undefined;
@@ -656,6 +659,10 @@ const IssueCreateDialog = ({
     role === ROLE_DEVELOPER &&
     Boolean(formData.parentStoryId) &&
     ["Task", "Sub-task"].includes(formData.type);
+  const canManagerSelfAssign =
+    role === ROLE_MANAGER &&
+    Boolean(currentUserId) &&
+    ["Task", "Sub-task"].includes(formData.type);
   const supportsDescription = isStoryType || formData.type === "Task" || isBugType;
   const qaOwnerOptions = useMemo(
     () =>
@@ -717,6 +724,7 @@ const IssueCreateDialog = ({
     );
     setAssignEntireTeam(false);
     setAssignToQueue(false);
+    setAssignToSelf(false);
     setIsSequenceSubmitting(false);
     setError("");
   }, [
@@ -742,8 +750,8 @@ const IssueCreateDialog = ({
     setFormData((current) => ({
       ...current,
       teamId: nextTeamId,
-      assigneeId: "",
-      assigneeIds: [],
+      assigneeId: assignToSelf && currentUserId ? currentUserId : "",
+      assigneeIds: assignToSelf && currentUserId ? [currentUserId] : [],
       sprintId: "",
       bugDetails: {
         ...current.bugDetails,
@@ -751,9 +759,32 @@ const IssueCreateDialog = ({
         developerLeadId: "",
       },
     }));
-  }, [availableTeams, defaultTeamId, formData.teamId]);
+  }, [assignToSelf, availableTeams, currentUserId, defaultTeamId, formData.teamId]);
 
   useEffect(() => {
+    if (!canManagerSelfAssign && assignToSelf) {
+      setAssignToSelf(false);
+      return;
+    }
+
+    if (assignToSelf && currentUserId) {
+      if (
+        String(formData.assigneeId || "") === String(currentUserId) &&
+        Array.isArray(formData.assigneeIds) &&
+        formData.assigneeIds.length === 1 &&
+        String(formData.assigneeIds[0]) === String(currentUserId)
+      ) {
+        return;
+      }
+
+      setFormData((current) => ({
+        ...current,
+        assigneeId: currentUserId,
+        assigneeIds: [currentUserId],
+      }));
+      return;
+    }
+
     const assigneeIds = new Set(
       taskAssignableAssignees.map((assignee) => resolveUserId(assignee))
     );
@@ -776,7 +807,14 @@ const IssueCreateDialog = ({
         assigneeIds.has(String(assigneeId))
       ),
     }));
-  }, [formData.assigneeId, formData.assigneeIds, taskAssignableAssignees]);
+  }, [
+    assignToSelf,
+    canManagerSelfAssign,
+    currentUserId,
+    formData.assigneeId,
+    formData.assigneeIds,
+    taskAssignableAssignees,
+  ]);
 
   useEffect(() => {
     const assigneeIds = new Set(assigneeOptions.map((assignee) => assignee.value));
@@ -1045,7 +1083,8 @@ const IssueCreateDialog = ({
           }),
     };
 
-    const forcedAssigneeId = isDeveloperStoryTask ? resolveUserId(user) : "";
+    const forcedAssigneeId =
+      isDeveloperStoryTask || assignToSelf ? resolveUserId(user) : "";
     const payloads = assignEntireTeam
       ? taskAssignableAssignees.map((assignee) => ({
           ...basePayload,
@@ -1183,8 +1222,8 @@ const IssueCreateDialog = ({
                         setFormData((current) => ({
                           ...current,
                           teamId: option?.value || "",
-                          assigneeId: "",
-                          assigneeIds: [],
+                          assigneeId: assignToSelf && currentUserId ? currentUserId : "",
+                          assigneeIds: assignToSelf && currentUserId ? [currentUserId] : [],
                           sprintId: "",
                           bugDetails: {
                             ...current.bugDetails,
@@ -1207,11 +1246,12 @@ const IssueCreateDialog = ({
                         type="checkbox"
                         className="mt-0.5 h-4 w-4 rounded border-amber-300 text-amber-600 focus:ring-amber-500/30"
                         checked={assignToQueue}
-                        disabled={!formData.teamId || assignEntireTeam || isSubmitPending}
+                        disabled={!formData.teamId || assignEntireTeam || assignToSelf || isSubmitPending}
                         onChange={(event) => {
                           const checked = event.target.checked;
                           setAssignToQueue(checked);
                           if (checked) {
+                            setAssignToSelf(false);
                             setFormData((current) => ({
                               ...current,
                               assigneeId: "",
@@ -1264,13 +1304,19 @@ const IssueCreateDialog = ({
                           isMulti={isStoryType}
                           isClearable
                           isDisabled={
-                            !formData.teamId || assignEntireTeam || assignToQueue || isSubmitPending
+                            !formData.teamId ||
+                            assignEntireTeam ||
+                            assignToQueue ||
+                            assignToSelf ||
+                            isSubmitPending
                           }
                           menuPortalTarget={menuPortalTarget}
                           {...baseSelectProps}
                           placeholder={
                             assignEntireTeam
                               ? "Disabled while team-wide assignment is enabled"
+                              : assignToSelf
+                                ? "Manager self-assignment is enabled"
                               : assignToQueue
                                 ? "Disabled while work queue is enabled"
                                 : isStoryType
@@ -1287,12 +1333,54 @@ const IssueCreateDialog = ({
                         />
                       </div>
 
+                      {canManagerSelfAssign ? (
+                        <label className="flex items-start gap-3 rounded-2xl border border-blue-200 bg-blue-50/70 px-3 py-2.5 text-sm text-blue-800">
+                          <input
+                            type="checkbox"
+                            className="mt-0.5 h-4 w-4 rounded border-blue-300 text-blue-600 focus:ring-blue-500/30"
+                            checked={assignToSelf}
+                            disabled={!formData.teamId || assignEntireTeam || assignToQueue || isSubmitPending}
+                            onChange={(event) => {
+                              const checked = event.target.checked;
+                              setAssignToSelf(checked);
+                              if (checked) {
+                                setAssignToQueue(false);
+                                setFormData((current) => ({
+                                  ...current,
+                                  assigneeId: currentUserId,
+                                  assigneeIds: [currentUserId],
+                                }));
+                              } else {
+                                setFormData((current) => ({
+                                  ...current,
+                                  assigneeId:
+                                    String(current.assigneeId || "") === String(currentUserId)
+                                      ? ""
+                                      : current.assigneeId,
+                                  assigneeIds: (current.assigneeIds || []).filter(
+                                    (assigneeId) => String(assigneeId) !== String(currentUserId)
+                                  ),
+                                }));
+                              }
+                            }}
+                          />
+                          <span className="space-y-1">
+                            <span className="block font-medium text-blue-950">
+                              Assign to myself
+                            </span>
+                            <span className="block text-blue-800/80">
+                              Managers can pick up tasks from their own projects.
+                            </span>
+                          </span>
+                        </label>
+                      ) : null}
+
                       <label className="flex items-start gap-3 rounded-2xl border border-slate-200 bg-white/80 px-3 py-2.5 text-sm text-slate-600">
                         <input
                           type="checkbox"
                           className="mt-0.5 h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500/30"
                           checked={assignEntireTeam}
-                          disabled={!formData.teamId || assignToQueue || isSubmitPending}
+                          disabled={!formData.teamId || assignToQueue || assignToSelf || isSubmitPending}
                           onChange={(event) => setAssignEntireTeam(event.target.checked)}
                         />
                         <span className="space-y-1">

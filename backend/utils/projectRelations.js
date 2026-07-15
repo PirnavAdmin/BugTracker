@@ -3,7 +3,7 @@ const Project = require("../models/Project");
 const ProjectMember = require("../models/ProjectMember");
 const Team = require("../models/Team");
 const TeamMember = require("../models/TeamMember");
-const { hasAdminAccess } = require("./roles");
+const { ROLE_ADMIN } = require("./roles");
 const { attachMembersToTeams, sanitizeUser } = require("./teamRelations");
 const { normalizeWorkspaceId } = require("./workspace");
 const {
@@ -341,7 +341,7 @@ const getProjectIdsForUserThroughTeams = async (userId, workspaceId) =>
 const buildProjectAccessQuery = async (user) => {
   const workspaceId = normalizeWorkspaceId(user.workspaceId);
 
-  if (hasAdminAccess(user.role)) {
+  if (user.role === ROLE_ADMIN) {
     return { workspaceId };
   }
 

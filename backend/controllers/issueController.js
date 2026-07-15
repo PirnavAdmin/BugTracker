@@ -122,6 +122,7 @@ const uploadTaskImportMiddleware = multer({
 }).single("file");
 
 const isAdmin = (user) => hasAdminAccess(user?.role);
+const isWorkspaceAdmin = (user) => user?.role === ROLE_ADMIN;
 const isBugType = (type) => getCanonicalIssueType(type, "") === ISSUE_TYPES.BUG;
 const isGenericIssueStatus = (status) =>
   GENERIC_ISSUE_STATUS_VALUES.includes(normalizeIssueStatus(status));
@@ -1194,7 +1195,7 @@ const isTeamProgressRequest = (req) =>
 const getAccessibleProjectIds = async (user) => {
   const workspaceId = normalizeWorkspaceId(user.workspaceId);
 
-  if (hasAdminAccess(user?.role)) {
+  if (isWorkspaceAdmin(user)) {
     return Project.find({
       workspaceId,
     }).distinct("_id");
@@ -1235,6 +1236,10 @@ const getAccessibleProjectIds = async (user) => {
       ],
     }).distinct("projectId"),
   ]);
+
+  if (user?.role === ROLE_MANAGER) {
+    return memberProjectIds;
+  }
 
   const assignedProjectIds = directlyAssignedProjectIds.length
     ? await Project.find({
@@ -2266,7 +2271,7 @@ const ensureAssigneeBelongsToTeam = async ({
     };
   }
 
-  const [teamMembership, directProjectMembership] = await Promise.all([
+  const [teamMembership, directProjectMembership, projectAssignment] = await Promise.all([
     TeamMember.findOne({
       teamId,
       userId: assigneeId,
@@ -2281,9 +2286,22 @@ const ensureAssigneeBelongsToTeam = async ({
           .select("_id")
           .lean()
       : null,
+    projectId
+      ? Project.findOne({
+          _id: projectId,
+          $or: [
+            { manager: assigneeId },
+            { projectManager: assigneeId },
+            { teamLead: assigneeId },
+            { qaLead: assigneeId },
+          ],
+        })
+          .select("_id")
+          .lean()
+      : null,
   ]);
 
-  if (!teamMembership && !directProjectMembership) {
+  if (!teamMembership && !directProjectMembership && !projectAssignment) {
     return {
       error: {
         status: 400,
@@ -3232,7 +3250,7 @@ const buildIssueQueryFromRequest = async (
   }
 
   if (isTeamProgressRequest(req)) {
-    if (hasAdminAccess(req.user?.role)) {
+    if (isWorkspaceAdmin(req.user)) {
       if (
         !query.type ||
         query.type === ISSUE_TYPES.TASK ||
