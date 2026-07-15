@@ -6565,7 +6565,7 @@ const deleteIssue = asyncHandler(async (req, res) => {
 
   const canDelete =
     isUserAdmin ||
-    ((isBug || isStory) && isUserManager) ||
+    isUserManager ||
     (isUserTester && isTesterOwnerOfBug && isReportedAndUnpicked);
 
   console.log("DELETE BUG DEBUG", {

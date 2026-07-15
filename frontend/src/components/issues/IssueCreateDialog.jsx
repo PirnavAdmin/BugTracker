@@ -545,6 +545,15 @@ const IssueCreateDialog = ({
         : availableAssignees,
     [availableAssignees, formData.type, role]
   );
+  const teamWideAssignableAssignees = useMemo(
+    () =>
+      role === ROLE_MANAGER && currentUserId
+        ? taskAssignableAssignees.filter(
+            (assignee) => resolveUserId(assignee) !== String(currentUserId)
+          )
+        : taskAssignableAssignees,
+    [currentUserId, role, taskAssignableAssignees]
+  );
   const assigneeOptions = useMemo(
     () => taskAssignableAssignees.map(buildAssigneeOption),
     [taskAssignableAssignees]
@@ -1017,7 +1026,7 @@ const IssueCreateDialog = ({
       }
     }
 
-    if (assignEntireTeam && !taskAssignableAssignees.length) {
+    if (assignEntireTeam && !teamWideAssignableAssignees.length) {
       setError("The selected team does not have any developers to assign.");
       return;
     }
@@ -1088,7 +1097,7 @@ const IssueCreateDialog = ({
     const forcedAssigneeId =
       isDeveloperStoryTask || assignToSelf ? resolveUserId(user) : "";
     const payloads = assignEntireTeam
-      ? taskAssignableAssignees.map((assignee) => ({
+      ? teamWideAssignableAssignees.map((assignee) => ({
           ...basePayload,
           assigneeId: resolveUserId(assignee),
         }))
@@ -1397,8 +1406,8 @@ const IssueCreateDialog = ({
 
                       {assignEntireTeam ? (
                         <div className="rounded-2xl border border-blue-100 bg-blue-50/80 px-3 py-2.5 text-sm text-blue-900">
-                          {taskAssignableAssignees.length
-                            ? `This work item will be created for ${taskAssignableAssignees.length} assignee${taskAssignableAssignees.length === 1 ? "" : "s"}.`
+                          {teamWideAssignableAssignees.length
+                            ? `This work item will be created for ${teamWideAssignableAssignees.length} assignee${teamWideAssignableAssignees.length === 1 ? "" : "s"}.`
                             : "This team does not have any assignees available yet."}
                         </div>
                       ) : null}
