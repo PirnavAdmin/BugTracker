@@ -132,7 +132,7 @@ const isQaRole = (role) => hasTesterAccess(role);
 const isDevRole = (role) => [ROLE_DEVELOPER, ROLE_TEAM_LEAD].includes(role);
 const isLeadRole = (role) => [ROLE_ADMIN, ROLE_MANAGER].includes(role);
 const canAssignTaskWork = (user, type) =>
-  isAdmin(user) ||
+  isWorkspaceAdmin(user) ||
   (hasTaskStoryLeadAccess(user?.role) &&
     [ISSUE_TYPES.TASK, ISSUE_TYPES.SUB_TASK].includes(getCanonicalIssueType(type, "")));
 const TEAM_LEAD_TASK_ASSIGNABLE_ROLES = [
@@ -143,7 +143,7 @@ const TEAM_LEAD_TASK_ASSIGNABLE_ROLES = [
 ];
 const TEAM_LEAD_BUG_ASSIGNABLE_ROLES = [ROLE_DEVELOPER, ROLE_TEAM_LEAD, ROLE_QA_LEAD];
 const canAssignBugWork = (user, type) =>
-  isAdmin(user) ||
+  isWorkspaceAdmin(user) ||
   (user?.role === ROLE_TEAM_LEAD &&
     getCanonicalIssueType(type, "") === ISSUE_TYPES.BUG);
 const ISSUE_PRIORITY_VALUES = ["Critical", "High", "Medium", "Low"];
@@ -4999,6 +4999,17 @@ const createIssue = asyncHandler(async (req, res) => {
     throw new Error("Team leads and Q/A leads can report Bugs and create Stories, Tasks, and Sub-tasks");
   }
 
+  if (
+    req.user.role === ROLE_MANAGER &&
+    [ISSUE_TYPES.TASK, ISSUE_TYPES.SUB_TASK].includes(normalizedType) &&
+    requestedAssigneeIds.some(
+      (requestedAssigneeId) => String(requestedAssigneeId) !== String(req.user._id)
+    )
+  ) {
+    res.status(403);
+    throw new Error("Managers can only self-assign tasks from their own projects");
+  }
+
   if (!canAssignPlanningFields && ((hasEpicInput && epicId) || (hasSprintInput && sprintId))) {
     res.status(403);
     throw new Error("Only admins and managers can assign epic or sprint during creation");
@@ -5109,7 +5120,7 @@ const createIssue = asyncHandler(async (req, res) => {
     const canTeamLeadAssignTask = canAssignTaskWork(req.user, normalizedType);
 
     if (
-      !isAdmin(req.user) &&
+      !isWorkspaceAdmin(req.user) &&
       !canTeamLeadAssignTask &&
       !canTesterAssignBugDeveloper &&
       requestedAssigneeIds.some(
@@ -5134,7 +5145,7 @@ const createIssue = asyncHandler(async (req, res) => {
       }
 
       if (
-        !isAdmin(req.user) &&
+        !isWorkspaceAdmin(req.user) &&
         canTeamLeadAssignTask &&
         !TEAM_LEAD_TASK_ASSIGNABLE_ROLES.includes(assigneeResult.assignee?.role)
       ) {
@@ -5491,14 +5502,14 @@ const updateIssue = asyncHandler(async (req, res) => {
 
   let targetProject = await loadAccessibleProject(req.user, issue.projectId);
   const hasBugOwnerAccess =
-    !isAdmin(req.user) && hasBugQaOwnership(issue, req.user._id);
+    !isWorkspaceAdmin(req.user) && hasBugQaOwnership(issue, req.user._id);
   const hasBugDeveloperLeadAccess =
-    !isAdmin(req.user) &&
+    !isWorkspaceAdmin(req.user) &&
     isBugType(issue.type) &&
     Boolean(issue.bugDetails?.developerLead) &&
     String(issue.bugDetails.developerLead) === String(req.user._id);
   const hasDirectIssueAccess =
-    !isAdmin(req.user) &&
+    !isWorkspaceAdmin(req.user) &&
     (isAssignedToUser(issue, req.user._id) ||
       hasBugOwnerAccess ||
       hasBugDeveloperLeadAccess);
@@ -5521,7 +5532,7 @@ const updateIssue = asyncHandler(async (req, res) => {
   const hasTeamLeadBugAssignmentAccess =
     canAssignBugWork(req.user, issue.type) && Boolean(targetProject);
 
-  if (!isAdmin(req.user)) {
+  if (!isWorkspaceAdmin(req.user)) {
     const canTesterEditReportedBug = canTesterModifyReportedBug(issue, req.user);
 
     if (
@@ -5684,7 +5695,7 @@ const updateIssue = asyncHandler(async (req, res) => {
     String(req.body.projectId) !== String(issue.projectId || "");
 
   if (hasProjectChange) {
-    if (!isAdmin(req.user)) {
+    if (!isWorkspaceAdmin(req.user)) {
       res.status(403);
       throw new Error("Only admins can move issues between projects");
     }
@@ -5948,6 +5959,17 @@ const updateIssue = asyncHandler(async (req, res) => {
     const canTeamLeadAssignExistingBug =
       req.user.role === ROLE_TEAM_LEAD && canAssignBugWork(req.user, issue.type);
 
+    if (
+      req.user.role === ROLE_MANAGER &&
+      [ISSUE_TYPES.TASK, ISSUE_TYPES.SUB_TASK].includes(getCanonicalIssueType(issue.type, "")) &&
+      nextAssigneeIds.some(
+        (requestedAssigneeId) => String(requestedAssigneeId) !== String(req.user._id)
+      )
+    ) {
+      res.status(403);
+      throw new Error("Managers can only self-assign tasks from their own projects");
+    }
+
     console.log("[issues] validating assignee team membership", {
       issueId: String(issue._id),
       assigneeId: String(nextAssigneeId || ""),
@@ -5977,7 +5999,7 @@ const updateIssue = asyncHandler(async (req, res) => {
       }
 
       if (
-        !isAdmin(req.user) &&
+        !isWorkspaceAdmin(req.user) &&
         canTeamLeadAssignExistingTask &&
         !TEAM_LEAD_TASK_ASSIGNABLE_ROLES.includes(assigneeResult.assignee?.role)
       ) {

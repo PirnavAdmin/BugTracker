@@ -1305,6 +1305,7 @@ const IssueCreateDialog = ({
                           isClearable
                           isDisabled={
                             !formData.teamId ||
+                            canManagerSelfAssign ||
                             assignEntireTeam ||
                             assignToQueue ||
                             assignToSelf ||
@@ -1315,6 +1316,8 @@ const IssueCreateDialog = ({
                           placeholder={
                             assignEntireTeam
                               ? "Disabled while team-wide assignment is enabled"
+                              : canManagerSelfAssign
+                                ? "Managers can self-assign tasks with the checkbox below"
                               : assignToSelf
                                 ? "Manager self-assignment is enabled"
                               : assignToQueue
@@ -1375,23 +1378,25 @@ const IssueCreateDialog = ({
                         </label>
                       ) : null}
 
-                      <label className="flex items-start gap-3 rounded-2xl border border-slate-200 bg-white/80 px-3 py-2.5 text-sm text-slate-600">
-                        <input
-                          type="checkbox"
-                          className="mt-0.5 h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500/30"
-                          checked={assignEntireTeam}
-                          disabled={!formData.teamId || assignToQueue || assignToSelf || isSubmitPending}
-                          onChange={(event) => setAssignEntireTeam(event.target.checked)}
-                        />
-                        <span className="space-y-1">
-                          <span className="block font-medium text-slate-800">
-                            Assign to entire team
+                      {!canManagerSelfAssign ? (
+                        <label className="flex items-start gap-3 rounded-2xl border border-slate-200 bg-white/80 px-3 py-2.5 text-sm text-slate-600">
+                          <input
+                            type="checkbox"
+                            className="mt-0.5 h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500/30"
+                            checked={assignEntireTeam}
+                            disabled={!formData.teamId || assignToQueue || assignToSelf || isSubmitPending}
+                            onChange={(event) => setAssignEntireTeam(event.target.checked)}
+                          />
+                          <span className="space-y-1">
+                            <span className="block font-medium text-slate-800">
+                              Assign to entire team
+                            </span>
+                            <span className="block text-slate-500">
+                              When enabled, this creates one work item for each available assignee.
+                            </span>
                           </span>
-                          <span className="block text-slate-500">
-                            When enabled, this creates one work item for each available assignee.
-                          </span>
-                        </span>
-                      </label>
+                        </label>
+                      ) : null}
 
                       {assignEntireTeam ? (
                         <div className="rounded-2xl border border-blue-100 bg-blue-50/80 px-3 py-2.5 text-sm text-blue-900">
