@@ -4999,17 +4999,6 @@ const createIssue = asyncHandler(async (req, res) => {
     throw new Error("Team leads and Q/A leads can report Bugs and create Stories, Tasks, and Sub-tasks");
   }
 
-  if (
-    req.user.role === ROLE_MANAGER &&
-    [ISSUE_TYPES.TASK, ISSUE_TYPES.SUB_TASK].includes(normalizedType) &&
-    requestedAssigneeIds.some(
-      (requestedAssigneeId) => String(requestedAssigneeId) !== String(req.user._id)
-    )
-  ) {
-    res.status(403);
-    throw new Error("Managers can only self-assign tasks from their own projects");
-  }
-
   if (!canAssignPlanningFields && ((hasEpicInput && epicId) || (hasSprintInput && sprintId))) {
     res.status(403);
     throw new Error("Only admins and managers can assign epic or sprint during creation");
@@ -5958,17 +5947,6 @@ const updateIssue = asyncHandler(async (req, res) => {
     const canTeamLeadAssignExistingTask = canAssignTaskWork(req.user, issue.type);
     const canTeamLeadAssignExistingBug =
       req.user.role === ROLE_TEAM_LEAD && canAssignBugWork(req.user, issue.type);
-
-    if (
-      req.user.role === ROLE_MANAGER &&
-      [ISSUE_TYPES.TASK, ISSUE_TYPES.SUB_TASK].includes(getCanonicalIssueType(issue.type, "")) &&
-      nextAssigneeIds.some(
-        (requestedAssigneeId) => String(requestedAssigneeId) !== String(req.user._id)
-      )
-    ) {
-      res.status(403);
-      throw new Error("Managers can only self-assign tasks from their own projects");
-    }
 
     console.log("[issues] validating assignee team membership", {
       issueId: String(issue._id),
