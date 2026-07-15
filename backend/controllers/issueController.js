@@ -4687,11 +4687,12 @@ const createIssue = asyncHandler(async (req, res) => {
       }
 
       if (
+        !isAdmin(req.user) &&
         canTeamLeadAssignTask &&
         !TEAM_LEAD_TASK_ASSIGNABLE_ROLES.includes(assigneeResult.assignee?.role)
       ) {
         res.status(400);
-        throw new Error("Team Leads can assign tasks only to developers, team leads, or QA leads");
+        throw new Error("Team Leads can assign tasks only to developers, team leads, QA leads, or testers");
       }
     }
   }
@@ -5540,11 +5541,12 @@ const updateIssue = asyncHandler(async (req, res) => {
       }
 
       if (
+        !isAdmin(req.user) &&
         canTeamLeadAssignExistingTask &&
         !TEAM_LEAD_TASK_ASSIGNABLE_ROLES.includes(assigneeResult.assignee?.role)
       ) {
         res.status(400);
-        throw new Error("Team Leads can assign tasks only to developers, team leads, or QA leads");
+        throw new Error("Team Leads can assign tasks only to developers, team leads, QA leads, or testers");
       }
 
       if (
