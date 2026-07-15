@@ -133,6 +133,7 @@ const isDevRole = (role) => [ROLE_DEVELOPER, ROLE_TEAM_LEAD].includes(role);
 const isLeadRole = (role) => [ROLE_ADMIN, ROLE_MANAGER].includes(role);
 const canAssignTaskWork = (user, type) =>
   isWorkspaceAdmin(user) ||
+  user?.role === ROLE_MANAGER ||
   (hasTaskStoryLeadAccess(user?.role) &&
     [ISSUE_TYPES.TASK, ISSUE_TYPES.SUB_TASK].includes(getCanonicalIssueType(type, "")));
 const TEAM_LEAD_TASK_ASSIGNABLE_ROLES = [
@@ -5117,7 +5118,7 @@ const createIssue = asyncHandler(async (req, res) => {
       )
     ) {
       res.status(403);
-      throw new Error("Only admins and team leads can assign work to other users");
+      throw new Error("Only admins, managers, and team leads can assign work to other users");
     }
 
     for (const requestedAssigneeId of requestedAssigneeIds) {
@@ -5139,7 +5140,7 @@ const createIssue = asyncHandler(async (req, res) => {
         !TEAM_LEAD_TASK_ASSIGNABLE_ROLES.includes(assigneeResult.assignee?.role)
       ) {
         res.status(400);
-        throw new Error("Team Leads can assign tasks only to developers, team leads, QA leads, or testers");
+        throw new Error("Team leads and managers can assign tasks only to developers, team leads, QA leads, or testers");
       }
     }
   }
@@ -5982,7 +5983,7 @@ const updateIssue = asyncHandler(async (req, res) => {
         !TEAM_LEAD_TASK_ASSIGNABLE_ROLES.includes(assigneeResult.assignee?.role)
       ) {
         res.status(400);
-        throw new Error("Team Leads can assign tasks only to developers, team leads, QA leads, or testers");
+        throw new Error("Team leads and managers can assign tasks only to developers, team leads, QA leads, or testers");
       }
 
       if (
@@ -6153,7 +6154,7 @@ const updateIssue = asyncHandler(async (req, res) => {
   if (isAssigneeChanged) {
     if (!canAssignTaskWork(req.user, issue.type)) {
       res.status(403);
-      throw new Error("Only admins and team leads can reassign tasks");
+      throw new Error("Only admins, managers, and team leads can reassign tasks");
     }
 
     const previousAssigneeId = issue.assignee || null;
