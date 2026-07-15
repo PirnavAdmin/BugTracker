@@ -622,19 +622,16 @@ const SegmentedToggle = ({ options, value, onChange }) => (
 );
 
 const DateField = ({ value, onChange, label }) => (
-  <div className="relative min-w-0">
-    <Input
-      aria-label={label}
-      className={cn(
-        ANALYTICS_FIELD_CLASS,
-        "date-picker-input w-full min-w-0 px-4 pr-11 text-sm"
-      )}
-      type="date"
-      value={value}
-      onChange={onChange}
-    />
-    <CalendarDays className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-  </div>
+  <Input
+    aria-label={label}
+    className={cn(
+      ANALYTICS_FIELD_CLASS,
+      "date-picker-input w-full min-w-0 px-4 text-sm"
+    )}
+    type="date"
+    value={value}
+    onChange={onChange}
+  />
 );
 
 const toDateInputValue = (date) => {

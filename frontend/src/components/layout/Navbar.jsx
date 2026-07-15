@@ -144,8 +144,8 @@ const Navbar = () => {
           >
             <img
               src={pirnavLogo}
-              alt="Pirnav Software Solutions Pvt. Ltd."
-              className="h-auto max-h-9 w-auto max-w-[132px] object-contain sm:max-h-10 sm:max-w-[190px]"
+              alt="CureCode logo"
+              className="h-auto max-h-[72px] w-auto max-w-[300px] object-contain sm:max-h-[84px] sm:max-w-[360px]"
             />
           </NavLink>
 
@@ -223,8 +223,8 @@ const Navbar = () => {
               <div className="flex items-center justify-between border-b border-slate-200 px-4 py-4 sm:px-5 sm:py-5">
                 <img
                   src={pirnavLogo}
-                  alt="Pirnav Software Solutions Pvt. Ltd."
-                  className="h-auto max-h-8 w-auto max-w-[100px] object-contain"
+                  alt="CureCode logo"
+                  className="h-auto max-h-10 w-auto max-w-[152px] object-contain"
                 />
                 <Button
                   variant="ghost"

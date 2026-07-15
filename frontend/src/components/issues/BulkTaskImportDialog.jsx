@@ -25,6 +25,8 @@ const REQUIRED_FIELDS = [
   "Due Date",
 ];
 
+const OPTIONAL_FIELDS = ["Epic", "Priority", "Parent Story"];
+
 const isExcelFile = (file) =>
   [".xlsx", ".xls"].some((extension) =>
     String(file?.name || "")
@@ -142,8 +144,9 @@ const BulkTaskImportDialog = ({ open, onOpenChange, onImported }) => {
             <DialogDescription className="max-w-2xl text-sm leading-6 text-slate-600">
               Upload one Excel sheet to create admin task assignments in bulk. The
               sample includes live dropdowns where Project filters Team and Team
-              filters Assignee, so keep the required columns exactly as shown before
-              uploading.
+              filters Assignee, so keep the headers exactly as shown before
+              uploading. Optional Epic, Priority, and Parent Story columns can be
+              left empty.
             </DialogDescription>
           </DialogHeader>
 
@@ -156,6 +159,15 @@ const BulkTaskImportDialog = ({ open, onOpenChange, onImported }) => {
                   className="rounded-full border-sky-200 bg-sky-50 text-sky-700"
                 >
                   {field}
+                </Badge>
+              ))}
+              {OPTIONAL_FIELDS.map((field) => (
+                <Badge
+                  key={field}
+                  variant="outline"
+                  className="rounded-full border-slate-200 bg-slate-50 text-slate-600"
+                >
+                  {field} Optional
                 </Badge>
               ))}
             </div>

@@ -40,6 +40,16 @@ import {
 } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 
+const STATUS_ONLY_TASK_FIELDS = new Set([
+  "status",
+  "statusChangeComment",
+  "comment",
+  "reopenReason",
+  "rejectionReason",
+  "targetRelease",
+  "futureRelease",
+]);
+
 const TasksPage = () => {
   const queryClient = useQueryClient();
   const { role, user } = useAuth();
@@ -145,6 +155,11 @@ const TasksPage = () => {
         : activeTaskIssues.filter((issue) => getTaskBoardStatus(issue) === statusFilter),
     [activeTaskIssues, statusFilter]
   );
+  const isTaskStatusOnlyPayload = (payload = {}) => {
+    const keys = Object.keys(payload || {});
+
+    return Boolean(keys.length) && keys.every((key) => STATUS_ONLY_TASK_FIELDS.has(key));
+  };
 
   const updateIssueMutation = useMutation({
     mutationFn: updateIssue,
@@ -316,13 +331,31 @@ const TasksPage = () => {
             setSelectedIssue(null);
           }
         }}
-        onUpdateIssue={(id, payload) =>
-          updateIssueMutation.mutateAsync({ id, payload })
-        }
+        onUpdateIssue={(id, payload) => {
+          if (isTaskStatusOnlyPayload(payload)) {
+            return updateTaskStatusMutation.mutateAsync({
+              id,
+              status: payload.status,
+            });
+          }
+
+          return updateIssueMutation.mutateAsync({ id, payload });
+        }}
         open={Boolean(selectedIssue)}
         projects={projects}
+<<<<<<< HEAD
         updatingId={updateIssueMutation.isPending ? updateIssueMutation.variables?.id : ""}
         canEditCoreDetails={canCoordinateTasks}
+=======
+        updatingId={
+          updateTaskStatusMutation.isPending
+            ? updateTaskStatusMutation.variables?.id
+            : updateIssueMutation.isPending
+              ? updateIssueMutation.variables?.id
+              : ""
+        }
+        canEditCoreDetails={isTeamLead}
+>>>>>>> b4d15f9233fd43af3ccb26ed2c7d819b75c11be5
         canEditStatus={!isTeamProgressView}
         canEditPriority={canCoordinateTasks}
         canEditAssignee={canCoordinateTasks}

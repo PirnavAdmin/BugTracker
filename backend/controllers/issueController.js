@@ -164,6 +164,9 @@ const TASK_IMPORT_FIELD_ALIASES = Object.freeze({
   team: ["team", "teamname"],
   assignee: ["assignee", "assigneename", "assignedto", "owner"],
   dueDate: ["duedate", "due", "duedateyyyyMMdd"],
+  epic: ["epic", "epicname"],
+  priority: ["priority"],
+  parentStory: ["parentstory", "parentalstory", "story", "storykey"],
 });
 
 const getTaskImportValue = (row = {}, field) => {
@@ -291,19 +294,28 @@ const TASK_IMPORT_SAMPLE_HEADERS = Object.freeze([
   "Team",
   "Assignee",
   "Due Date",
+  "Epic",
+  "Priority",
+  "Parent Story",
 ]);
 
 const TASK_IMPORT_TEMPLATE_ROW_COUNT = 200;
 const TASK_IMPORT_LOOKUP_SHEET_NAMES = Object.freeze({
   projects: "Projects",
+  dueDateOptions: "DueDateOptions",
   projectTeamMap: "ProjectTeamMap",
   teamOptions: "TeamOptions",
   teamAssigneeMap: "TeamAssigneeMap",
   assigneeOptions: "AssigneeOptions",
+  projectEpicMap: "ProjectEpicMap",
+  epicOptions: "EpicOptions",
+  projectStoryMap: "ProjectStoryMap",
+  storyOptions: "StoryOptions",
   reference: "Reference Data",
 });
 const TASK_IMPORT_LOOKUP_RANGE_NAMES = Object.freeze({
   projects: "TaskImportProjects",
+  dueDates: "TaskImportDueDates",
   empty: "TaskImportEmpty",
 });
 const TASK_IMPORT_TEMPLATE_COLUMNS = Object.freeze([
@@ -312,7 +324,10 @@ const TASK_IMPORT_TEMPLATE_COLUMNS = Object.freeze([
   { header: "Description", key: "description", width: 48 },
   { header: "Team", key: "team", width: 26 },
   { header: "Assignee", key: "assignee", width: 30 },
-  { header: "Due Date", key: "dueDate", width: 16 },
+  { header: "Due Date", key: "dueDate", width: 22 },
+  { header: "Epic", key: "epic", width: 28 },
+  { header: "Priority", key: "priority", width: 16 },
+  { header: "Parent Story", key: "parentStory", width: 28 },
 ]);
 
 const escapeCsvValue = (value) => `"${String(value || "").replace(/"/g, '""')}"`;
@@ -339,6 +354,41 @@ const buildTaskImportAssigneeLabel = (user, duplicateNameCounts = new Map()) => 
   }
 
   return name;
+};
+
+const buildTaskImportParentStoryLabel = (story) =>
+  resolveImportText(story?.displayBugId || story?.issueKey || story?.title);
+
+const createTaskImportSampleDueDate = (offset = 0) => {
+  const baseDate = new Date();
+  baseDate.setSeconds(0, 0);
+  baseDate.setMinutes(0);
+  baseDate.setHours(10);
+  baseDate.setDate(baseDate.getDate() + 1 + offset);
+  baseDate.setHours(10 + (offset % 7));
+  return baseDate;
+};
+
+const createTaskImportDueDateOptions = ({
+  dayCount = 120,
+  hours = [9, 11, 14, 16],
+} = {}) => {
+  const options = [];
+  const startDate = new Date();
+  startDate.setSeconds(0, 0);
+  startDate.setMinutes(0);
+  startDate.setHours(0, 0, 0, 0);
+
+  for (let dayOffset = 0; dayOffset < dayCount; dayOffset += 1) {
+    hours.forEach((hour) => {
+      const nextDate = new Date(startDate);
+      nextDate.setDate(startDate.getDate() + dayOffset + 1);
+      nextDate.setHours(hour, 0, 0, 0);
+      options.push(nextDate);
+    });
+  }
+
+  return options;
 };
 
 const extractAssigneeEmailFromImport = (value) => {
@@ -524,7 +574,7 @@ const getTaskImportTemplateOptions = async ({ workspaceId }) => {
     };
   });
 
-  const [teams, teamMembers] = await Promise.all([
+  const [teams, teamMembers, epics, stories] = await Promise.all([
     Team.find({
       workspaceId: normalizedWorkspaceId,
       ...(allProjectTeamIds.size
@@ -545,6 +595,31 @@ const getTaskImportTemplateOptions = async ({ workspaceId }) => {
           },
         })
           .select("teamId userId")
+          .lean()
+      : Promise.resolve([]),
+    projectIds.length
+      ? Epic.find({
+          workspaceId: normalizedWorkspaceId,
+          projectId: {
+            $in: projectIds,
+          },
+          status: "ACTIVE",
+        })
+          .select("_id name projectId")
+          .sort({ name: 1 })
+          .lean()
+      : Promise.resolve([]),
+    projectIds.length
+      ? Issue.find({
+          workspaceId: normalizedWorkspaceId,
+          projectId: {
+            $in: projectIds,
+          },
+          type: ISSUE_TYPES.STORY,
+          isDeleted: { $ne: true },
+        })
+          .select("_id title displayBugId issueKey projectId")
+          .sort({ title: 1 })
           .lean()
       : Promise.resolve([]),
   ]);
@@ -616,6 +691,40 @@ const getTaskImportTemplateOptions = async ({ workspaceId }) => {
     result.set(projectName, teamNames);
     return result;
   }, new Map());
+  const epicsByProjectName = projects.reduce((result, project) => {
+    const projectName = resolveImportText(project?.name);
+
+    if (!projectName) {
+      return result;
+    }
+
+    result.set(
+      projectName,
+      normalizeTaskImportDropdownValues(
+        epics
+          .filter((epic) => String(epic?.projectId) === String(project?._id))
+          .map((epic) => epic.name)
+      )
+    );
+    return result;
+  }, new Map());
+  const storiesByProjectName = projects.reduce((result, project) => {
+    const projectName = resolveImportText(project?.name);
+
+    if (!projectName) {
+      return result;
+    }
+
+    result.set(
+      projectName,
+      normalizeTaskImportDropdownValues(
+        stories
+          .filter((story) => String(story?.projectId) === String(project?._id))
+          .map(buildTaskImportParentStoryLabel)
+      )
+    );
+    return result;
+  }, new Map());
 
   const projectNames = normalizeTaskImportDropdownValues(projects.map((project) => project.name));
   const projectNamesWithTeams = normalizeTaskImportDropdownValues(
@@ -628,10 +737,23 @@ const getTaskImportTemplateOptions = async ({ workspaceId }) => {
       .filter(([, assignees]) => assignees.length > 0)
       .map(([teamName]) => teamName)
   );
+  const projectNamesWithEpics = normalizeTaskImportDropdownValues(
+    Array.from(epicsByProjectName.entries())
+      .filter(([, epicNames]) => epicNames.length > 0)
+      .map(([projectName]) => projectName)
+  );
+  const projectNamesWithStories = normalizeTaskImportDropdownValues(
+    Array.from(storiesByProjectName.entries())
+      .filter(([, storyLabels]) => storyLabels.length > 0)
+      .map(([projectName]) => projectName)
+  );
 
   const sampleRows = [];
+  let sampleRowIndex = 0;
   projectNames.forEach((projectName) => {
     const projectTeams = teamsByProjectName.get(projectName) || [];
+    const projectEpics = epicsByProjectName.get(projectName) || [];
+    const projectStories = storiesByProjectName.get(projectName) || [];
 
     if (!projectTeams.length) {
       sampleRows.push({
@@ -640,15 +762,23 @@ const getTaskImportTemplateOptions = async ({ workspaceId }) => {
         description: "",
         team: "",
         assignee: "",
-        dueDate: "",
+        dueDate: createTaskImportSampleDueDate(sampleRowIndex),
+        epic: projectEpics[0] || "",
+        priority: ISSUE_PRIORITY_VALUES[0] || "",
+        parentStory: projectStories[0] || "",
       });
+      sampleRowIndex += 1;
       return;
     }
 
-    projectTeams.forEach((teamName) => {
+    projectTeams.forEach((teamName, teamIndex) => {
       const assignees = normalizeTaskImportDropdownValues(
         assigneesByTeamName.get(teamName) || []
       );
+      const sampleEpic = projectEpics[teamIndex % Math.max(projectEpics.length, 1)] || "";
+      const samplePriority =
+        ISSUE_PRIORITY_VALUES[teamIndex % Math.max(ISSUE_PRIORITY_VALUES.length, 1)] || "";
+      const sampleStory = projectStories[teamIndex % Math.max(projectStories.length, 1)] || "";
 
       if (!assignees.length) {
         sampleRows.push({
@@ -657,23 +787,55 @@ const getTaskImportTemplateOptions = async ({ workspaceId }) => {
           description: "",
           team: teamName,
           assignee: "",
-          dueDate: "",
+          dueDate: createTaskImportSampleDueDate(sampleRowIndex),
+          epic: sampleEpic,
+          priority: samplePriority,
+          parentStory: sampleStory,
         });
+        sampleRowIndex += 1;
         return;
       }
 
-      assignees.forEach((assignee) => {
+      assignees.forEach((assignee, assigneeIndex) => {
         sampleRows.push({
           title: "",
           project: projectName,
           description: "",
           team: teamName,
           assignee,
-          dueDate: "",
+          dueDate: createTaskImportSampleDueDate(sampleRowIndex),
+          epic:
+            projectEpics[
+              (teamIndex + assigneeIndex) % Math.max(projectEpics.length, 1)
+            ] || "",
+          priority:
+            ISSUE_PRIORITY_VALUES[
+              (teamIndex + assigneeIndex) % Math.max(ISSUE_PRIORITY_VALUES.length, 1)
+            ] || "",
+          parentStory:
+            projectStories[
+              (teamIndex + assigneeIndex) % Math.max(projectStories.length, 1)
+            ] || "",
         });
+        sampleRowIndex += 1;
       });
     });
   });
+
+  while (sampleRows.length < TASK_IMPORT_TEMPLATE_ROW_COUNT) {
+    sampleRows.push({
+      title: "",
+      project: "",
+      description: "",
+      team: "",
+      assignee: "",
+      dueDate: createTaskImportSampleDueDate(sampleRowIndex),
+      epic: "",
+      priority: "",
+      parentStory: "",
+    });
+    sampleRowIndex += 1;
+  }
 
   return {
     projects: projectNames,
@@ -684,6 +846,8 @@ const getTaskImportTemplateOptions = async ({ workspaceId }) => {
         normalizeTaskImportDropdownValues(assignees),
       ])
     ),
+    epicsByProjectName,
+    storiesByProjectName,
     projectRangeNames: createTaskImportRangeNameRegistry(
       projectNamesWithTeams,
       "TaskProject"
@@ -691,6 +855,14 @@ const getTaskImportTemplateOptions = async ({ workspaceId }) => {
     teamRangeNames: createTaskImportRangeNameRegistry(
       teamNamesWithAssignees,
       "TaskTeam"
+    ),
+    epicRangeNames: createTaskImportRangeNameRegistry(
+      projectNamesWithEpics,
+      "TaskEpicProject"
+    ),
+    storyRangeNames: createTaskImportRangeNameRegistry(
+      projectNamesWithStories,
+      "TaskStoryProject"
     ),
     sampleRows,
   };
@@ -731,12 +903,16 @@ const serializeTaskImportErrorValue = (value) => {
 
 const shouldIgnoreTaskImportRow = ({
   title,
+  projectName,
   description,
-  dueDateInput,
+  teamName,
+  assigneeInput,
 }) =>
   !resolveImportText(title) &&
+  !resolveImportText(projectName) &&
   !resolveImportText(description) &&
-  !resolveImportText(dueDateInput);
+  !resolveImportText(teamName) &&
+  !resolveImportText(assigneeInput);
 
 const resolveTaskImportProject = async ({ workspaceId, projectName }) => {
   const trimmedProjectName = resolveImportText(projectName);
@@ -749,6 +925,30 @@ const resolveTaskImportProject = async ({ workspaceId, projectName }) => {
     workspaceId: normalizeWorkspaceId(workspaceId),
     name: buildExactMatchRegex(trimmedProjectName),
   });
+};
+
+const resolveTaskImportPriority = (priorityInput) => {
+  const trimmedPriority = resolveImportText(priorityInput);
+
+  if (!trimmedPriority) {
+    return {
+      value: "Medium",
+    };
+  }
+
+  const matchedPriority = ISSUE_PRIORITY_VALUES.find(
+    (priority) => priority.toLowerCase() === trimmedPriority.toLowerCase()
+  );
+
+  if (!matchedPriority) {
+    return {
+      error: `Priority "${trimmedPriority}" must be one of: ${ISSUE_PRIORITY_VALUES.join(", ")}`,
+    };
+  }
+
+  return {
+    value: matchedPriority,
+  };
 };
 
 const resolveTaskImportTeam = async ({ workspaceId, teamName, project }) => {
@@ -773,6 +973,80 @@ const resolveTaskImportTeam = async ({ workspaceId, teamName, project }) => {
   })
     .select("_id name workspaceId")
     .lean();
+};
+
+const resolveTaskImportEpic = async ({ workspaceId, projectId, epicInput }) => {
+  const trimmedEpicInput = resolveImportText(epicInput);
+
+  if (!trimmedEpicInput || !projectId) {
+    return { epic: null };
+  }
+
+  const epic = await Epic.findOne({
+    workspaceId: normalizeWorkspaceId(workspaceId),
+    projectId,
+    status: "ACTIVE",
+    name: buildExactMatchRegex(trimmedEpicInput),
+  })
+    .select("_id name projectId status")
+    .lean();
+
+  if (!epic) {
+    return {
+      error: `Epic "${trimmedEpicInput}" was not found in the selected project`,
+    };
+  }
+
+  return { epic };
+};
+
+const resolveTaskImportParentStory = async ({
+  workspaceId,
+  projectId,
+  parentStoryInput,
+}) => {
+  const trimmedParentStoryInput = resolveImportText(parentStoryInput);
+
+  if (!trimmedParentStoryInput || !projectId) {
+    return { story: null };
+  }
+
+  const baseQuery = {
+    workspaceId: normalizeWorkspaceId(workspaceId),
+    projectId,
+    type: ISSUE_TYPES.STORY,
+    isDeleted: { $ne: true },
+  };
+  const projection = "_id title displayBugId issueKey epicId sprintId projectId";
+
+  const storyByKey = await Issue.findOne({
+    ...baseQuery,
+    $or: [
+      { displayBugId: buildExactMatchRegex(trimmedParentStoryInput) },
+      { issueKey: buildExactMatchRegex(trimmedParentStoryInput) },
+    ],
+  })
+    .select(projection)
+    .lean();
+
+  if (storyByKey) {
+    return { story: storyByKey };
+  }
+
+  const storyByTitle = await Issue.findOne({
+    ...baseQuery,
+    title: buildExactMatchRegex(trimmedParentStoryInput),
+  })
+    .select(projection)
+    .lean();
+
+  if (!storyByTitle) {
+    return {
+      error: `Parent Story "${trimmedParentStoryInput}" was not found in the selected project`,
+    };
+  }
+
+  return { story: storyByTitle };
 };
 
 const resolveTaskImportAssignee = async ({ workspaceId, assigneeInput }) => {
@@ -843,6 +1117,9 @@ const buildTaskImportErrorCsv = (errors = []) =>
         escapeCsvValue(serializeTaskImportErrorValue(item.team)),
         escapeCsvValue(serializeTaskImportErrorValue(item.assignee)),
         escapeCsvValue(serializeTaskImportErrorValue(item.dueDate)),
+        escapeCsvValue(serializeTaskImportErrorValue(item.epic)),
+        escapeCsvValue(serializeTaskImportErrorValue(item.priority)),
+        escapeCsvValue(serializeTaskImportErrorValue(item.parentStory)),
       ].join(",")
     ),
   ].join("\n");
@@ -3082,7 +3359,7 @@ const downloadTaskImportSample = asyncHandler(async (req, res) => {
   );
 
   for (let rowNumber = 2; rowNumber <= totalTemplateRows + 1; rowNumber += 1) {
-    worksheet.getCell(`F${rowNumber}`).numFmt = "dd-mmm-yyyy";
+    worksheet.getCell(`F${rowNumber}`).numFmt = "dd-mmm-yy h:mm AM/PM";
   }
 
   const projectsSheet = createTaskImportLookupSheet({
@@ -3106,6 +3383,24 @@ const downloadTaskImportSample = asyncHandler(async (req, res) => {
     TASK_IMPORT_LOOKUP_RANGE_NAMES.empty
   );
 
+  const dueDateOptionsSheet = createTaskImportLookupSheet({
+    workbook,
+    sheetName: TASK_IMPORT_LOOKUP_SHEET_NAMES.dueDateOptions,
+  });
+  const dueDateOptions = createTaskImportDueDateOptions();
+  dueDateOptions.forEach((dueDate, index) => {
+    const cell = dueDateOptionsSheet.getCell(`A${index + 1}`);
+    cell.value = dueDate;
+    cell.numFmt = "dd-mmm-yy h:mm AM/PM";
+  });
+
+  if (dueDateOptions.length) {
+    workbook.definedNames.add(
+      `'${dueDateOptionsSheet.name}'!$A$1:$A$${dueDateOptions.length}`,
+      TASK_IMPORT_LOOKUP_RANGE_NAMES.dueDates
+    );
+  }
+
   const teamOptionsSheet = createTaskImportLookupSheet({
     workbook,
     sheetName: TASK_IMPORT_LOOKUP_SHEET_NAMES.teamOptions,
@@ -3128,6 +3423,28 @@ const downloadTaskImportSample = asyncHandler(async (req, res) => {
     listsByLabel: templateOptions.assigneesByTeamName,
   });
 
+  const epicOptionsSheet = createTaskImportLookupSheet({
+    workbook,
+    sheetName: TASK_IMPORT_LOOKUP_SHEET_NAMES.epicOptions,
+  });
+  writeTaskImportNamedListsToSheet({
+    workbook,
+    worksheet: epicOptionsSheet,
+    namedRangeRegistry: templateOptions.epicRangeNames,
+    listsByLabel: templateOptions.epicsByProjectName,
+  });
+
+  const storyOptionsSheet = createTaskImportLookupSheet({
+    workbook,
+    sheetName: TASK_IMPORT_LOOKUP_SHEET_NAMES.storyOptions,
+  });
+  writeTaskImportNamedListsToSheet({
+    workbook,
+    worksheet: storyOptionsSheet,
+    namedRangeRegistry: templateOptions.storyRangeNames,
+    listsByLabel: templateOptions.storiesByProjectName,
+  });
+
   const projectTeamMapSheet = createTaskImportLookupSheet({
     workbook,
     sheetName: TASK_IMPORT_LOOKUP_SHEET_NAMES.projectTeamMap,
@@ -3146,11 +3463,37 @@ const downloadTaskImportSample = asyncHandler(async (req, res) => {
     labelToRangeName: templateOptions.teamRangeNames,
   });
 
+  const projectEpicMapSheet = createTaskImportLookupSheet({
+    workbook,
+    sheetName: TASK_IMPORT_LOOKUP_SHEET_NAMES.projectEpicMap,
+  });
+  const projectEpicMapRowCount = writeTaskImportLabelToRangeMapSheet({
+    worksheet: projectEpicMapSheet,
+    labelToRangeName: templateOptions.epicRangeNames,
+  });
+
+  const projectStoryMapSheet = createTaskImportLookupSheet({
+    workbook,
+    sheetName: TASK_IMPORT_LOOKUP_SHEET_NAMES.projectStoryMap,
+  });
+  const projectStoryMapRowCount = writeTaskImportLabelToRangeMapSheet({
+    worksheet: projectStoryMapSheet,
+    labelToRangeName: templateOptions.storyRangeNames,
+  });
+
   applyTaskImportListValidation({
     worksheet,
     column: "B",
     rangeName: templateOptions.projects.length
       ? TASK_IMPORT_LOOKUP_RANGE_NAMES.projects
+      : "",
+    rowCount: totalTemplateRows,
+  });
+  applyTaskImportListValidation({
+    worksheet,
+    column: "F",
+    rangeName: dueDateOptions.length
+      ? TASK_IMPORT_LOOKUP_RANGE_NAMES.dueDates
       : "",
     rowCount: totalTemplateRows,
   });
@@ -3190,20 +3533,53 @@ const downloadTaskImportSample = asyncHandler(async (req, res) => {
       errorTitle: "Invalid assignee",
       error: "Select an assignee from the team-specific dropdown list.",
     };
-  }
-
-  for (let rowNumber = 2; rowNumber <= totalTemplateRows + 1; rowNumber += 1) {
-    worksheet.getCell(`F${rowNumber}`).dataValidation = {
-      type: "date",
-      operator: "between",
+    worksheet.getCell(`G${rowNumber}`).dataValidation = {
+      type: "list",
       allowBlank: true,
       showInputMessage: true,
       showErrorMessage: true,
-      formulae: [new Date(2000, 0, 1), new Date(2100, 11, 31)],
-      promptTitle: "Due date",
-      prompt: "Enter a valid Excel date or use the dd-mmm-yyyy format.",
-      errorTitle: "Invalid date",
-      error: "Provide a valid due date using an Excel date value.",
+      formulae: [
+        buildTaskImportDependentDropdownFormula({
+          sourceCell: `$B${rowNumber}`,
+          mapSheetName: projectEpicMapSheet.name,
+          mapRowCount: projectEpicMapRowCount,
+        }),
+      ],
+      promptTitle: "Choose an epic",
+      prompt: "First choose a project. The epic dropdown will show that project's active epics.",
+      errorTitle: "Invalid epic",
+      error: "Select an epic from the project-specific dropdown list.",
+    };
+    worksheet.getCell(`I${rowNumber}`).dataValidation = {
+      type: "list",
+      allowBlank: true,
+      showInputMessage: true,
+      showErrorMessage: true,
+      formulae: [
+        buildTaskImportDependentDropdownFormula({
+          sourceCell: `$B${rowNumber}`,
+          mapSheetName: projectStoryMapSheet.name,
+          mapRowCount: projectStoryMapRowCount,
+        }),
+      ],
+      promptTitle: "Choose a parent story",
+      prompt: "First choose a project. The parent story dropdown will show that project's stories.",
+      errorTitle: "Invalid parent story",
+      error: "Select a parent story from the project-specific dropdown list.",
+    };
+  }
+
+  for (let rowNumber = 2; rowNumber <= totalTemplateRows + 1; rowNumber += 1) {
+    worksheet.getCell(`H${rowNumber}`).dataValidation = {
+      type: "list",
+      allowBlank: true,
+      showInputMessage: true,
+      showErrorMessage: true,
+      formulae: [`"${ISSUE_PRIORITY_VALUES.join(",")}"`],
+      promptTitle: "Priority",
+      prompt: "Choose Low, Medium, High, or Critical. Leave blank to use Medium.",
+      errorTitle: "Invalid priority",
+      error: `Choose one of: ${ISSUE_PRIORITY_VALUES.join(", ")}.`,
     };
   }
 
@@ -3212,7 +3588,10 @@ const downloadTaskImportSample = asyncHandler(async (req, res) => {
   worksheet.getCell("C1").note = "Free text. Required during upload.";
   worksheet.getCell("D1").note = "Choose a project first. This dropdown shows only teams attached to that project.";
   worksheet.getCell("E1").note = "Choose a team first. This dropdown shows only members of that team.";
-  worksheet.getCell("F1").note = "Use an Excel date value or the dd-mmm-yyyy format.";
+  worksheet.getCell("F1").note = "Choose a due date/time from the dropdown or enter an Excel date/time value in dd-mmm-yy h:mm AM/PM format.";
+  worksheet.getCell("G1").note = "Optional. Enter an active epic name from the selected project or leave blank.";
+  worksheet.getCell("H1").note = "Optional. Leave blank to assign Medium priority.";
+  worksheet.getCell("I1").note = "Optional. Enter the parent story title or key from the selected project or leave blank.";
 
   const referenceSheet = workbook.addWorksheet(
     TASK_IMPORT_LOOKUP_SHEET_NAMES.reference,
@@ -3224,6 +3603,9 @@ const downloadTaskImportSample = asyncHandler(async (req, res) => {
     { header: "Project", key: "project", width: 30 },
     { header: "Team", key: "team", width: 28 },
     { header: "Assignee", key: "assignee", width: 34 },
+    { header: "Epic", key: "epic", width: 28 },
+    { header: "Priority", key: "priority", width: 16 },
+    { header: "Parent Story", key: "parentStory", width: 34 },
   ];
   const referenceHeaderRow = referenceSheet.getRow(1);
   referenceHeaderRow.font = { bold: true, color: { argb: "FF0F172A" } };
@@ -3240,6 +3622,9 @@ const downloadTaskImportSample = asyncHandler(async (req, res) => {
       project: row.project || "",
       team: row.team || "",
       assignee: row.assignee || "",
+      epic: row.epic || "",
+      priority: row.priority || "",
+      parentStory: row.parentStory || "",
     });
   });
 
@@ -3314,12 +3699,17 @@ const importTasksFromSpreadsheet = asyncHandler(async (req, res) => {
     const teamName = resolveImportText(getTaskImportValue(row, "team"));
     const assigneeInput = resolveImportText(getTaskImportValue(row, "assignee"));
     const dueDateInput = getTaskImportValue(row, "dueDate");
+    const epicInput = resolveImportText(getTaskImportValue(row, "epic"));
+    const priorityInput = resolveImportText(getTaskImportValue(row, "priority"));
+    const parentStoryInput = resolveImportText(getTaskImportValue(row, "parentStory"));
 
     if (
       shouldIgnoreTaskImportRow({
         title,
+        projectName,
         description,
-        dueDateInput,
+        teamName,
+        assigneeInput,
       })
     ) {
       continue;
@@ -3382,6 +3772,40 @@ const importTasksFromSpreadsheet = asyncHandler(async (req, res) => {
         throw new Error(assigneeResult.error.message);
       }
 
+      const parentStoryResult = await resolveTaskImportParentStory({
+        workspaceId,
+        projectId: project._id,
+        parentStoryInput,
+      });
+
+      if (parentStoryResult.error) {
+        throw new Error(parentStoryResult.error);
+      }
+
+      const epicResult = await resolveTaskImportEpic({
+        workspaceId,
+        projectId: project._id,
+        epicInput,
+      });
+
+      if (epicResult.error) {
+        throw new Error(epicResult.error);
+      }
+
+      if (
+        parentStoryResult.story?.epicId &&
+        epicResult.epic?._id &&
+        String(parentStoryResult.story.epicId) !== String(epicResult.epic._id)
+      ) {
+        throw new Error("Parent Story and Epic must belong to the same planning path");
+      }
+
+      const priorityResult = resolveTaskImportPriority(priorityInput);
+
+      if (priorityResult.error) {
+        throw new Error(priorityResult.error);
+      }
+
       const parsedSpreadsheetDate = parseSpreadsheetDate(dueDateInput);
 
       if (!parsedSpreadsheetDate) {
@@ -3396,7 +3820,7 @@ const importTasksFromSpreadsheet = asyncHandler(async (req, res) => {
 
       const planningOrder = await getNextPlanningOrder(Issue, {
         projectId: project._id,
-        sprintId: null,
+        sprintId: parentStoryResult.story?.sprintId || null,
       });
       const displayBugId = await getNextIssueDisplayId({
         Project,
@@ -3410,16 +3834,19 @@ const importTasksFromSpreadsheet = asyncHandler(async (req, res) => {
         displayBugId,
         type: ISSUE_TYPES.TASK,
         status: ISSUE_STATUS.TODO,
-        priority: "Medium",
+        priority: priorityResult.value,
         assignee: assigneeResolution.assignee._id,
         assignees: [assigneeResolution.assignee._id],
         reporter: req.user._id,
         reporterName,
         projectId: project._id,
         teamId: team._id,
+        epicId: parentStoryResult.story?.epicId || epicResult.epic?._id || null,
+        sprintId: parentStoryResult.story?.sprintId || null,
         dueAt: dueAtResult.value,
         timeEstimateMinutes: 0,
         remainingEstimateMinutes: 0,
+        parentStoryId: parentStoryResult.story?._id || null,
         planningOrder,
         updatedBy: req.user._id,
       });
@@ -3436,6 +3863,9 @@ const importTasksFromSpreadsheet = asyncHandler(async (req, res) => {
         team: teamName,
         assignee: assigneeInput,
         dueDate: dueDateInput,
+        epic: epicInput,
+        priority: priorityInput,
+        parentStory: parentStoryInput,
       });
     }
   }
@@ -4722,17 +5152,6 @@ const createIssue = asyncHandler(async (req, res) => {
   };
 
   if (canAssignPlanningFields) {
-    const activeEpicCount = await Epic.countDocuments({
-      projectId: project._id,
-      workspaceId,
-      status: "ACTIVE",
-    });
-
-    if (activeEpicCount > 0 && !epicId && !parentStory?.epicId) {
-      res.status(400);
-      throw new Error("Epic is required for projects that contain epics");
-    }
-
     epicResult = await ensureEpicForProject({
       epicId: parentStory?.epicId || epicId || null,
       projectId: project._id,

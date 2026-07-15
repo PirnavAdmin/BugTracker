@@ -112,10 +112,60 @@ const USER_ROLE_DISTRIBUTION_META = [
 ];
 
 const DASHBOARD_TALL_SCROLL_CLASS =
-  "dashboard-scrollbar h-[calc(100svh-var(--app-navbar-height)-7.5rem)] min-h-[500px] space-y-3 overflow-y-scroll overscroll-contain pr-2 [scrollbar-gutter:stable]";
+  "dashboard-scrollbar h-[calc(100svh-var(--app-navbar-height)-6.5rem)] min-h-[560px] space-y-3 overflow-y-scroll overscroll-auto pr-2 [scrollbar-gutter:stable]";
 
 const DASHBOARD_SPLIT_PANEL_SCROLL_CLASS =
-  "dashboard-scrollbar h-[452px] space-y-3 overflow-y-scroll overscroll-contain pr-2 [scrollbar-gutter:stable]";
+  "dashboard-scrollbar h-[620px] min-h-[620px] space-y-3 overflow-y-scroll overscroll-auto pr-2 [scrollbar-gutter:stable]";
+
+const getScrollableAncestor = (element) => {
+  let current = element?.parentElement || null;
+
+  while (current) {
+    const style = window.getComputedStyle(current);
+    const canScrollY =
+      /(auto|scroll|overlay)/.test(style.overflowY) &&
+      current.scrollHeight > current.clientHeight + 1;
+
+    if (canScrollY) {
+      return current;
+    }
+
+    current = current.parentElement;
+  }
+
+  return null;
+};
+
+const forwardWheelToAncestor = (event) => {
+  const container = event.currentTarget;
+
+  if (!(container instanceof HTMLElement)) {
+    return;
+  }
+
+  const maxScrollTop = container.scrollHeight - container.clientHeight;
+  const direction = Math.sign(event.deltaY);
+  const atTop = container.scrollTop <= 0;
+  const atBottom = container.scrollTop >= maxScrollTop - 1;
+  const cannotScroll = maxScrollTop <= 1;
+  const shouldForward =
+    cannotScroll || (direction < 0 && atTop) || (direction > 0 && atBottom);
+
+  if (!shouldForward) {
+    return;
+  }
+
+  const ancestor = getScrollableAncestor(container);
+
+  if (ancestor) {
+    event.preventDefault();
+    ancestor.scrollTop += event.deltaY;
+    return;
+  }
+
+  event.preventDefault();
+  window.scrollBy({ top: event.deltaY, left: 0, behavior: "auto" });
+};
 
 const TASK_STATUS_META = [
   {
@@ -124,7 +174,7 @@ const TASK_STATUS_META = [
     helper: "Ready for pickup",
     className: "bg-slate-400",
     icon: Layers3,
-    routeParams: { status: TASK_BOARD_STATUS.OPEN, type: ISSUE_TYPES.TASK },
+    routeParams: { status: ISSUE_STATUS.TODO, type: ISSUE_TYPES.TASK },
     tone: "blue",
   },
   {
@@ -204,6 +254,28 @@ const BUG_STATUS_CARD_META = [
   },
 ];
 
+const BUG_STATUS_PANEL_META = [
+  ...BUG_STATUS_CARD_META,
+  {
+    key: "critical",
+    label: "Critical Bugs",
+    helper: "High-risk bug pressure",
+    icon: AlertTriangle,
+    tone: "rose",
+    className: "bg-rose-500",
+    routeParams: { filter: "critical" },
+  },
+  {
+    key: "total",
+    label: "Total Bugs",
+    helper: "All tracked bug records",
+    icon: Bug,
+    tone: "blue",
+    className: "bg-blue-600",
+    routeParams: { view: "total" },
+  },
+];
+
 const BUG_LIQUID_THEME = {
   bucket: {
     dot: "#7C3AED",
@@ -260,6 +332,13 @@ const BUG_CONTRIBUTION_COLORS = [
   "#8B5CF6",
   "#06B6D4",
 ];
+
+const TASK_STATUS_DISTRIBUTION_COLORS = {
+  [TASK_BOARD_STATUS.OPEN]: "#94A3B8",
+  [ISSUE_STATUS.IN_PROGRESS]: "#3B82F6",
+  [ISSUE_STATUS.DONE]: "#10B981",
+  overdue: "#F97316",
+};
 
 const BUG_RESOLVED_STATUSES = [
   ISSUE_STATUS.FIXED,
@@ -357,7 +436,7 @@ const ProjectContributionPanel = ({ projects = [], total = 0, onOpen }) => {
     color: PROJECT_CONTRIBUTION_COLORS[index % PROJECT_CONTRIBUTION_COLORS.length],
   }));
   const totalContributions = total || chartRows.reduce((sum, project) => sum + project.total, 0);
-  const maxTotal = Math.max(...chartRows.map((project) => project.total), 1);
+  const pieSize = 280;
 
   return (
     <AnalyticsPanel
@@ -372,106 +451,77 @@ const ProjectContributionPanel = ({ projects = [], total = 0, onOpen }) => {
       }
     >
       {projects.length ? (
-        <div className="grid gap-6 lg:grid-cols-[0.96fr_1.04fr]">
-          <div className="flex min-h-[390px] flex-col items-center justify-center">
-            <div className="relative h-[300px] w-full max-w-[360px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={chartRows}
-                    dataKey="value"
-                    nameKey="name"
-                    cx="50%"
-                    cy="50%"
-                    innerRadius="54%"
-                    outerRadius="86%"
-                    paddingAngle={1}
-                    stroke="rgba(255,255,255,0.72)"
-                    strokeWidth={2}
-                  >
-                    {chartRows.map((entry) => (
-                      <Cell key={entry.projectId || entry.name} fill={entry.color} />
-                    ))}
-                  </Pie>
-                  <Tooltip
-                    formatter={(value, name) => [`${value} contributions`, name]}
-                    contentStyle={{
-                      borderRadius: 18,
-                      border: "1px solid rgba(226,232,240,0.86)",
-                      boxShadow: "0 18px 40px -28px rgba(15,23,42,0.42)",
-                    }}
-                  />
-                </PieChart>
-              </ResponsiveContainer>
-              <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-                <div className="flex h-40 w-40 flex-col items-center justify-center rounded-full bg-white/68 text-center shadow-[inset_0_1px_24px_rgba(255,255,255,0.88),0_22px_48px_-34px_rgba(37,99,235,0.62)] backdrop-blur-xl">
-                  <Users2 className="h-10 w-10 text-blue-500" />
-                  <p className="mt-2.5 text-3xl font-black leading-none text-slate-900">
-                    {formatCompactNumber(totalContributions)}
-                  </p>
-                  <p className="mt-1 text-xs font-medium text-slate-600">Contributions</p>
-                </div>
-              </div>
-            </div>
-            <div className="mt-3 grid w-full max-w-[430px] grid-cols-1 gap-2 text-xs font-semibold text-slate-700 sm:grid-cols-2">
-              {chartRows.slice(0, 6).map((project) => (
-                <button
-                  key={project.projectId || project.name}
-                  type="button"
-                  onClick={() => onOpen(project)}
-                  className="flex min-w-0 items-center gap-2 rounded-full px-2 py-1 text-left transition hover:bg-white/70"
+        <div className="grid min-h-[340px] gap-5 lg:grid-cols-[0.92fr_1.08fr] lg:items-center">
+          <div className="flex min-h-[280px] flex-col items-center justify-center">
+            <div className="flex justify-center">
+              <PieChart width={pieSize} height={pieSize}>
+                <Pie
+                  data={chartRows}
+                  dataKey="value"
+                  nameKey="name"
+                  cx={pieSize / 2}
+                  cy={pieSize / 2}
+                  innerRadius={0}
+                  outerRadius={118}
+                  paddingAngle={2}
+                  stroke="rgba(255,255,255,0.84)"
+                  strokeWidth={2}
                 >
-                  <span
-                    className="h-3.5 w-3.5 shrink-0 rounded-full"
-                    style={{ backgroundColor: project.color }}
-                  />
-                  <span className="truncate">{project.name}</span>
-                </button>
-              ))}
+                  {chartRows.map((entry) => (
+                    <Cell key={entry.projectId || entry.name} fill={entry.color} />
+                  ))}
+                </Pie>
+                <Tooltip
+                  formatter={(value, _name, item) => [
+                    `${value} contributions`,
+                    item?.payload?.name || "Project",
+                  ]}
+                  contentStyle={{
+                    borderRadius: 18,
+                    border: "1px solid rgba(226,232,240,0.86)",
+                    boxShadow: "0 18px 40px -28px rgba(15,23,42,0.42)",
+                  }}
+                />
+              </PieChart>
             </div>
+            <p className="mt-2 text-center text-xs font-medium text-slate-500">
+              Project contribution distribution across tracked bug work.
+            </p>
           </div>
 
-          <div className="dashboard-scrollbar dashboard-scroll-fade max-h-[390px] space-y-3 overflow-y-scroll overscroll-contain pr-2">
-            {chartRows.map((project, index) => {
-              const width = Math.max(Math.round((project.total / maxTotal) * 100), project.total ? 8 : 0);
+          <div className="grid gap-4">
+            {chartRows.map((project) => {
+              const percentage = totalContributions
+                ? Math.round((project.total / totalContributions) * 100)
+                : 0;
 
               return (
                 <button
                   key={project.projectId || project.name}
                   type="button"
                   onClick={() => onOpen(project)}
-                  className="group relative grid min-h-[92px] w-full grid-cols-[52px_minmax(0,1fr)_78px] items-center gap-4 overflow-hidden rounded-[26px] border border-white/75 bg-white/62 px-4 py-3 text-left shadow-[0_20px_50px_-36px_rgba(37,99,235,0.5)] backdrop-blur-xl transition duration-300 hover:-translate-y-0.5 hover:border-blue-200/90 hover:bg-white/76"
+                  className="grid w-full grid-cols-[minmax(0,1fr)_74px_56px] items-center gap-3 rounded-[24px] border border-white/70 bg-white/58 px-5 py-4 text-left shadow-[0_14px_34px_-30px_rgba(15,23,42,0.34)] backdrop-blur-sm transition hover:bg-white/82"
                 >
-                  <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_0%,rgba(255,255,255,0.95),transparent_34%),radial-gradient(circle_at_88%_50%,rgba(96,165,250,0.18),transparent_44%)]" />
-                  <span
-                    className="relative z-10 flex h-12 w-12 items-center justify-center rounded-full text-xs font-black text-white shadow-[0_14px_28px_-20px_rgba(37,99,235,0.72)]"
-                    style={{ background: `linear-gradient(135deg, ${project.color}, #2563EB)` }}
-                  >
-                    {getInitials(project.name)}
-                  </span>
-                  <div className="relative z-10 min-w-0">
-                    <p className="truncate text-base font-extrabold text-slate-900">{project.name}</p>
-                    <p className="truncate text-xs font-medium text-slate-500">
-                      {project.open} open / {project.closed} closed
-                    </p>
-                    <div className="mt-2 grid grid-cols-[minmax(0,1fr)_44px] items-center gap-2">
-                      <div className="h-2 overflow-hidden rounded-full bg-sky-100/80">
-                        <div
-                          className="h-full rounded-full bg-[linear-gradient(90deg,#38BDF8,#2563EB)] transition-all duration-500"
-                          style={{ width: `${width}%` }}
-                        />
-                      </div>
-                      <span className="text-right text-xs font-bold text-slate-500">
-                        {project.closed}
+                  <span className="flex min-w-0 items-center gap-3">
+                    <span
+                      className="h-4 w-4 shrink-0 rounded-full"
+                      style={{ backgroundColor: project.color }}
+                    />
+                    <span className="min-w-0">
+                      <span className="block truncate text-[17px] font-semibold text-slate-900">
+                        {project.name}
                       </span>
-                    </div>
-                  </div>
-                  <div className="relative z-10 text-right">
-                    <p className="text-2xl font-black leading-none text-slate-800">{project.total}</p>
-                    <p className="mt-2 text-xs font-semibold text-slate-500">
-                      {project.open}/{project.closed}
-                    </p>
-                  </div>
+                      <span className="block text-sm text-slate-500">
+                        {project.open} open / {project.closed} closed
+                      </span>
+                    </span>
+                  </span>
+                  <span className="text-right text-[17px] font-semibold text-slate-800">
+                    {project.total}
+                  </span>
+                  <span className="text-right text-sm font-semibold text-slate-400">
+                    {percentage}%
+                  </span>
                 </button>
               );
             })}
@@ -778,7 +828,7 @@ const TeamTaskWorkloadCard = ({ row, onOpen }) => {
     <button
       type="button"
       onClick={() => onOpen(row.teamId ? { teamId: row.teamId } : {})}
-      className="group relative min-h-[84px] w-full overflow-hidden rounded-[24px] border border-white/75 bg-white/58 px-4 py-3 text-left shadow-[0_18px_44px_-34px_rgba(79,70,229,0.55)] backdrop-blur-xl transition duration-300 hover:-translate-y-0.5 hover:border-violet-200/90 hover:bg-white/72 hover:shadow-[0_24px_58px_-36px_rgba(124,58,237,0.62)] dark:border-slate-800/70 dark:bg-slate-950/70"
+      className="group relative min-h-[96px] w-full overflow-hidden rounded-[24px] border border-white/75 bg-white/58 px-5 py-3.5 text-left shadow-[0_18px_44px_-34px_rgba(79,70,229,0.55)] backdrop-blur-xl transition duration-300 hover:-translate-y-0.5 hover:border-violet-200/90 hover:bg-white/72 hover:shadow-[0_24px_58px_-36px_rgba(124,58,237,0.62)] dark:border-slate-800/70 dark:bg-slate-950/70"
     >
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_0%,rgba(255,255,255,0.92),transparent_30%),radial-gradient(circle_at_84%_20%,rgba(147,197,253,0.25),transparent_36%),radial-gradient(circle_at_52%_92%,rgba(168,85,247,0.28),transparent_42%)]" />
       <div className="pointer-events-none absolute inset-x-0 bottom-0 h-10 overflow-hidden">
@@ -793,24 +843,189 @@ const TeamTaskWorkloadCard = ({ row, onOpen }) => {
         <div className="absolute -left-8 -right-8 top-0 h-5 bg-[radial-gradient(ellipse_at_20%_90%,rgba(255,255,255,0.82),transparent_38%),linear-gradient(90deg,rgba(196,181,253,0.58),rgba(125,211,252,0.42),rgba(168,85,247,0.5))] opacity-80 [clip-path:polygon(0_52%,12%_44%,26%_50%,42%_38%,58%_44%,74%_30%,88%_42%,100%_34%,100%_100%,0_100%)] transition-transform duration-700 group-hover:translate-x-2" />
       </div>
 
-      <div className="relative z-10 grid grid-cols-[minmax(0,1fr)_82px] items-center gap-3">
+      <div className="relative z-10 grid grid-cols-[minmax(0,1fr)_88px] items-center gap-4">
         <div className="min-w-0">
-          <p className="truncate text-base font-extrabold tracking-tight text-slate-800 dark:text-slate-100">
+          <p className="truncate text-[15px] font-semibold tracking-tight text-slate-800 dark:text-slate-100">
             {row.name}
           </p>
-          <p className="mt-2 truncate text-xs font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-300">
+          <p className="mt-2 truncate text-[11px] font-medium uppercase tracking-[0.12em] text-slate-600 dark:text-slate-300">
             {row.open} OPEN - {row.inProgress} IN PROGRESS - {row.done} DONE
           </p>
         </div>
-        <div className="relative flex h-[68px] w-[76px] shrink-0 flex-col items-center justify-center rounded-[26px] border border-white/80 bg-white/48 text-slate-700 shadow-[inset_0_1px_10px_rgba(255,255,255,0.78),0_12px_34px_-22px_rgba(99,102,241,0.72)] backdrop-blur-xl dark:border-white/10 dark:bg-white/10 dark:text-slate-100">
-          <span className="text-3xl font-black leading-none">{row.total}</span>
+        <div className="relative flex h-[72px] w-[82px] shrink-0 flex-col items-center justify-center rounded-[26px] border border-white/80 bg-white/48 text-slate-700 shadow-[inset_0_1px_10px_rgba(255,255,255,0.78),0_12px_34px_-22px_rgba(99,102,241,0.72)] backdrop-blur-xl dark:border-white/10 dark:bg-white/10 dark:text-slate-100">
+          <span className="text-[2rem] font-semibold leading-none">{row.total}</span>
           <span className="my-1 h-px w-11 bg-slate-300/80" />
-          <span className="text-base font-extrabold leading-none">{row.completionRate}%</span>
+          <span className="text-[15px] font-semibold leading-none">{row.completionRate}%</span>
         </div>
       </div>
     </button>
   );
 };
+
+const TaskStatusDistributionPanel = ({ rows = [], total = 0, overdue = 0, onOpen }) => {
+  const chartRows = rows
+    .map((row) => ({
+      ...row,
+      value: row.count,
+      color: TASK_STATUS_DISTRIBUTION_COLORS[row.key] || "#64748B",
+    }))
+    .concat(
+      overdue > 0
+        ? [
+            {
+              key: "overdue",
+              label: "Overdue",
+              helper: "Need attention now",
+              count: overdue,
+              value: overdue,
+              color: TASK_STATUS_DISTRIBUTION_COLORS.overdue,
+              routeParams: { type: ISSUE_TYPES.TASK, filter: "overdue" },
+            },
+          ]
+        : []
+    );
+  const totalSignals = chartRows.reduce((sum, row) => sum + row.value, 0);
+  const pieSize = 280;
+
+  return (
+    <AnalyticsPanel
+      className="h-full"
+      title="Task Status"
+      description="Task workload mix across To Do, In Progress, Done, and overdue tasks."
+      action={
+        <Badge className="border-white/60 bg-white/72 text-slate-600">
+          {total || 0} total
+        </Badge>
+      }
+    >
+      {chartRows.length ? (
+        <div className="grid min-h-[420px] gap-5 lg:grid-cols-[0.92fr_1.08fr] lg:items-center">
+          <div className="flex min-h-[320px] flex-col items-center justify-center">
+            <div className="relative h-[300px] w-full max-w-[320px]">
+              <PieChart width={pieSize} height={pieSize}>
+                <Pie
+                  data={chartRows}
+                  dataKey="value"
+                  nameKey="label"
+                  cx={pieSize / 2}
+                  cy={pieSize / 2}
+                  innerRadius={0}
+                  outerRadius={118}
+                  paddingAngle={2}
+                  stroke="rgba(255,255,255,0.88)"
+                  strokeWidth={2}
+                >
+                  {chartRows.map((entry) => (
+                    <Cell key={entry.key} fill={entry.color} />
+                  ))}
+                </Pie>
+                <Tooltip
+                  formatter={(value, _name, item) => [
+                    `${value} tasks`,
+                    item?.payload?.label || "Tasks",
+                  ]}
+                  contentStyle={{
+                    borderRadius: 18,
+                    border: "1px solid rgba(226,232,240,0.86)",
+                    boxShadow: "0 18px 40px -28px rgba(15,23,42,0.42)",
+                  }}
+                />
+              </PieChart>
+            </div>
+            <p className="mt-2 text-center text-xs font-medium text-slate-500">
+              Task status distribution across active workload.
+            </p>
+          </div>
+
+          <div className="grid gap-4">
+            {chartRows.map((row) => {
+              const percentage = totalSignals ? Math.round((row.value / totalSignals) * 100) : 0;
+
+              return (
+                <button
+                  key={row.key}
+                  type="button"
+                  onClick={() => onOpen(row.routeParams)}
+                  className="grid w-full grid-cols-[minmax(0,1fr)_64px_52px] items-center gap-3 rounded-[24px] border border-white/70 bg-white/58 px-5 py-4 text-left shadow-[0_14px_34px_-30px_rgba(15,23,42,0.34)] backdrop-blur-sm transition hover:bg-white/82"
+                >
+                  <span className="flex min-w-0 items-center gap-3">
+                    <span
+                      className="h-4 w-4 shrink-0 rounded-full"
+                      style={{ backgroundColor: row.color }}
+                    />
+                    <span className="min-w-0">
+                      <span className="block truncate text-[17px] font-semibold text-slate-900">
+                        {row.label}
+                      </span>
+                      <span className="block text-sm text-slate-500">{row.helper}</span>
+                    </span>
+                  </span>
+                  <span className="text-right text-[17px] font-semibold text-slate-800">
+                    {row.count}
+                  </span>
+                  <span className="text-right text-sm font-semibold text-slate-400">
+                    {percentage}%
+                  </span>
+                </button>
+              );
+            })}
+            <p className="px-2 text-xs font-medium text-slate-500">
+              Labels below the chart show To Do, In Progress, Done, and Overdue counts.
+            </p>
+          </div>
+        </div>
+      ) : (
+        <AnalyticsEmptyState
+          icon={Layers3}
+          title="No task status data yet"
+          description="Create task work to populate the task status overview."
+        />
+      )}
+    </AnalyticsPanel>
+  );
+};
+
+const BugStatusMetricCard = ({ row, onOpen }) => (
+  <button
+    type="button"
+    onClick={() => onOpen(row.routeParams)}
+    className="group relative min-h-[118px] w-full overflow-hidden rounded-[24px] border border-white/80 bg-white/84 px-4 py-3 text-left shadow-[0_18px_42px_-34px_rgba(15,23,42,0.34)] transition duration-300 hover:-translate-y-0.5 hover:border-blue-200/80 hover:bg-white"
+  >
+    <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_14%_0%,rgba(255,255,255,0.96),transparent_32%),radial-gradient(circle_at_88%_18%,rgba(96,165,250,0.12),transparent_34%),linear-gradient(180deg,rgba(255,255,255,0.65),rgba(248,250,252,0.88))]" />
+    <div
+      className="pointer-events-none absolute inset-x-0 bottom-0 h-2.5 opacity-90"
+      style={{
+        background:
+          row.tone === "emerald"
+            ? "linear-gradient(90deg, rgba(110,231,183,0.72), rgba(16,185,129,0.95))"
+            : row.tone === "violet"
+              ? "linear-gradient(90deg, rgba(196,181,253,0.74), rgba(124,58,237,0.92))"
+              : row.tone === "rose"
+                ? "linear-gradient(90deg, rgba(253,164,175,0.72), rgba(244,63,94,0.92))"
+                : row.tone === "cyan"
+                  ? "linear-gradient(90deg, rgba(165,243,252,0.72), rgba(6,182,212,0.92))"
+                  : "linear-gradient(90deg, rgba(191,219,254,0.72), rgba(37,99,235,0.92))",
+      }}
+    />
+    <div className="relative z-10 flex h-full items-start justify-between gap-4">
+      <div className="min-w-0">
+        <div className="flex items-center gap-2">
+          <span className={cn("h-3 w-3 shrink-0 rounded-full", row.className)} />
+          <p className="truncate text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
+            {row.label}
+          </p>
+        </div>
+        <p className="mt-2 text-3xl font-semibold leading-none text-slate-900">
+          {row.count}
+        </p>
+        <p className="mt-2 text-sm text-slate-500">{row.helper}</p>
+      </div>
+      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-white/80 bg-white/72 text-slate-600 shadow-sm">
+        <row.icon className="h-4.5 w-4.5" />
+      </div>
+    </div>
+  </button>
+);
 
 const PriorityDistribution = ({ rows, total }) => {
   let segmentStart = 0;
@@ -1372,6 +1587,10 @@ const DashboardPage = () => {
       };
     });
   }, [taskIssues]);
+  const overdueTaskCount = useMemo(
+    () => taskIssues.filter((issue) => isIssueOverdue(issue)).length,
+    [taskIssues]
+  );
   const now = useMemo(() => new Date(), []);
   const weekStart = useMemo(() => startOfWeek(now), [now]);
   const previousWeekStart = useMemo(() => {
@@ -1471,18 +1690,6 @@ const DashboardPage = () => {
       resolvedToday,
     };
   }, [bugs, previousWeekStart, todayStart, weekStart]);
-  const bugStatusRows = useMemo(
-    () =>
-      BUG_STATUS_CARD_META.map((item) => ({
-        ...item,
-        count: bugMetrics[item.key] || 0,
-        percentage: bugMetrics.total
-          ? Math.round(((bugMetrics[item.key] || 0) / bugMetrics.total) * 100)
-          : 0,
-      })),
-    [bugMetrics]
-  );
-  const maxBugStatusCount = Math.max(...bugStatusRows.map((row) => row.count), 0);
   const bugContributionProjectOptions = useMemo(() => {
     const rowsByProject = new Map();
 
@@ -1594,7 +1801,7 @@ const DashboardPage = () => {
           right.open - left.open ||
           left.name.localeCompare(right.name)
       )
-      .slice(0, 5);
+      .slice(0, 6);
     const totalScore = rows.reduce((sum, row) => sum + row.score, 0);
 
     return rows.map((row) => ({
@@ -1732,27 +1939,19 @@ const DashboardPage = () => {
         .slice(0, 7),
     [bugs]
   );
-  const bugKpiCards = [
-    ...BUG_STATUS_CARD_META.map((item) => ({
-      key: item.key,
-      title: item.label,
-      value: formatCompactNumber(bugMetrics[item.key] || 0),
-      helper: item.helper,
-      icon: item.icon,
-      tone: item.tone,
-      onClick: () => navigateToBugs(item.routeParams),
-    })),
-    {
-      key: "total-bugs",
-      title: "Total Bugs",
-      value: formatCompactNumber(bugMetrics.total),
-      helper: "All bug records",
-      icon: Bug,
-      tone: "blue",
-      trend: buildTrend(bugMetrics.thisWeek, bugMetrics.previousWeek),
-      onClick: () => navigateToBugs({ view: "total" }),
-    },
-  ];
+  const bugStatusPanelRows = useMemo(
+    () =>
+      BUG_STATUS_PANEL_META.map((item) => ({
+        ...item,
+        count:
+          item.key === "total"
+            ? bugMetrics.total
+            : item.key === "critical"
+              ? bugMetrics.critical
+              : bugMetrics[item.key] || 0,
+      })),
+    [bugMetrics]
+  );
   const taskKpiCards = taskStatusRows.map((item) => ({
     key: item.key,
     title: item.label,
@@ -1765,7 +1964,7 @@ const DashboardPage = () => {
   taskKpiCards.push({
     key: "overdue-tasks",
     title: "Overdue Tasks",
-    value: formatCompactNumber(taskIssues.filter((issue) => isIssueOverdue(issue)).length),
+    value: formatCompactNumber(overdueTaskCount),
     helper: "Need attention now",
     icon: AlertTriangle,
     tone: "rose",
@@ -1904,10 +2103,11 @@ const DashboardPage = () => {
         ) : (
           <>
             <div className="grid gap-5 lg:grid-cols-2">
-              <RecentCriticalBugs
-                bugs={recentCriticalBugs}
-                onOpen={(bug) => navigateToBugs(getBugDetailRouteParams(bug))}
-                onNavigate={() => navigateToBugs({ filter: "critical" })}
+              <TaskStatusDistributionPanel
+                rows={taskStatusRows}
+                total={issueStats.total}
+                overdue={overdueTaskCount}
+                onOpen={navigateToTasks}
               />
 
               <TriageBoardWidget
@@ -1927,22 +2127,18 @@ const DashboardPage = () => {
                 </Badge>
               </div>
 
-              <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-7">
-                {bugKpiCards.map((card) => (
-                  <AnalyticsKpiCard
-                    key={card.key}
-                    compact
-                    title={card.title}
-                    value={card.value}
-                    icon={card.icon}
-                    tone={card.tone}
-                    onClick={card.onClick}
+              <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                {bugStatusPanelRows.map((row) => (
+                  <BugStatusMetricCard
+                    key={row.key}
+                    row={row}
+                    onOpen={navigateToBugs}
                   />
                 ))}
               </section>
             </div>
 
-            <section className="grid gap-5 xl:grid-cols-[1.15fr_0.85fr]">
+            <section>
               <ProjectContributionPanel
                 projects={bugProjectRows}
                 total={bugMetrics.total}
@@ -1959,103 +2155,17 @@ const DashboardPage = () => {
                   })
                 }
               />
-
-              <PriorityDistribution rows={priorityRows} total={bugMetrics.total} />
             </section>
           </>
         )}
       </section>
 
-      <section className="grid items-stretch gap-3 xl:grid-cols-[0.65fr_1.35fr]">
-        <AnalyticsPanel
-          className="h-full"
-          title="Task Status"
-          description="Task workload only: To Do, In Progress, and Done."
-          action={
-            <Badge className="border-white/60 bg-white/72 text-slate-600">
-              {issueStats.total || 0} total
-            </Badge>
-          }
-        >
-          {taskStatusRows.length ? (
-            <div className="space-y-3">
-              {taskStatusRows.map((row) => (
-                  <button
-                    key={row.key}
-                    type="button"
-                    onClick={() => navigateToIssues({ status: row.key })}
-                    className={cn(
-                      ANALYTICS_SUBPANEL_CLASS,
-                      "flex min-h-[82px] w-full items-center justify-between gap-3 px-4 py-3 text-left"
-                    )}
-                  >
-                    <div className="flex min-w-0 items-center gap-3">
-                      <span
-                        className={cn(
-                          "h-3 w-3 shrink-0 rounded-full",
-                          row.className || statusTone[row.key] || "bg-slate-400"
-                        )}
-                      />
-                      <div className="min-w-0">
-                        <p className="truncate text-sm font-semibold text-slate-950 dark:text-slate-100">
-                          {row.label}
-                        </p>
-                        <p className="text-xs text-slate-500">{row.helper}</p>
-                      </div>
-                    </div>
-                    <div className="shrink-0 text-right">
-                      <p className="text-lg font-semibold text-slate-950 dark:text-slate-100">
-                        {row.count}
-                      </p>
-                      <p className="text-xs text-slate-500">issues</p>
-                    </div>
-                  </button>
-              ))}
-            </div>
-          ) : (
-            <AnalyticsEmptyState
-              icon={Layers3}
-              title="No task status data yet"
-              description="Create task work to populate the task status overview."
-            />
-          )}
-        </AnalyticsPanel>
-
-        <AnalyticsPanel
-          className="h-full"
-          title="Bug Status"
-          description="Bug lifecycle cards synced with the admin Bugs page."
-          action={
-            <Badge className="border-white/60 bg-white/72 text-slate-600">
-              {bugMetrics.total || 0} bugs
-            </Badge>
-          }
-        >
-          {bugStatusRows.length ? (
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {bugStatusRows.map((row) => {
-                const fillPercent = maxBugStatusCount
-                  ? Math.max(Math.round((row.count / maxBugStatusCount) * 100), row.count ? 18 : 5)
-                  : 0;
-
-                return (
-                  <LiquidBugStatusCard
-                    key={row.key}
-                    row={row}
-                    fillPercent={fillPercent}
-                    onOpen={navigateToBugs}
-                  />
-                );
-              })}
-            </div>
-          ) : (
-            <AnalyticsEmptyState
-              icon={Bug}
-              title="No bug status data yet"
-              description="Bug lifecycle counts appear once bugs are reported."
-            />
-          )}
-        </AnalyticsPanel>
+      <section>
+        <RecentCriticalBugs
+          bugs={recentCriticalBugs}
+          onOpen={(bug) => navigateToBugs(getBugDetailRouteParams(bug))}
+          onNavigate={() => navigateToBugs({ filter: "critical" })}
+        />
       </section>
 
       <section>
@@ -2075,7 +2185,7 @@ const DashboardPage = () => {
         />
       </section>
 
-      <section className="grid gap-5 xl:grid-cols-[0.92fr_1.08fr]">
+      <section className="grid gap-5 xl:grid-cols-[1fr_1.12fr]">
         <AnalyticsPanel
           title="Team Task Workload"
           description="Compact active task pressure by team."
@@ -2088,7 +2198,10 @@ const DashboardPage = () => {
           }
         >
           {teamTaskRows.length ? (
-            <div className={DASHBOARD_SPLIT_PANEL_SCROLL_CLASS}>
+            <div
+              className={DASHBOARD_SPLIT_PANEL_SCROLL_CLASS}
+              onWheelCapture={forwardWheelToAncestor}
+            >
               {teamTaskRows.map((row) => (
                 <TeamTaskWorkloadCard
                   key={row.teamId || row.name}
@@ -2121,7 +2234,11 @@ const DashboardPage = () => {
             </Button>
           }
         >
-          <div id="dashboard-activity" className={DASHBOARD_SPLIT_PANEL_SCROLL_CLASS}>
+          <div
+            id="dashboard-activity"
+            className={DASHBOARD_SPLIT_PANEL_SCROLL_CLASS}
+            onWheelCapture={forwardWheelToAncestor}
+          >
             {activity.length ? (
               activity.slice(0, 8).map((item) => {
                 const Icon = activityIcon[item.activityType] || Activity;

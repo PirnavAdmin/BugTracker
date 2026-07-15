@@ -72,13 +72,16 @@ const DeveloperBugBoardPage = () => {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [searchParams] = useSearchParams();
+  const searchQuery = searchParams.get("search") || "";
+  const bugQuery = searchParams.get("bug") || "";
+  const statusQuery = searchParams.get("status");
   const [selectedIssue, setSelectedIssue] = useState(null);
   const [rejectIssue, setRejectIssue] = useState(null);
   const [rejectReason, setRejectReason] = useState("");
   const [statusError, setStatusError] = useState("");
   const [filters, setFilters] = useState({
-    search: "",
-    status: searchParams.get("status") === "available" ? "available" : "all",
+    search: searchQuery,
+    status: statusQuery === "available" ? "available" : "all",
     severity: "all",
     priority: "all",
     projectId: "all",
@@ -149,6 +152,14 @@ const DeveloperBugBoardPage = () => {
   );
 
   useEffect(() => {
+    setFilters((current) => ({
+      ...current,
+      search: searchQuery,
+      status: statusQuery === "available" ? "available" : "all",
+    }));
+  }, [searchQuery, statusQuery]);
+
+  useEffect(() => {
     if (!selectedIssue) {
       return;
     }
@@ -159,6 +170,29 @@ const DeveloperBugBoardPage = () => {
       setSelectedIssue(nextIssue);
     }
   }, [boardIssues, selectedIssue]);
+
+  useEffect(() => {
+    if (!boardIssues.length || (!bugQuery && !searchQuery)) {
+      return;
+    }
+
+    const normalizedBugQuery = String(bugQuery).trim().toLowerCase();
+    const normalizedSearchQuery = String(searchQuery).trim().toLowerCase();
+    const nextIssue = boardIssues.find((issue) => {
+      const issueId = String(issue?._id || "").trim().toLowerCase();
+      const displayKey = String(getIssueDisplayKey(issue) || "").trim().toLowerCase();
+
+      return (
+        (normalizedBugQuery && (issueId === normalizedBugQuery || displayKey === normalizedBugQuery)) ||
+        (normalizedSearchQuery &&
+          (issueId === normalizedSearchQuery || displayKey === normalizedSearchQuery))
+      );
+    });
+
+    if (nextIssue) {
+      setSelectedIssue(nextIssue);
+    }
+  }, [boardIssues, bugQuery, searchQuery]);
 
   const filteredIssues = useMemo(() => {
     const search = filters.search.trim().toLowerCase();
