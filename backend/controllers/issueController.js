@@ -122,6 +122,7 @@ const uploadTaskImportMiddleware = multer({
 }).single("file");
 
 const isAdmin = (user) => hasAdminAccess(user?.role);
+const isWorkspaceAdmin = (user) => user?.role === ROLE_ADMIN;
 const isBugType = (type) => getCanonicalIssueType(type, "") === ISSUE_TYPES.BUG;
 const isGenericIssueStatus = (status) =>
   GENERIC_ISSUE_STATUS_VALUES.includes(normalizeIssueStatus(status));
@@ -1173,13 +1174,13 @@ const addAndCondition = (query, condition) => {
 const buildHighPriorityCondition = buildHighPriorityIssueCondition;
 
 const isTeamProgressRequest = (req) =>
-  req.user?.role === ROLE_TEAM_LEAD &&
+  (hasAdminAccess(req.user?.role) || req.user?.role === ROLE_TEAM_LEAD) &&
   ["true", "1"].includes(String(req.query.teamProgress || "").trim().toLowerCase());
 
 const getAccessibleProjectIds = async (user) => {
   const workspaceId = normalizeWorkspaceId(user.workspaceId);
 
-  if (hasAdminAccess(user?.role)) {
+  if (isWorkspaceAdmin(user)) {
     return Project.find({
       workspaceId,
     }).distinct("_id");
@@ -1220,6 +1221,10 @@ const getAccessibleProjectIds = async (user) => {
       ],
     }).distinct("projectId"),
   ]);
+
+  if (user?.role === ROLE_MANAGER) {
+    return memberProjectIds;
+  }
 
   const assignedProjectIds = directlyAssignedProjectIds.length
     ? await Project.find({
@@ -2251,7 +2256,7 @@ const ensureAssigneeBelongsToTeam = async ({
     };
   }
 
-  const [teamMembership, directProjectMembership] = await Promise.all([
+  const [teamMembership, directProjectMembership, projectAssignment] = await Promise.all([
     TeamMember.findOne({
       teamId,
       userId: assigneeId,
@@ -2266,9 +2271,22 @@ const ensureAssigneeBelongsToTeam = async ({
           .select("_id")
           .lean()
       : null,
+    projectId
+      ? Project.findOne({
+          _id: projectId,
+          $or: [
+            { manager: assigneeId },
+            { projectManager: assigneeId },
+            { teamLead: assigneeId },
+            { qaLead: assigneeId },
+          ],
+        })
+          .select("_id")
+          .lean()
+      : null,
   ]);
 
-  if (!teamMembership && !directProjectMembership) {
+  if (!teamMembership && !directProjectMembership && !projectAssignment) {
     return {
       error: {
         status: 400,
@@ -3217,6 +3235,20 @@ const buildIssueQueryFromRequest = async (
   }
 
   if (isTeamProgressRequest(req)) {
+    if (isWorkspaceAdmin(req.user)) {
+      if (
+        !query.type ||
+        query.type === ISSUE_TYPES.TASK ||
+        query.type === ISSUE_TYPES.SUB_TASK
+      ) {
+        query.type = {
+          $in: [ISSUE_TYPES.TASK, ISSUE_TYPES.SUB_TASK],
+        };
+      }
+
+      return query;
+    }
+
     const userTeamIds = await getWorkspaceTeamIdsForUser(req.user);
     const storyIds = userTeamIds.length
       ? await Issue.find({
@@ -5102,11 +5134,12 @@ const createIssue = asyncHandler(async (req, res) => {
       }
 
       if (
+        !isAdmin(req.user) &&
         canTeamLeadAssignTask &&
         !TEAM_LEAD_TASK_ASSIGNABLE_ROLES.includes(assigneeResult.assignee?.role)
       ) {
         res.status(400);
-        throw new Error("Team Leads can assign tasks only to developers, team leads, or QA leads");
+        throw new Error("Team Leads can assign tasks only to developers, team leads, QA leads, or testers");
       }
     }
   }
@@ -5944,11 +5977,12 @@ const updateIssue = asyncHandler(async (req, res) => {
       }
 
       if (
+        !isAdmin(req.user) &&
         canTeamLeadAssignExistingTask &&
         !TEAM_LEAD_TASK_ASSIGNABLE_ROLES.includes(assigneeResult.assignee?.role)
       ) {
         res.status(400);
-        throw new Error("Team Leads can assign tasks only to developers, team leads, or QA leads");
+        throw new Error("Team Leads can assign tasks only to developers, team leads, QA leads, or testers");
       }
 
       if (

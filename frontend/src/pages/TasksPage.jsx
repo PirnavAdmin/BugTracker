@@ -20,7 +20,7 @@ import { useAuth } from "@/hooks/use-auth";
 import {
   ISSUE_TYPES,
 } from "@/lib/issues";
-import { canDeleteIssues, hasTaskStoryLeadAccess } from "@/lib/roles";
+import { canDeleteIssues, hasAdminPanelAccess, hasTaskStoryLeadAccess } from "@/lib/roles";
 import IssueCreateDialog from "@/components/issues/IssueCreateDialog";
 import IssueDetailsDialog from "@/components/issues/IssueDetailsDialog";
 import TaskKanbanBoard from "@/components/tasks/TaskKanbanBoard";
@@ -58,7 +58,7 @@ const TasksPage = () => {
   const [taskScope, setTaskScope] = useState("mine");
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [toast, setToast] = useState(null);
-  const isTeamLead = hasTaskStoryLeadAccess(role);
+  const canCoordinateTasks = hasAdminPanelAccess(role) || hasTaskStoryLeadAccess(role);
   const canDeleteTask = canDeleteIssues(role);
   const statusFilter = useMemo(() => {
     const value = String(searchParams.get("status") || "all").trim().toUpperCase();
@@ -89,9 +89,9 @@ const TasksPage = () => {
     isLoading: isTeamTasksLoading,
     error: teamTasksError,
   } = useQuery({
-    queryKey: ["issues", "team-lead", "tasks", user?._id || user?.id || ""],
+    queryKey: ["issues", "task-progress", "tasks", user?._id || user?.id || ""],
     queryFn: () => fetchIssues({ type: ISSUE_TYPES.TASK, teamProgress: true }),
-    enabled: isTeamLead,
+    enabled: canCoordinateTasks,
   });
 
   const {
@@ -99,11 +99,11 @@ const TasksPage = () => {
   } = useQuery({
     queryKey: ["issues", "tasks-page", "dependency-options", role],
     queryFn: () => fetchIssues({ excludeType: ISSUE_TYPES.BUG }),
-    enabled: isTeamLead && isCreateDialogOpen,
+    enabled: canCoordinateTasks && isCreateDialogOpen,
   });
 
-  const activeTaskIssues = isTeamLead && taskScope === "team" ? teamTaskIssues : taskIssues;
-  const isTeamProgressView = isTeamLead && taskScope === "team";
+  const activeTaskIssues = canCoordinateTasks && taskScope === "team" ? teamTaskIssues : taskIssues;
+  const isTeamProgressView = canCoordinateTasks && taskScope === "team";
 
   useEffect(() => {
     if (!selectedIssue) {
@@ -206,7 +206,7 @@ const TasksPage = () => {
   });
 
   const error = projectsError || tasksError || teamTasksError;
-  const isWorkLoading = isProjectsLoading || isTasksLoading || (isTeamLead && isTeamTasksLoading);
+  const isWorkLoading = isProjectsLoading || isTasksLoading || (canCoordinateTasks && isTeamTasksLoading);
 
   if (error) {
     return (
@@ -238,13 +238,13 @@ const TasksPage = () => {
                   {isTeamProgressView ? "Team Progress" : "Assigned Tasks"}
                 </CardTitle>
                 <CardDescription>
-                  {isTeamLead
-                    ? "Switch between your own assigned tasks and read-only team progress."
+                  {canCoordinateTasks
+                    ? "Switch between your own assigned tasks and read-only project progress."
                     : "Tasks assigned to you by managers or admins. For bug reporting and review, visit the Bugs page."}
                 </CardDescription>
               </div>
 
-              {isTeamLead ? (
+              {canCoordinateTasks ? (
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
                   <div className="inline-flex rounded-2xl border border-slate-200 bg-white/80 p-1 shadow-sm">
                     <Button
@@ -263,7 +263,7 @@ const TasksPage = () => {
                       onClick={() => setTaskScope("team")}
                     >
                       <Users2 className="h-4 w-4" />
-                      Team progress
+                      Project progress
                     </Button>
                   </div>
                   <Button
@@ -350,14 +350,14 @@ const TasksPage = () => {
               ? updateIssueMutation.variables?.id
               : ""
         }
-        canEditCoreDetails={isTeamLead}
+        canEditCoreDetails={canCoordinateTasks}
         canEditStatus={!isTeamProgressView}
-        canEditPriority={isTeamLead}
-        canEditAssignee={isTeamLead}
+        canEditPriority={canCoordinateTasks}
+        canEditAssignee={canCoordinateTasks}
         canDeleteIssue={canDeleteTask && !isTeamProgressView}
       />
 
-      {isTeamLead ? (
+      {canCoordinateTasks ? (
         <IssueCreateDialog
           open={isCreateDialogOpen}
           onOpenChange={setIsCreateDialogOpen}
