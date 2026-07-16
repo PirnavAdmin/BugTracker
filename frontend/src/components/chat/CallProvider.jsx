@@ -711,7 +711,22 @@ export const CallProvider = ({ children }) => {
 
   const getMedia = useCallback(async (callType) => {
     const needsVideo = callType === "video";
-    const existingStream = localStreamRef.current;
+    let existingStream = localStreamRef.current;
+
+    if (!needsVideo && hasLiveTrack(existingStream, "video")) {
+      existingStream.getVideoTracks().forEach((track) => {
+        track.stop();
+        existingStream.removeTrack?.(track);
+      });
+      localStreamRef.current = existingStream;
+      cameraTrackRef.current = null;
+      if (!isScreenSharing) {
+        outboundVideoTrackRef.current = null;
+      }
+      setIsCameraOff(true);
+      setLocalStream(new MediaStream(existingStream.getTracks().filter(isLiveTrack)));
+    }
+
     const existingHasAudio = hasLiveTrack(existingStream, "audio");
     const existingHasVideo = hasLiveTrack(existingStream, "video");
 
@@ -774,6 +789,7 @@ export const CallProvider = ({ children }) => {
           isScreenSharing && screenRef.current?.getVideoTracks()[0]
             ? screenRef.current.getVideoTracks()[0]
             : cameraTrackRef.current;
+        setIsCameraOff(!needsVideo || !cameraTrackRef.current);
         setLocalStream(new MediaStream(mergedStream.getTracks().filter(isLiveTrack)));
         return mergedStream;
       } catch (mediaError) {
@@ -1055,6 +1071,7 @@ export const CallProvider = ({ children }) => {
       }
 
       setError("");
+      setIsCameraOff(callType !== "video");
       await getMedia(callType);
       getChatSocket(token)?.emit(
         "call:start",
@@ -1100,6 +1117,7 @@ export const CallProvider = ({ children }) => {
     setError("");
     stopRingtoneRef.current?.();
     stopRingtoneRef.current = null;
+    setIsCameraOff(incomingCall.callType !== "video");
     await getMedia(incomingCall.callType);
     const nextCall = {
       ...incomingCall,

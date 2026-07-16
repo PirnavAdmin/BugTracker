@@ -100,17 +100,17 @@ const ChatHeader = memo(({ conversation, currentUserId, onlineUsers, onDelete, o
         <Menu className="h-4 w-4" />
       </Button>
 
-      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-white/70 bg-gradient-to-r from-blue-100 to-cyan-100 text-blue-700 shadow-sm sm:h-12 sm:w-12">
-        {conversation?.type === "direct" ? (
-          <UserAvatar
-            user={directUser}
-            name={directUser?.name || title}
-            className="h-9 w-9 sm:h-11 sm:w-11"
-          />
-        ) : (
+      {conversation?.type === "direct" ? (
+        <UserAvatar
+          user={directUser}
+          name={directUser?.name || title}
+          className="h-10 w-10 shrink-0 rounded-2xl border border-white/70 shadow-sm sm:h-12 sm:w-12"
+        />
+      ) : (
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-white/70 bg-gradient-to-r from-blue-100 to-cyan-100 text-blue-700 shadow-sm sm:h-12 sm:w-12">
           <Hash className="h-5 w-5" />
-        )}
-      </div>
+        </div>
+      )}
 
       <div className="min-w-0 flex-1">
         <div className="flex min-w-0 flex-wrap items-center gap-2">
