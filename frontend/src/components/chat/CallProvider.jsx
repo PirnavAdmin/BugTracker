@@ -50,6 +50,19 @@ const getCandidateSummary = (candidate = {}) => {
 const isLiveTrack = (track) => track?.readyState === "live";
 const hasLiveTrack = (stream, kind) =>
   Boolean(stream?.getTracks().some((track) => track.kind === kind && isLiveTrack(track)));
+const getVideoSender = (peer) =>
+  peer
+    ?.getSenders?.()
+    ?.find((sender) => sender.track?.kind === "video") ||
+  peer
+    ?.getTransceivers?.()
+    ?.find(
+      (transceiver) =>
+        transceiver?.sender &&
+        (transceiver.sender.track?.kind === "video" ||
+          transceiver.receiver?.track?.kind === "video")
+    )?.sender ||
+  null;
 const callLog = (message, details = null) => {
   if (details === null || details === undefined) {
     console.log(`[Call] ${message}`);
@@ -464,6 +477,64 @@ export const CallProvider = ({ children }) => {
     setIsScreenSharing(false);
     setScreenSharers({});
   }, []);
+
+  const syncPeerVideoTrack = useCallback(
+    async (nextTrack, fallbackStream = null, options = {}) => {
+      const { renegotiate = true } = options;
+      const updates = [];
+
+      peersRef.current.forEach((peer, targetUserId) => {
+        const sender = getVideoSender(peer);
+        if (sender) {
+          updates.push(
+            sender.replaceTrack(nextTrack).catch((replaceError) => {
+              callLog("video replaceTrack failed", {
+                targetUserId,
+                hasTrack: Boolean(nextTrack),
+                error: replaceError?.message || replaceError,
+              });
+            })
+          );
+          return;
+        }
+
+        if (nextTrack && fallbackStream) {
+          peer.addTrack(nextTrack, fallbackStream);
+          if (renegotiate) {
+            updates.push(
+              Promise.resolve().then(() => negotiatePeer(targetUserId)).catch((error) => {
+                callLog("video renegotiation after addTrack failed", {
+                  targetUserId,
+                  error: error?.message || error,
+                });
+              })
+            );
+          }
+        }
+      });
+
+      await Promise.allSettled(updates);
+
+      if (!renegotiate) {
+        return;
+      }
+
+      const renegotiations = [];
+      peersRef.current.forEach((_peer, targetUserId) => {
+        renegotiations.push(
+          Promise.resolve().then(() => negotiatePeer(targetUserId)).catch((error) => {
+            callLog("video renegotiation failed", {
+              targetUserId,
+              hasTrack: Boolean(nextTrack),
+              error: error?.message || error,
+            });
+          })
+        );
+      });
+      await Promise.allSettled(renegotiations);
+    },
+    [negotiatePeer]
+  );
 
   const applyQueuedCandidates = useCallback(async (userId, peer) => {
     const normalizedUserId = String(userId);
@@ -1103,15 +1174,7 @@ export const CallProvider = ({ children }) => {
       cameraTrackRef.current = null;
       if (!isScreenSharing) {
         outboundVideoTrackRef.current = null;
-        peersRef.current.forEach((peer, targetUserId) => {
-          const sender = peer.getSenders().find((item) => item.track?.kind === "video");
-          sender?.replaceTrack(null).catch((replaceError) => {
-            callLog("camera clear sender failed", {
-              targetUserId,
-              error: replaceError?.message || replaceError,
-            });
-          });
-        });
+        await syncPeerVideoTrack(null, null);
       }
       setLocalStream(new MediaStream(localStreamRef.current?.getTracks().filter(isLiveTrack) || []));
       setIsCameraOff(true);
@@ -1131,25 +1194,12 @@ export const CallProvider = ({ children }) => {
       cameraTrack.enabled = true;
       if (!isScreenSharing) {
         outboundVideoTrackRef.current = cameraTrack;
-        peersRef.current.forEach((peer, targetUserId) => {
-          const sender = peer.getSenders().find((item) => item.track?.kind === "video");
-          if (sender) {
-            sender.replaceTrack(cameraTrack).catch((replaceError) => {
-              callLog("camera replaceTrack failed", {
-                targetUserId,
-                error: replaceError?.message || replaceError,
-              });
-            });
-          } else {
-            peer.addTrack(cameraTrack, localStreamRef.current);
-            negotiatePeer(targetUserId);
-          }
-        });
+        await syncPeerVideoTrack(cameraTrack, localStreamRef.current);
       }
       setLocalStream(new MediaStream(localStreamRef.current?.getTracks().filter(isLiveTrack) || []));
     }
     setIsCameraOff(nextOff);
-  }, [getMedia, isCameraOff, isScreenSharing, negotiatePeer]);
+  }, [getMedia, isCameraOff, isScreenSharing, syncPeerVideoTrack]);
 
   const stopScreenShare = useCallback(() => {
     const call = activeCallRef.current;
@@ -1163,41 +1213,21 @@ export const CallProvider = ({ children }) => {
     setIsScreenSharing(false);
 
     if (cameraTrack) {
+      cameraTrack.enabled = true;
       outboundVideoTrackRef.current = cameraTrack;
-      peersRef.current.forEach((peer, targetUserId) => {
-        const sender = peer.getSenders().find((item) => item.track?.kind === "video");
-        if (sender) {
-          sender.replaceTrack(cameraTrack).catch((replaceError) => {
-            callLog("restore camera replaceTrack failed", {
-              targetUserId,
-              error: replaceError?.message || replaceError,
-            });
-          });
-        } else {
-          peer.addTrack(cameraTrack, localStreamRef.current);
-          negotiatePeer(targetUserId);
-        }
-      });
+      void syncPeerVideoTrack(cameraTrack, localStreamRef.current);
       setLocalStream(
         new MediaStream(localStreamRef.current?.getTracks().filter(isLiveTrack) || [])
       );
     } else {
-      peersRef.current.forEach((peer, targetUserId) => {
-        const sender = peer.getSenders().find((item) => item.track?.kind === "video");
-        sender?.replaceTrack(null).catch((replaceError) => {
-          callLog("clear screen sender failed", {
-            targetUserId,
-            error: replaceError?.message || replaceError,
-          });
-        });
-      });
+      void syncPeerVideoTrack(null, null);
     }
 
     if (call?.callId) {
       getChatSocket(token)?.emit("call:screen-share-stopped", { callId: call.callId });
     }
     callLog("screen share stopped");
-  }, [negotiatePeer, token]);
+  }, [syncPeerVideoTrack, token]);
 
   const shareScreen = useCallback(async () => {
     if (!navigator.mediaDevices?.getDisplayMedia) {
@@ -1232,24 +1262,7 @@ export const CallProvider = ({ children }) => {
         readyState: screenTrack.readyState,
       });
 
-      const replacementPromises = [];
-      peersRef.current.forEach((peer, targetUserId) => {
-        const sender = peer.getSenders().find((item) => item.track?.kind === "video");
-        if (sender) {
-          replacementPromises.push(
-            sender.replaceTrack(screenTrack).catch((replaceError) => {
-              callLog("screen replaceTrack failed", {
-                targetUserId,
-                error: replaceError?.message || replaceError,
-              });
-            })
-          );
-        } else {
-          peer.addTrack(screenTrack, localStreamRef.current || displayStream);
-          negotiatePeer(targetUserId);
-        }
-      });
-      await Promise.all(replacementPromises);
+      await syncPeerVideoTrack(screenTrack, localStreamRef.current || displayStream);
       setLocalStream(
         new MediaStream([
           ...(localStreamRef.current?.getAudioTracks().filter(isLiveTrack) || []),
@@ -1267,7 +1280,7 @@ export const CallProvider = ({ children }) => {
       callLog("screen share failed", screenError);
       setError("Screen sharing could not be started.");
     }
-  }, [isScreenSharing, negotiatePeer, stopScreenShare, token]);
+  }, [isScreenSharing, stopScreenShare, syncPeerVideoTrack, token]);
 
   const toggleRaiseHand = useCallback(() => {
     const call = activeCallRef.current;
