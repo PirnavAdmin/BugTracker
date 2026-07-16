@@ -94,7 +94,7 @@ const formatDuration = (seconds = 0) => {
 };
 
 const RINGTONE_START_SECONDS = 15;
-const RINGTONE_URL = `${import.meta.env.BASE_URL}audio/incoming-call.mp3`;
+const RINGTONE_URL = `${import.meta.env.BASE_URL}audio/incoming-call.ogg`;
 
 const playRingtone = () => {
   const audio = new Audio(RINGTONE_URL);
@@ -128,7 +128,14 @@ const playRingtone = () => {
   };
 };
 
-const RemoteMedia = ({ stream, muted, onVideoStalled, onVideoStateChange }) => {
+const RemoteMedia = ({
+  stream,
+  muted,
+  onVideoStalled,
+  onVideoStateChange,
+  user = null,
+  name = "Participant",
+}) => {
   const videoRef = useRef(null);
   const audioRef = useRef(null);
   const [hasVideo, setHasVideo] = useState(false);
@@ -230,8 +237,17 @@ const RemoteMedia = ({ stream, muted, onVideoStalled, onVideoStateChange }) => {
   return (
     <>
       {!hasVideo ? (
-        <div className="absolute inset-0 z-10 flex items-center justify-center bg-slate-800 text-xs font-bold text-white/45">
-          Connecting video
+        <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 bg-slate-800 text-white">
+          <UserAvatar
+            user={user}
+            name={name}
+            className="h-24 w-24 rounded-2xl border border-white/15"
+            fallbackClassName="text-3xl"
+          />
+          <div className="text-center">
+            <p className="text-sm font-bold text-white/90">{name}</p>
+            <p className="text-xs font-semibold text-white/45">Camera is off</p>
+          </div>
         </div>
       ) : null}
       <video ref={videoRef} autoPlay muted playsInline className="h-full w-full object-cover" />
@@ -240,15 +256,31 @@ const RemoteMedia = ({ stream, muted, onVideoStalled, onVideoStateChange }) => {
   );
 };
 
-const LocalVideo = ({ stream }) => {
+const LocalVideo = ({ stream, user, showVideo = true }) => {
   const videoRef = useRef(null);
 
   useEffect(() => {
-    if (videoRef.current) {
+    if (videoRef.current && showVideo) {
       videoRef.current.srcObject = stream;
       videoRef.current.play?.().catch(() => {});
     }
-  }, [stream]);
+  }, [showVideo, stream]);
+
+  if (!showVideo) {
+    return (
+      <div className="flex h-full flex-col items-center justify-center gap-3 bg-slate-800 text-white">
+        <UserAvatar
+          user={user}
+          className="h-24 w-24 rounded-2xl border border-white/15"
+          fallbackClassName="text-3xl"
+        />
+        <div className="text-center">
+          <p className="text-sm font-bold text-white/90">You</p>
+          <p className="text-xs font-semibold text-white/45">Camera is off</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <video
@@ -1031,16 +1063,43 @@ export const CallProvider = ({ children }) => {
 
   const toggleCamera = useCallback(async () => {
     const nextOff = !isCameraOff;
-    let cameraTrack = cameraTrackRef.current || localStreamRef.current?.getVideoTracks()[0];
+    let cameraTrack = cameraTrackRef.current || localStreamRef.current?.getVideoTracks()[0] || null;
 
-    if (!cameraTrack && !nextOff) {
+    if (nextOff) {
+      if (cameraTrack) {
+        cameraTrack.stop();
+        localStreamRef.current?.removeTrack?.(cameraTrack);
+      }
+      cameraTrackRef.current = null;
+      if (!isScreenSharing) {
+        outboundVideoTrackRef.current = null;
+        peersRef.current.forEach((peer, targetUserId) => {
+          const sender = peer.getSenders().find((item) => item.track?.kind === "video");
+          sender?.replaceTrack(null).catch((replaceError) => {
+            callLog("camera clear sender failed", {
+              targetUserId,
+              error: replaceError?.message || replaceError,
+            });
+          });
+        });
+      }
+      setLocalStream(new MediaStream(localStreamRef.current?.getTracks().filter(isLiveTrack) || []));
+      setIsCameraOff(true);
+      return;
+    }
+
+    if (!cameraTrack || !isLiveTrack(cameraTrack) || cameraTrack.muted) {
+      if (cameraTrack) {
+        cameraTrack.stop();
+        localStreamRef.current?.removeTrack?.(cameraTrack);
+      }
       await getMedia("video");
-      cameraTrack = cameraTrackRef.current || localStreamRef.current?.getVideoTracks()[0];
+      cameraTrack = cameraTrackRef.current || localStreamRef.current?.getVideoTracks()[0] || null;
     }
 
     if (cameraTrack) {
-      cameraTrack.enabled = !nextOff;
-      if (!nextOff && !isScreenSharing) {
+      cameraTrack.enabled = true;
+      if (!isScreenSharing) {
         outboundVideoTrackRef.current = cameraTrack;
         peersRef.current.forEach((peer, targetUserId) => {
           const sender = peer.getSenders().find((item) => item.track?.kind === "video");
@@ -1057,6 +1116,7 @@ export const CallProvider = ({ children }) => {
           }
         });
       }
+      setLocalStream(new MediaStream(localStreamRef.current?.getTracks().filter(isLiveTrack) || []));
     }
     setIsCameraOff(nextOff);
   }, [getMedia, isCameraOff, isScreenSharing, negotiatePeer]);
@@ -1303,20 +1363,19 @@ export const CallProvider = ({ children }) => {
       });
       window.setTimeout(async () => {
         const stream = localStreamRef.current || (await getMedia(currentCall.callType));
-        (payload.existingParticipantIds || [])
+        for (const participantId of (payload.existingParticipantIds || [])
           .map(String)
-          .filter((participantId) => participantId && participantId !== getId(user))
-          .forEach((participantId) => {
-            if (!peersRef.current.has(participantId)) {
-              createPeer({
-                callId: payload.call.callId,
-                targetUserId: participantId,
-                stream,
-              });
-              negotiatePeer(participantId);
-            }
-          });
-      }, 1500);
+          .filter((participantId) => participantId && participantId !== getId(user))) {
+          if (!peersRef.current.has(participantId)) {
+            createPeer({
+              callId: payload.call.callId,
+              targetUserId: participantId,
+              stream,
+            });
+            await negotiatePeer(participantId);
+          }
+        }
+      }, 300);
     };
     const handleParticipantJoined = async (payload) => {
       const currentCall = activeCallRef.current;
@@ -1336,7 +1395,6 @@ export const CallProvider = ({ children }) => {
         targetUserId: joinedUserId,
         stream,
       });
-      await negotiatePeer(joinedUserId);
     };
     const handleParticipantLeft = (payload) => {
       cleanupPeer(String(payload.userId || ""));
@@ -1858,17 +1916,7 @@ export const CallProvider = ({ children }) => {
                       "absolute bottom-4 right-4 z-20 h-28 min-h-0 w-40 shadow-2xl sm:h-36 sm:w-56"
                   )}
                 >
-                  {localStream && !isCameraOff ? (
-                    <LocalVideo stream={localStream} />
-                  ) : (
-                    <div className="flex h-full flex-col items-center justify-center">
-                      <UserAvatar
-                        user={user}
-                        className="h-20 w-20 rounded-lg border border-white/15"
-                        fallbackClassName="text-2xl"
-                      />
-                    </div>
-                  )}
+                  <LocalVideo stream={localStream} user={user} showVideo={Boolean(localStream && !isCameraOff)} />
                   <span className="absolute bottom-3 left-3 max-w-[75%] truncate rounded-full bg-black/60 px-3 py-1 text-xs font-bold">
                     You {isMuted ? "· muted" : ""}
                   </span>
@@ -1905,6 +1953,8 @@ export const CallProvider = ({ children }) => {
                           stream={stream}
                           muted={isSpeakerOff}
                           onVideoStalled={() => negotiatePeer(userId, { iceRestart: true })}
+                          user={participant?.user || (!isGroupCall ? activeCall.peer : null)}
+                          name={userName}
                         />
                         <div className="absolute bottom-3 left-3 flex max-w-[75%] items-center gap-2 rounded-full bg-black/60 px-3 py-1 text-xs font-bold">
                           <span className="truncate">{userName}</span>
