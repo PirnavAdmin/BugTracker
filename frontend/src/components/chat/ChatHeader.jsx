@@ -1,8 +1,17 @@
-import { memo } from "react";
+import { memo, useState } from "react";
 import { Camera, Hash, Menu, Phone, Trash2, UsersRound } from "lucide-react";
 import UserAvatar from "@/components/shared/UserAvatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { useCall } from "@/components/chat/CallProvider";
 import { cn } from "@/lib/utils";
 
@@ -57,6 +66,7 @@ const presenceDotClass = (status, isOnline) => {
 
 const ChatHeader = memo(({ conversation, currentUserId, onlineUsers, onDelete, onToggleSidebar }) => {
   const { activeCall, callPresence, channelCalls, joinCall, startCall } = useCall();
+  const [isParticipantsOpen, setIsParticipantsOpen] = useState(false);
   const participants = conversation?.participants || [];
   const title = getConversationName(conversation, currentUserId);
   const directUser = participants.find(
@@ -263,16 +273,60 @@ const ChatHeader = memo(({ conversation, currentUserId, onlineUsers, onDelete, o
         </Button>
       ) : null}
 
-      <div className="hidden items-center -space-x-2 sm:flex">
-        {participants.slice(0, 4).map((participant) => (
-          <UserAvatar
-            key={getId(participant)}
-            user={participant}
-            className="h-9 w-9 rounded-2xl border-2 border-white"
-            fallbackClassName="text-[11px]"
-          />
-        ))}
-      </div>
+      {conversation?.type !== "direct" ? (
+        <Dialog open={isParticipantsOpen} onOpenChange={setIsParticipantsOpen}>
+          <DialogTrigger asChild>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="hidden shrink-0 rounded-2xl border border-white/70 text-slate-600 shadow-sm hover:bg-slate-50 hover:text-slate-900 sm:inline-flex"
+              title="View participants"
+              aria-label="View participants"
+            >
+              <UsersRound className="h-5 w-5" />
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="max-w-lg">
+            <DialogHeader>
+              <DialogTitle>{title} participants</DialogTitle>
+              <DialogDescription>
+                View participants in this {conversation?.channelType || "group"} chat.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="max-h-[420px] space-y-3 overflow-y-auto pr-1">
+              {participants.map((participant) => (
+                <div
+                  key={getId(participant)}
+                  className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3"
+                >
+                  <UserAvatar
+                    user={participant}
+                    className="h-11 w-11 rounded-2xl border border-white"
+                    fallbackClassName="text-sm"
+                  />
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-bold text-slate-900">
+                      {participant?.name || "Participant"}
+                    </p>
+                    <p className="truncate text-xs font-medium text-slate-500">
+                      {participant?.email || participant?.role || "Workspace member"}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <DialogFooter className="items-stretch sm:items-center sm:justify-between">
+              <p className="text-xs font-medium text-slate-500">
+                Add participants will be enabled after chat member management is wired on the backend.
+              </p>
+              <Button type="button" disabled>
+                Add participants
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      ) : null}
     </header>
   );
 });

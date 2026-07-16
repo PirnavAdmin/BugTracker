@@ -11,6 +11,7 @@ import {
   Camera,
   CameraOff,
   Hand,
+  Minus,
   Maximize2,
   Mic,
   MicOff,
@@ -365,6 +366,7 @@ export const CallProvider = ({ children }) => {
   const [remoteStreams, setRemoteStreams] = useState({});
   const [screenSharers, setScreenSharers] = useState({});
   const [isScreenSharing, setIsScreenSharing] = useState(false);
+  const [isMinimized, setIsMinimized] = useState(false);
   const [peerStatuses, setPeerStatuses] = useState({});
   const peersRef = useRef(new Map());
   const pendingCandidatesRef = useRef(new Map());
@@ -654,6 +656,7 @@ export const CallProvider = ({ children }) => {
     setIsMuted(false);
     setIsCameraOff(false);
     setIsSpeakerOff(false);
+    setIsMinimized(false);
   }, [cleanupAllPeers, stopStreams]);
 
   const notifyIncomingCall = useCallback((call) => {
@@ -1321,6 +1324,14 @@ export const CallProvider = ({ children }) => {
     stageRef.current?.requestFullscreen?.();
   }, []);
 
+  const minimizeCall = useCallback(() => {
+    setIsMinimized(true);
+  }, []);
+
+  const restoreCall = useCallback(() => {
+    setIsMinimized(false);
+  }, []);
+
   useEffect(() => {
     if (!token) {
       return undefined;
@@ -1940,7 +1951,7 @@ export const CallProvider = ({ children }) => {
           </div>
         </div>
       ) : null}
-      {activeCall ? (
+      {activeCall && !isMinimized ? (
         <div className="fixed inset-0 z-[75] flex items-center justify-center bg-slate-950/88 p-3 text-white backdrop-blur-sm">
           <div className="flex h-full max-h-[820px] w-full max-w-6xl flex-col overflow-hidden rounded-[28px] border border-white/12 bg-slate-950 shadow-2xl">
             <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-white/10 px-4 py-3">
@@ -1955,17 +1966,30 @@ export const CallProvider = ({ children }) => {
                   {isGroupCall ? ` · ${participants.filter((item) => item.status === "Joined").length || 1} joined` : ""}
                 </p>
               </div>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="bg-white/10 text-white hover:bg-white/20 hover:text-white"
-                onClick={enterFullscreen}
-                title="Full screen"
-                aria-label="Full screen"
-              >
-                <Maximize2 className="h-4 w-4" />
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="bg-white/10 text-white hover:bg-white/20 hover:text-white"
+                  onClick={minimizeCall}
+                  title="Minimize call"
+                  aria-label="Minimize call"
+                >
+                  <Minus className="h-4 w-4" />
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="bg-white/10 text-white hover:bg-white/20 hover:text-white"
+                  onClick={enterFullscreen}
+                  title="Full screen"
+                  aria-label="Full screen"
+                >
+                  <Maximize2 className="h-4 w-4" />
+                </Button>
+              </div>
             </div>
 
             <div ref={stageRef} className="relative min-h-0 flex-1 overflow-hidden bg-slate-900">
@@ -2156,6 +2180,46 @@ export const CallProvider = ({ children }) => {
                 </Button>
               ) : null}
             </div>
+          </div>
+        </div>
+      ) : null}
+      {activeCall && isMinimized ? (
+        <div className="fixed bottom-5 right-5 z-[78] w-[320px] max-w-[calc(100vw-2rem)] rounded-3xl border border-white/15 bg-slate-950/95 p-4 text-white shadow-2xl backdrop-blur">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <p className="truncate text-sm font-extrabold">
+                {isGroupCall
+                  ? activeCall.channelName || "Group call"
+                  : activeCall.peer?.name || "Call"}
+              </p>
+              <p className="mt-1 text-xs font-semibold text-white/55">
+                {activeCall.status === "ringing" ? "Ringing..." : formatDuration(duration)}
+              </p>
+            </div>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="h-9 w-9 bg-white/10 text-white hover:bg-white/20 hover:text-white"
+              onClick={restoreCall}
+              title="Restore call"
+              aria-label="Restore call"
+            >
+              <Maximize2 className="h-4 w-4" />
+            </Button>
+          </div>
+          <div className="mt-4 flex items-center justify-end gap-2">
+            {isGroupCall ? (
+              <Button type="button" variant="secondary" size="sm" onClick={leaveCall}>
+                Leave
+              </Button>
+            ) : null}
+            {canEndForEveryone ? (
+              <Button type="button" variant="destructive" size="sm" onClick={endCall}>
+                <PhoneOff className="h-4 w-4" />
+                End
+              </Button>
+            ) : null}
           </div>
         </div>
       ) : null}

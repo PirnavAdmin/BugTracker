@@ -563,16 +563,7 @@ const setupChatSocket = (server) => {
           ) {
             return false;
           }
-
-          if (!isGroupCall) {
-            return true;
-          }
-
-          const participant = (conversation.participants || []).find(
-            (item) => objectIdString(item) === participantId
-          );
-
-          return !["Admin", "Manager"].includes(participant?.role || "");
+          return true;
         });
         const call = await CallLog.create({
           conversationId: conversation._id,
