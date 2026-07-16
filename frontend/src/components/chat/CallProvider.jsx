@@ -94,7 +94,7 @@ const formatDuration = (seconds = 0) => {
 };
 
 const RINGTONE_START_SECONDS = 15;
-const RINGTONE_URL = `${import.meta.env.BASE_URL}audio/incoming-call.ogg`;
+const RINGTONE_URL = `${import.meta.env.BASE_URL}audio/incoming-call.mp3`;
 
 const playRingtone = () => {
   const audio = new Audio(RINGTONE_URL);
