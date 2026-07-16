@@ -1901,6 +1901,14 @@ export const CallProvider = ({ children }) => {
           : stageTileCount <= 9
             ? "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3"
             : "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4";
+  const featuredRemoteEntry = isGroupCall
+    ? remoteEntries.find(([userId]) => screenSharers[userId]) || null
+    : null;
+  const isLocalFeaturedShare = isGroupCall && isScreenSharing && !featuredRemoteEntry;
+  const hasFeaturedShareLayout = Boolean(featuredRemoteEntry || isLocalFeaturedShare);
+  const sidebarRemoteEntries = featuredRemoteEntry
+    ? remoteEntries.filter(([userId]) => userId !== featuredRemoteEntry[0])
+    : remoteEntries;
   const getConnectionLabel = (userId) => {
     const status = peerStatuses[userId];
     if (["connected", "completed"].includes(status)) {
@@ -1910,6 +1918,65 @@ export const CallProvider = ({ children }) => {
       return "Reconnecting";
     }
     return "Connecting";
+  };
+  const renderRemoteTile = (userId, remoteMedia, { compact = false, featured = false } = {}) => {
+    const stream = remoteMedia?.stream || remoteMedia;
+    const participant = participantById.get(userId);
+    const userName =
+      participant?.user?.name ||
+      (!isGroupCall ? activeCall.peer?.name : "") ||
+      "Participant";
+
+    return (
+      <div
+        key={`${userId}-${featured ? "featured" : compact ? "compact" : "stage"}`}
+        className={cn(
+          "relative overflow-hidden rounded-lg border bg-slate-800 shadow-lg",
+          featured ? "min-h-full" : compact ? "min-h-[150px]" : "min-h-[210px]",
+          stageTileCount === 1 && !compact && !featured && "min-h-full",
+          raisedHands[userId] || ["connected", "completed"].includes(peerStatuses[userId])
+            ? "border-emerald-300/70"
+            : "border-white/10"
+        )}
+      >
+        <RemoteMedia
+          key={userId}
+          stream={stream}
+          muted={isSpeakerOff}
+          onVideoStalled={() => negotiatePeer(userId, { iceRestart: true })}
+          user={participant?.user || (!isGroupCall ? activeCall.peer : null)}
+          name={userName}
+        />
+        <div
+          className={cn(
+            "absolute bottom-3 left-3 flex items-center gap-2 rounded-full bg-black/60 px-3 py-1 font-bold",
+            compact ? "max-w-[82%] text-[11px]" : "max-w-[75%] text-xs"
+          )}
+        >
+          <span className="truncate">{userName}</span>
+          {screenSharers[userId] ? <MonitorUp className="h-3.5 w-3.5" /> : null}
+        </div>
+        <span
+          className={cn(
+            "absolute rounded-full bg-black/55 px-2 py-1 font-black uppercase",
+            screenSharers[userId] ? "bg-emerald-400 text-slate-950" : "text-white/70",
+            compact ? "right-2 top-2 text-[9px]" : "right-3 top-3 text-[10px]"
+          )}
+        >
+          {screenSharers[userId] ? "Sharing" : getConnectionLabel(userId)}
+        </span>
+        {raisedHands[userId] ? (
+          <span
+            className={cn(
+              "absolute rounded-full bg-amber-400 px-2 py-1 font-black text-slate-950",
+              compact ? "right-2 top-9 text-[10px]" : "right-3 top-11 text-xs"
+            )}
+          >
+            Hand
+          </span>
+        ) : null}
+      </div>
+    );
   };
 
   return (
@@ -1993,10 +2060,50 @@ export const CallProvider = ({ children }) => {
             </div>
 
             <div ref={stageRef} className="relative min-h-0 flex-1 overflow-hidden bg-slate-900">
+              {isGroupCall && hasFeaturedShareLayout ? (
+                <div className="absolute inset-0 z-10 flex min-h-0 flex-col gap-3 bg-slate-900 p-2 sm:p-3 lg:flex-row">
+                  <div className="min-h-[280px] flex-1">
+                    {isLocalFeaturedShare ? (
+                      <div className="relative min-h-full overflow-hidden rounded-lg border border-emerald-300/70 bg-slate-800 shadow-lg">
+                        <LocalVideo stream={localStream} user={user} showVideo={hasLocalVideo} />
+                        <span className="absolute bottom-3 left-3 max-w-[75%] truncate rounded-full bg-black/60 px-3 py-1 text-xs font-bold">
+                          You {isMuted ? "Â· muted" : ""}
+                        </span>
+                        <span className="absolute right-3 top-3 rounded-full bg-emerald-400 px-2 py-1 text-[10px] font-black uppercase text-slate-950">
+                          Sharing
+                        </span>
+                      </div>
+                    ) : (
+                      renderRemoteTile(featuredRemoteEntry[0], featuredRemoteEntry[1], {
+                        featured: true,
+                      })
+                    )}
+                  </div>
+                  <div className="grid w-full shrink-0 grid-cols-1 gap-3 lg:w-80">
+                    {!isLocalFeaturedShare ? (
+                      <div className="relative min-h-[150px] overflow-hidden rounded-lg border border-white/10 bg-slate-800 shadow-lg">
+                        <LocalVideo stream={localStream} user={user} showVideo={hasLocalVideo} />
+                        <span className="absolute bottom-3 left-3 max-w-[82%] truncate rounded-full bg-black/60 px-3 py-1 text-[11px] font-bold">
+                          You {isMuted ? "Â· muted" : ""}
+                        </span>
+                        {isScreenSharing ? (
+                          <span className="absolute right-2 top-2 rounded-full bg-emerald-400 px-2 py-1 text-[9px] font-black uppercase text-slate-950">
+                            Sharing
+                          </span>
+                        ) : null}
+                      </div>
+                    ) : null}
+                    {sidebarRemoteEntries.map(([userId, remoteMedia]) =>
+                      renderRemoteTile(userId, remoteMedia, { compact: true })
+                    )}
+                  </div>
+                </div>
+              ) : null}
               <div
                 className={cn(
                   "relative grid h-full min-h-0 gap-2 overflow-y-auto p-2 sm:gap-3 sm:p-3",
-                  remoteEntries.length ? stageGridClass : "grid-cols-1"
+                  remoteEntries.length ? stageGridClass : "grid-cols-1",
+                  isGroupCall && hasFeaturedShareLayout && "invisible pointer-events-none"
                 )}
               >
                 <div
