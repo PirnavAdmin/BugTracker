@@ -1105,6 +1105,13 @@ export const createChatConversation = async (payload) => {
   return response.data?.conversation || response.data;
 };
 
+export const addChatConversationParticipants = async (conversationId, participants = []) => {
+  const response = await api.post(`/chat/conversations/${conversationId}/participants`, {
+    participants,
+  });
+  return response.data?.conversation || response.data;
+};
+
 export const deleteChatConversation = async (conversationId) => {
   const response = await api.delete(`/chat/conversations/${conversationId}`);
   return response.data;

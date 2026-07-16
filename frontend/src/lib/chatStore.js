@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import {
+  addChatConversationParticipants,
   createChatConversation,
   deleteChatConversation,
   fetchChatConversations,
@@ -226,6 +227,27 @@ export const useChatStore = create((set, get) => ({
     }));
 
     await get().setActiveConversation(getId(conversation));
+  },
+
+  addParticipantsToConversation: async (conversationId, participants = []) => {
+    const normalizedConversationId = String(conversationId || "");
+    if (!normalizedConversationId || !participants.length) {
+      return null;
+    }
+
+    const conversation = normalizeConversation(
+      await addChatConversationParticipants(normalizedConversationId, participants)
+    );
+
+    set((state) => ({
+      conversations: sortConversations(
+        state.conversations.map((item) =>
+          getId(item) === normalizedConversationId ? conversation : item
+        )
+      ),
+    }));
+
+    return conversation;
   },
 
   deleteConversation: async (conversationId) => {

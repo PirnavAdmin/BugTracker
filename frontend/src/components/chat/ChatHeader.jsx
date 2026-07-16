@@ -1,5 +1,5 @@
-import { memo, useState } from "react";
-import { Camera, Hash, Menu, Phone, Trash2, UsersRound } from "lucide-react";
+import { memo, useEffect, useMemo, useState } from "react";
+import { Camera, Hash, Menu, Phone, Search, Trash2, UsersRound } from "lucide-react";
 import UserAvatar from "@/components/shared/UserAvatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -12,7 +12,10 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 import { useCall } from "@/components/chat/CallProvider";
+import { searchChatUsers } from "@/lib/api";
+import { useChatStore } from "@/lib/chatStore";
 import { cn } from "@/lib/utils";
 
 const getId = (value) => String(value?._id || value?.id || value || "");
@@ -66,7 +69,16 @@ const presenceDotClass = (status, isOnline) => {
 
 const ChatHeader = memo(({ conversation, currentUserId, onlineUsers, onDelete, onToggleSidebar }) => {
   const { activeCall, callPresence, channelCalls, joinCall, startCall } = useCall();
+  const addParticipantsToConversation = useChatStore(
+    (state) => state.addParticipantsToConversation
+  );
   const [isParticipantsOpen, setIsParticipantsOpen] = useState(false);
+  const [participantQuery, setParticipantQuery] = useState("");
+  const [participantResults, setParticipantResults] = useState([]);
+  const [selectedParticipantIds, setSelectedParticipantIds] = useState([]);
+  const [isSearchingParticipants, setIsSearchingParticipants] = useState(false);
+  const [isSavingParticipants, setIsSavingParticipants] = useState(false);
+  const [participantActionError, setParticipantActionError] = useState("");
   const participants = conversation?.participants || [];
   const title = getConversationName(conversation, currentUserId);
   const directUser = participants.find(
@@ -83,6 +95,22 @@ const ChatHeader = memo(({ conversation, currentUserId, onlineUsers, onDelete, o
   const isGroupCallAvailable =
     conversation?.type !== "direct" && conversation && !activeCall && !activeChannelCall;
   const canDelete = conversation && !["project", "team"].includes(conversation.channelType);
+  const canManageParticipants =
+    conversation?.type === "group" && conversation?.channelType === "custom";
+  const participantIds = useMemo(
+    () => new Set(participants.map((participant) => getId(participant))),
+    [participants]
+  );
+  const availableParticipantResults = useMemo(
+    () =>
+      participantResults.filter(
+        (user) =>
+          getId(user) &&
+          !participantIds.has(getId(user)) &&
+          getId(user) !== String(currentUserId)
+      ),
+    [currentUserId, participantIds, participantResults]
+  );
 
   const handleDelete = async () => {
     if (!conversation || !onDelete) {
@@ -96,6 +124,85 @@ const ChatHeader = memo(({ conversation, currentUserId, onlineUsers, onDelete, o
     }
 
     await onDelete(getId(conversation));
+  };
+
+  useEffect(() => {
+    if (!isParticipantsOpen) {
+      setParticipantQuery("");
+      setParticipantResults([]);
+      setSelectedParticipantIds([]);
+      setParticipantActionError("");
+      setIsSearchingParticipants(false);
+      return undefined;
+    }
+
+    if (!canManageParticipants) {
+      return undefined;
+    }
+
+    const normalizedQuery = participantQuery.trim();
+    if (normalizedQuery.length < 2) {
+      setParticipantResults([]);
+      setIsSearchingParticipants(false);
+      return undefined;
+    }
+
+    let isActive = true;
+    setIsSearchingParticipants(true);
+    const timeoutId = window.setTimeout(async () => {
+      try {
+        const users = await searchChatUsers(normalizedQuery);
+        if (isActive) {
+          setParticipantResults(users);
+          setParticipantActionError("");
+        }
+      } catch (error) {
+        if (isActive) {
+          setParticipantActionError(
+            error?.response?.data?.message || error?.message || "Unable to search participants."
+          );
+          setParticipantResults([]);
+        }
+      } finally {
+        if (isActive) {
+          setIsSearchingParticipants(false);
+        }
+      }
+    }, 250);
+
+    return () => {
+      isActive = false;
+      window.clearTimeout(timeoutId);
+    };
+  }, [canManageParticipants, isParticipantsOpen, participantQuery]);
+
+  const toggleParticipantSelection = (userId) => {
+    setSelectedParticipantIds((current) =>
+      current.includes(userId)
+        ? current.filter((item) => item !== userId)
+        : [...current, userId]
+    );
+  };
+
+  const handleAddParticipants = async () => {
+    if (!canManageParticipants || !selectedParticipantIds.length) {
+      return;
+    }
+
+    setIsSavingParticipants(true);
+    setParticipantActionError("");
+    try {
+      await addParticipantsToConversation(getId(conversation), selectedParticipantIds);
+      setSelectedParticipantIds([]);
+      setParticipantQuery("");
+      setParticipantResults([]);
+    } catch (error) {
+      setParticipantActionError(
+        error?.response?.data?.message || error?.message || "Unable to add participants."
+      );
+    } finally {
+      setIsSavingParticipants(false);
+    }
   };
 
   return (
@@ -315,13 +422,94 @@ const ChatHeader = memo(({ conversation, currentUserId, onlineUsers, onDelete, o
                   </div>
                 </div>
               ))}
+              {canManageParticipants ? (
+                <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50/70 p-3">
+                  <div className="flex items-center gap-2 text-sm font-bold text-slate-900">
+                    <Search className="h-4 w-4 text-slate-500" />
+                    Add participants
+                  </div>
+                  <Input
+                    value={participantQuery}
+                    onChange={(event) => setParticipantQuery(event.target.value)}
+                    placeholder="Search workspace users"
+                    className="mt-3"
+                  />
+                  {isSearchingParticipants ? (
+                    <p className="mt-2 text-xs font-medium text-slate-500">Searching...</p>
+                  ) : null}
+                  {availableParticipantResults.length ? (
+                    <div className="mt-3 space-y-2">
+                      {availableParticipantResults.map((user) => {
+                        const userId = getId(user);
+                        const isSelected = selectedParticipantIds.includes(userId);
+
+                        return (
+                          <button
+                            key={userId}
+                            type="button"
+                            onClick={() => toggleParticipantSelection(userId)}
+                            className={cn(
+                              "flex w-full items-center gap-3 rounded-2xl border px-3 py-2 text-left transition",
+                              isSelected
+                                ? "border-blue-300 bg-blue-50"
+                                : "border-slate-200 bg-white hover:border-slate-300"
+                            )}
+                          >
+                            <UserAvatar
+                              user={user}
+                              className="h-10 w-10 rounded-2xl border border-white"
+                              fallbackClassName="text-sm"
+                            />
+                            <div className="min-w-0 flex-1">
+                              <p className="truncate text-sm font-bold text-slate-900">
+                                {user?.name || "Workspace member"}
+                              </p>
+                              <p className="truncate text-xs font-medium text-slate-500">
+                                {user?.email || user?.role || "Workspace member"}
+                              </p>
+                            </div>
+                            <span
+                              className={cn(
+                                "rounded-full px-2 py-1 text-[11px] font-extrabold",
+                                isSelected
+                                  ? "bg-blue-600 text-white"
+                                  : "bg-slate-100 text-slate-500"
+                              )}
+                            >
+                              {isSelected ? "Selected" : "Add"}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  ) : participantQuery.trim().length >= 2 && !isSearchingParticipants ? (
+                    <p className="mt-2 text-xs font-medium text-slate-500">
+                      No new workspace users found for this search.
+                    </p>
+                  ) : null}
+                </div>
+              ) : null}
             </div>
             <DialogFooter className="items-stretch sm:items-center sm:justify-between">
               <p className="text-xs font-medium text-slate-500">
-                Add participants will be enabled after chat member management is wired on the backend.
+                {participantActionError
+                  ? participantActionError
+                  : canManageParticipants
+                    ? selectedParticipantIds.length
+                      ? `${selectedParticipantIds.length} participant(s) selected`
+                      : "Search workspace users to add them to this custom chat."
+                    : "Participants for workspace channels are managed from their project or team."}
               </p>
-              <Button type="button" disabled>
-                Add participants
+              <Button
+                type="button"
+                disabled={
+                  !canManageParticipants ||
+                  !selectedParticipantIds.length ||
+                  isSavingParticipants
+                }
+                onClick={handleAddParticipants}
+              >
+                {isSavingParticipants ? "Adding..." : "Add participants"}
               </Button>
             </DialogFooter>
           </DialogContent>

@@ -733,6 +733,83 @@ const deleteConversation = asyncHandler(async (req, res) => {
   });
 });
 
+const addConversationParticipants = asyncHandler(async (req, res) => {
+  ensureChatAccess(req, res);
+
+  if (!isValidObjectId(req.params.id)) {
+    res.status(400);
+    throw new Error("Invalid conversation id");
+  }
+
+  const conversation = await Conversation.findOne({
+    _id: req.params.id,
+    workspaceId: normalizeWorkspaceId(req.user.workspaceId),
+    participants: req.user._id,
+  });
+
+  if (!conversation) {
+    res.status(404);
+    throw new Error("Conversation not found or inaccessible");
+  }
+
+  if (conversation.type !== "group" || conversation.channelType !== "custom") {
+    res.status(400);
+    throw new Error("Participants can only be added to custom group chats");
+  }
+
+  const requestedParticipantIds = uniqueObjectIds(
+    Array.isArray(req.body?.participants) ? req.body.participants : []
+  );
+
+  if (!requestedParticipantIds.length) {
+    res.status(400);
+    throw new Error("Select at least one participant to add");
+  }
+
+  const existingParticipantIds = new Set(
+    (conversation.participants || []).map((participantId) => objectIdString(participantId))
+  );
+  const newParticipantIds = requestedParticipantIds.filter(
+    (participantId) => !existingParticipantIds.has(objectIdString(participantId))
+  );
+
+  if (!newParticipantIds.length) {
+    const populatedConversation = await populateConversation(
+      Conversation.findById(conversation._id)
+    ).lean();
+
+    res.status(200).json({
+      conversation: serializeConversation(populatedConversation),
+    });
+    return;
+  }
+
+  const workspaceId = normalizeWorkspaceId(req.user.workspaceId);
+  const participantCount = await User.countDocuments({
+    _id: { $in: newParticipantIds },
+    workspaceId,
+  });
+
+  if (participantCount !== newParticipantIds.length) {
+    res.status(400);
+    throw new Error("All selected participants must belong to this workspace");
+  }
+
+  conversation.participants = uniqueObjectIds([
+    ...(conversation.participants || []),
+    ...newParticipantIds,
+  ]);
+  await conversation.save();
+
+  const populatedConversation = await populateConversation(
+    Conversation.findById(conversation._id)
+  ).lean();
+
+  res.status(200).json({
+    conversation: serializeConversation(populatedConversation),
+  });
+});
+
 const getConversationById = asyncHandler(async (req, res) => {
   ensureChatAccess(req, res);
 
@@ -981,6 +1058,7 @@ const markConversationSeen = async ({ conversationId, user }) => {
 
 module.exports = {
   CHAT_ACCESS_ROLES,
+  addConversationParticipants,
   createConversation,
   deleteConversation,
   createMessage,
