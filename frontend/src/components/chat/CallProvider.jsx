@@ -293,6 +293,36 @@ const LocalVideo = ({ stream, user, showVideo = true }) => {
   );
 };
 
+const ParticipantPlaceholder = ({
+  user = null,
+  name = "Participant",
+  subtitle = "Camera is off",
+  compact = false,
+}) => (
+  <div
+    className={cn(
+      "flex h-full flex-col items-center justify-center gap-3 bg-slate-800 text-white",
+      compact && "gap-2"
+    )}
+  >
+    <UserAvatar
+      user={user}
+      name={name}
+      className={cn(
+        "rounded-2xl border border-white/15",
+        compact ? "h-16 w-16" : "h-28 w-28"
+      )}
+      fallbackClassName={compact ? "text-xl" : "text-3xl"}
+    />
+    <div className="text-center">
+      <p className={cn("font-bold text-white/90", compact ? "text-xs" : "text-lg")}>{name}</p>
+      <p className={cn("font-semibold text-white/45", compact ? "text-[11px]" : "text-sm")}>
+        {subtitle}
+      </p>
+    </div>
+  </div>
+);
+
 const getPeerUiStatus = (state = "") => {
   if (["connected", "completed"].includes(state)) {
     return "Connected";
@@ -1804,6 +1834,8 @@ export const CallProvider = ({ children }) => {
   );
   const remoteEntries = Object.entries(remoteStreams);
   const isGroupCall = activeCall?.scope === "group";
+  const hasLocalVideo =
+    Boolean(localStream && hasLiveTrack(localStream, "video")) && !isCameraOff;
   const canEndForEveryone =
     activeCall &&
     (!isGroupCall ||
@@ -1916,7 +1948,7 @@ export const CallProvider = ({ children }) => {
                       "absolute bottom-4 right-4 z-20 h-28 min-h-0 w-40 shadow-2xl sm:h-36 sm:w-56"
                   )}
                 >
-                  <LocalVideo stream={localStream} user={user} showVideo={Boolean(localStream && !isCameraOff)} />
+                  <LocalVideo stream={localStream} user={user} showVideo={hasLocalVideo} />
                   <span className="absolute bottom-3 left-3 max-w-[75%] truncate rounded-full bg-black/60 px-3 py-1 text-xs font-bold">
                     You {isMuted ? "· muted" : ""}
                   </span>
@@ -1971,6 +2003,22 @@ export const CallProvider = ({ children }) => {
                       </div>
                     );
                   })
+                ) : !isGroupCall ? (
+                  <div className="relative min-h-full overflow-hidden rounded-lg border border-white/10 bg-slate-800 shadow-lg">
+                    <ParticipantPlaceholder
+                      user={activeCall.peer || null}
+                      name={activeCall.peer?.name || "Participant"}
+                      subtitle={
+                        activeCall.status === "ringing" ? "Waiting to join" : "Camera is off"
+                      }
+                    />
+                    <div className="absolute bottom-3 left-3 flex max-w-[75%] items-center gap-2 rounded-full bg-black/60 px-3 py-1 text-xs font-bold">
+                      <span className="truncate">{activeCall.peer?.name || "Participant"}</span>
+                    </div>
+                    <span className="absolute right-3 top-3 rounded-full bg-black/55 px-2 py-1 text-[10px] font-black uppercase text-white/70">
+                      {activeCall.status === "ringing" ? "Ringing" : "Connecting"}
+                    </span>
+                  </div>
                 ) : (
                   <div className="hidden">
                     {isGroupCall ? "Waiting for participants to join" : "Waiting for remote media"}
