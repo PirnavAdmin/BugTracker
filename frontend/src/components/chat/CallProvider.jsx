@@ -478,64 +478,6 @@ export const CallProvider = ({ children }) => {
     setScreenSharers({});
   }, []);
 
-  const syncPeerVideoTrack = useCallback(
-    async (nextTrack, fallbackStream = null, options = {}) => {
-      const { renegotiate = true } = options;
-      const updates = [];
-
-      peersRef.current.forEach((peer, targetUserId) => {
-        const sender = getVideoSender(peer);
-        if (sender) {
-          updates.push(
-            sender.replaceTrack(nextTrack).catch((replaceError) => {
-              callLog("video replaceTrack failed", {
-                targetUserId,
-                hasTrack: Boolean(nextTrack),
-                error: replaceError?.message || replaceError,
-              });
-            })
-          );
-          return;
-        }
-
-        if (nextTrack && fallbackStream) {
-          peer.addTrack(nextTrack, fallbackStream);
-          if (renegotiate) {
-            updates.push(
-              Promise.resolve().then(() => negotiatePeer(targetUserId)).catch((error) => {
-                callLog("video renegotiation after addTrack failed", {
-                  targetUserId,
-                  error: error?.message || error,
-                });
-              })
-            );
-          }
-        }
-      });
-
-      await Promise.allSettled(updates);
-
-      if (!renegotiate) {
-        return;
-      }
-
-      const renegotiations = [];
-      peersRef.current.forEach((_peer, targetUserId) => {
-        renegotiations.push(
-          Promise.resolve().then(() => negotiatePeer(targetUserId)).catch((error) => {
-            callLog("video renegotiation failed", {
-              targetUserId,
-              hasTrack: Boolean(nextTrack),
-              error: error?.message || error,
-            });
-          })
-        );
-      });
-      await Promise.allSettled(renegotiations);
-    },
-    [negotiatePeer]
-  );
-
   const applyQueuedCandidates = useCallback(async (userId, peer) => {
     const normalizedUserId = String(userId);
     const queuedCandidates = pendingCandidatesRef.current.get(normalizedUserId) || [];
@@ -639,6 +581,64 @@ export const CallProvider = ({ children }) => {
       }
     },
     [token]
+  );
+
+  const syncPeerVideoTrack = useCallback(
+    async (nextTrack, fallbackStream = null, options = {}) => {
+      const { renegotiate = true } = options;
+      const updates = [];
+
+      peersRef.current.forEach((peer, targetUserId) => {
+        const sender = getVideoSender(peer);
+        if (sender) {
+          updates.push(
+            sender.replaceTrack(nextTrack).catch((replaceError) => {
+              callLog("video replaceTrack failed", {
+                targetUserId,
+                hasTrack: Boolean(nextTrack),
+                error: replaceError?.message || replaceError,
+              });
+            })
+          );
+          return;
+        }
+
+        if (nextTrack && fallbackStream) {
+          peer.addTrack(nextTrack, fallbackStream);
+          if (renegotiate) {
+            updates.push(
+              Promise.resolve().then(() => negotiatePeer(targetUserId)).catch((error) => {
+                callLog("video renegotiation after addTrack failed", {
+                  targetUserId,
+                  error: error?.message || error,
+                });
+              })
+            );
+          }
+        }
+      });
+
+      await Promise.allSettled(updates);
+
+      if (!renegotiate) {
+        return;
+      }
+
+      const renegotiations = [];
+      peersRef.current.forEach((_peer, targetUserId) => {
+        renegotiations.push(
+          Promise.resolve().then(() => negotiatePeer(targetUserId)).catch((error) => {
+            callLog("video renegotiation failed", {
+              targetUserId,
+              hasTrack: Boolean(nextTrack),
+              error: error?.message || error,
+            });
+          })
+        );
+      });
+      await Promise.allSettled(renegotiations);
+    },
+    [negotiatePeer]
   );
 
   const closeCallUi = useCallback(() => {
