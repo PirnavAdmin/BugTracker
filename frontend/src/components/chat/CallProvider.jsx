@@ -1098,6 +1098,7 @@ export const CallProvider = ({ children }) => {
       }
 
       setError("");
+      setIsCameraOff((call.callType || "audio") !== "video");
       await getMedia(call.callType || "audio");
       setActiveCall({
         ...call,
@@ -1331,6 +1332,7 @@ export const CallProvider = ({ children }) => {
     }
 
     const handleIncomingCall = (call) => {
+      setIsCameraOff((call.callType || "audio") !== "video");
       setIncomingCall(call);
       if (call.scope !== "group") {
         createPeer({
@@ -1343,6 +1345,7 @@ export const CallProvider = ({ children }) => {
       notifyIncomingCall(call);
     };
     const handleOutgoingCall = (call) => {
+      setIsCameraOff((call.callType || "audio") !== "video");
       setActiveCall({
         ...call,
         status: call.scope === "group" ? "connected" : "ringing",
@@ -1408,6 +1411,7 @@ export const CallProvider = ({ children }) => {
       const targetUserId = getId(currentCall.peer);
       createPeer({ callId: payload.callId, targetUserId, stream });
       await negotiatePeer(targetUserId);
+      setIsCameraOff((currentCall.callType || "audio") !== "video");
       setActiveCall({ ...currentCall, status: "connected", startedAt: payload.startTime });
     };
     const handleJoined = (payload) => {
