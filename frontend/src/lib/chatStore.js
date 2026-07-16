@@ -5,6 +5,7 @@ import {
   deleteChatConversation,
   fetchChatConversations,
   fetchChatMessages,
+  removeChatConversationParticipant,
   searchChatUsers,
   sendChatMessage,
 } from "@/lib/api";
@@ -237,6 +238,28 @@ export const useChatStore = create((set, get) => ({
 
     const conversation = normalizeConversation(
       await addChatConversationParticipants(normalizedConversationId, participants)
+    );
+
+    set((state) => ({
+      conversations: sortConversations(
+        state.conversations.map((item) =>
+          getId(item) === normalizedConversationId ? conversation : item
+        )
+      ),
+    }));
+
+    return conversation;
+  },
+
+  removeParticipantFromConversation: async (conversationId, userId) => {
+    const normalizedConversationId = String(conversationId || "");
+    const normalizedUserId = String(userId || "");
+    if (!normalizedConversationId || !normalizedUserId) {
+      return null;
+    }
+
+    const conversation = normalizeConversation(
+      await removeChatConversationParticipant(normalizedConversationId, normalizedUserId)
     );
 
     set((state) => ({

@@ -8,6 +8,7 @@ const {
   getConversationById,
   getConversations,
   getMessages,
+  removeConversationParticipant,
   searchUsers,
   uploadChatAttachment,
   uploadChatAttachmentMiddleware,
@@ -19,6 +20,7 @@ const router = express.Router();
 router.get("/conversations", protect, getConversations);
 router.post("/conversations", protect, createConversation);
 router.post("/conversations/:id/participants", protect, addConversationParticipants);
+router.delete("/conversations/:id/participants/:userId", protect, removeConversationParticipant);
 router.delete("/conversations/:id", protect, deleteConversation);
 router.get("/conversation/:id", protect, getConversationById);
 router.get("/messages/:conversationId", protect, getMessages);

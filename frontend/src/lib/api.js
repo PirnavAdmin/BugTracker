@@ -1112,6 +1112,11 @@ export const addChatConversationParticipants = async (conversationId, participan
   return response.data?.conversation || response.data;
 };
 
+export const removeChatConversationParticipant = async (conversationId, userId) => {
+  const response = await api.delete(`/chat/conversations/${conversationId}/participants/${userId}`);
+  return response.data?.conversation || response.data;
+};
+
 export const deleteChatConversation = async (conversationId) => {
   const response = await api.delete(`/chat/conversations/${conversationId}`);
   return response.data;

@@ -810,6 +810,63 @@ const addConversationParticipants = asyncHandler(async (req, res) => {
   });
 });
 
+const removeConversationParticipant = asyncHandler(async (req, res) => {
+  ensureChatAccess(req, res);
+
+  if (!isValidObjectId(req.params.id) || !isValidObjectId(req.params.userId)) {
+    res.status(400);
+    throw new Error("Invalid conversation or participant id");
+  }
+
+  const conversation = await Conversation.findOne({
+    _id: req.params.id,
+    workspaceId: normalizeWorkspaceId(req.user.workspaceId),
+    participants: req.user._id,
+  });
+
+  if (!conversation) {
+    res.status(404);
+    throw new Error("Conversation not found or inaccessible");
+  }
+
+  if (conversation.type !== "group" || conversation.channelType !== "custom") {
+    res.status(400);
+    throw new Error("Participants can only be removed from custom group chats");
+  }
+
+  const targetUserId = objectIdString(req.params.userId);
+
+  if (targetUserId === objectIdString(req.user._id)) {
+    res.status(400);
+    throw new Error("Use leave chat to remove yourself from this conversation");
+  }
+
+  const remainingParticipants = (conversation.participants || []).filter(
+    (participantId) => objectIdString(participantId) !== targetUserId
+  );
+
+  if (remainingParticipants.length === (conversation.participants || []).length) {
+    res.status(404);
+    throw new Error("Participant is not part of this conversation");
+  }
+
+  if (!remainingParticipants.length) {
+    res.status(400);
+    throw new Error("A group chat must have at least one participant");
+  }
+
+  conversation.participants = remainingParticipants;
+  await conversation.save();
+
+  const populatedConversation = await populateConversation(
+    Conversation.findById(conversation._id)
+  ).lean();
+
+  res.status(200).json({
+    conversation: serializeConversation(populatedConversation),
+  });
+});
+
 const getConversationById = asyncHandler(async (req, res) => {
   ensureChatAccess(req, res);
 
@@ -1059,6 +1116,7 @@ const markConversationSeen = async ({ conversationId, user }) => {
 module.exports = {
   CHAT_ACCESS_ROLES,
   addConversationParticipants,
+  removeConversationParticipant,
   createConversation,
   deleteConversation,
   createMessage,

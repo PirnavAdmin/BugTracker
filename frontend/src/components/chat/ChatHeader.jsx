@@ -72,12 +72,16 @@ const ChatHeader = memo(({ conversation, currentUserId, onlineUsers, onDelete, o
   const addParticipantsToConversation = useChatStore(
     (state) => state.addParticipantsToConversation
   );
+  const removeParticipantFromConversation = useChatStore(
+    (state) => state.removeParticipantFromConversation
+  );
   const [isParticipantsOpen, setIsParticipantsOpen] = useState(false);
   const [participantQuery, setParticipantQuery] = useState("");
   const [participantResults, setParticipantResults] = useState([]);
   const [selectedParticipantIds, setSelectedParticipantIds] = useState([]);
   const [isSearchingParticipants, setIsSearchingParticipants] = useState(false);
   const [isSavingParticipants, setIsSavingParticipants] = useState(false);
+  const [removingParticipantId, setRemovingParticipantId] = useState("");
   const [participantActionError, setParticipantActionError] = useState("");
   const participants = conversation?.participants || [];
   const title = getConversationName(conversation, currentUserId);
@@ -111,6 +115,15 @@ const ChatHeader = memo(({ conversation, currentUserId, onlineUsers, onDelete, o
       ),
     [currentUserId, participantIds, participantResults]
   );
+  const participantStatusText = participantActionError
+    ? participantActionError
+    : !canManageParticipants
+      ? "Participants for workspace channels are managed from their project or team."
+      : removingParticipantId
+        ? "Updating participants..."
+        : selectedParticipantIds.length
+          ? `${selectedParticipantIds.length} participant(s) selected`
+          : "Search workspace users to add them to this custom chat.";
 
   const handleDelete = async () => {
     if (!conversation || !onDelete) {
@@ -202,6 +215,24 @@ const ChatHeader = memo(({ conversation, currentUserId, onlineUsers, onDelete, o
       );
     } finally {
       setIsSavingParticipants(false);
+    }
+  };
+
+  const handleRemoveParticipant = async (participantId) => {
+    if (!canManageParticipants || !participantId || participantId === String(currentUserId)) {
+      return;
+    }
+
+    setRemovingParticipantId(participantId);
+    setParticipantActionError("");
+    try {
+      await removeParticipantFromConversation(getId(conversation), participantId);
+    } catch (error) {
+      setParticipantActionError(
+        error?.response?.data?.message || error?.message || "Unable to remove participant."
+      );
+    } finally {
+      setRemovingParticipantId("");
     }
   };
 
@@ -420,6 +451,18 @@ const ChatHeader = memo(({ conversation, currentUserId, onlineUsers, onDelete, o
                       {participant?.email || participant?.role || "Workspace member"}
                     </p>
                   </div>
+                  {canManageParticipants && getId(participant) !== String(currentUserId) ? (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="shrink-0 text-rose-600 hover:bg-rose-50 hover:text-rose-700"
+                      onClick={() => handleRemoveParticipant(getId(participant))}
+                      disabled={removingParticipantId === getId(participant)}
+                    >
+                      {removingParticipantId === getId(participant) ? "Removing..." : "Remove"}
+                    </Button>
+                  ) : null}
                 </div>
               ))}
               {canManageParticipants ? (
@@ -491,15 +534,7 @@ const ChatHeader = memo(({ conversation, currentUserId, onlineUsers, onDelete, o
               ) : null}
             </div>
             <DialogFooter className="items-stretch sm:items-center sm:justify-between">
-              <p className="text-xs font-medium text-slate-500">
-                {participantActionError
-                  ? participantActionError
-                  : canManageParticipants
-                    ? selectedParticipantIds.length
-                      ? `${selectedParticipantIds.length} participant(s) selected`
-                      : "Search workspace users to add them to this custom chat."
-                    : "Participants for workspace channels are managed from their project or team."}
-              </p>
+              <p className="text-xs font-medium text-slate-500">{participantStatusText}</p>
               <Button
                 type="button"
                 disabled={
