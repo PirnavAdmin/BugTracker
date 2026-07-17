@@ -41,6 +41,11 @@ const resolveNotificationTarget = (notification, user) => {
   const params = new URLSearchParams(queryString);
   const searchValue = params.get("search") || "";
   const bugId = params.get("bug") || "";
+  const looksLikeTaskText =
+    /\btask\b/.test(text) ||
+    /\bsub-task\b/.test(text) ||
+    /\bsub task\b/.test(text);
+  const looksLikeStoryText = /\bstory\b/.test(text);
   const looksLikeBugKey = BUG_KEY_PATTERN.test(searchValue) || BUG_KEY_PATTERN.test(text);
   const looksLikeBugText =
     /\bbug\b/.test(text) ||
@@ -49,6 +54,14 @@ const resolveNotificationTarget = (notification, user) => {
     /\breopen(?:ed)?\b/.test(text) ||
     /\bwork queue\b/.test(text) ||
     /\bdeveloper\b/.test(text);
+
+  if (looksLikeTaskText && !looksLikeBugText && !bugId) {
+    return "/tasks";
+  }
+
+  if (looksLikeStoryText && !looksLikeBugText && !bugId) {
+    return "/stories";
+  }
 
   if (!looksLikeBugKey && !looksLikeBugText && !bugId) {
     return rawLink;
