@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   CalendarDays,
+  CheckCircle2,
   Download,
   Eye,
   FileText,
@@ -53,6 +54,7 @@ import {
   resolveUserId,
 } from "@/lib/project-teams";
 import {
+  hasAdminPanelAccess,
   hasTaskStoryLeadAccess,
   ROLE_DEVELOPER,
   ROLE_QA_LEAD,
@@ -608,8 +610,28 @@ const IssueDetailsDialog = ({
   const canChangeStatusForRole = Boolean(role) && canEditStatus;
   const canShowDeleteAction = canDeleteIssue && typeof onDeleteIssue === "function";
   const deleteLabel = isBug ? "Delete Bug" : "Delete Task";
+  const isTaskWorkItem = ["Task", "Sub-task"].includes(issue?.type || "");
+  const canMarkTaskComplete =
+    isTaskWorkItem &&
+    canChangeStatusForRole &&
+    (hasAdminPanelAccess(role) || role === ROLE_DEVELOPER) &&
+    ![ISSUE_STATUS.DONE, ISSUE_STATUS.CLOSED].includes(normalizeIssueStatus(issue?.status));
   const handleDeleteIssue = async () => {
     setIsDeleteConfirmOpen(true);
+  };
+  const handleMarkTaskComplete = async () => {
+    if (!canMarkTaskComplete || isUpdatingCurrentIssue) {
+      return;
+    }
+
+    try {
+      setDetailsError("");
+      await onUpdateIssue(issue._id, { status: ISSUE_STATUS.DONE });
+    } catch (error) {
+      setDetailsError(
+        error.response?.data?.message || "Unable to mark this task as complete."
+      );
+    }
   };
   const handleConfirmDeleteIssue = async () => {
     try {
@@ -902,28 +924,49 @@ const IssueDetailsDialog = ({
       >
         <DialogHeader
           className={cn(
-            "sticky top-0 z-10 border-b border-slate-200/80 bg-white/95 px-4 py-3 pr-44 shadow-sm backdrop-blur-xl sm:px-6 sm:py-4 sm:pr-56",
+            "sticky top-0 z-10 border-b border-slate-200/80 bg-white/95 px-4 py-3 pr-44 shadow-sm backdrop-blur-xl sm:px-6 sm:py-4 sm:pr-72",
             compactDrawer && "pr-14 sm:pr-14"
           )}
         >
-          {canShowDeleteAction ? (
-            <Button
+          {canMarkTaskComplete || canShowDeleteAction ? (
+            <div
               className={cn(
-                "absolute right-16 top-3 h-9 rounded-xl px-3 text-xs font-semibold shadow-sm sm:top-4 sm:h-10 sm:px-4 sm:text-sm",
+                "absolute right-16 top-3 flex items-center gap-2 sm:top-4",
                 compactDrawer && "hidden"
               )}
-              variant="destructive"
-              type="button"
-              disabled={deletingId === issue._id}
-              onClick={handleDeleteIssue}
             >
-              {deletingId === issue._id ? (
-                <LoaderCircle className="h-4 w-4 animate-spin" />
-              ) : (
-                <Trash2 className="h-4 w-4" />
-              )}
-              {deleteLabel}
-            </Button>
+              {canMarkTaskComplete ? (
+                <Button
+                  className="h-9 rounded-xl px-3 text-xs font-semibold shadow-sm sm:h-10 sm:px-4 sm:text-sm"
+                  type="button"
+                  disabled={isUpdatingCurrentIssue}
+                  onClick={handleMarkTaskComplete}
+                >
+                  {isUpdatingCurrentIssue ? (
+                    <LoaderCircle className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <CheckCircle2 className="h-4 w-4" />
+                  )}
+                  Complete
+                </Button>
+              ) : null}
+              {canShowDeleteAction ? (
+                <Button
+                  className="h-9 rounded-xl px-3 text-xs font-semibold shadow-sm sm:h-10 sm:px-4 sm:text-sm"
+                  variant="destructive"
+                  type="button"
+                  disabled={deletingId === issue._id}
+                  onClick={handleDeleteIssue}
+                >
+                  {deletingId === issue._id ? (
+                    <LoaderCircle className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Trash2 className="h-4 w-4" />
+                  )}
+                  {deleteLabel}
+                </Button>
+              ) : null}
+            </div>
           ) : null}
           <div className={cn("flex min-w-0 flex-wrap items-center gap-2", compactDrawer && "gap-1.5")}>
             <span className="rounded-full bg-slate-100 px-3 py-1 font-mono text-xs font-bold uppercase tracking-[0.2em] text-slate-500">
