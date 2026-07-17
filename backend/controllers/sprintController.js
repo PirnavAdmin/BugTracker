@@ -1,4 +1,5 @@
 const mongoose = require("mongoose");
+const Epic = require("../models/Epic");
 const Issue = require("../models/Issue");
 const ProjectTeam = require("../models/ProjectTeam");
 const Sprint = require("../models/Sprint");
@@ -16,6 +17,7 @@ const {
   getNextPlanningOrder,
 } = require("../utils/planningOrder");
 const { populateIssueQuery, serializeIssues } = require("../utils/issuePresentation");
+const { ISSUE_STATUS } = require("../utils/issueStatus");
 const { normalizeWorkspaceId } = require("../utils/workspace");
 const {
   ACTIVE_SPRINT_STATE,
@@ -224,6 +226,63 @@ const ensureSprintManagementAccess = async (user, sprint) => {
   return {
     project,
   };
+};
+
+const isCompletedSprintIssue = (issue) =>
+  [ISSUE_STATUS.DONE, ISSUE_STATUS.CLOSED].includes(issue?.status);
+
+const isAutoClosableSprintIssue = (issue) => issue?.status === ISSUE_STATUS.DONE;
+
+const isIncompleteSprintIssue = (issue) => !isCompletedSprintIssue(issue);
+
+const syncEpicCompletionStatuses = async ({ projectId, epicIds = [], session }) => {
+  const uniqueEpicIds = [...new Set(epicIds.filter(Boolean).map(String))];
+
+  if (!projectId || !uniqueEpicIds.length) {
+    return;
+  }
+
+  const epics = await Epic.find({
+    _id: { $in: uniqueEpicIds },
+    projectId,
+  }).session(session);
+
+  if (!epics.length) {
+    return;
+  }
+
+  const stories = await Issue.find({
+    projectId,
+    epicId: { $in: epics.map((epic) => epic._id) },
+    type: "Story",
+  })
+    .select("_id epicId status")
+    .session(session)
+    .lean();
+
+  const storiesByEpic = new Map();
+
+  stories.forEach((story) => {
+    const key = String(story.epicId || "");
+    storiesByEpic.set(key, [...(storiesByEpic.get(key) || []), story]);
+  });
+
+  for (const epic of epics) {
+    const epicStories = storiesByEpic.get(String(epic._id)) || [];
+
+    if (!epicStories.length) {
+      continue;
+    }
+
+    const nextStatus = epicStories.every((story) => story.status === ISSUE_STATUS.CLOSED)
+      ? "DONE"
+      : "ACTIVE";
+
+    if (epic.status !== nextStatus) {
+      epic.status = nextStatus;
+      await epic.save({ session });
+    }
+  }
 };
 
 const validateActiveSprintOverlap = async (sprint) => {
@@ -808,137 +867,278 @@ const completeSprint = asyncHandler(async (req, res) => {
 
   const carryOverMode =
     String(req.body?.carryOverMode || "BACKLOG").trim().toUpperCase() || "BACKLOG";
+  const completionOptions = {
+    autoCloseDoneStories: req.body?.options?.autoCloseDoneStories !== false,
+    generateSprintReport: req.body?.options?.generateSprintReport !== false,
+    updateVelocityMetrics: req.body?.options?.updateVelocityMetrics !== false,
+    notifyTeamMembers: req.body?.options?.notifyTeamMembers !== false,
+  };
 
-  if (!["BACKLOG", "SPRINT"].includes(carryOverMode)) {
+  if (!["BACKLOG", "SPRINT", "NEW_SPRINT"].includes(carryOverMode)) {
     res.status(400);
-    throw new Error("Carry-over mode must be BACKLOG or SPRINT");
+    throw new Error("Carry-over mode must be BACKLOG, SPRINT, or NEW_SPRINT");
   }
 
-  const issues = await Issue.find({
-    sprintId: sprint._id,
-  }).sort({
-    planningOrder: 1,
-    createdAt: 1,
-  });
-  const completedIssues = issues.filter((issue) => issue.status === "DONE");
-  const incompleteIssues = issues.filter((issue) => issue.status !== "DONE");
-  let targetSprint = null;
+  const session = await mongoose.startSession();
+  let completedSprint = null;
+  let targetSprintId = "";
+  let targetSprintName = "";
+  let carriedOverIssueIds = [];
+  let closedIssueIds = [];
 
-  if (carryOverMode === "SPRINT" && incompleteIssues.length) {
-    if (!mongoose.isValidObjectId(req.body?.targetSprintId)) {
-      res.status(400);
-      throw new Error("A valid target sprint is required when carrying work forward");
-    }
+  try {
+    await session.withTransaction(async () => {
+      const sprintForUpdate = await Sprint.findById(req.params.id).session(session);
 
-    targetSprint = await Sprint.findOne({
-      _id: req.body.targetSprintId,
-      projectId: sprint.projectId,
-      state: "PLANNED",
-    });
+      if (!sprintForUpdate) {
+        throw createHttpError(404, "Sprint not found");
+      }
 
-    if (!targetSprint) {
-      res.status(404);
-      throw new Error("Target sprint not found");
-    }
+      if (sprintForUpdate.state !== "ACTIVE") {
+        throw createHttpError(400, "Only active sprints can be completed");
+      }
 
-    if (
-      targetSprint.teamId &&
-      incompleteIssues.some(
-        (issue) => String(issue.teamId || "") !== String(targetSprint.teamId || "")
-      )
-    ) {
-      res.status(400);
-      throw new Error(
-        "Target sprint team scope does not match one or more incomplete issues"
+      const issues = await Issue.find({
+        sprintId: sprintForUpdate._id,
+      })
+        .sort({
+          planningOrder: 1,
+          createdAt: 1,
+        })
+        .session(session);
+      const autoClosableIssues = issues.filter(isAutoClosableSprintIssue);
+      const incompleteIssues = issues.filter(isIncompleteSprintIssue);
+      let targetSprint = null;
+
+      if (carryOverMode === "SPRINT" && incompleteIssues.length) {
+        if (!mongoose.isValidObjectId(req.body?.targetSprintId)) {
+          throw createHttpError(
+            400,
+            "A valid target sprint is required when carrying work forward"
+          );
+        }
+
+        targetSprint = await Sprint.findOne({
+          _id: req.body.targetSprintId,
+          projectId: sprintForUpdate.projectId,
+          state: "PLANNED",
+        }).session(session);
+
+        if (!targetSprint) {
+          throw createHttpError(404, "Target sprint not found");
+        }
+
+        if (
+          targetSprint.teamId &&
+          incompleteIssues.some(
+            (issue) => String(issue.teamId || "") !== String(targetSprint.teamId || "")
+          )
+        ) {
+          throw createHttpError(
+            400,
+            "Target sprint team scope does not match one or more incomplete issues"
+          );
+        }
+      }
+
+      if (carryOverMode === "NEW_SPRINT" && incompleteIssues.length) {
+        const sprintName = String(req.body?.newSprint?.name || "").trim();
+        const sprintGoal = String(req.body?.newSprint?.goal || "").trim();
+        const startDateResult = parseOptionalDate(req.body?.newSprint?.startDate, "start date");
+        const endDateResult = parseOptionalDate(req.body?.newSprint?.endDate, "end date");
+
+        if (!sprintName) {
+          throw createHttpError(400, "Sprint name is required for the new sprint");
+        }
+
+        if (startDateResult.error) {
+          throw createHttpError(
+            startDateResult.error.status,
+            startDateResult.error.message
+          );
+        }
+
+        if (endDateResult.error) {
+          throw createHttpError(endDateResult.error.status, endDateResult.error.message);
+        }
+
+        if (!startDateResult.value || !endDateResult.value) {
+          throw createHttpError(
+            400,
+            "Start date and end date are required for the new sprint"
+          );
+        }
+
+        if (startDateResult.value > endDateResult.value) {
+          throw createHttpError(400, "Sprint start date must be before the end date");
+        }
+
+        targetSprint = await Sprint.create(
+          [
+            {
+              projectId: sprintForUpdate.projectId,
+              teamId: sprintForUpdate.teamId || null,
+              workspaceId: sprintForUpdate.workspaceId,
+              name: sprintName,
+              goal: sprintGoal,
+              state: "PLANNED",
+              startDate: startDateResult.value,
+              endDate: endDateResult.value,
+              createdBy: req.user._id,
+            },
+          ],
+          { session }
+        ).then((records) => records[0]);
+      }
+
+      if (completionOptions.autoCloseDoneStories) {
+        for (const issue of autoClosableIssues) {
+          const previousStatus = issue.status;
+          issue.status = ISSUE_STATUS.CLOSED;
+          issue.closedBy = req.user._id;
+          issue.closedAt = issue.closedAt || new Date();
+          await issue.save({ session });
+          closedIssueIds.push(String(issue._id));
+
+          await recordIssueHistory({
+            issueId: issue._id,
+            projectId: issue.projectId,
+            actorId: req.user._id,
+            eventType: issue.type === "Bug" ? "BUG_STATUS_CHANGED" : "ISSUE_UPDATED",
+            field: "status",
+            fromValue: previousStatus,
+            toValue: ISSUE_STATUS.CLOSED,
+            meta: {
+              sprintCompletion: true,
+              sprintId: String(sprintForUpdate._id),
+              sprintName: sprintForUpdate.name,
+            },
+            session,
+          });
+        }
+      }
+
+      if (carryOverMode === "BACKLOG" && incompleteIssues.length) {
+        let nextPlanningOrder = await getNextPlanningOrder(Issue, {
+          projectId: sprintForUpdate.projectId,
+          sprintId: null,
+        });
+
+        for (const issue of incompleteIssues) {
+          issue.sprintId = null;
+          issue.planningOrder = nextPlanningOrder;
+          nextPlanningOrder += PLANNING_ORDER_INCREMENT;
+          await issue.save({ session });
+          carriedOverIssueIds.push(String(issue._id));
+          await recordIssueHistory({
+            issueId: issue._id,
+            projectId: issue.projectId,
+            actorId: req.user._id,
+            eventType: "SPRINT_CARRY_OVER",
+            field: "sprintId",
+            fromValue: String(sprintForUpdate._id),
+            toValue: null,
+            meta: {
+              carryOverMode,
+              sprintName: sprintForUpdate.name,
+            },
+            session,
+          });
+        }
+      }
+
+      if (["SPRINT", "NEW_SPRINT"].includes(carryOverMode) && incompleteIssues.length && targetSprint) {
+        targetSprintId = String(targetSprint._id);
+        targetSprintName = targetSprint.name;
+
+        for (const issue of incompleteIssues) {
+          issue.sprintId = targetSprint._id;
+          await issue.save({ session });
+          carriedOverIssueIds.push(String(issue._id));
+          await recordIssueHistory({
+            issueId: issue._id,
+            projectId: issue.projectId,
+            actorId: req.user._id,
+            eventType: "SPRINT_CARRY_OVER",
+            field: "sprintId",
+            fromValue: String(sprintForUpdate._id),
+            toValue: String(targetSprint._id),
+            meta: {
+              carryOverMode,
+              sprintName: sprintForUpdate.name,
+              targetSprintName: targetSprint.name,
+            },
+            session,
+          });
+        }
+      }
+
+      const completedSnapshotIssues = issues.filter((issue) =>
+        completionOptions.autoCloseDoneStories
+          ? isCompletedSprintIssue(issue)
+          : [ISSUE_STATUS.DONE, ISSUE_STATUS.CLOSED].includes(issue.status)
       );
-    }
-  }
 
-  if (carryOverMode === "BACKLOG" && incompleteIssues.length) {
-    let nextPlanningOrder = await getNextPlanningOrder(Issue, {
-      projectId: sprint.projectId,
-      sprintId: null,
+      sprintForUpdate.state = "COMPLETED";
+      sprintForUpdate.completedAt = new Date();
+      sprintForUpdate.completedBy = req.user._id;
+      sprintForUpdate.lockOverride = {
+        enabled: false,
+        reopenedAt: null,
+        reopenedBy: null,
+      };
+      sprintForUpdate.snapshot = {
+        ...(sprintForUpdate.snapshot || {}),
+        committedIssueIds:
+          sprintForUpdate.snapshot?.committedIssueIds || issues.map((issue) => issue._id),
+        committedPoints:
+          sprintForUpdate.snapshot?.committedPoints ||
+          issues.reduce((sum, issue) => sum + Number(issue.storyPoints || 0), 0),
+        completedIssueIds: completedSnapshotIssues.map((issue) => issue._id),
+        completedPoints: completedSnapshotIssues.reduce(
+          (sum, issue) => sum + Number(issue.storyPoints || 0),
+          0
+        ),
+        carriedOverIssueIds: incompleteIssues.map((issue) => issue._id),
+        carryOverMode,
+      };
+
+      await sprintForUpdate.save({ session });
+
+      await syncEpicCompletionStatuses({
+        projectId: sprintForUpdate.projectId,
+        epicIds: issues.map((issue) => issue.epicId).filter(Boolean),
+        session,
+      });
+
+      completedSprint = await Sprint.findById(sprintForUpdate._id)
+        .populate("teamId", "name description workspaceId")
+        .session(session);
     });
-
-    for (const issue of incompleteIssues) {
-      issue.sprintId = null;
-      issue.planningOrder = nextPlanningOrder;
-      nextPlanningOrder += PLANNING_ORDER_INCREMENT;
-      await issue.save();
-      await recordIssueHistory({
-        issueId: issue._id,
-        projectId: issue.projectId,
-        actorId: req.user._id,
-        eventType: "SPRINT_CARRY_OVER",
-        field: "sprintId",
-        fromValue: String(sprint._id),
-        toValue: null,
-        meta: {
-          carryOverMode,
-          sprintName: sprint.name,
-        },
-      });
+  } catch (error) {
+    if (error?.statusCode) {
+      res.status(error.statusCode);
     }
+    throw error;
+  } finally {
+    await session.endSession();
   }
 
-  if (carryOverMode === "SPRINT" && incompleteIssues.length && targetSprint) {
-    for (const issue of incompleteIssues) {
-      issue.sprintId = targetSprint._id;
-      await issue.save();
-      await recordIssueHistory({
-        issueId: issue._id,
-        projectId: issue.projectId,
-        actorId: req.user._id,
-        eventType: "SPRINT_CARRY_OVER",
-        field: "sprintId",
-        fromValue: String(sprint._id),
-        toValue: String(targetSprint._id),
-        meta: {
-          carryOverMode,
-          sprintName: sprint.name,
-          targetSprintName: targetSprint.name,
-        },
-      });
-    }
-  }
-
-  sprint.state = "COMPLETED";
-  sprint.completedAt = new Date();
-  sprint.completedBy = req.user._id;
-  sprint.lockOverride = {
-    enabled: false,
-    reopenedAt: null,
-    reopenedBy: null,
-  };
-  sprint.snapshot = {
-    ...(sprint.snapshot || {}),
-    committedIssueIds: sprint.snapshot?.committedIssueIds || issues.map((issue) => issue._id),
-    committedPoints:
-      sprint.snapshot?.committedPoints ||
-      issues.reduce((sum, issue) => sum + Number(issue.storyPoints || 0), 0),
-    completedIssueIds: completedIssues.map((issue) => issue._id),
-    completedPoints: completedIssues.reduce(
-      (sum, issue) => sum + Number(issue.storyPoints || 0),
-      0
-    ),
-    carriedOverIssueIds: incompleteIssues.map((issue) => issue._id),
-    carryOverMode,
-  };
-
-  await sprint.save();
-  await sprint.populate("teamId", "name description workspaceId");
-
-  if (sprint.teamId) {
+  if (completedSprint?.teamId && completionOptions.notifyTeamMembers) {
     await notifySprintEvent({
-      sprint,
+      sprint: completedSprint,
       eventType: "ended",
       actorId: req.user._id,
     });
   }
 
   res.status(200).json({
-    sprint: serializeSprint(sprint.toObject()),
-    carriedOverIssueIds: incompleteIssues.map((issue) => String(issue._id)),
+    sprint: serializeSprint(completedSprint.toObject()),
+    carriedOverIssueIds,
+    closedIssueIds,
+    targetSprintId,
+    targetSprintName,
+    options: completionOptions,
   });
 });
 

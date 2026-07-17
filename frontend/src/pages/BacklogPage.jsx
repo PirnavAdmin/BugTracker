@@ -1320,7 +1320,10 @@ const BacklogPage = () => {
                           return;
                         }
 
-                        setCompletionSprint(section.sprint);
+                        setCompletionSprint({
+                          sprint: section.sprint,
+                          issues: section.issues,
+                        });
                       }}
                       onReopenSprint={async () => {
                         if (reopenSprintMutation.isPending) {
@@ -1519,17 +1522,29 @@ const BacklogPage = () => {
             setCompletionSprint(null);
           }
         }}
-        sprint={completionSprint}
+        sprint={completionSprint?.sprint || null}
+        sprintIssues={completionSprint?.issues || []}
         plannedSprints={plannedSprints.filter(
-          (sprint) => String(sprint._id) !== String(completionSprint?._id || "")
+          (sprint) => String(sprint._id) !== String(completionSprint?.sprint?._id || "")
         )}
         isPending={completeSprintMutation.isPending}
-        onSubmit={(payload) =>
-          completeSprintMutation.mutateAsync({
-            id: completionSprint._id,
+        onSubmit={async (payload) => {
+          const result = await completeSprintMutation.mutateAsync({
+            id: completionSprint.sprint._id,
             payload,
-          })
-        }
+          });
+
+          setToast({
+            type: "success",
+            title: "Sprint completed",
+            message:
+              result?.targetSprintName
+                ? `${completionSprint.sprint.name} was completed and unfinished work moved to ${result.targetSprintName}.`
+                : `${completionSprint.sprint.name} was completed successfully.`,
+          });
+
+          return result;
+        }}
       />
 
       <ToastNotice toast={toast} onDismiss={() => setToast(null)} />
