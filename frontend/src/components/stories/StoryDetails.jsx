@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowLeft,
   Bug,
+  CheckCircle2,
   Download,
   FileUp,
   ListTodo,
@@ -43,6 +44,8 @@ import {
   getIssueDisplayKey,
   getIssuePriorityVariant,
   getIssueStatusLabel,
+  ISSUE_STATUS,
+  normalizeIssueStatus,
   resolveIssueAssignees,
 } from "@/lib/issues";
 import { formatDateTime, getInitials } from "@/lib/utils";
@@ -150,6 +153,9 @@ const StoryDetails = ({ story, projects, stories, onBack, onChanged }) => {
     hasTaskStoryLeadAccess(role);
   const canManageCollaborators = ADMIN_PANEL_ROLES.includes(role);
   const canDeleteStory = ADMIN_PANEL_ROLES.includes(role);
+  const canCompleteStory =
+    (ADMIN_PANEL_ROLES.includes(role) || role === ROLE_DEVELOPER) &&
+    ![ISSUE_STATUS.DONE, ISSUE_STATUS.CLOSED].includes(normalizeIssueStatus(story?.status, ""));
 
   const { data: comments = [], isLoading: commentsLoading } = useQuery({
     queryKey: ["comments", story._id, "story"],
@@ -249,6 +255,23 @@ const StoryDetails = ({ story, projects, stories, onBack, onChanged }) => {
         <Button type="button" size="sm" variant="outline" onClick={openCollaboratorDialog}>
           <UserPlus className="h-4 w-4" />
           Collaborator
+        </Button>
+      ) : null}
+      {canCompleteStory ? (
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          disabled={updateMutation.isPending}
+          onClick={() =>
+            updateMutation.mutate({
+              id: story._id,
+              payload: { status: ISSUE_STATUS.DONE },
+            })
+          }
+        >
+          <CheckCircle2 className="h-4 w-4" />
+          {updateMutation.isPending ? "Completing..." : "Complete"}
         </Button>
       ) : null}
       {canDeleteStory ? (

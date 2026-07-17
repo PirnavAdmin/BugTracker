@@ -8,10 +8,13 @@ import {
   Milestone,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   getIssueDisplayKey,
   getIssuePriorityVariant,
   getIssueStatusLabel,
+  ISSUE_STATUS,
+  normalizeIssueStatus,
   resolveIssueAssignees,
 } from "@/lib/issues";
 import { cn } from "@/lib/utils";
@@ -26,12 +29,22 @@ const isPastDue = (value) => {
   return !Number.isNaN(dueDate.getTime()) && dueDate.getTime() < Date.now();
 };
 
-const StoryCard = ({ story, onClick, fadeWhenOverdue = false }) => {
+const StoryCard = ({
+  story,
+  onClick,
+  onComplete,
+  canComplete = false,
+  isCompleting = false,
+  fadeWhenOverdue = false,
+}) => {
   const progress = story.storyProgress || {};
   const progressPercent = Number(progress.percent || 0);
   const isQueued = Boolean(story.bugDetails?.addToBucket);
   const isFaded = fadeWhenOverdue && isPastDue(story.dueAt);
   const assignees = resolveIssueAssignees(story);
+  const normalizedStatus = normalizeIssueStatus(story?.status, "");
+  const canShowCompleteButton =
+    canComplete && ![ISSUE_STATUS.DONE, ISSUE_STATUS.CLOSED].includes(normalizedStatus);
   const assigneeLabel = assignees.length
     ? assignees.map((assignee) => assignee.name).join(", ")
     : "Unassigned";
@@ -120,6 +133,21 @@ const StoryCard = ({ story, onClick, fadeWhenOverdue = false }) => {
           <Bug className="h-3.5 w-3.5 text-rose-500" />
           {story.openBugCount || 0} open bugs
         </span>
+        {canShowCompleteButton ? (
+          <Button
+            type="button"
+            size="sm"
+            className="ml-auto h-8 rounded-lg px-3 text-xs"
+            disabled={isCompleting}
+            onClick={(event) => {
+              event.stopPropagation();
+              onComplete?.(story);
+            }}
+          >
+            <CheckCircle2 className="h-3.5 w-3.5" />
+            {isCompleting ? "Completing..." : "Complete"}
+          </Button>
+        ) : null}
       </div>
     </button>
   );

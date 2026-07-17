@@ -2,9 +2,20 @@ import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { BookOpen, Plus, Search } from "lucide-react";
-import { createIssue, fetchProjects, fetchStories, uploadIssueAttachment } from "@/lib/api";
+import {
+  createIssue,
+  fetchProjects,
+  fetchStories,
+  updateIssue,
+  uploadIssueAttachment,
+} from "@/lib/api";
 import { useAuth } from "@/hooks/use-auth";
-import { ADMIN_PANEL_ROLES, ROLE_DEVELOPER, hasTaskStoryLeadAccess } from "@/lib/roles";
+import { ISSUE_STATUS } from "@/lib/issues";
+import {
+  ADMIN_PANEL_ROLES,
+  ROLE_DEVELOPER,
+  hasTaskStoryLeadAccess,
+} from "@/lib/roles";
 import StoryCard from "@/components/stories/StoryCard";
 import StoryDetails from "@/components/stories/StoryDetails";
 import IssueCreateDialog from "@/components/issues/IssueCreateDialog";
@@ -74,6 +85,17 @@ const StoriesPage = () => {
       navigate(`/stories/${story._id}${projectId === "all" ? "" : `?projectId=${encodeURIComponent(projectId)}`}`);
     },
   });
+  const completeStoryMutation = useMutation({
+    mutationFn: updateIssue,
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["stories"] });
+      await queryClient.invalidateQueries({ queryKey: ["issues"] });
+      await queryClient.invalidateQueries({ queryKey: ["backlog"] });
+      await queryClient.invalidateQueries({ queryKey: ["reports"] });
+      await queryClient.invalidateQueries({ queryKey: ["analytics"] });
+    },
+  });
+  const canCompleteStory = ADMIN_PANEL_ROLES.includes(role) || role === ROLE_DEVELOPER;
 
   if (error) {
     return (
@@ -170,9 +192,20 @@ const StoriesPage = () => {
             <StoryCard
               key={story._id}
               story={story}
+              canComplete={canCompleteStory}
+              isCompleting={
+                completeStoryMutation.isPending &&
+                String(completeStoryMutation.variables?.id || "") === String(story._id)
+              }
               fadeWhenOverdue={shouldFadeOverdueStories}
               onClick={(item) =>
                 navigate(`/stories/${item._id}${projectId === "all" ? "" : `?projectId=${encodeURIComponent(projectId)}`}`)
+              }
+              onComplete={(item) =>
+                completeStoryMutation.mutate({
+                  id: item._id,
+                  payload: { status: ISSUE_STATUS.DONE },
+                })
               }
             />
           ))}
