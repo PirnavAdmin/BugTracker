@@ -122,7 +122,7 @@ const SprintCompletionDialog = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-5xl">
+      <DialogContent className="max-h-[92vh] max-w-6xl overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Complete Sprint</DialogTitle>
           <DialogDescription>
@@ -172,7 +172,7 @@ const SprintCompletionDialog = ({
           }}
         >
           <div className="rounded-[24px] border border-slate-200 bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(248,250,252,0.95))] p-5 shadow-sm">
-            <div className="grid gap-4 lg:grid-cols-[minmax(0,1.4fr)_minmax(280px,0.9fr)]">
+            <div className="grid gap-4 xl:grid-cols-[minmax(0,1.75fr)_minmax(360px,1.1fr)]">
               <div className="space-y-3">
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">
@@ -257,8 +257,8 @@ const SprintCompletionDialog = ({
             </div>
           </div>
 
-          <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-            <section className="space-y-4 rounded-[24px] border border-slate-200 bg-white/95 p-5 shadow-sm">
+          <div className="grid gap-5 xl:grid-cols-[minmax(300px,0.72fr)_minmax(0,1.28fr)] xl:items-start">
+            <section className="space-y-4 rounded-[24px] border border-slate-200 bg-white/95 p-5 shadow-sm xl:sticky xl:top-0">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">
                   Completed Stories
@@ -306,7 +306,7 @@ const SprintCompletionDialog = ({
                 </div>
               )}
 
-              <div className="space-y-3">
+              <div className="grid gap-3">
                 {[
                   {
                     value: "BACKLOG",
@@ -391,8 +391,8 @@ const SprintCompletionDialog = ({
               ) : null}
 
               {draft.carryOverMode === "NEW_SPRINT" ? (
-                <div className="grid gap-4 rounded-[20px] border border-slate-200 bg-slate-50/80 p-4">
-                  <label className="space-y-2">
+                <div className="grid gap-4 rounded-[20px] border border-slate-200 bg-slate-50/80 p-4 xl:grid-cols-[minmax(220px,1fr)_minmax(220px,1fr)]">
+                  <label className="space-y-2 xl:col-span-2">
                     <span className="text-xs uppercase tracking-[0.22em] text-slate-500">
                       Sprint Name
                     </span>
@@ -411,7 +411,7 @@ const SprintCompletionDialog = ({
                     />
                   </label>
 
-                  <label className="space-y-2">
+                  <label className="space-y-2 xl:col-span-2">
                     <span className="text-xs uppercase tracking-[0.22em] text-slate-500">
                       Sprint Goal
                     </span>
@@ -431,7 +431,7 @@ const SprintCompletionDialog = ({
                     />
                   </label>
 
-                  <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="grid gap-4 sm:grid-cols-2 xl:col-span-2">
                     <label className="space-y-2">
                       <span className="text-xs uppercase tracking-[0.22em] text-slate-500">
                         Start Date
@@ -487,7 +487,7 @@ const SprintCompletionDialog = ({
               </p>
             </div>
 
-            <div className="grid gap-3 sm:grid-cols-2">
+            <div className="grid gap-3 xl:grid-cols-4 sm:grid-cols-2">
               {[
                 ["autoCloseDoneStories", "Automatically close Done stories"],
                 ["generateSprintReport", "Generate Sprint Report"],
