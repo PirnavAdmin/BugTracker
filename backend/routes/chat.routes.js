@@ -3,8 +3,10 @@ const {
   addConversationParticipants,
   createConversation,
   deleteConversation,
+  deleteMeeting,
   createMessage,
   getCallLogs,
+  getAllMeetings,
   getConversationById,
   getConversations,
   getMeetings,
@@ -12,6 +14,7 @@ const {
   removeConversationParticipant,
   scheduleMeeting,
   searchUsers,
+  updateMeeting,
   uploadChatAttachment,
   uploadChatAttachmentMiddleware,
 } = require("../controllers/chat.controller");
@@ -28,8 +31,11 @@ router.get("/conversation/:id", protect, getConversationById);
 router.get("/messages/:conversationId", protect, getMessages);
 router.post("/messages", protect, createMessage);
 router.get("/calls", protect, getCallLogs);
+router.get("/meetings", protect, getAllMeetings);
 router.get("/conversations/:conversationId/meetings", protect, getMeetings);
 router.post("/conversations/:conversationId/meetings", protect, scheduleMeeting);
+router.patch("/meetings/:meetingId", protect, updateMeeting);
+router.delete("/meetings/:meetingId", protect, deleteMeeting);
 router.post("/attachments", protect, uploadChatAttachmentMiddleware, uploadChatAttachment);
 router.get("/users/search", protect, searchUsers);
 

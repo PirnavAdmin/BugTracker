@@ -11,7 +11,6 @@ const TeamMember = require("../models/TeamMember");
 const User = require("../models/User");
 const { sendProjectMeetingInviteEmail } = require("../services/emailService");
 const { resolveMeetingWindow } = require("../utils/meetingWindow");
-const { createOnlineMeeting } = require("../services/microsoftGraphService");
 const asyncHandler = require("../utils/asyncHandler");
 const { hasAdminAccess } = require("../utils/roles");
 const {
@@ -30,6 +29,7 @@ const { attachMembersToTeams } = require("../utils/teamRelations");
 const { normalizeWorkspaceId } = require("../utils/workspace");
 const { PLANNING_ORDER_INCREMENT } = require("../utils/planningOrder");
 const { createUniqueProjectShortCode } = require("../utils/displayIds");
+const TEAMS_MEETING_URL_PREFIX = "https://teams.microsoft.com/l/meetup-join/";
 
 const projectPopulation = [
   { path: "createdBy", select: "name email role workspaceId" },
@@ -1277,6 +1277,11 @@ const scheduleProjectMeeting = asyncHandler(async (req, res) => {
   }
 
   const subject = typeof req.body?.subject === "string" ? req.body.subject.trim() : "";
+  const meetingUrl = typeof req.body?.meetingUrl === "string"
+    ? req.body.meetingUrl.trim()
+    : typeof req.body?.joinUrl === "string"
+      ? req.body.joinUrl.trim()
+      : "";
   const meetingWindow = resolveMeetingWindow({
     startDateTime: req.body?.startDateTime,
     endDateTime: req.body?.endDateTime,
@@ -1286,6 +1291,11 @@ const scheduleProjectMeeting = asyncHandler(async (req, res) => {
   if (!subject) {
     res.status(400);
     throw new Error("Meeting title is required");
+  }
+
+  if (!meetingUrl.startsWith(TEAMS_MEETING_URL_PREFIX)) {
+    res.status(400);
+    throw new Error("Please enter a valid Microsoft Teams meeting link.");
   }
 
   if (meetingWindow.error) {
@@ -1313,30 +1323,16 @@ const scheduleProjectMeeting = asyncHandler(async (req, res) => {
     throw new Error("No users found in attached teams. Attach a team with members first.");
   }
 
-  const attendees = participants.map((participant) => ({
-    emailAddress: {
-      address: participant.email,
-      name: participant.name,
-    },
-    type: "required",
-  }));
-  const meetingResult = await createOnlineMeeting({
-    subject,
-    startDateTime: startDate.toISOString(),
-    endDateTime: endDate.toISOString(),
-    attendees,
-    organizerEmail: req.user.email,
-  });
   const meeting = await ProjectMeeting.create({
     projectId: project._id,
     workspaceId,
     scheduledBy: req.user._id,
     provider: "microsoft_teams",
     subject,
-    meetingId: meetingResult.meetingId,
-    joinUrl: meetingResult.joinUrl,
-    startDateTime: meetingResult.startDateTime,
-    endDateTime: meetingResult.endDateTime,
+    meetingId: `manual-${Date.now()}`,
+    joinUrl: meetingUrl,
+    startDateTime: startDate,
+    endDateTime: endDate,
     durationMinutes,
     participants: participants.map((participant) => ({
       userId: participant.userId,

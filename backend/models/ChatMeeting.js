@@ -55,60 +55,49 @@ const chatMeetingSchema = new Schema(
       required: true,
       index: true,
     },
-    provider: {
-      type: String,
-      default: "microsoft_teams",
-      trim: true,
-    },
-    subject: {
+    title: {
       type: String,
       required: [true, "Meeting title is required"],
       trim: true,
       minlength: [2, "Meeting title must be at least 2 characters long"],
     },
-    meetingId: {
+    description: {
       type: String,
-      required: [true, "Meeting id is required"],
       trim: true,
-      index: true,
+      default: "",
     },
-    joinUrl: {
+    meetingUrl: {
       type: String,
-      required: [true, "Meeting join URL is required"],
+      required: [true, "Teams meeting URL is required"],
       trim: true,
     },
-    startDateTime: {
+    startTime: {
       type: Date,
-      required: [true, "Meeting start time is required"],
       index: true,
-    },
-    endDateTime: {
-      type: Date,
-      required: [true, "Meeting end time is required"],
-      index: true,
+      default: null,
     },
     durationMinutes: {
       type: Number,
-      required: [true, "Meeting duration is required"],
+      default: null,
       min: [5, "Meeting duration must be at least 5 minutes"],
     },
     participants: {
       type: [chatMeetingParticipantSchema],
       default: [],
     },
-    createdAt: {
-      type: Date,
-      default: Date.now,
-      immutable: true,
+    isPinned: {
+      type: Boolean,
+      default: false,
     },
   },
   {
+    timestamps: true,
     versionKey: false,
     collection: "chat_meetings",
   }
 );
 
-chatMeetingSchema.index({ workspaceId: 1, conversationId: 1, startDateTime: 1 });
+chatMeetingSchema.index({ workspaceId: 1, conversationId: 1, startTime: 1 });
 chatMeetingSchema.index({ conversationId: 1, createdAt: -1 });
 
 module.exports = models.ChatMeeting || model("ChatMeeting", chatMeetingSchema);

@@ -43,8 +43,8 @@ const isImageAttachment = (attachment = {}) =>
   getAttachmentType(attachment).startsWith("image/");
 
 const MeetingCard = ({ metadata = {}, isOwn }) => {
-  const subject = metadata.subject || "Teams meeting";
-  const joinUrl = metadata.joinUrl || "";
+  const subject = metadata.title || "Teams meeting";
+  const joinUrl = metadata.meetingUrl || "";
 
   return (
     <div
@@ -71,7 +71,7 @@ const MeetingCard = ({ metadata = {}, isOwn }) => {
       </div>
       <div className="space-y-2 px-4 py-3">
         <div className={cn("text-xs font-semibold", isOwn ? "text-white/84" : "text-slate-600")}>
-          {formatDateTime(metadata.startDateTime)}
+          {formatDateTime(metadata.startTime)}
         </div>
         <div
           className={cn(

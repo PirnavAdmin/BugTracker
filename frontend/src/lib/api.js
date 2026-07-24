@@ -1161,6 +1161,25 @@ export const scheduleChatMeeting = async (conversationId, payload) => {
   return response.data;
 };
 
+export const fetchAllChatMeetings = async (filters = {}) => {
+  const response = await api.get("/chat/meetings", {
+    params: buildParams({
+      q: filters.q,
+    }),
+  });
+  return response.data?.meetings || [];
+};
+
+export const updateChatMeeting = async (meetingId, payload) => {
+  const response = await api.patch(`/chat/meetings/${meetingId}`, payload);
+  return response.data;
+};
+
+export const deleteChatMeeting = async (meetingId) => {
+  const response = await api.delete(`/chat/meetings/${meetingId}`);
+  return response.data;
+};
+
 export const uploadChatAttachment = async (file, onUploadProgress) => {
   const formData = new FormData();
   formData.append("file", file);

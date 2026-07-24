@@ -10,14 +10,18 @@ const getId = (value) => String(value?._id || value?.id || value || "");
 
 const ChatWindow = memo(
   ({
+    canScheduleMeetings,
     conversation,
     currentUser,
     hasMore,
     isLoadingMessages,
     messages,
+    nextMeeting,
     onlineUsers,
     onDelete,
+    onJoinMeeting,
     onLoadOlder,
+    onOpenMeetingDialog,
     onSend,
     onToggleSidebar,
     typingUsers,
@@ -89,10 +93,14 @@ const ChatWindow = memo(
     return (
       <section className="flex h-full flex-1 flex-col overflow-hidden bg-white">
         <ChatHeader
+          canScheduleMeetings={canScheduleMeetings}
           conversation={conversation}
           currentUserId={currentUserId}
+          nextMeeting={nextMeeting}
           onlineUsers={onlineUsers}
           onDelete={onDelete}
+          onJoinMeeting={onJoinMeeting}
+          onOpenMeetingDialog={onOpenMeetingDialog}
           onToggleSidebar={onToggleSidebar}
         />
 

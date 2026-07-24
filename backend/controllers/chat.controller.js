@@ -13,14 +13,13 @@ const TeamMember = require("../models/TeamMember");
 const User = require("../models/User");
 const asyncHandler = require("../utils/asyncHandler");
 const { uploadToS3 } = require("../utils/s3");
-const { createOnlineMeeting } = require("../services/microsoftGraphService");
-const { sendProjectMeetingInviteEmail } = require("../services/emailService");
 const {
   buildProjectAccessQuery,
   mergeProjectTeamIds,
 } = require("../utils/projectRelations");
 const { resolveMeetingWindow } = require("../utils/meetingWindow");
 const { normalizeWorkspaceId } = require("../utils/workspace");
+const { ROLE_ADMIN, ROLE_MANAGER } = require("../utils/roles");
 
 const CHAT_ACCESS_ROLES = ["Admin", "Manager", "Team Lead", "Q/A Lead", "Developer", "Tester"];
 const MAX_MESSAGE_LENGTH = 4000;
@@ -210,6 +209,15 @@ const serializeUser = (user) => {
 };
 
 const sanitizeMeetingSubject = (value = "") => sanitizeText(value, 160);
+const TEAMS_MEETING_URL_PREFIX = "https://teams.microsoft.com/l/meetup-join/";
+const canCreateMeetings = (role = "") => [ROLE_ADMIN, ROLE_MANAGER].includes(role);
+const canManageMeeting = (meeting, user) =>
+  user?.role === ROLE_ADMIN ||
+  (user?.role === ROLE_MANAGER &&
+    objectIdString(meeting?.scheduledBy) === objectIdString(user?._id));
+
+const isValidTeamsMeetingUrl = (value = "") =>
+  String(value || "").trim().startsWith(TEAMS_MEETING_URL_PREFIX);
 
 const serializeConversation = (conversation, { unreadCount = 0 } = {}) => {
   const item =
@@ -562,15 +570,15 @@ const serializeChatMeeting = (meeting) => {
     conversationId: serializedMeeting.conversationId,
     workspaceId: normalizeWorkspaceId(serializedMeeting.workspaceId),
     scheduledBy: serializedMeeting.scheduledBy,
-    provider: serializedMeeting.provider,
-    subject: serializedMeeting.subject,
-    meetingId: serializedMeeting.meetingId,
-    joinUrl: serializedMeeting.joinUrl,
-    startDateTime: serializedMeeting.startDateTime,
-    endDateTime: serializedMeeting.endDateTime,
+    title: serializedMeeting.title,
+    description: serializedMeeting.description || "",
+    meetingUrl: serializedMeeting.meetingUrl,
+    startTime: serializedMeeting.startTime,
     durationMinutes: serializedMeeting.durationMinutes,
     participants: serializedMeeting.participants || [],
+    isPinned: Boolean(serializedMeeting.isPinned),
     createdAt: serializedMeeting.createdAt,
+    updatedAt: serializedMeeting.updatedAt,
   };
 };
 
@@ -1165,12 +1173,40 @@ const getMeetings = asyncHandler(async (req, res) => {
   const meetings = await ChatMeeting.find({
     conversationId: conversation._id,
     workspaceId: normalizeWorkspaceId(req.user.workspaceId),
-    endDateTime: {
-      $gte: new Date(),
-    },
   })
-    .sort({ startDateTime: 1 })
-    .limit(8)
+    .sort({ startTime: 1, createdAt: -1 })
+    .lean();
+
+  res.status(200).json({
+    meetings: meetings.map(serializeChatMeeting).filter(Boolean),
+  });
+});
+
+const getAllMeetings = asyncHandler(async (req, res) => {
+  ensureChatAccess(req, res);
+
+  const workspaceId = normalizeWorkspaceId(req.user.workspaceId);
+  const accessibleConversationIds = await Conversation.find({
+    workspaceId,
+    participants: req.user._id,
+  }).distinct("_id");
+  const query = {
+    workspaceId,
+    conversationId: {
+      $in: accessibleConversationIds,
+    },
+  };
+  const search = sanitizeText(req.query.q || "", 120);
+
+  if (search) {
+    query.title = {
+      $regex: escapeRegex(search),
+      $options: "i",
+    };
+  }
+
+  const meetings = await ChatMeeting.find(query)
+    .sort({ startTime: 1, createdAt: -1 })
     .lean();
 
   res.status(200).json({
@@ -1186,29 +1222,37 @@ const scheduleMeeting = asyncHandler(async (req, res) => {
     throw new Error("Invalid conversation id");
   }
 
-  const subject = sanitizeMeetingSubject(req.body?.subject || "");
+  if (!canCreateMeetings(req.user.role)) {
+    res.status(403);
+    throw new Error("Only Admin and Manager can create meetings");
+  }
+
+  const title = sanitizeMeetingSubject(req.body?.title || req.body?.subject || "");
+  const meetingUrl = sanitizeText(req.body?.meetingUrl || req.body?.joinUrl || "", 1500);
+  const description = sanitizeText(req.body?.description || "", 1000);
   const meetingWindow = resolveMeetingWindow({
     startDateTime: req.body?.startDateTime,
     endDateTime: req.body?.endDateTime,
     durationMinutes: req.body?.durationMinutes,
   });
 
-  if (!subject) {
+  if (!title) {
     res.status(400);
     throw new Error("Meeting title is required");
   }
 
-  if (meetingWindow.error) {
+  if (!meetingUrl || !isValidTeamsMeetingUrl(meetingUrl)) {
+    res.status(400);
+    throw new Error("Please enter a valid Microsoft Teams meeting link.");
+  }
+
+  if (req.body?.startDateTime && meetingWindow.error) {
     res.status(400);
     throw new Error(meetingWindow.error);
   }
 
-  const { startDate, endDate, durationMinutes } = meetingWindow;
-
-  if (startDate.getTime() <= Date.now()) {
-    res.status(400);
-    throw new Error("Meeting start time must be in the future");
-  }
+  const startDate = meetingWindow?.startDate || null;
+  const durationMinutes = meetingWindow?.durationMinutes || null;
 
   const conversation = await Conversation.findOne({
     _id: req.params.conversationId,
@@ -1232,30 +1276,14 @@ const scheduleMeeting = asyncHandler(async (req, res) => {
     throw new Error("This chat has no eligible participants with email addresses");
   }
 
-  const attendees = participants.map((participant) => ({
-    emailAddress: {
-      address: participant.email,
-      name: participant.name,
-    },
-    type: "required",
-  }));
-  const meetingResult = await createOnlineMeeting({
-    subject,
-    startDateTime: startDate.toISOString(),
-    endDateTime: endDate.toISOString(),
-    attendees,
-    organizerEmail: req.user.email,
-  });
   const meeting = await ChatMeeting.create({
     conversationId: conversation._id,
     workspaceId,
     scheduledBy: req.user._id,
-    provider: "microsoft_teams",
-    subject,
-    meetingId: meetingResult.meetingId,
-    joinUrl: meetingResult.joinUrl,
-    startDateTime: meetingResult.startDateTime,
-    endDateTime: meetingResult.endDateTime,
+    title,
+    description,
+    meetingUrl,
+    startTime: startDate,
     durationMinutes,
     participants: participants.map((participant) => ({
       userId: participant.userId,
@@ -1273,12 +1301,11 @@ const scheduleMeeting = asyncHandler(async (req, res) => {
     message: `${req.user.name || "A teammate"} scheduled a Teams meeting`,
     metadata: {
       type: "meeting",
-      provider: "microsoft_teams",
-      meetingId: String(meeting.meetingId || ""),
-      subject: meeting.subject,
-      joinUrl: meeting.joinUrl,
-      startDateTime: meeting.startDateTime,
-      endDateTime: meeting.endDateTime,
+      meetingId: String(meeting._id || ""),
+      title: meeting.title,
+      description: meeting.description || "",
+      meetingUrl: meeting.meetingUrl,
+      startTime: meeting.startTime,
       durationMinutes: meeting.durationMinutes,
       scheduledBy: {
         _id: req.user._id,
@@ -1286,39 +1313,192 @@ const scheduleMeeting = asyncHandler(async (req, res) => {
         email: req.user.email || "",
       },
       participantCount: participants.length,
+      conversationName: meetingTitle,
     },
   });
-
-  let inviteWarning = "";
-
-  try {
-    await sendProjectMeetingInviteEmail(
-      participants.map((participant) => participant.email),
-      {
-        subject: meeting.subject,
-        joinUrl: meeting.joinUrl,
-        startDateTime: meeting.startDateTime,
-        endDateTime: meeting.endDateTime,
-        projectName: meetingTitle,
-      },
-      {
-        workspaceId: mailWorkspaceId,
-      }
-    );
-  } catch (inviteError) {
-    inviteWarning =
-      "Meeting created, but invite emails could not be sent right now.";
-    console.error("[chat-meetings] Failed to send meeting invites", {
-      conversationId: String(conversation._id),
-      error: inviteError?.message || inviteError,
-    });
-  }
 
   res.status(201).json({
     message: "Meeting scheduled successfully",
     meeting: serializeChatMeeting(meeting),
     chatMessage: message,
-    warning: inviteWarning || undefined,
+  });
+});
+
+const updateMeeting = asyncHandler(async (req, res) => {
+  ensureChatAccess(req, res);
+
+  if (!isValidObjectId(req.params.meetingId)) {
+    res.status(400);
+    throw new Error("Invalid meeting id");
+  }
+
+  const meeting = await ChatMeeting.findOne({
+    _id: req.params.meetingId,
+    workspaceId: normalizeWorkspaceId(req.user.workspaceId),
+  });
+
+  if (!meeting) {
+    res.status(404);
+    throw new Error("Meeting not found");
+  }
+
+  const conversation = await Conversation.findOne({
+    _id: meeting.conversationId,
+    workspaceId: normalizeWorkspaceId(req.user.workspaceId),
+    participants: req.user._id,
+  })
+    .select("_id")
+    .lean();
+
+  if (!conversation) {
+    res.status(404);
+    throw new Error("Conversation not found or inaccessible");
+  }
+
+  if (!canManageMeeting(meeting, req.user)) {
+    res.status(403);
+    throw new Error("You do not have permission to edit this meeting");
+  }
+
+  const title = sanitizeMeetingSubject(req.body?.title || req.body?.subject || meeting.title);
+  const meetingUrl = sanitizeText(
+    req.body?.meetingUrl || req.body?.joinUrl || meeting.meetingUrl,
+    1500
+  );
+  const description = sanitizeText(
+    Object.prototype.hasOwnProperty.call(req.body || {}, "description")
+      ? req.body.description
+      : meeting.description || "",
+    1000
+  );
+  const meetingWindow = resolveMeetingWindow({
+    startDateTime: Object.prototype.hasOwnProperty.call(req.body || {}, "startDateTime")
+      ? req.body.startDateTime
+      : meeting.startTime,
+    durationMinutes: Object.prototype.hasOwnProperty.call(req.body || {}, "durationMinutes")
+      ? req.body.durationMinutes
+      : meeting.durationMinutes,
+  });
+
+  if (!title) {
+    res.status(400);
+    throw new Error("Meeting title is required");
+  }
+
+  if (!meetingUrl || !isValidTeamsMeetingUrl(meetingUrl)) {
+    res.status(400);
+    throw new Error("Please enter a valid Microsoft Teams meeting link.");
+  }
+
+  if (
+    Object.prototype.hasOwnProperty.call(req.body || {}, "startDateTime") &&
+    req.body.startDateTime &&
+    meetingWindow.error
+  ) {
+    res.status(400);
+    throw new Error(meetingWindow.error);
+  }
+
+  meeting.title = title;
+  meeting.description = description;
+  meeting.meetingUrl = meetingUrl;
+  meeting.startTime = meetingWindow?.startDate || null;
+  meeting.durationMinutes = meetingWindow?.durationMinutes || null;
+  await meeting.save();
+
+  const chatMessage = await createMessageDocument({
+    conversationId: meeting.conversationId,
+    sender: req.user,
+    message: `${req.user.name || "A teammate"} updated a Teams meeting`,
+    metadata: {
+      type: "meeting",
+      action: "updated",
+      meetingId: String(meeting._id || ""),
+      title: meeting.title,
+      description: meeting.description || "",
+      meetingUrl: meeting.meetingUrl,
+      startTime: meeting.startTime,
+      durationMinutes: meeting.durationMinutes,
+      scheduledBy: {
+        _id: req.user._id,
+        name: req.user.name || "",
+        email: req.user.email || "",
+      },
+      participantCount: (meeting.participants || []).length,
+    },
+  });
+
+  res.status(200).json({
+    message: "Meeting updated successfully",
+    meeting: serializeChatMeeting(meeting),
+    chatMessage,
+  });
+});
+
+const deleteMeeting = asyncHandler(async (req, res) => {
+  ensureChatAccess(req, res);
+
+  if (!isValidObjectId(req.params.meetingId)) {
+    res.status(400);
+    throw new Error("Invalid meeting id");
+  }
+
+  const meeting = await ChatMeeting.findOne({
+    _id: req.params.meetingId,
+    workspaceId: normalizeWorkspaceId(req.user.workspaceId),
+  });
+
+  if (!meeting) {
+    res.status(404);
+    throw new Error("Meeting not found");
+  }
+
+  const conversation = await Conversation.findOne({
+    _id: meeting.conversationId,
+    workspaceId: normalizeWorkspaceId(req.user.workspaceId),
+    participants: req.user._id,
+  })
+    .select("_id")
+    .lean();
+
+  if (!conversation) {
+    res.status(404);
+    throw new Error("Conversation not found or inaccessible");
+  }
+
+  if (!canManageMeeting(meeting, req.user)) {
+    res.status(403);
+    throw new Error("You do not have permission to delete this meeting");
+  }
+
+  await ChatMeeting.deleteOne({ _id: meeting._id });
+
+  const chatMessage = await createMessageDocument({
+    conversationId: meeting.conversationId,
+    sender: req.user,
+    message: `${req.user.name || "A teammate"} cancelled a Teams meeting`,
+    metadata: {
+      type: "meeting",
+      action: "cancelled",
+      meetingId: String(meeting._id || ""),
+      title: meeting.title,
+      description: meeting.description || "",
+      meetingUrl: meeting.meetingUrl,
+      startTime: meeting.startTime,
+      durationMinutes: meeting.durationMinutes,
+      scheduledBy: {
+        _id: req.user._id,
+        name: req.user.name || "",
+        email: req.user.email || "",
+      },
+      participantCount: (meeting.participants || []).length,
+    },
+  });
+
+  res.status(200).json({
+    message: "Meeting deleted successfully",
+    meetingId: objectIdString(meeting._id),
+    chatMessage,
   });
 });
 
@@ -1380,13 +1560,16 @@ module.exports = {
   getConversationById,
   getConversations,
   getCallLogs,
+  getAllMeetings,
   getMeetings,
   getMessages,
   loadConversationForUser,
   markConversationSeen,
+  deleteMeeting,
   scheduleMeeting,
   searchUsers,
   serializeConversation,
+  updateMeeting,
   uploadChatAttachment,
   uploadChatAttachmentMiddleware,
 };
