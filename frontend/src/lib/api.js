@@ -1151,6 +1151,16 @@ export const fetchChatCallLogs = async (conversationId) => {
   return response.data?.calls || [];
 };
 
+export const fetchChatMeetings = async (conversationId) => {
+  const response = await api.get(`/chat/conversations/${conversationId}/meetings`);
+  return response.data?.meetings || [];
+};
+
+export const scheduleChatMeeting = async (conversationId, payload) => {
+  const response = await api.post(`/chat/conversations/${conversationId}/meetings`, payload);
+  return response.data;
+};
+
 export const uploadChatAttachment = async (file, onUploadProgress) => {
   const formData = new FormData();
   formData.append("file", file);

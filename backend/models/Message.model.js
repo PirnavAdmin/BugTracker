@@ -86,6 +86,10 @@ const messageSchema = new Schema(
       type: [attachmentSchema],
       default: [],
     },
+    metadata: {
+      type: Schema.Types.Mixed,
+      default: null,
+    },
     seenBy: {
       type: [seenBySchema],
       default: [],

@@ -6,6 +6,7 @@ const Comment = require("./Comment");
 const Team = require("./Team");
 const TeamMember = require("./TeamMember");
 const ProjectMeeting = require("./ProjectMeeting");
+const ChatMeeting = require("./ChatMeeting");
 const UserEmailConfig = require("./UserEmailConfig");
 const WorkspaceSetting = require("./WorkspaceSetting");
 const Epic = require("./Epic");
@@ -27,6 +28,7 @@ module.exports = {
   Team,
   TeamMember,
   ProjectMeeting,
+  ChatMeeting,
   UserEmailConfig,
   WorkspaceSetting,
   Epic,

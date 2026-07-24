@@ -2,6 +2,7 @@ const fs = require("fs");
 const path = require("path");
 const multer = require("multer");
 const mongoose = require("mongoose");
+const ChatMeeting = require("../models/ChatMeeting");
 const Conversation = require("../models/Conversation.model");
 const CallLog = require("../models/CallLog.model");
 const Message = require("../models/Message.model");
@@ -12,10 +13,13 @@ const TeamMember = require("../models/TeamMember");
 const User = require("../models/User");
 const asyncHandler = require("../utils/asyncHandler");
 const { uploadToS3 } = require("../utils/s3");
+const { createOnlineMeeting } = require("../services/microsoftGraphService");
+const { sendProjectMeetingInviteEmail } = require("../services/emailService");
 const {
   buildProjectAccessQuery,
   mergeProjectTeamIds,
 } = require("../utils/projectRelations");
+const { resolveMeetingWindow } = require("../utils/meetingWindow");
 const { normalizeWorkspaceId } = require("../utils/workspace");
 
 const CHAT_ACCESS_ROLES = ["Admin", "Manager", "Team Lead", "Q/A Lead", "Developer", "Tester"];
@@ -204,6 +208,8 @@ const serializeUser = (user) => {
     workspaceId: normalizeWorkspaceId(user.workspaceId),
   };
 };
+
+const sanitizeMeetingSubject = (value = "") => sanitizeText(value, 160);
 
 const serializeConversation = (conversation, { unreadCount = 0 } = {}) => {
   const item =
@@ -479,11 +485,16 @@ const createMessageDocument = async ({
   sender,
   message,
   attachments = [],
+  metadata = null,
 }) => {
   const sanitizedMessage = sanitizeText(message);
   const sanitizedAttachments = sanitizeAttachments(attachments);
+  const sanitizedMetadata =
+    metadata && typeof metadata === "object" && !Array.isArray(metadata)
+      ? metadata
+      : null;
 
-  if (!sanitizedMessage && !sanitizedAttachments.length) {
+  if (!sanitizedMessage && !sanitizedAttachments.length && !sanitizedMetadata) {
     const error = new Error("Message text or attachment is required");
     error.statusCode = 400;
     throw error;
@@ -506,6 +517,7 @@ const createMessageDocument = async ({
     senderId: sender._id,
     message: sanitizedMessage,
     attachments: sanitizedAttachments,
+    metadata: sanitizedMetadata,
     seenBy: [
       {
         userId: sender._id,
@@ -536,6 +548,68 @@ const createSystemMessageDocument = async ({ conversationId, sender, message }) 
     message,
     attachments: [],
   });
+
+const serializeChatMeeting = (meeting) => {
+  const serializedMeeting =
+    typeof meeting?.toObject === "function" ? meeting.toObject() : meeting;
+
+  if (!serializedMeeting) {
+    return null;
+  }
+
+  return {
+    _id: serializedMeeting._id,
+    conversationId: serializedMeeting.conversationId,
+    workspaceId: normalizeWorkspaceId(serializedMeeting.workspaceId),
+    scheduledBy: serializedMeeting.scheduledBy,
+    provider: serializedMeeting.provider,
+    subject: serializedMeeting.subject,
+    meetingId: serializedMeeting.meetingId,
+    joinUrl: serializedMeeting.joinUrl,
+    startDateTime: serializedMeeting.startDateTime,
+    endDateTime: serializedMeeting.endDateTime,
+    durationMinutes: serializedMeeting.durationMinutes,
+    participants: serializedMeeting.participants || [],
+    createdAt: serializedMeeting.createdAt,
+  };
+};
+
+const getConversationMeetingParticipants = async (conversation, workspaceId) => {
+  const participantIds = uniqueObjectIds(conversation?.participants || []);
+
+  if (!participantIds.length) {
+    return [];
+  }
+
+  const users = await User.find({
+    _id: {
+      $in: participantIds,
+    },
+    workspaceId: normalizeWorkspaceId(workspaceId),
+  })
+    .select("_id name email role workspaceId")
+    .lean();
+  const participantsByEmail = new Map();
+
+  users.forEach((user) => {
+    const email = String(user?.email || "").trim().toLowerCase();
+
+    if (!email || participantsByEmail.has(email)) {
+      return;
+    }
+
+    participantsByEmail.set(email, {
+      userId: user._id,
+      name: user.name || email,
+      email,
+      role: user.role || "",
+    });
+  });
+
+  return Array.from(participantsByEmail.values()).sort((left, right) =>
+    left.name.localeCompare(right.name)
+  );
+};
 
 const getConversations = asyncHandler(async (req, res) => {
   ensureChatAccess(req, res);
@@ -1067,6 +1141,187 @@ const getCallLogs = asyncHandler(async (req, res) => {
   res.status(200).json({ calls });
 });
 
+const getMeetings = asyncHandler(async (req, res) => {
+  ensureChatAccess(req, res);
+
+  if (!isValidObjectId(req.params.conversationId)) {
+    res.status(400);
+    throw new Error("Invalid conversation id");
+  }
+
+  const conversation = await Conversation.findOne({
+    _id: req.params.conversationId,
+    workspaceId: normalizeWorkspaceId(req.user.workspaceId),
+    participants: req.user._id,
+  })
+    .select("_id")
+    .lean();
+
+  if (!conversation) {
+    res.status(404);
+    throw new Error("Conversation not found or inaccessible");
+  }
+
+  const meetings = await ChatMeeting.find({
+    conversationId: conversation._id,
+    workspaceId: normalizeWorkspaceId(req.user.workspaceId),
+    endDateTime: {
+      $gte: new Date(),
+    },
+  })
+    .sort({ startDateTime: 1 })
+    .limit(8)
+    .lean();
+
+  res.status(200).json({
+    meetings: meetings.map(serializeChatMeeting).filter(Boolean),
+  });
+});
+
+const scheduleMeeting = asyncHandler(async (req, res) => {
+  ensureChatAccess(req, res);
+
+  if (!isValidObjectId(req.params.conversationId)) {
+    res.status(400);
+    throw new Error("Invalid conversation id");
+  }
+
+  const subject = sanitizeMeetingSubject(req.body?.subject || "");
+  const meetingWindow = resolveMeetingWindow({
+    startDateTime: req.body?.startDateTime,
+    endDateTime: req.body?.endDateTime,
+    durationMinutes: req.body?.durationMinutes,
+  });
+
+  if (!subject) {
+    res.status(400);
+    throw new Error("Meeting title is required");
+  }
+
+  if (meetingWindow.error) {
+    res.status(400);
+    throw new Error(meetingWindow.error);
+  }
+
+  const { startDate, endDate, durationMinutes } = meetingWindow;
+
+  if (startDate.getTime() <= Date.now()) {
+    res.status(400);
+    throw new Error("Meeting start time must be in the future");
+  }
+
+  const conversation = await Conversation.findOne({
+    _id: req.params.conversationId,
+    workspaceId: normalizeWorkspaceId(req.user.workspaceId),
+    participants: req.user._id,
+  })
+    .select("_id participants name projectId teamId workspaceId")
+    .lean();
+
+  if (!conversation) {
+    res.status(404);
+    throw new Error("Conversation not found or inaccessible");
+  }
+
+  const workspaceId = normalizeWorkspaceId(req.user.workspaceId);
+  const mailWorkspaceId = normalizeWorkspaceId(conversation.workspaceId || workspaceId);
+  const participants = await getConversationMeetingParticipants(conversation, workspaceId);
+
+  if (!participants.length) {
+    res.status(400);
+    throw new Error("This chat has no eligible participants with email addresses");
+  }
+
+  const attendees = participants.map((participant) => ({
+    emailAddress: {
+      address: participant.email,
+      name: participant.name,
+    },
+    type: "required",
+  }));
+  const meetingResult = await createOnlineMeeting({
+    subject,
+    startDateTime: startDate.toISOString(),
+    endDateTime: endDate.toISOString(),
+    attendees,
+    organizerEmail: req.user.email,
+  });
+  const meeting = await ChatMeeting.create({
+    conversationId: conversation._id,
+    workspaceId,
+    scheduledBy: req.user._id,
+    provider: "microsoft_teams",
+    subject,
+    meetingId: meetingResult.meetingId,
+    joinUrl: meetingResult.joinUrl,
+    startDateTime: meetingResult.startDateTime,
+    endDateTime: meetingResult.endDateTime,
+    durationMinutes,
+    participants: participants.map((participant) => ({
+      userId: participant.userId,
+      name: participant.name,
+      email: participant.email,
+      role: participant.role,
+    })),
+  });
+
+  const meetingTitle =
+    conversation.name || conversation.projectId?.name || conversation.teamId?.name || "Chat";
+  const message = await createMessageDocument({
+    conversationId: conversation._id,
+    sender: req.user,
+    message: `${req.user.name || "A teammate"} scheduled a Teams meeting`,
+    metadata: {
+      type: "meeting",
+      provider: "microsoft_teams",
+      meetingId: String(meeting.meetingId || ""),
+      subject: meeting.subject,
+      joinUrl: meeting.joinUrl,
+      startDateTime: meeting.startDateTime,
+      endDateTime: meeting.endDateTime,
+      durationMinutes: meeting.durationMinutes,
+      scheduledBy: {
+        _id: req.user._id,
+        name: req.user.name || "",
+        email: req.user.email || "",
+      },
+      participantCount: participants.length,
+    },
+  });
+
+  let inviteWarning = "";
+
+  try {
+    await sendProjectMeetingInviteEmail(
+      participants.map((participant) => participant.email),
+      {
+        subject: meeting.subject,
+        joinUrl: meeting.joinUrl,
+        startDateTime: meeting.startDateTime,
+        endDateTime: meeting.endDateTime,
+        projectName: meetingTitle,
+      },
+      {
+        workspaceId: mailWorkspaceId,
+      }
+    );
+  } catch (inviteError) {
+    inviteWarning =
+      "Meeting created, but invite emails could not be sent right now.";
+    console.error("[chat-meetings] Failed to send meeting invites", {
+      conversationId: String(conversation._id),
+      error: inviteError?.message || inviteError,
+    });
+  }
+
+  res.status(201).json({
+    message: "Meeting scheduled successfully",
+    meeting: serializeChatMeeting(meeting),
+    chatMessage: message,
+    warning: inviteWarning || undefined,
+  });
+});
+
 const markConversationSeen = async ({ conversationId, user }) => {
   const conversation = await Conversation.findOne({
     _id: conversationId,
@@ -1125,9 +1380,11 @@ module.exports = {
   getConversationById,
   getConversations,
   getCallLogs,
+  getMeetings,
   getMessages,
   loadConversationForUser,
   markConversationSeen,
+  scheduleMeeting,
   searchUsers,
   serializeConversation,
   uploadChatAttachment,

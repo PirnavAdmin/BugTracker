@@ -1,10 +1,20 @@
 import { memo, useState } from "react";
 import { motion } from "framer-motion";
-import { CheckCheck, Clock3, Download, FileText, ImageIcon, X } from "lucide-react";
+import {
+  CalendarDays,
+  CheckCheck,
+  Clock3,
+  Download,
+  ExternalLink,
+  FileText,
+  ImageIcon,
+  UsersRound,
+  X,
+} from "lucide-react";
 import UserAvatar from "@/components/shared/UserAvatar";
 import { Button } from "@/components/ui/button";
 import { resolveApiAssetUrl } from "@/lib/api";
-import { cn, formatTime } from "@/lib/utils";
+import { cn, formatDateTime, formatTime } from "@/lib/utils";
 
 const formatFileSize = (size = 0) => {
   if (!size) {
@@ -31,6 +41,73 @@ const getAttachmentType = (attachment = {}) =>
   attachment.fileType || attachment.type || "";
 const isImageAttachment = (attachment = {}) =>
   getAttachmentType(attachment).startsWith("image/");
+
+const MeetingCard = ({ metadata = {}, isOwn }) => {
+  const subject = metadata.subject || "Teams meeting";
+  const joinUrl = metadata.joinUrl || "";
+
+  return (
+    <div
+      className={cn(
+        "overflow-hidden rounded-[18px] border shadow-sm",
+        isOwn ? "border-white/25 bg-white/14 text-white" : "border-sky-100 bg-sky-50 text-slate-800"
+      )}
+    >
+      <div className={cn("flex items-start gap-3 px-4 py-3", isOwn ? "bg-white/10" : "bg-white/70")}>
+        <span
+          className={cn(
+            "flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl",
+            isOwn ? "bg-white/14" : "bg-sky-100 text-sky-700"
+          )}
+        >
+          <CalendarDays className="h-5 w-5" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm font-extrabold">{subject}</p>
+          <p className={cn("mt-1 text-xs font-medium", isOwn ? "text-white/84" : "text-slate-500")}>
+            Microsoft Teams meeting
+          </p>
+        </div>
+      </div>
+      <div className="space-y-2 px-4 py-3">
+        <div className={cn("text-xs font-semibold", isOwn ? "text-white/84" : "text-slate-600")}>
+          {formatDateTime(metadata.startDateTime)}
+        </div>
+        <div
+          className={cn(
+            "flex flex-wrap items-center gap-3 text-xs font-semibold",
+            isOwn ? "text-white/84" : "text-slate-600"
+          )}
+        >
+          <span className="inline-flex items-center gap-1.5">
+            <Clock3 className="h-3.5 w-3.5" />
+            {metadata.durationMinutes || 0} minutes
+          </span>
+          <span className="inline-flex items-center gap-1.5">
+            <UsersRound className="h-3.5 w-3.5" />
+            {metadata.participantCount || 0} participants
+          </span>
+        </div>
+        {joinUrl ? (
+          <a
+            href={joinUrl}
+            target="_blank"
+            rel="noreferrer"
+            className={cn(
+              "inline-flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-bold transition",
+              isOwn
+                ? "bg-white text-blue-700 hover:bg-blue-50"
+                : "bg-blue-600 text-white hover:bg-blue-700"
+            )}
+          >
+            Join Teams meeting
+            <ExternalLink className="h-3.5 w-3.5" />
+          </a>
+        ) : null}
+      </div>
+    </div>
+  );
+};
 
 const AttachmentCard = ({ attachment, isOwn, onPreview }) => {
   const [imageLoadFailed, setImageLoadFailed] = useState(false);
@@ -160,6 +237,12 @@ const MessageBubble = memo(({ message, currentUserId }) => {
               <p className="whitespace-pre-wrap break-words text-sm leading-6">
                 {message.message}
               </p>
+            ) : null}
+
+            {message?.metadata?.type === "meeting" ? (
+              <div className={cn(message?.message && "mt-3")}>
+                <MeetingCard metadata={message.metadata} isOwn={isOwn} />
+              </div>
             ) : null}
 
             {Array.isArray(message?.attachments) && message.attachments.length ? (

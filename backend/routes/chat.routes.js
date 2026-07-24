@@ -7,8 +7,10 @@ const {
   getCallLogs,
   getConversationById,
   getConversations,
+  getMeetings,
   getMessages,
   removeConversationParticipant,
+  scheduleMeeting,
   searchUsers,
   uploadChatAttachment,
   uploadChatAttachmentMiddleware,
@@ -26,6 +28,8 @@ router.get("/conversation/:id", protect, getConversationById);
 router.get("/messages/:conversationId", protect, getMessages);
 router.post("/messages", protect, createMessage);
 router.get("/calls", protect, getCallLogs);
+router.get("/conversations/:conversationId/meetings", protect, getMeetings);
+router.post("/conversations/:conversationId/meetings", protect, scheduleMeeting);
 router.post("/attachments", protect, uploadChatAttachmentMiddleware, uploadChatAttachment);
 router.get("/users/search", protect, searchUsers);
 

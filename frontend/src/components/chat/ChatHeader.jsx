@@ -1,5 +1,16 @@
 import { memo, useEffect, useMemo, useState } from "react";
-import { Camera, Hash, Menu, Phone, Search, Trash2, UsersRound } from "lucide-react";
+import {
+  CalendarDays,
+  Camera,
+  Clock3,
+  ExternalLink,
+  Hash,
+  Menu,
+  Phone,
+  Search,
+  Trash2,
+  UsersRound,
+} from "lucide-react";
 import UserAvatar from "@/components/shared/UserAvatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -14,11 +25,19 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { useCall } from "@/components/chat/CallProvider";
-import { searchChatUsers } from "@/lib/api";
+import { fetchChatMeetings, scheduleChatMeeting, searchChatUsers } from "@/lib/api";
 import { useChatStore } from "@/lib/chatStore";
-import { cn } from "@/lib/utils";
+import { cn, formatDateTime, toDateTimeInputValue } from "@/lib/utils";
 
 const getId = (value) => String(value?._id || value?.id || value || "");
+const DEFAULT_MEETING_DURATION = 30;
+
+const buildDefaultMeetingStart = () => {
+  const next = new Date();
+  next.setMinutes(0, 0, 0);
+  next.setHours(next.getHours() + 1);
+  return toDateTimeInputValue(next);
+};
 
 const getConversationName = (conversation, currentUserId) => {
   if (!conversation) {
@@ -75,6 +94,7 @@ const ChatHeader = memo(({ conversation, currentUserId, onlineUsers, onDelete, o
   const removeParticipantFromConversation = useChatStore(
     (state) => state.removeParticipantFromConversation
   );
+  const receiveMessage = useChatStore((state) => state.receiveMessage);
   const [isParticipantsOpen, setIsParticipantsOpen] = useState(false);
   const [participantQuery, setParticipantQuery] = useState("");
   const [participantResults, setParticipantResults] = useState([]);
@@ -83,6 +103,18 @@ const ChatHeader = memo(({ conversation, currentUserId, onlineUsers, onDelete, o
   const [isSavingParticipants, setIsSavingParticipants] = useState(false);
   const [removingParticipantId, setRemovingParticipantId] = useState("");
   const [participantActionError, setParticipantActionError] = useState("");
+  const [isScheduleOpen, setIsScheduleOpen] = useState(false);
+  const [meetingForm, setMeetingForm] = useState({
+    subject: "",
+    startDateTime: buildDefaultMeetingStart(),
+    durationMinutes: DEFAULT_MEETING_DURATION,
+  });
+  const [meetingError, setMeetingError] = useState("");
+  const [meetingSuccess, setMeetingSuccess] = useState("");
+  const [meetingWarning, setMeetingWarning] = useState("");
+  const [isLoadingMeetings, setIsLoadingMeetings] = useState(false);
+  const [isSchedulingMeeting, setIsSchedulingMeeting] = useState(false);
+  const [upcomingMeetings, setUpcomingMeetings] = useState([]);
   const participants = conversation?.participants || [];
   const title = getConversationName(conversation, currentUserId);
   const directUser = participants.find(
@@ -124,6 +156,11 @@ const ChatHeader = memo(({ conversation, currentUserId, onlineUsers, onDelete, o
         : selectedParticipantIds.length
           ? `${selectedParticipantIds.length} participant(s) selected`
           : "Search workspace users to add them to this custom chat.";
+  const scheduleTitle =
+    conversation?.type === "direct"
+      ? `Meeting with ${title}`
+      : `${title} sync`;
+  const nextMeeting = upcomingMeetings[0] || null;
 
   const handleDelete = async () => {
     if (!conversation || !onDelete) {
@@ -189,6 +226,55 @@ const ChatHeader = memo(({ conversation, currentUserId, onlineUsers, onDelete, o
     };
   }, [canManageParticipants, isParticipantsOpen, participantQuery]);
 
+  useEffect(() => {
+    setMeetingForm({
+      subject: scheduleTitle,
+      startDateTime: buildDefaultMeetingStart(),
+      durationMinutes: DEFAULT_MEETING_DURATION,
+    });
+    setMeetingError("");
+    setMeetingSuccess("");
+    setMeetingWarning("");
+    setUpcomingMeetings([]);
+  }, [conversation?._id, scheduleTitle]);
+
+  useEffect(() => {
+    if (!conversation?._id) {
+      return;
+    }
+
+    let isActive = true;
+
+    const loadMeetings = async () => {
+      setIsLoadingMeetings(true);
+
+      try {
+        const meetings = await fetchChatMeetings(getId(conversation));
+
+        if (isActive) {
+          setUpcomingMeetings(meetings);
+          setMeetingError("");
+        }
+      } catch (error) {
+        if (isActive) {
+          setMeetingError(
+            error?.response?.data?.message || error?.message || "Unable to load meetings."
+          );
+        }
+      } finally {
+        if (isActive) {
+          setIsLoadingMeetings(false);
+        }
+      }
+    };
+
+    loadMeetings();
+
+    return () => {
+      isActive = false;
+    };
+  }, [conversation?._id, conversation]);
+
   const toggleParticipantSelection = (userId) => {
     setSelectedParticipantIds((current) =>
       current.includes(userId)
@@ -235,6 +321,54 @@ const ChatHeader = memo(({ conversation, currentUserId, onlineUsers, onDelete, o
       setRemovingParticipantId("");
     }
   };
+
+  const handleScheduleMeeting = async () => {
+    if (!conversation?._id) {
+      return;
+    }
+
+    setIsSchedulingMeeting(true);
+    setMeetingError("");
+    setMeetingSuccess("");
+    setMeetingWarning("");
+
+    try {
+      const response = await scheduleChatMeeting(getId(conversation), meetingForm);
+
+      if (response?.chatMessage) {
+        receiveMessage({
+          conversationId: getId(conversation),
+          message: response.chatMessage,
+        });
+      }
+
+      const meetings = await fetchChatMeetings(getId(conversation));
+      setUpcomingMeetings(meetings);
+      setMeetingSuccess(response?.message || "Meeting scheduled successfully.");
+      setMeetingWarning(response?.warning || "");
+      setMeetingForm({
+        subject: scheduleTitle,
+        startDateTime: buildDefaultMeetingStart(),
+        durationMinutes: DEFAULT_MEETING_DURATION,
+      });
+    } catch (error) {
+      setMeetingError(
+        error?.response?.data?.message || error?.message || "Unable to schedule meeting."
+      );
+    } finally {
+      setIsSchedulingMeeting(false);
+    }
+  };
+
+  const scheduleStatusText =
+    meetingError ||
+    meetingWarning ||
+    meetingSuccess ||
+    (isLoadingMeetings
+      ? "Loading scheduled meetings..."
+      : upcomingMeetings.length
+        ? `${upcomingMeetings.length} upcoming meeting(s)`
+        : "No scheduled meetings yet.");
 
   return (
     <header className="flex min-h-[68px] shrink-0 items-center gap-2 border-b border-white/55 bg-white/52 px-3 py-2.5 backdrop-blur-2xl sm:min-h-[76px] sm:gap-3 sm:px-5 sm:py-3">
@@ -297,11 +431,32 @@ const ChatHeader = memo(({ conversation, currentUserId, onlineUsers, onDelete, o
               Live call
             </span>
           ) : null}
+          {nextMeeting ? (
+            <button
+              type="button"
+              onClick={() => setIsScheduleOpen(true)}
+              className="inline-flex items-center gap-1.5 rounded-full border border-sky-200 bg-sky-50 px-2.5 py-1 text-[11px] font-extrabold text-sky-700 transition hover:border-sky-300 hover:bg-sky-100"
+            >
+              <CalendarDays className="h-3.5 w-3.5" />
+              {formatDateTime(nextMeeting.startDateTime)}
+            </button>
+          ) : null}
         </div>
       </div>
 
       {conversation?.type === "direct" ? (
         <div className="flex shrink-0 items-center gap-2">
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="text-blue-600 hover:bg-blue-50 hover:text-blue-700"
+            onClick={() => setIsScheduleOpen(true)}
+            title="Schedule Teams meeting"
+            aria-label="Schedule Teams meeting"
+          >
+            <CalendarDays className="h-4 w-4" />
+          </Button>
           <Button
             type="button"
             variant="ghost"
@@ -349,6 +504,18 @@ const ChatHeader = memo(({ conversation, currentUserId, onlineUsers, onDelete, o
             variant="outline"
             size="sm"
             className="hidden text-blue-600 hover:bg-blue-50 hover:text-blue-700 sm:inline-flex"
+            onClick={() => setIsScheduleOpen(true)}
+            title="Schedule Teams meeting"
+            aria-label="Schedule Teams meeting"
+          >
+            <CalendarDays className="h-4 w-4" />
+            Schedule
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="hidden text-blue-600 hover:bg-blue-50 hover:text-blue-700 sm:inline-flex"
             onClick={() => startCall({ conversation, callType: "audio" })}
             disabled={!isGroupCallAvailable}
             title="Start group audio call"
@@ -369,6 +536,17 @@ const ChatHeader = memo(({ conversation, currentUserId, onlineUsers, onDelete, o
           >
             <Camera className="h-4 w-4" />
             Video
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="text-blue-600 hover:bg-blue-50 hover:text-blue-700 sm:hidden"
+            onClick={() => setIsScheduleOpen(true)}
+            title="Schedule Teams meeting"
+            aria-label="Schedule Teams meeting"
+          >
+            <CalendarDays className="h-4 w-4" />
           </Button>
           <Button
             type="button"
@@ -550,6 +728,121 @@ const ChatHeader = memo(({ conversation, currentUserId, onlineUsers, onDelete, o
           </DialogContent>
         </Dialog>
       ) : null}
+
+      <Dialog open={isScheduleOpen} onOpenChange={setIsScheduleOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Schedule Teams meeting</DialogTitle>
+            <DialogDescription>
+              Create a meeting schedule for this chat and share the Teams join link with participants.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-6 lg:grid-cols-[minmax(0,1.2fr)_minmax(260px,0.8fr)]">
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <label className="text-sm font-semibold text-slate-700">Meeting title</label>
+                <Input
+                  value={meetingForm.subject}
+                  onChange={(event) =>
+                    setMeetingForm((current) => ({
+                      ...current,
+                      subject: event.target.value,
+                    }))
+                  }
+                  placeholder="Enter meeting title"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-semibold text-slate-700">Start date & time</label>
+                <Input
+                  type="datetime-local"
+                  value={meetingForm.startDateTime}
+                  onChange={(event) =>
+                    setMeetingForm((current) => ({
+                      ...current,
+                      startDateTime: event.target.value,
+                    }))
+                  }
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-semibold text-slate-700">Duration (minutes)</label>
+                <Input
+                  type="number"
+                  min="5"
+                  step="5"
+                  value={meetingForm.durationMinutes}
+                  onChange={(event) =>
+                    setMeetingForm((current) => ({
+                      ...current,
+                      durationMinutes: event.target.value,
+                    }))
+                  }
+                />
+              </div>
+            </div>
+
+            <div className="rounded-[28px] border border-slate-200 bg-slate-50 p-4">
+              <div className="flex items-center gap-2 text-sm font-bold text-slate-900">
+                <CalendarDays className="h-4 w-4 text-blue-600" />
+                Upcoming meetings
+              </div>
+              <div className="mt-4 space-y-3">
+                {upcomingMeetings.length ? (
+                  upcomingMeetings.map((meeting) => (
+                    <div
+                      key={meeting._id}
+                      className="rounded-2xl border border-white bg-white p-3 shadow-sm"
+                    >
+                      <p className="text-sm font-bold text-slate-900">{meeting.subject}</p>
+                      <div className="mt-2 flex items-center gap-2 text-xs font-semibold text-slate-500">
+                        <Clock3 className="h-3.5 w-3.5" />
+                        {formatDateTime(meeting.startDateTime)}
+                      </div>
+                      <div className="mt-1 text-xs font-medium text-slate-500">
+                        {meeting.durationMinutes} minutes
+                      </div>
+                      <a
+                        href={meeting.joinUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="mt-3 inline-flex items-center gap-1 text-xs font-bold text-blue-600 hover:text-blue-700"
+                      >
+                        Join in Teams
+                        <ExternalLink className="h-3.5 w-3.5" />
+                      </a>
+                    </div>
+                  ))
+                ) : (
+                  <div className="rounded-2xl border border-dashed border-slate-200 bg-white/70 p-4 text-sm font-medium text-slate-500">
+                    No scheduled meetings yet for this chat.
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter className="items-stretch sm:items-center sm:justify-between">
+            <p
+              className={cn(
+                "text-xs font-medium",
+                meetingError
+                  ? "text-rose-500"
+                  : meetingWarning
+                    ? "text-amber-600"
+                    : meetingSuccess
+                      ? "text-emerald-600"
+                      : "text-slate-500"
+              )}
+            >
+              {scheduleStatusText}
+            </p>
+            <Button type="button" onClick={handleScheduleMeeting} disabled={isSchedulingMeeting}>
+              {isSchedulingMeeting ? "Scheduling..." : "Create schedule"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </header>
   );
 });
