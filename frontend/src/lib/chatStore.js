@@ -12,9 +12,51 @@ import {
 import { getChatSocket } from "@/lib/socket";
 
 const getId = (value) => String(value?._id || value?.id || value || "");
+const CHAT_PREFERENCES_STORAGE_KEY = "chat-conversation-preferences";
+
+const readConversationPreferences = () => {
+  if (typeof window === "undefined") {
+    return {};
+  }
+
+  try {
+    const storedValue = window.localStorage.getItem(CHAT_PREFERENCES_STORAGE_KEY);
+    const parsedValue = storedValue ? JSON.parse(storedValue) : {};
+    return parsedValue && typeof parsedValue === "object" ? parsedValue : {};
+  } catch {
+    return {};
+  }
+};
+
+const writeConversationPreferences = (preferences) => {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  try {
+    window.localStorage.setItem(
+      CHAT_PREFERENCES_STORAGE_KEY,
+      JSON.stringify(preferences || {})
+    );
+  } catch {
+    // Ignore local persistence failures so chat stays usable.
+  }
+};
+
+const applyConversationPreferences = (conversation, preferences = readConversationPreferences()) => {
+  const conversationId = getId(conversation);
+  const preference = preferences[conversationId] || {};
+
+  return {
+    ...conversation,
+    isPinned: Boolean(preference.isPinned),
+    isStarred: Boolean(preference.isStarred),
+    isArchived: Boolean(preference.isArchived),
+  };
+};
 
 const normalizeConversation = (conversation) => ({
-  ...conversation,
+  ...applyConversationPreferences(conversation),
   _id: getId(conversation),
   participants: Array.isArray(conversation?.participants)
     ? conversation.participants
@@ -75,6 +117,35 @@ export const useChatStore = create((set, get) => ({
     set({ currentUserId: String(userId || "") });
   },
 
+  toggleConversationPreference: (conversationId, field) => {
+    const normalizedConversationId = String(conversationId || "");
+    if (!normalizedConversationId || !["isPinned", "isStarred", "isArchived"].includes(field)) {
+      return;
+    }
+
+    const preferences = readConversationPreferences();
+    const currentPreference = preferences[normalizedConversationId] || {};
+    const nextValue = !Boolean(currentPreference[field]);
+    const nextPreference = {
+      ...currentPreference,
+      [field]: nextValue,
+    };
+
+    preferences[normalizedConversationId] = nextPreference;
+    writeConversationPreferences(preferences);
+
+    set((state) => ({
+      conversations: state.conversations.map((conversation) =>
+        getId(conversation) === normalizedConversationId
+          ? {
+              ...conversation,
+              [field]: nextValue,
+            }
+          : conversation
+      ),
+    }));
+  },
+
   setActiveConversation: async (conversationId) => {
     set({ activeConversationId: conversationId });
     const conversation = get().conversations.find(
@@ -104,7 +175,10 @@ export const useChatStore = create((set, get) => ({
     set({ isLoadingConversations: true, error: "" });
 
     try {
-      const conversations = (await fetchChatConversations()).map(normalizeConversation);
+      const preferences = readConversationPreferences();
+      const conversations = (await fetchChatConversations()).map((conversation) =>
+        normalizeConversation(applyConversationPreferences(conversation, preferences))
+      );
       set({
         conversations: sortConversations(conversations),
         hasLoadedConversations: true,
@@ -191,7 +265,7 @@ export const useChatStore = create((set, get) => ({
   },
 
   createDirectConversation: async (userId) => {
-    const conversation = normalizeConversation(
+      const conversation = normalizeConversation(
       await createChatConversation({
         type: "direct",
         userId,
@@ -210,7 +284,7 @@ export const useChatStore = create((set, get) => ({
   },
 
   createGroupConversation: async ({ name, participants = [] }) => {
-    const conversation = normalizeConversation(
+      const conversation = normalizeConversation(
       await createChatConversation({
         type: "group",
         channelType: "custom",
@@ -236,9 +310,9 @@ export const useChatStore = create((set, get) => ({
       return null;
     }
 
-    const conversation = normalizeConversation(
-      await addChatConversationParticipants(normalizedConversationId, participants)
-    );
+      const conversation = normalizeConversation(
+        await addChatConversationParticipants(normalizedConversationId, participants)
+      );
 
     set((state) => ({
       conversations: sortConversations(
@@ -258,9 +332,9 @@ export const useChatStore = create((set, get) => ({
       return null;
     }
 
-    const conversation = normalizeConversation(
-      await removeChatConversationParticipant(normalizedConversationId, normalizedUserId)
-    );
+      const conversation = normalizeConversation(
+        await removeChatConversationParticipant(normalizedConversationId, normalizedUserId)
+      );
 
     set((state) => ({
       conversations: sortConversations(
@@ -282,6 +356,11 @@ export const useChatStore = create((set, get) => ({
 
     set({ error: "" });
     await deleteChatConversation(normalizedConversationId);
+    const preferences = readConversationPreferences();
+    if (preferences[normalizedConversationId]) {
+      delete preferences[normalizedConversationId];
+      writeConversationPreferences(preferences);
+    }
 
     set((state) => {
       const {

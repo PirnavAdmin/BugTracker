@@ -54,6 +54,9 @@ const ChatPage = () => {
   const onlineUsers = useChatStore((state) => state.onlineUsers);
   const searchResults = useChatStore((state) => state.searchResults);
   const typingByConversation = useChatStore((state) => state.typingByConversation);
+  const toggleConversationPreference = useChatStore(
+    (state) => state.toggleConversationPreference
+  );
   const createDirectConversation = useChatStore(
     (state) => state.createDirectConversation
   );
@@ -80,6 +83,29 @@ const ChatPage = () => {
       ) || null,
     [activeConversationId, conversations]
   );
+  const filteredConversations = useMemo(() => {
+    if (activeModule === "archives") {
+      return conversations.filter((conversation) => conversation.isArchived);
+    }
+
+    if (activeModule === "pinned") {
+      return conversations.filter(
+        (conversation) => conversation.isPinned && !conversation.isArchived
+      );
+    }
+
+    if (activeModule === "starred") {
+      return conversations.filter(
+        (conversation) => conversation.isStarred && !conversation.isArchived
+      );
+    }
+
+    if (activeModule === "chats") {
+      return conversations.filter((conversation) => !conversation.isArchived);
+    }
+
+    return conversations;
+  }, [activeModule, conversations]);
   const activeMessages = activeConversationId
     ? messagesByConversation[activeConversationId] || []
     : [];
@@ -180,6 +206,24 @@ const ChatPage = () => {
       setMeetingDraft(buildMeetingDraft(activeConversation));
     }
   }, [activeConversation, editingMeetingId]);
+
+  useEffect(() => {
+    if (!["pinned", "starred", "archives"].includes(activeModule)) {
+      return;
+    }
+
+    if (!filteredConversations.length) {
+      return;
+    }
+
+    const activeConversationStillVisible = filteredConversations.some(
+      (conversation) => getId(conversation) === activeConversationId
+    );
+
+    if (!activeConversationStillVisible) {
+      setActiveConversation(getId(filteredConversations[0])).catch(() => {});
+    }
+  }, [activeConversationId, activeModule, filteredConversations, setActiveConversation]);
 
   const openCreateMeetingDialog = useCallback(() => {
     if (!activeConversation || !canScheduleMeetings) {
@@ -351,26 +395,41 @@ const ChatPage = () => {
       );
     }
 
-    if (["pinned", "files", "starred", "archives"].includes(activeModule)) {
+    if (activeModule === "files") {
       const metaByModule = {
-        pinned: {
-          title: "Pinned items",
-          description: "Pinned chats and meetings will appear here once that workflow is added.",
-          icon: <Pin className="h-6 w-6" />,
-        },
         files: {
           title: "Shared files",
           description: "Shared files will live here so the chat module feels closer to Teams.",
           icon: <FolderKanban className="h-6 w-6" />,
         },
+      };
+      const meta = metaByModule[activeModule];
+
+      return (
+        <div className="flex h-full flex-1 flex-col overflow-hidden bg-white px-6 py-6">
+          <EmptyState title={meta.title} description={meta.description} icon={meta.icon} />
+        </div>
+      );
+    }
+
+    if (
+      ["pinned", "starred", "archives"].includes(activeModule) &&
+      !filteredConversations.length
+    ) {
+      const metaByModule = {
+        pinned: {
+          title: "No pinned chats",
+          description: "Pin important chats from the 3-dot menu in the chat header.",
+          icon: <Pin className="h-6 w-6" />,
+        },
         starred: {
-          title: "Starred",
-          description: "Starred messages and meetings will be grouped here for quick access.",
+          title: "No starred chats",
+          description: "Star chats from the 3-dot menu so they appear here.",
           icon: <Star className="h-6 w-6" />,
         },
         archives: {
-          title: "Archives",
-          description: "Archived chats and meeting history will be shown here.",
+          title: "No archived chats",
+          description: "Archived chats will appear here until you restore them.",
           icon: <Archive className="h-6 w-6" />,
         },
       };
@@ -402,6 +461,9 @@ const ChatPage = () => {
         }
         onOpenMeetingDialog={openCreateMeetingDialog}
         onSend={sendMessage}
+        onToggleConversationPreference={(field) =>
+          activeConversationId && toggleConversationPreference(activeConversationId, field)
+        }
         onToggleSidebar={() => setIsSidebarOpen(true)}
         typingUsers={typingUsers}
       />
@@ -413,7 +475,7 @@ const ChatPage = () => {
       <ChatModuleNav activeModule={activeModule} onSelect={setActiveModule} />
       <ChatSidebar
         activeConversationId={activeConversationId}
-        conversations={conversations}
+        conversations={filteredConversations}
         currentUserId={getId(user)}
         isOpen={isSidebarOpen}
         onlineUsers={onlineUsers}

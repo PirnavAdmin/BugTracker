@@ -23,6 +23,7 @@ const ChatWindow = memo(
     onLoadOlder,
     onOpenMeetingDialog,
     onSend,
+    onToggleConversationPreference,
     onToggleSidebar,
     typingUsers,
   }) => {
@@ -101,6 +102,7 @@ const ChatWindow = memo(
           onDelete={onDelete}
           onJoinMeeting={onJoinMeeting}
           onOpenMeetingDialog={onOpenMeetingDialog}
+          onToggleConversationPreference={onToggleConversationPreference}
           onToggleSidebar={onToggleSidebar}
         />
 

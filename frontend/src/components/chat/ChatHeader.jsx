@@ -1,11 +1,16 @@
 import { memo, useEffect, useMemo, useState } from "react";
 import {
+  Archive,
   CalendarDays,
   Camera,
+  Check,
   Hash,
   Menu,
+  MoreHorizontal,
   Phone,
+  Pin,
   Search,
+  Star,
   Trash2,
   UsersRound,
   ExternalLink,
@@ -87,6 +92,7 @@ const ChatHeader = memo(
     onDelete,
     onJoinMeeting,
     onOpenMeetingDialog,
+    onToggleConversationPreference,
     onToggleSidebar,
   }) => {
     const { activeCall, callPresence, channelCalls, joinCall, startCall } = useCall();
@@ -104,6 +110,7 @@ const ChatHeader = memo(
     const [isSavingParticipants, setIsSavingParticipants] = useState(false);
     const [removingParticipantId, setRemovingParticipantId] = useState("");
     const [participantActionError, setParticipantActionError] = useState("");
+    const [isActionsMenuOpen, setIsActionsMenuOpen] = useState(false);
     const participants = conversation?.participants || [];
     const title = getConversationName(conversation, currentUserId);
     const directUser = participants.find(
@@ -122,6 +129,9 @@ const ChatHeader = memo(
     const canDelete = conversation && !["project", "team"].includes(conversation.channelType);
     const canManageParticipants =
       conversation?.type === "group" && conversation?.channelType === "custom";
+    const isPinned = Boolean(conversation?.isPinned);
+    const isStarred = Boolean(conversation?.isStarred);
+    const isArchived = Boolean(conversation?.isArchived);
     const participantIds = useMemo(
       () => new Set(participants.map((participant) => getId(participant))),
       [participants]
@@ -159,6 +169,15 @@ const ChatHeader = memo(
       }
 
       await onDelete(getId(conversation));
+    };
+
+    const handleTogglePreference = (field) => {
+      if (!conversation || !onToggleConversationPreference) {
+        return;
+      }
+
+      onToggleConversationPreference(field);
+      setIsActionsMenuOpen(false);
     };
 
     useEffect(() => {
@@ -340,7 +359,7 @@ const ChatHeader = memo(
           ) : null}
         </div>
 
-        <div className="flex shrink-0 items-center gap-2">
+        <div className="relative flex shrink-0 items-center gap-2">
           {conversation?.type === "direct" ? (
             <>
               <Button
@@ -418,6 +437,66 @@ const ChatHeader = memo(
               <Trash2 className="h-4 w-4" />
             </Button>
           ) : null}
+
+          <div className="relative">
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="shrink-0 text-slate-500 hover:bg-slate-100 hover:text-slate-900"
+              onClick={() => setIsActionsMenuOpen((current) => !current)}
+              title="More actions"
+              aria-label="More actions"
+            >
+              <MoreHorizontal className="h-4 w-4" />
+            </Button>
+
+            {isActionsMenuOpen ? (
+              <>
+                <button
+                  type="button"
+                  className="fixed inset-0 z-10 cursor-default"
+                  aria-label="Close chat actions"
+                  onClick={() => setIsActionsMenuOpen(false)}
+                />
+                <div className="absolute right-0 top-[calc(100%+0.5rem)] z-20 w-52 rounded-2xl border border-slate-200 bg-white p-2 shadow-[0_20px_50px_-30px_rgba(15,23,42,0.35)]">
+                  <button
+                    type="button"
+                    className="flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-sm font-medium text-slate-700 transition hover:bg-slate-100"
+                    onClick={() => handleTogglePreference("isPinned")}
+                  >
+                    <span className="inline-flex items-center gap-2">
+                      <Pin className="h-4 w-4" />
+                      {isPinned ? "Unpin chat" : "Pin chat"}
+                    </span>
+                    {isPinned ? <Check className="h-4 w-4 text-slate-900" /> : null}
+                  </button>
+                  <button
+                    type="button"
+                    className="flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-sm font-medium text-slate-700 transition hover:bg-slate-100"
+                    onClick={() => handleTogglePreference("isStarred")}
+                  >
+                    <span className="inline-flex items-center gap-2">
+                      <Star className="h-4 w-4" />
+                      {isStarred ? "Remove star" : "Star chat"}
+                    </span>
+                    {isStarred ? <Check className="h-4 w-4 text-slate-900" /> : null}
+                  </button>
+                  <button
+                    type="button"
+                    className="flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-sm font-medium text-slate-700 transition hover:bg-slate-100"
+                    onClick={() => handleTogglePreference("isArchived")}
+                  >
+                    <span className="inline-flex items-center gap-2">
+                      <Archive className="h-4 w-4" />
+                      {isArchived ? "Restore chat" : "Archive chat"}
+                    </span>
+                    {isArchived ? <Check className="h-4 w-4 text-slate-900" /> : null}
+                  </button>
+                </div>
+              </>
+            ) : null}
+          </div>
 
           {conversation?.type !== "direct" ? (
             <Dialog open={isParticipantsOpen} onOpenChange={setIsParticipantsOpen}>
