@@ -1301,16 +1301,35 @@ const IssueDetailsDialog = ({
                       </label>
 
                       <div className="space-y-2">
-                        <div className="flex items-center justify-between gap-3">
-                          <span className="text-xs uppercase tracking-[0.22em] text-gray-500">
-                            Developer / Dev Lead
-                          </span>
+                        <span className="text-xs uppercase tracking-[0.22em] text-gray-500">
+                          Developer / Dev Lead
+                        </span>
+                        <div className="flex items-center gap-3">
+                          <select
+                            className="field-select flex-1"
+                            value={detailDraft.bugDetails.developerLeadId}
+                            onChange={(event) =>
+                              setDetailDraft((current) => ({
+                                ...current,
+                                bugDetails: {
+                                  ...current.bugDetails,
+                                  developerLeadId: event.target.value,
+                                },
+                              }))
+                            }
+                          >
+                            <option value="">Unassigned</option>
+                            {developerLeadOptions.map((assignee) => (
+                              <option key={assignee._id} value={assignee._id}>
+                                {assignee.name} ({assignee.role})
+                              </option>
+                            ))}
+                          </select>
                           {canChangeReporterOwnership ? (
                             <Button
                               type="button"
-                              variant="outline"
                               size="sm"
-                              className="border-slate-300 text-slate-700 hover:bg-slate-100 hover:text-slate-950"
+                              className="shrink-0 border border-amber-300 bg-amber-200 text-amber-950 hover:bg-amber-300"
                               onClick={() =>
                                 setIsReporterOwnershipOpen((current) => !current)
                               }
@@ -1319,26 +1338,6 @@ const IssueDetailsDialog = ({
                             </Button>
                           ) : null}
                         </div>
-                        <select
-                          className="field-select"
-                          value={detailDraft.bugDetails.developerLeadId}
-                          onChange={(event) =>
-                            setDetailDraft((current) => ({
-                              ...current,
-                              bugDetails: {
-                                ...current.bugDetails,
-                                developerLeadId: event.target.value,
-                              },
-                            }))
-                          }
-                        >
-                          <option value="">Unassigned</option>
-                          {developerLeadOptions.map((assignee) => (
-                            <option key={assignee._id} value={assignee._id}>
-                              {assignee.name} ({assignee.role})
-                            </option>
-                          ))}
-                        </select>
                       </div>
                     </div>
 

@@ -108,6 +108,10 @@ const ChatHeader = memo(
     const [removingParticipantId, setRemovingParticipantId] = useState("");
     const [participantActionError, setParticipantActionError] = useState("");
     const [isActionsMenuOpen, setIsActionsMenuOpen] = useState(false);
+    const [actionsMenuPosition, setActionsMenuPosition] = useState({
+      top: 0,
+      left: 0,
+    });
     const participants = conversation?.participants || [];
     const title = getConversationName(conversation, currentUserId);
     const directUser = participants.find(
@@ -176,6 +180,47 @@ const ChatHeader = memo(
       onToggleConversationPreference(field);
       setIsActionsMenuOpen(false);
     };
+
+    const handleToggleActionsMenu = (event) => {
+      setIsActionsMenuOpen((current) => {
+        if (current) {
+          return false;
+        }
+
+        const triggerRect = event.currentTarget.getBoundingClientRect();
+        const menuWidth = 224;
+        const viewportPadding = 12;
+        const nextLeft = Math.min(
+          Math.max(triggerRect.right - menuWidth, viewportPadding),
+          window.innerWidth - menuWidth - viewportPadding
+        );
+
+        setActionsMenuPosition({
+          top: triggerRect.bottom + 8,
+          left: nextLeft,
+        });
+
+        return true;
+      });
+    };
+
+    useEffect(() => {
+      if (!isActionsMenuOpen) {
+        return undefined;
+      }
+
+      const handleViewportChange = () => {
+        setIsActionsMenuOpen(false);
+      };
+
+      window.addEventListener("resize", handleViewportChange);
+      window.addEventListener("scroll", handleViewportChange, true);
+
+      return () => {
+        window.removeEventListener("resize", handleViewportChange);
+        window.removeEventListener("scroll", handleViewportChange, true);
+      };
+    }, [isActionsMenuOpen]);
 
     useEffect(() => {
       if (!isParticipantsOpen) {
@@ -416,7 +461,7 @@ const ChatHeader = memo(
               variant="ghost"
               size="icon"
               className="shrink-0 text-slate-500 hover:bg-slate-100 hover:text-slate-900"
-              onClick={() => setIsActionsMenuOpen((current) => !current)}
+              onClick={handleToggleActionsMenu}
               title="More actions"
               aria-label="More actions"
             >
@@ -431,13 +476,19 @@ const ChatHeader = memo(
                   aria-label="Close chat actions"
                   onClick={() => setIsActionsMenuOpen(false)}
                 />
-                <div className="absolute right-0 top-[calc(100%+0.5rem)] z-20 w-52 rounded-2xl border border-slate-200 bg-white p-2 shadow-[0_20px_50px_-30px_rgba(15,23,42,0.35)]">
+                <div
+                  className="fixed z-20 w-56 rounded-2xl border border-slate-200 bg-white p-2 shadow-[0_20px_50px_-30px_rgba(15,23,42,0.35)]"
+                  style={{
+                    top: actionsMenuPosition.top,
+                    left: actionsMenuPosition.left,
+                  }}
+                >
                   <button
                     type="button"
                     className="flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-sm font-medium text-slate-700 transition hover:bg-slate-100"
                     onClick={() => handleTogglePreference("isPinned")}
                   >
-                    <span className="inline-flex items-center gap-2">
+                    <span className="inline-flex items-center gap-2 whitespace-nowrap">
                       <Pin className="h-4 w-4" />
                       {isPinned ? "Unpin chat" : "Pin chat"}
                     </span>
@@ -448,7 +499,7 @@ const ChatHeader = memo(
                     className="flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-sm font-medium text-slate-700 transition hover:bg-slate-100"
                     onClick={() => handleTogglePreference("isStarred")}
                   >
-                    <span className="inline-flex items-center gap-2">
+                    <span className="inline-flex items-center gap-2 whitespace-nowrap">
                       <Star className="h-4 w-4" />
                       {isStarred ? "Remove star" : "Star chat"}
                     </span>
@@ -459,7 +510,7 @@ const ChatHeader = memo(
                     className="flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-sm font-medium text-slate-700 transition hover:bg-slate-100"
                     onClick={() => handleTogglePreference("isArchived")}
                   >
-                    <span className="inline-flex items-center gap-2">
+                    <span className="inline-flex items-center gap-2 whitespace-nowrap">
                       <Archive className="h-4 w-4" />
                       {isArchived ? "Restore chat" : "Archive chat"}
                     </span>
