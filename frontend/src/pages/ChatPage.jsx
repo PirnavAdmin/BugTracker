@@ -408,7 +408,7 @@ const ChatPage = () => {
   };
 
   return (
-    <div className="flex h-full w-full overflow-hidden bg-slate-100 p-3">
+    <div className="flex h-full w-full overflow-hidden bg-slate-100">
       <ChatModuleNav activeModule={activeModule} onSelect={setActiveModule} />
       <ChatSidebar
         activeConversationId={activeConversationId}

@@ -313,38 +313,20 @@ const ChatHeader = memo(
             ) : null}
           </div>
 
-          <div
-            className={cn(
-              "mt-4 flex items-center justify-between gap-3 rounded-[22px] border px-4 py-3",
-              nextMeeting
-                ? "border-slate-300 bg-slate-100"
-                : "border-slate-200 bg-slate-50"
-            )}
-          >
-            <div className="min-w-0">
-              {nextMeeting ? (
-                <>
-                  <div className="flex items-center gap-2">
-                    <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-slate-300 bg-white text-slate-900">
-                      <CalendarDays className="h-4 w-4" />
-                    </span>
-                    <p className="truncate text-sm font-bold text-slate-900">{nextMeeting.title}</p>
-                  </div>
-                  <p className="truncate text-xs font-medium text-slate-500">
-                    {getMeetingDayTimeLabel(nextMeeting)}
-                  </p>
-                </>
-              ) : (
-                <>
-                  <p className="text-sm font-bold text-slate-900">No meetings scheduled</p>
-                  <p className="text-xs font-medium text-slate-500">
-                    Schedule an in-app meeting for this chat to keep everyone aligned.
-                  </p>
-                </>
-              )}
-            </div>
+          {nextMeeting ? (
+            <div className="mt-4 flex items-center justify-between gap-3 rounded-[22px] border border-slate-300 bg-slate-100 px-4 py-3">
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-slate-300 bg-white text-slate-900">
+                    <CalendarDays className="h-4 w-4" />
+                  </span>
+                  <p className="truncate text-sm font-bold text-slate-900">{nextMeeting.title}</p>
+                </div>
+                <p className="truncate text-xs font-medium text-slate-500">
+                  {getMeetingDayTimeLabel(nextMeeting)}
+                </p>
+              </div>
 
-            {nextMeeting ? (
               <Button
                 type="button"
                 size="sm"
@@ -354,18 +336,8 @@ const ChatHeader = memo(
                 <ExternalLink className="h-4 w-4" />
                 Join Meeting
               </Button>
-            ) : (
-              <Button
-                type="button"
-                size="sm"
-                className="bg-slate-950 text-white hover:bg-slate-800"
-                onClick={onOpenMeetingDialog}
-              >
-                <CalendarDays className="h-4 w-4" />
-                Schedule Meeting
-              </Button>
-            )}
-          </div>
+            </div>
+          ) : null}
         </div>
 
         <div className="flex shrink-0 items-center gap-2">
