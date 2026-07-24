@@ -3,7 +3,6 @@ import { Archive, CalendarDays, FolderKanban, Pin, Star } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import ChatMeetingDialog from "@/components/chat/ChatMeetingDialog";
 import ChatMeetingsPanel from "@/components/chat/ChatMeetingsPanel";
-import ChatMeetingsSidebar from "@/components/chat/ChatMeetingsSidebar";
 import ChatModuleNav from "@/components/chat/ChatModuleNav";
 import ChatSidebar from "@/components/chat/ChatSidebar";
 import ChatWindow from "@/components/chat/ChatWindow";
@@ -34,7 +33,6 @@ const ChatPage = () => {
   const navigate = useNavigate();
   const [activeModule, setActiveModule] = useState("chats");
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [isMeetingsSidebarCollapsed, setIsMeetingsSidebarCollapsed] = useState(false);
   const [isMeetingDialogOpen, setIsMeetingDialogOpen] = useState(false);
   const [meetingDialogMode, setMeetingDialogMode] = useState("create");
   const [meetingDraft, setMeetingDraft] = useState(buildMeetingDraft(null));
@@ -45,6 +43,7 @@ const ChatPage = () => {
   const [meetings, setMeetings] = useState([]);
   const [isLoadingMeetings, setIsLoadingMeetings] = useState(false);
   const [editingMeetingId, setEditingMeetingId] = useState("");
+  const [deletingMeetingIds, setDeletingMeetingIds] = useState([]);
   const [toast, setToast] = useState(null);
   const activeConversationId = useChatStore((state) => state.activeConversationId);
   const conversations = useChatStore((state) => state.conversations);
@@ -106,9 +105,15 @@ const ChatPage = () => {
 
     return conversations;
   }, [activeModule, conversations]);
-  const activeMessages = activeConversationId
-    ? messagesByConversation[activeConversationId] || []
-    : [];
+  const activeMessages = useMemo(
+    () =>
+      activeConversationId
+        ? (messagesByConversation[activeConversationId] || []).filter(
+            (message) => message?.metadata?.type !== "meeting"
+          )
+        : [],
+    [activeConversationId, messagesByConversation]
+  );
   const conversationMeetings = useMemo(
     () =>
       meetings
@@ -289,8 +294,14 @@ const ChatPage = () => {
         return;
       }
 
+      const meetingId = getId(meeting);
+      setDeletingMeetingIds((current) =>
+        current.includes(meetingId) ? current : [...current, meetingId]
+      );
+
       try {
-        const response = await deleteChatMeeting(getId(meeting));
+        await new Promise((resolve) => window.setTimeout(resolve, 220));
+        const response = await deleteChatMeeting(meetingId);
         if (response?.chatMessage) {
           receiveMessage({
             conversationId: getId(meeting.conversationId),
@@ -309,6 +320,8 @@ const ChatPage = () => {
           type: "error",
           message: error?.response?.data?.message || error?.message || "Unable to delete meeting.",
         });
+      } finally {
+        setDeletingMeetingIds((current) => current.filter((id) => id !== meetingId));
       }
     },
     [receiveMessage, refreshMeetings]
@@ -347,7 +360,7 @@ const ChatPage = () => {
       await refreshMeetings();
       setIsMeetingDialogOpen(false);
       setEditingMeetingId("");
-      setActiveModule("chats");
+      setActiveModule("meetings");
       setIsSidebarOpen(false);
       setToast({
         id: Date.now(),
@@ -371,16 +384,12 @@ const ChatPage = () => {
     refreshMeetings,
   ]);
 
-  const activeSidebarMeetings =
-    activeModule === "chats"
-      ? filterMeetingsByPreset(conversationMeetings, "upcoming").slice(0, 8)
-      : filterMeetingsByPreset(meetings, "upcoming").slice(0, 8);
-
   const renderModuleContent = () => {
     if (activeModule === "meetings") {
       return (
         <ChatMeetingsPanel
           currentUser={user}
+          deletingMeetingIds={deletingMeetingIds}
           meetings={meetings}
           search={meetingSearch}
           selectedFilter={meetingFilter}
@@ -449,10 +458,8 @@ const ChatPage = () => {
         hasMore={Boolean(hasMoreByConversation[activeConversationId])}
         isLoadingMessages={isLoadingMessages}
         messages={activeMessages}
-        nextMeeting={nextMeeting}
         onlineUsers={onlineUsers}
         onDelete={deleteConversation}
-        onJoinMeeting={handleJoinMeeting}
         onLoadOlder={() =>
           activeConversationId &&
           loadMessages(activeConversationId, {
@@ -488,20 +495,6 @@ const ChatPage = () => {
         searchResults={searchResults}
       />
       {renderModuleContent()}
-      <ChatMeetingsSidebar
-        collapsed={isMeetingsSidebarCollapsed}
-        currentUser={user}
-        meetings={activeSidebarMeetings}
-        onCollapseToggle={() =>
-          setIsMeetingsSidebarCollapsed((current) => !current)
-        }
-        onCopy={handleCopyMeeting}
-        onDelete={handleDeleteMeeting}
-        onEdit={handleEditMeeting}
-        onJoin={handleJoinMeeting}
-        onNewMeeting={openCreateMeetingDialog}
-        title={activeModule === "meetings" ? "Meetings" : "Meetings Sidebar"}
-      />
       <ChatMeetingDialog
         conversation={activeConversation}
         draft={meetingDraft}

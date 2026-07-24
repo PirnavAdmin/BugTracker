@@ -16,10 +16,8 @@ const ChatWindow = memo(
     hasMore,
     isLoadingMessages,
     messages,
-    nextMeeting,
     onlineUsers,
     onDelete,
-    onJoinMeeting,
     onLoadOlder,
     onOpenMeetingDialog,
     onSend,
@@ -97,10 +95,8 @@ const ChatWindow = memo(
           canScheduleMeetings={canScheduleMeetings}
           conversation={conversation}
           currentUserId={currentUserId}
-          nextMeeting={nextMeeting}
           onlineUsers={onlineUsers}
           onDelete={onDelete}
-          onJoinMeeting={onJoinMeeting}
           onOpenMeetingDialog={onOpenMeetingDialog}
           onToggleConversationPreference={onToggleConversationPreference}
           onToggleSidebar={onToggleSidebar}

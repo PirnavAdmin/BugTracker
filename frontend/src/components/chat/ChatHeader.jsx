@@ -1,7 +1,6 @@
-import { memo, useEffect, useMemo, useState } from "react";
+import { memo, useEffect, useMemo, useRef, useState } from "react";
 import {
   Archive,
-  CalendarDays,
   Camera,
   Check,
   Hash,
@@ -13,7 +12,6 @@ import {
   Star,
   Trash2,
   UsersRound,
-  ExternalLink,
 } from "lucide-react";
 import UserAvatar from "@/components/shared/UserAvatar";
 import { Badge } from "@/components/ui/badge";
@@ -30,7 +28,6 @@ import {
 import { Input } from "@/components/ui/input";
 import { useCall } from "@/components/chat/CallProvider";
 import { searchChatUsers } from "@/lib/api";
-import { getMeetingDayTimeLabel } from "@/lib/chat-meetings";
 import { useChatStore } from "@/lib/chatStore";
 import { cn } from "@/lib/utils";
 
@@ -111,6 +108,12 @@ const ChatHeader = memo(
     const [removingParticipantId, setRemovingParticipantId] = useState("");
     const [participantActionError, setParticipantActionError] = useState("");
     const [isActionsMenuOpen, setIsActionsMenuOpen] = useState(false);
+    const [actionsMenuPosition, setActionsMenuPosition] = useState({
+      top: 0,
+      left: 0,
+      ready: false,
+    });
+    const actionsButtonRef = useRef(null);
     const participants = conversation?.participants || [];
     const title = getConversationName(conversation, currentUserId);
     const directUser = participants.find(
@@ -179,6 +182,46 @@ const ChatHeader = memo(
       onToggleConversationPreference(field);
       setIsActionsMenuOpen(false);
     };
+
+    useEffect(() => {
+      if (!isActionsMenuOpen) {
+        setActionsMenuPosition((current) => ({
+          ...current,
+          ready: false,
+        }));
+        return undefined;
+      }
+
+      const updatePosition = () => {
+        const triggerRect = actionsButtonRef.current?.getBoundingClientRect();
+
+        if (!triggerRect) {
+          return;
+        }
+
+        const menuWidth = 208;
+        const viewportPadding = 12;
+        const nextLeft = Math.min(
+          Math.max(triggerRect.right - menuWidth, viewportPadding),
+          window.innerWidth - menuWidth - viewportPadding
+        );
+
+        setActionsMenuPosition({
+          top: triggerRect.bottom + 8,
+          left: nextLeft,
+          ready: true,
+        });
+      };
+
+      updatePosition();
+      window.addEventListener("resize", updatePosition);
+      window.addEventListener("scroll", updatePosition, true);
+
+      return () => {
+        window.removeEventListener("resize", updatePosition);
+        window.removeEventListener("scroll", updatePosition, true);
+      };
+    }, [isActionsMenuOpen]);
 
     useEffect(() => {
       if (!isParticipantsOpen) {
@@ -332,31 +375,6 @@ const ChatHeader = memo(
             ) : null}
           </div>
 
-          {nextMeeting ? (
-            <div className="mt-4 flex items-center justify-between gap-3 rounded-[22px] border border-slate-300 bg-slate-100 px-4 py-3">
-              <div className="min-w-0">
-                <div className="flex items-center gap-2">
-                  <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-slate-300 bg-white text-slate-900">
-                    <CalendarDays className="h-4 w-4" />
-                  </span>
-                  <p className="truncate text-sm font-bold text-slate-900">{nextMeeting.title}</p>
-                </div>
-                <p className="truncate text-xs font-medium text-slate-500">
-                  {getMeetingDayTimeLabel(nextMeeting)}
-                </p>
-              </div>
-
-              <Button
-                type="button"
-                size="sm"
-                className="bg-slate-950 text-white hover:bg-slate-800"
-                onClick={() => onJoinMeeting(nextMeeting)}
-              >
-                <ExternalLink className="h-4 w-4" />
-                Join Meeting
-              </Button>
-            </div>
-          ) : null}
         </div>
 
         <div className="relative flex shrink-0 items-center gap-2">
@@ -440,6 +458,7 @@ const ChatHeader = memo(
 
           <div className="relative">
             <Button
+              ref={actionsButtonRef}
               type="button"
               variant="ghost"
               size="icon"
@@ -459,7 +478,16 @@ const ChatHeader = memo(
                   aria-label="Close chat actions"
                   onClick={() => setIsActionsMenuOpen(false)}
                 />
-                <div className="absolute right-0 top-[calc(100%+0.5rem)] z-20 w-52 rounded-2xl border border-slate-200 bg-white p-2 shadow-[0_20px_50px_-30px_rgba(15,23,42,0.35)]">
+                <div
+                  className={cn(
+                    "fixed z-20 w-52 rounded-2xl border border-slate-200 bg-white p-2 shadow-[0_20px_50px_-30px_rgba(15,23,42,0.35)] transition-opacity",
+                    actionsMenuPosition.ready ? "opacity-100" : "opacity-0"
+                  )}
+                  style={{
+                    top: actionsMenuPosition.top,
+                    left: actionsMenuPosition.left,
+                  }}
+                >
                   <button
                     type="button"
                     className="flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-sm font-medium text-slate-700 transition hover:bg-slate-100"

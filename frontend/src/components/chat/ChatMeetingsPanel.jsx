@@ -1,3 +1,4 @@
+import { AnimatePresence, motion } from "framer-motion";
 import { CalendarDays, Copy, Edit3, ExternalLink, Search, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -32,6 +33,7 @@ const statusClassName = (status) => {
 
 const ChatMeetingsPanel = ({
   currentUser,
+  deletingMeetingIds = [],
   meetings,
   search,
   selectedFilter,
@@ -103,13 +105,20 @@ const ChatMeetingsPanel = ({
       <div className="dashboard-scrollbar min-h-0 flex-1 overflow-y-auto bg-slate-50 px-6 py-6">
         {visibleMeetings.length ? (
           <div className="grid gap-4 xl:grid-cols-2">
+            <AnimatePresence initial={false}>
             {visibleMeetings.map((meeting) => {
               const status = getMeetingStatus(meeting);
               const canManage = canManageMeeting(meeting, currentUser);
+              const isDeleting = deletingMeetingIds.includes(String(meeting._id || ""));
 
               return (
-                <article
+                <motion.article
                   key={meeting._id}
+                  layout
+                  initial={{ opacity: 0, y: 14 }}
+                  animate={{ opacity: isDeleting ? 0.45 : 1, y: 0, scale: isDeleting ? 0.98 : 1 }}
+                  exit={{ opacity: 0, y: -10, scale: 0.96 }}
+                  transition={{ duration: 0.22, ease: "easeOut" }}
                   className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-[0_30px_70px_-46px_rgba(15,23,42,0.16)]"
                 >
                   <div className="flex items-start justify-between gap-3">
@@ -176,13 +185,14 @@ const ChatMeetingsPanel = ({
                     {canManage ? (
                       <Button type="button" variant="ghost" size="sm" className="text-rose-600 hover:bg-rose-50 hover:text-rose-700" onClick={() => onDelete(meeting)}>
                         <Trash2 className="h-4 w-4" />
-                        Delete
+                        {isDeleting ? "Deleting..." : "Delete"}
                       </Button>
                     ) : null}
                   </div>
-                </article>
+                </motion.article>
               );
             })}
+            </AnimatePresence>
           </div>
         ) : (
           <EmptyState
