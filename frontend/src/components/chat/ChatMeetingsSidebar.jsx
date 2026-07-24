@@ -1,4 +1,13 @@
-import { CalendarDays, Copy, Edit3, ExternalLink, Trash2, UserCircle2 } from "lucide-react";
+import {
+  CalendarDays,
+  ChevronLeft,
+  ChevronRight,
+  Copy,
+  Edit3,
+  ExternalLink,
+  Trash2,
+  UserCircle2,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   canManageMeeting,
@@ -21,8 +30,10 @@ const statusClassName = (status) => {
 };
 
 const ChatMeetingsSidebar = ({
+  collapsed = false,
   currentUser,
   meetings,
+  onCollapseToggle,
   onCopy,
   onDelete,
   onEdit,
@@ -30,21 +41,62 @@ const ChatMeetingsSidebar = ({
   onNewMeeting,
   title = "Meetings",
 }) => (
-  <aside className="hidden h-full w-[340px] shrink-0 border-l border-slate-200 bg-[linear-gradient(180deg,#fbfdff_0%,#f3f7ff_100%)] lg:flex lg:flex-col">
+  <aside
+    className={cn(
+      "hidden h-full shrink-0 border-l border-slate-200 bg-[linear-gradient(180deg,#fbfdff_0%,#f3f7ff_100%)] transition-all duration-300 lg:flex lg:flex-col",
+      collapsed ? "w-[72px]" : "w-[340px]"
+    )}
+  >
     <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
-      <div>
-        <p className="text-xs font-extrabold uppercase tracking-[0.18em] text-blue-600">
-          Teams Style
-        </p>
-        <h2 className="mt-1 text-lg font-extrabold text-slate-950">{title}</h2>
+      {collapsed ? null : (
+        <div>
+          <p className="text-xs font-extrabold uppercase tracking-[0.18em] text-blue-600">
+            Teams Style
+          </p>
+          <h2 className="mt-1 text-lg font-extrabold text-slate-950">{title}</h2>
+        </div>
+      )}
+      <div className="flex items-center gap-2">
+        {!collapsed ? (
+          <Button type="button" size="sm" onClick={onNewMeeting}>
+            <CalendarDays className="h-4 w-4" />
+            New
+          </Button>
+        ) : null}
+        <Button type="button" variant="ghost" size="icon" onClick={onCollapseToggle}>
+          {collapsed ? <ChevronLeft className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+        </Button>
       </div>
-      <Button type="button" size="sm" onClick={onNewMeeting}>
-        <CalendarDays className="h-4 w-4" />
-        New
-      </Button>
     </div>
 
-    <div className="dashboard-scrollbar min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-4">
+    {collapsed ? (
+      <div className="flex min-h-0 flex-1 flex-col items-center gap-4 px-2 py-4">
+        <button
+          type="button"
+          onClick={onNewMeeting}
+          className="flex h-11 w-11 items-center justify-center rounded-2xl border border-white bg-white text-blue-600 shadow-sm transition hover:bg-blue-50"
+          title="New meeting"
+          aria-label="New meeting"
+        >
+          <CalendarDays className="h-5 w-5" />
+        </button>
+        <div className="flex flex-col items-center gap-3">
+          {meetings.slice(0, 4).map((meeting) => (
+            <button
+              key={meeting._id}
+              type="button"
+              onClick={() => onJoin(meeting)}
+              className="flex h-11 w-11 items-center justify-center rounded-2xl border border-white bg-white text-slate-600 shadow-sm transition hover:bg-blue-50 hover:text-blue-700"
+              title={meeting.title}
+              aria-label={meeting.title}
+            >
+              <CalendarDays className="h-5 w-5" />
+            </button>
+          ))}
+        </div>
+      </div>
+    ) : (
+      <div className="dashboard-scrollbar min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-4">
       <div className="space-y-1">
         <p className="text-sm font-bold text-slate-900">Upcoming Meetings</p>
         <p className="text-xs font-medium text-slate-500">
@@ -139,7 +191,8 @@ const ChatMeetingsSidebar = ({
           </p>
         </div>
       )}
-    </div>
+      </div>
+    )}
   </aside>
 );
 

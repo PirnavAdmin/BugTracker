@@ -80,7 +80,6 @@ const presenceDotClass = (status, isOnline) => {
 
 const ChatHeader = memo(
   ({
-    canScheduleMeetings,
     conversation,
     currentUserId,
     nextMeeting,
@@ -348,29 +347,16 @@ const ChatHeader = memo(
                 <ExternalLink className="h-4 w-4" />
                 Join Meeting
               </Button>
-            ) : canScheduleMeetings ? (
+            ) : (
               <Button type="button" size="sm" onClick={onOpenMeetingDialog}>
                 <CalendarDays className="h-4 w-4" />
                 Schedule Meeting
               </Button>
-            ) : null}
+            )}
           </div>
         </div>
 
         <div className="flex shrink-0 items-center gap-2">
-          {canScheduleMeetings ? (
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="hidden text-blue-600 hover:bg-blue-50 hover:text-blue-700 sm:inline-flex"
-              onClick={onOpenMeetingDialog}
-            >
-              <CalendarDays className="h-4 w-4" />
-              Schedule
-            </Button>
-          ) : null}
-
           {conversation?.type === "direct" ? (
             <>
               <Button

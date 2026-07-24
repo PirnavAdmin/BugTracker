@@ -34,6 +34,7 @@ const ChatPage = () => {
   const navigate = useNavigate();
   const [activeModule, setActiveModule] = useState("chats");
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isMeetingsSidebarCollapsed, setIsMeetingsSidebarCollapsed] = useState(false);
   const [isMeetingDialogOpen, setIsMeetingDialogOpen] = useState(false);
   const [meetingDialogMode, setMeetingDialogMode] = useState("create");
   const [meetingDraft, setMeetingDraft] = useState(buildMeetingDraft(null));
@@ -383,7 +384,6 @@ const ChatPage = () => {
 
     return (
       <ChatWindow
-        canScheduleMeetings={canScheduleMeetings}
         conversation={activeConversation}
         currentUser={user}
         hasMore={Boolean(hasMoreByConversation[activeConversationId])}
@@ -426,8 +426,12 @@ const ChatPage = () => {
       />
       {renderModuleContent()}
       <ChatMeetingsSidebar
+        collapsed={isMeetingsSidebarCollapsed}
         currentUser={user}
         meetings={activeSidebarMeetings}
+        onCollapseToggle={() =>
+          setIsMeetingsSidebarCollapsed((current) => !current)
+        }
         onCopy={handleCopyMeeting}
         onDelete={handleDeleteMeeting}
         onEdit={handleEditMeeting}
