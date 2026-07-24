@@ -66,8 +66,8 @@ const ConversationButton = memo(
         className={cn(
           "group flex w-full items-center gap-3 rounded-[22px] border px-3 py-3 text-left transition-all duration-200",
           isActive
-            ? "border-blue-200/80 bg-gradient-to-r from-blue-500/90 to-sky-400/85 text-white shadow-[0_16px_36px_-24px_rgba(37,99,235,0.58)]"
-            : "border-white/55 bg-white/48 text-slate-700 hover:-translate-y-0.5 hover:border-blue-200/80 hover:bg-white/78"
+            ? "border-slate-900 bg-slate-950 text-white shadow-[0_16px_36px_-24px_rgba(15,23,42,0.42)]"
+            : "border-slate-200 bg-white text-slate-700 hover:-translate-y-0.5 hover:border-slate-300 hover:bg-slate-50"
         )}
       >
         <button
@@ -88,8 +88,8 @@ const ConversationButton = memo(
                 className={cn(
                   "flex h-11 w-11 items-center justify-center rounded-2xl border",
                   isActive
-                    ? "border-white/40 bg-white/16"
-                    : "border-blue-100 bg-blue-50 text-blue-600"
+                    ? "border-white/30 bg-white/10"
+                    : "border-slate-200 bg-slate-100 text-slate-700"
                 )}
               >
                 {conversation.channelType === "project" ? (
@@ -121,8 +121,8 @@ const ConversationButton = memo(
                   className={cn(
                     "inline-flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-[11px] font-extrabold",
                     isActive
-                      ? "bg-white text-blue-600"
-                      : "bg-blue-600 text-white"
+                      ? "bg-white text-slate-950"
+                      : "bg-slate-950 text-white"
                   )}
                 >
                   {conversation.unreadCount}
@@ -248,7 +248,7 @@ const ChatSidebar = memo(
       <aside className="flex h-full w-full flex-col overflow-hidden border-r border-slate-200 bg-white shadow-none">
         <div className="flex shrink-0 items-center justify-between border-b border-slate-100 px-4 py-4">
           <div>
-            <p className="text-xs font-extrabold uppercase tracking-[0.2em] text-blue-600">
+            <p className="text-xs font-extrabold uppercase tracking-[0.2em] text-slate-500">
               Realtime
             </p>
             <h1 className="mt-1 text-xl font-extrabold text-slate-950">Chat</h1>
@@ -292,7 +292,7 @@ const ChatSidebar = memo(
                     <button
                       key={getId(member)}
                       type="button"
-                      className="inline-flex max-w-full items-center gap-1 rounded-full border border-blue-100 bg-blue-50 px-2.5 py-1 text-xs font-bold text-blue-700"
+                    className="inline-flex max-w-full items-center gap-1 rounded-full border border-slate-300 bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-800"
                       onClick={() =>
                         setSelectedMembers((current) =>
                           current.filter((item) => getId(item) !== getId(member))
@@ -307,7 +307,7 @@ const ChatSidebar = memo(
               ) : null}
               <Button
                 type="submit"
-                className="h-10 w-full rounded-xl"
+                className="h-10 w-full rounded-xl bg-slate-950 text-white hover:bg-slate-800"
                 disabled={!groupName.trim() || selectedMembers.length < 1 || isSubmittingGroup}
               >
                 <UsersRound className="h-4 w-4" />
@@ -350,7 +350,7 @@ const ChatSidebar = memo(
                       onCreateDirect(getId(user));
                       setQuery("");
                     }}
-                    className="flex w-full items-center gap-3 rounded-2xl px-3 py-2 text-left text-sm transition hover:bg-blue-50"
+                    className="flex w-full items-center gap-3 rounded-2xl px-3 py-2 text-left text-sm transition hover:bg-slate-100"
                   >
                     <span className="relative">
                       <UserAvatar
@@ -369,7 +369,7 @@ const ChatSidebar = memo(
                       </span>
                     </span>
                     {isCreatingGroup && selectedMemberIds.has(getId(user)) ? (
-                      <Check className="ml-auto h-4 w-4 text-blue-600" />
+                      <Check className="ml-auto h-4 w-4 text-slate-950" />
                     ) : null}
                   </button>
                 ))}
@@ -423,7 +423,7 @@ const ChatSidebar = memo(
 
           {!conversations.length ? (
             <div className="rounded-[24px] border border-white/70 bg-white/58 px-4 py-8 text-center">
-              <MessageCircle className="mx-auto h-8 w-8 text-blue-500" />
+              <MessageCircle className="mx-auto h-8 w-8 text-slate-700" />
               <p className="mt-3 text-sm font-bold text-slate-800">
                 No conversations yet
               </p>

@@ -277,7 +277,7 @@ const ChatHeader = memo(
             className="h-11 w-11 shrink-0 rounded-2xl border border-white/70 shadow-sm"
           />
         ) : (
-          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-white/70 bg-gradient-to-r from-blue-100 to-cyan-100 text-blue-700 shadow-sm">
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-slate-200 bg-slate-100 text-slate-900 shadow-sm">
             <Hash className="h-5 w-5" />
           </div>
         )}
@@ -315,19 +315,21 @@ const ChatHeader = memo(
 
           <div
             className={cn(
-              "mt-3 flex items-center justify-between gap-3 rounded-[18px] border px-3 py-2.5",
+              "mt-4 flex items-center justify-between gap-3 rounded-[22px] border px-4 py-3",
               nextMeeting
-                ? "border-emerald-200 bg-emerald-50/80"
-                : "border-slate-200 bg-slate-50/80"
+                ? "border-slate-300 bg-slate-100"
+                : "border-slate-200 bg-slate-50"
             )}
           >
             <div className="min-w-0">
               {nextMeeting ? (
                 <>
-                  <p className="text-xs font-extrabold uppercase tracking-[0.16em] text-emerald-700">
-                    Meeting Scheduled
-                  </p>
-                  <p className="truncate text-sm font-bold text-slate-900">{nextMeeting.title}</p>
+                  <div className="flex items-center gap-2">
+                    <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-slate-300 bg-white text-slate-900">
+                      <CalendarDays className="h-4 w-4" />
+                    </span>
+                    <p className="truncate text-sm font-bold text-slate-900">{nextMeeting.title}</p>
+                  </div>
                   <p className="truncate text-xs font-medium text-slate-500">
                     {getMeetingDayTimeLabel(nextMeeting)}
                   </p>
@@ -343,12 +345,22 @@ const ChatHeader = memo(
             </div>
 
             {nextMeeting ? (
-              <Button type="button" size="sm" onClick={() => onJoinMeeting(nextMeeting)}>
+              <Button
+                type="button"
+                size="sm"
+                className="bg-slate-950 text-white hover:bg-slate-800"
+                onClick={() => onJoinMeeting(nextMeeting)}
+              >
                 <ExternalLink className="h-4 w-4" />
                 Join Meeting
               </Button>
             ) : (
-              <Button type="button" size="sm" onClick={onOpenMeetingDialog}>
+              <Button
+                type="button"
+                size="sm"
+                className="bg-slate-950 text-white hover:bg-slate-800"
+                onClick={onOpenMeetingDialog}
+              >
                 <CalendarDays className="h-4 w-4" />
                 Schedule Meeting
               </Button>
@@ -363,7 +375,7 @@ const ChatHeader = memo(
                 type="button"
                 variant="ghost"
                 size="icon"
-                className="text-blue-600 hover:bg-blue-50 hover:text-blue-700"
+                className="text-slate-700 hover:bg-slate-100 hover:text-slate-950"
                 onClick={() => startCall({ conversation, callType: "audio" })}
                 disabled={!isDirectCallAvailable}
                 title="Audio call"
@@ -375,7 +387,7 @@ const ChatHeader = memo(
                 type="button"
                 variant="ghost"
                 size="icon"
-                className="text-blue-600 hover:bg-blue-50 hover:text-blue-700"
+                className="text-slate-700 hover:bg-slate-100 hover:text-slate-950"
                 onClick={() => startCall({ conversation, callType: "video" })}
                 disabled={!isDirectCallAvailable}
                 title="Video call"
@@ -390,7 +402,7 @@ const ChatHeader = memo(
                 <Button
                   type="button"
                   size="sm"
-                  className="text-white"
+                  className="bg-slate-950 text-white hover:bg-slate-800"
                   onClick={() => joinCall(activeChannelCall)}
                 >
                   <Phone className="h-4 w-4" />
@@ -401,7 +413,7 @@ const ChatHeader = memo(
                 type="button"
                 variant="outline"
                 size="sm"
-                className="hidden text-blue-600 hover:bg-blue-50 hover:text-blue-700 sm:inline-flex"
+                className="hidden border-slate-300 text-slate-700 hover:bg-slate-100 hover:text-slate-950 sm:inline-flex"
                 onClick={() => startCall({ conversation, callType: "audio" })}
                 disabled={!isGroupCallAvailable}
               >
@@ -412,7 +424,7 @@ const ChatHeader = memo(
                 type="button"
                 variant="outline"
                 size="sm"
-                className="hidden text-blue-600 hover:bg-blue-50 hover:text-blue-700 sm:inline-flex"
+                className="hidden border-slate-300 text-slate-700 hover:bg-slate-100 hover:text-slate-950 sm:inline-flex"
                 onClick={() => startCall({ conversation, callType: "video" })}
                 disabled={!isGroupCallAvailable}
               >
@@ -516,7 +528,7 @@ const ChatHeader = memo(
                                 className={cn(
                                   "flex w-full items-center gap-3 rounded-2xl border px-3 py-2 text-left transition",
                                   isSelected
-                                    ? "border-blue-300 bg-blue-50"
+                                    ? "border-slate-400 bg-slate-100"
                                     : "border-slate-200 bg-white hover:border-slate-300"
                                 )}
                               >
@@ -537,7 +549,7 @@ const ChatHeader = memo(
                                   className={cn(
                                     "rounded-full px-2 py-1 text-[11px] font-extrabold",
                                     isSelected
-                                      ? "bg-blue-600 text-white"
+                                      ? "bg-slate-950 text-white"
                                       : "bg-slate-100 text-slate-500"
                                   )}
                                 >
@@ -559,6 +571,7 @@ const ChatHeader = memo(
                   <p className="text-xs font-medium text-slate-500">{participantStatusText}</p>
                   <Button
                     type="button"
+                    className="bg-slate-950 text-white hover:bg-slate-800"
                     disabled={
                       !canManageParticipants || !selectedParticipantIds.length || isSavingParticipants
                     }

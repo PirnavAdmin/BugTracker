@@ -376,7 +376,7 @@ const ChatPage = () => {
       const meta = metaByModule[activeModule];
 
       return (
-        <div className="flex h-full flex-1 flex-col overflow-hidden bg-white px-5 py-5">
+        <div className="flex h-full flex-1 flex-col overflow-hidden bg-white px-6 py-6">
           <EmptyState title={meta.title} description={meta.description} icon={meta.icon} />
         </div>
       );
@@ -408,7 +408,7 @@ const ChatPage = () => {
   };
 
   return (
-    <div className="flex h-full w-full overflow-hidden bg-[linear-gradient(180deg,#f7fbff_0%,#eef4ff_100%)]">
+    <div className="flex h-full w-full overflow-hidden bg-slate-100 p-3">
       <ChatModuleNav activeModule={activeModule} onSelect={setActiveModule} />
       <ChatSidebar
         activeConversationId={activeConversationId}

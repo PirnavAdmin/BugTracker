@@ -65,7 +65,7 @@ export const getMeetingDayTimeLabel = (meeting) => {
     return "No time selected";
   }
 
-  return `${formatRelativeDateLabel(start)} • ${formatTime(start)}`;
+  return `${formatRelativeDateLabel(start)} - ${formatTime(start)}`;
 };
 
 export const getMeetingDateLine = (meeting) => {
@@ -75,7 +75,7 @@ export const getMeetingDateLine = (meeting) => {
     return "Schedule pending";
   }
 
-  return `${formatDate(start)} • ${formatTime(start)}`;
+  return `${formatDate(start)} - ${formatTime(start)}`;
 };
 
 export const buildMeetingDraft = (conversation) => ({

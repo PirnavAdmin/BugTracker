@@ -50,14 +50,14 @@ const MeetingCard = ({ metadata = {}, isOwn }) => {
     <div
       className={cn(
         "overflow-hidden rounded-[18px] border shadow-sm",
-        isOwn ? "border-white/25 bg-white/14 text-white" : "border-sky-100 bg-sky-50 text-slate-800"
+        isOwn ? "border-white/20 bg-white/10 text-white" : "border-slate-200 bg-slate-50 text-slate-800"
       )}
     >
-      <div className={cn("flex items-start gap-3 px-4 py-3", isOwn ? "bg-white/10" : "bg-white/70")}>
+      <div className={cn("flex items-start gap-3 px-4 py-3", isOwn ? "bg-white/8" : "bg-white")}>
         <span
           className={cn(
             "flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl",
-            isOwn ? "bg-white/14" : "bg-sky-100 text-sky-700"
+            isOwn ? "bg-white/14" : "bg-slate-200 text-slate-800"
           )}
         >
           <CalendarDays className="h-5 w-5" />
@@ -96,8 +96,8 @@ const MeetingCard = ({ metadata = {}, isOwn }) => {
             className={cn(
               "inline-flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-bold transition",
               isOwn
-                ? "bg-white text-blue-700 hover:bg-blue-50"
-                : "bg-blue-600 text-white hover:bg-blue-700"
+                ? "bg-white text-slate-950 hover:bg-slate-100"
+                : "bg-slate-950 text-white hover:bg-slate-800"
             )}
           >
             Join meeting
@@ -229,8 +229,8 @@ const MessageBubble = memo(({ message, currentUserId }) => {
             className={cn(
               "rounded-[20px] border px-3 py-2.5 shadow-[0_18px_40px_-28px_rgba(15,23,42,0.36)] backdrop-blur-sm sm:rounded-[22px] sm:px-4 sm:py-3",
               isOwn
-                ? "border-blue-300/70 bg-gradient-to-r from-blue-600 to-sky-500 text-white"
-                : "border-emerald-100 bg-white/92 text-slate-800"
+                ? "border-slate-900 bg-slate-950 text-white"
+                : "border-slate-200 bg-white text-slate-800"
             )}
           >
             {message?.message ? (
@@ -268,7 +268,7 @@ const MessageBubble = memo(({ message, currentUserId }) => {
             <span>{formatTime(message?.createdAt)}</span>
             {isOwn && message?.pending ? <Clock3 className="h-3 w-3" /> : null}
             {isOwn && !message?.pending ? (
-              <CheckCheck className={cn("h-3.5 w-3.5", seenCount > 1 && "text-blue-500")} />
+              <CheckCheck className={cn("h-3.5 w-3.5", seenCount > 1 && "text-slate-900")} />
             ) : null}
             {message?.failed ? <span className="text-rose-500">Failed</span> : null}
           </div>

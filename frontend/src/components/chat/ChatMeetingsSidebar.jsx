@@ -19,14 +19,14 @@ import { cn, getInitials } from "@/lib/utils";
 
 const statusClassName = (status) => {
   if (status === "live") {
-    return "bg-emerald-100 text-emerald-700";
+    return "bg-slate-900 text-white";
   }
 
   if (status === "completed") {
     return "bg-slate-100 text-slate-500";
   }
 
-  return "bg-blue-100 text-blue-700";
+  return "bg-slate-200 text-slate-700";
 };
 
 const ChatMeetingsSidebar = ({
@@ -43,22 +43,27 @@ const ChatMeetingsSidebar = ({
 }) => (
   <aside
     className={cn(
-      "hidden h-full shrink-0 border-l border-slate-200 bg-[linear-gradient(180deg,#fbfdff_0%,#f3f7ff_100%)] transition-all duration-300 lg:flex lg:flex-col",
+      "hidden h-full shrink-0 border-l border-slate-200 bg-white transition-all duration-300 lg:flex lg:flex-col",
       collapsed ? "w-[72px]" : "w-[340px]"
     )}
   >
     <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
       {collapsed ? null : (
         <div>
-          <p className="text-xs font-extrabold uppercase tracking-[0.18em] text-blue-600">
-            Teams Style
+          <p className="text-xs font-extrabold uppercase tracking-[0.18em] text-slate-500">
+            Meetings
           </p>
           <h2 className="mt-1 text-lg font-extrabold text-slate-950">{title}</h2>
         </div>
       )}
       <div className="flex items-center gap-2">
         {!collapsed ? (
-          <Button type="button" size="sm" onClick={onNewMeeting}>
+          <Button
+            type="button"
+            size="sm"
+            className="bg-slate-950 text-white hover:bg-slate-800"
+            onClick={onNewMeeting}
+          >
             <CalendarDays className="h-4 w-4" />
             New
           </Button>
@@ -74,7 +79,7 @@ const ChatMeetingsSidebar = ({
         <button
           type="button"
           onClick={onNewMeeting}
-          className="flex h-11 w-11 items-center justify-center rounded-2xl border border-white bg-white text-blue-600 shadow-sm transition hover:bg-blue-50"
+          className="flex h-11 w-11 items-center justify-center rounded-2xl border border-slate-200 bg-slate-950 text-white shadow-sm transition hover:bg-slate-800"
           title="New meeting"
           aria-label="New meeting"
         >
@@ -86,7 +91,7 @@ const ChatMeetingsSidebar = ({
               key={meeting._id}
               type="button"
               onClick={() => onJoin(meeting)}
-              className="flex h-11 w-11 items-center justify-center rounded-2xl border border-white bg-white text-slate-600 shadow-sm transition hover:bg-blue-50 hover:text-blue-700"
+              className="flex h-11 w-11 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-700 shadow-sm transition hover:bg-slate-100 hover:text-slate-950"
               title={meeting.title}
               aria-label={meeting.title}
             >
@@ -112,7 +117,7 @@ const ChatMeetingsSidebar = ({
           return (
             <div
               key={meeting._id}
-              className="rounded-[24px] border border-white/80 bg-white/78 p-4 shadow-[0_24px_50px_-38px_rgba(15,23,42,0.45)] backdrop-blur-xl"
+              className="rounded-[24px] border border-slate-200 bg-white p-4 shadow-[0_24px_50px_-38px_rgba(15,23,42,0.18)]"
             >
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
@@ -141,7 +146,7 @@ const ChatMeetingsSidebar = ({
                     {(meeting.participants || []).slice(0, 4).map((participant) => (
                       <span
                         key={String(participant?.userId || participant?.email || participant?.name || "")}
-                        className="inline-flex h-8 w-8 items-center justify-center rounded-full border-2 border-white bg-blue-100 text-[11px] font-extrabold text-blue-700"
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-full border-2 border-white bg-slate-200 text-[11px] font-extrabold text-slate-700"
                         title={participant?.name || "Participant"}
                       >
                         {getInitials(participant?.name || "P")}
@@ -158,16 +163,33 @@ const ChatMeetingsSidebar = ({
               </div>
 
               <div className="mt-4 flex flex-wrap gap-2">
-                <Button type="button" size="sm" onClick={() => onJoin(meeting)}>
+                <Button
+                  type="button"
+                  size="sm"
+                  className="bg-slate-950 text-white hover:bg-slate-800"
+                  onClick={() => onJoin(meeting)}
+                >
                   <ExternalLink className="h-4 w-4" />
                   Join Meeting
                 </Button>
-                <Button type="button" variant="outline" size="sm" onClick={() => onCopy(meeting)}>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="border-slate-300 text-slate-700 hover:bg-slate-100 hover:text-slate-950"
+                  onClick={() => onCopy(meeting)}
+                >
                   <Copy className="h-4 w-4" />
                   Copy Link
                 </Button>
                 {canManage ? (
-                  <Button type="button" variant="outline" size="sm" onClick={() => onEdit(meeting)}>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="border-slate-300 text-slate-700 hover:bg-slate-100 hover:text-slate-950"
+                    onClick={() => onEdit(meeting)}
+                  >
                     <Edit3 className="h-4 w-4" />
                     Edit
                   </Button>
@@ -184,7 +206,7 @@ const ChatMeetingsSidebar = ({
         })
       ) : (
         <div className="rounded-[24px] border border-dashed border-slate-200 bg-white/75 px-5 py-10 text-center">
-          <CalendarDays className="mx-auto h-10 w-10 text-blue-500" />
+          <CalendarDays className="mx-auto h-10 w-10 text-slate-700" />
           <p className="mt-4 text-sm font-bold text-slate-900">No meetings scheduled</p>
           <p className="mt-1 text-xs font-medium text-slate-500">
             Schedule a chat meeting to keep the conversation aligned.

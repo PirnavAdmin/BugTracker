@@ -25,7 +25,7 @@ const ChatMeetingDialog = ({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="max-w-2xl border-slate-200">
         <DialogHeader>
           <DialogTitle>{mode === "edit" ? "Edit meeting" : "Schedule meeting"}</DialogTitle>
           <DialogDescription>
@@ -103,10 +103,20 @@ const ChatMeetingDialog = ({
         <DialogFooter className="items-stretch sm:items-center sm:justify-between">
           <p className="text-xs font-medium text-rose-500">{error || ""}</p>
           <div className="flex gap-2">
-            <Button type="button" variant="outline" onClick={() => onClose(false)}>
+            <Button
+              type="button"
+              variant="outline"
+              className="border-slate-300 text-slate-700 hover:bg-slate-100 hover:text-slate-950"
+              onClick={() => onClose(false)}
+            >
               Cancel
             </Button>
-            <Button type="button" onClick={onSave} disabled={isSaving}>
+            <Button
+              type="button"
+              className="bg-slate-950 text-white hover:bg-slate-800"
+              onClick={onSave}
+              disabled={isSaving}
+            >
               {isSaving ? "Saving..." : "Save Meeting"}
             </Button>
           </div>
