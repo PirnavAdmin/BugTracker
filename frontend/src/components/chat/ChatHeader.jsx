@@ -1,4 +1,4 @@
-import { memo, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useEffect, useMemo, useState } from "react";
 import {
   Archive,
   Camera,
@@ -108,12 +108,6 @@ const ChatHeader = memo(
     const [removingParticipantId, setRemovingParticipantId] = useState("");
     const [participantActionError, setParticipantActionError] = useState("");
     const [isActionsMenuOpen, setIsActionsMenuOpen] = useState(false);
-    const [actionsMenuPosition, setActionsMenuPosition] = useState({
-      top: 0,
-      left: 0,
-      ready: false,
-    });
-    const actionsButtonRef = useRef(null);
     const participants = conversation?.participants || [];
     const title = getConversationName(conversation, currentUserId);
     const directUser = participants.find(
@@ -182,46 +176,6 @@ const ChatHeader = memo(
       onToggleConversationPreference(field);
       setIsActionsMenuOpen(false);
     };
-
-    useEffect(() => {
-      if (!isActionsMenuOpen) {
-        setActionsMenuPosition((current) => ({
-          ...current,
-          ready: false,
-        }));
-        return undefined;
-      }
-
-      const updatePosition = () => {
-        const triggerRect = actionsButtonRef.current?.getBoundingClientRect();
-
-        if (!triggerRect) {
-          return;
-        }
-
-        const menuWidth = 208;
-        const viewportPadding = 12;
-        const nextLeft = Math.min(
-          Math.max(triggerRect.right - menuWidth, viewportPadding),
-          window.innerWidth - menuWidth - viewportPadding
-        );
-
-        setActionsMenuPosition({
-          top: triggerRect.bottom + 8,
-          left: nextLeft,
-          ready: true,
-        });
-      };
-
-      updatePosition();
-      window.addEventListener("resize", updatePosition);
-      window.addEventListener("scroll", updatePosition, true);
-
-      return () => {
-        window.removeEventListener("resize", updatePosition);
-        window.removeEventListener("scroll", updatePosition, true);
-      };
-    }, [isActionsMenuOpen]);
 
     useEffect(() => {
       if (!isParticipantsOpen) {
@@ -458,7 +412,6 @@ const ChatHeader = memo(
 
           <div className="relative">
             <Button
-              ref={actionsButtonRef}
               type="button"
               variant="ghost"
               size="icon"
@@ -478,16 +431,7 @@ const ChatHeader = memo(
                   aria-label="Close chat actions"
                   onClick={() => setIsActionsMenuOpen(false)}
                 />
-                <div
-                  className={cn(
-                    "fixed z-20 w-52 rounded-2xl border border-slate-200 bg-white p-2 shadow-[0_20px_50px_-30px_rgba(15,23,42,0.35)] transition-opacity",
-                    actionsMenuPosition.ready ? "opacity-100" : "opacity-0"
-                  )}
-                  style={{
-                    top: actionsMenuPosition.top,
-                    left: actionsMenuPosition.left,
-                  }}
-                >
+                <div className="absolute right-0 top-[calc(100%+0.5rem)] z-20 w-52 rounded-2xl border border-slate-200 bg-white p-2 shadow-[0_20px_50px_-30px_rgba(15,23,42,0.35)]">
                   <button
                     type="button"
                     className="flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-sm font-medium text-slate-700 transition hover:bg-slate-100"

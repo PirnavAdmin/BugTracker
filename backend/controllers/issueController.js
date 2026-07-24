@@ -5856,6 +5856,10 @@ const updateIssue = asyncHandler(async (req, res) => {
     hasAssigneeChange && !haveSameUserIds(previousAssigneeIds, nextAssigneeIds);
   let nextBugDetails = null;
   let nextDeveloperLeadUser = null;
+  let nextTesterOwnerUser = null;
+  let hasTesterOwnerChange = false;
+  const canChangeBugReporterOwnership =
+    isWorkspaceAdmin(req.user) || req.user.role === ROLE_MANAGER;
 
   if (nextIsBug) {
     nextBugDetails = buildBugDetailsDraft(req.body, issue.bugDetails || {}, {});
@@ -5999,7 +6003,7 @@ const updateIssue = asyncHandler(async (req, res) => {
   }
 
   if (nextIsBug && nextBugDetails) {
-    const hasTesterOwnerChange = hasBugPayloadField(req.body, "testerOwnerId", [
+    hasTesterOwnerChange = hasBugPayloadField(req.body, "testerOwnerId", [
       "testerOwner",
       "qaId",
       "testerId",
@@ -6027,6 +6031,8 @@ const updateIssue = asyncHandler(async (req, res) => {
         res.status(testerOwnerResult.error.status);
         throw new Error(testerOwnerResult.error.message);
       }
+
+      nextTesterOwnerUser = testerOwnerResult.user || null;
     }
 
     if (nextBugDetails.developerLead && (isDeveloperLeadChanged || isTeamChanged || hasProjectChange)) {
@@ -6229,6 +6235,43 @@ const updateIssue = asyncHandler(async (req, res) => {
 
   if (nextIsBug && nextBugDetails) {
     const previousBugDetails = serializeBugDetails(issue.bugDetails || {});
+
+    if (hasTesterOwnerChange && canChangeBugReporterOwnership && nextTesterOwnerUser) {
+      const nextReporterName =
+        nextTesterOwnerUser.name ||
+        nextTesterOwnerUser.email ||
+        issue.reporterName ||
+        issue.testerOwnerName ||
+        "";
+
+      if (String(issue.reporter || "") !== String(nextTesterOwnerUser._id || "")) {
+        changeEntries.push({
+          field: "reporter",
+          fromValue: issue.reporter || null,
+          toValue: nextTesterOwnerUser._id,
+        });
+      }
+
+      if (String(issue.reporterName || "") !== String(nextReporterName || "")) {
+        changeEntries.push({
+          field: "reporterName",
+          fromValue: issue.reporterName || "",
+          toValue: nextReporterName,
+        });
+      }
+
+      if (String(issue.testerOwnerName || "") !== String(nextReporterName || "")) {
+        changeEntries.push({
+          field: "testerOwnerName",
+          fromValue: issue.testerOwnerName || "",
+          toValue: nextReporterName,
+        });
+      }
+
+      issue.reporter = nextTesterOwnerUser._id;
+      issue.reporterName = nextReporterName;
+      issue.testerOwnerName = nextReporterName;
+    }
 
     Object.entries(nextBugDetails).forEach(([field, value]) => {
       if (String(previousBugDetails[field] || "") === String(value || "")) {

@@ -49,6 +49,7 @@ import {
 } from "@/lib/issues";
 import {
   findProjectById,
+  getProjectMembers,
   getProjectTeamMembers,
   getProjectTeams,
   resolveUserId,
@@ -271,6 +272,7 @@ const IssueDetailsDialog = ({
   const [previewLoadingId, setPreviewLoadingId] = useState("");
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
   const [isMoreDetailsOpen, setIsMoreDetailsOpen] = useState(false);
+  const [isReporterOwnershipOpen, setIsReporterOwnershipOpen] = useState(false);
   const commentTextareaRef = useRef(null);
 
   const selectedProject = useMemo(
@@ -289,6 +291,25 @@ const IssueDetailsDialog = ({
     const developers = availableAssignees.filter((assignee) => assignee.role === ROLE_DEVELOPER);
     return developers.length ? developers : availableAssignees;
   }, [availableAssignees]);
+  const qaOwnerOptions = useMemo(() => {
+    const uniqueMembers = new Map();
+
+    [...getProjectMembers(selectedProject), ...availableAssignees].forEach((member) => {
+      const memberId = resolveUserId(member);
+
+      if (!memberId || uniqueMembers.has(memberId)) {
+        return;
+      }
+
+      uniqueMembers.set(memberId, member);
+    });
+
+    const qaMembers = Array.from(uniqueMembers.values()).filter((member) =>
+      [ROLE_QA_LEAD, ROLE_TESTER].includes(member?.role)
+    );
+
+    return qaMembers.length ? qaMembers : availableAssignees;
+  }, [availableAssignees, selectedProject]);
   const taskAssignableAssignees = useMemo(
     () =>
       hasTaskStoryLeadAccess(role) && ["Task", "Sub-task"].includes(detailDraft.type)
@@ -340,6 +361,7 @@ const IssueDetailsDialog = ({
     setPreviewError("");
     setIsDeleteConfirmOpen(false);
     setIsMoreDetailsOpen(false);
+    setIsReporterOwnershipOpen(false);
   }, [issue]);
 
   useEffect(() => {
@@ -455,15 +477,16 @@ const IssueDetailsDialog = ({
   }, [assigneeOptions, detailDraft.assigneeId]);
 
   useEffect(() => {
-    const assigneeIds = new Set(
+    const qaOwnerIds = new Set(qaOwnerOptions.map((assignee) => resolveUserId(assignee)));
+    const developerLeadIds = new Set(
       availableAssignees.map((assignee) => resolveUserId(assignee))
     );
     const testerOwnerValid =
       !detailDraft.bugDetails.testerOwnerId ||
-      assigneeIds.has(String(detailDraft.bugDetails.testerOwnerId));
+      qaOwnerIds.has(String(detailDraft.bugDetails.testerOwnerId));
     const developerLeadValid =
       !detailDraft.bugDetails.developerLeadId ||
-      assigneeIds.has(String(detailDraft.bugDetails.developerLeadId));
+      developerLeadIds.has(String(detailDraft.bugDetails.developerLeadId));
 
     if (testerOwnerValid && developerLeadValid) {
       return;
@@ -481,6 +504,7 @@ const IssueDetailsDialog = ({
     availableAssignees,
     detailDraft.bugDetails.developerLeadId,
     detailDraft.bugDetails.testerOwnerId,
+    qaOwnerOptions,
   ]);
 
   useEffect(() => {
@@ -609,6 +633,7 @@ const IssueDetailsDialog = ({
   );
   const canChangeStatusForRole = Boolean(role) && canEditStatus;
   const canShowDeleteAction = canDeleteIssue && typeof onDeleteIssue === "function";
+  const canChangeReporterOwnership = isBug && hasAdminPanelAccess(role);
   const deleteLabel = isBug ? "Delete Bug" : "Delete Task";
   const isTaskWorkItem = ["Task", "Sub-task"].includes(issue?.type || "");
   const canMarkTaskComplete =
@@ -1275,10 +1300,25 @@ const IssueDetailsDialog = ({
                         </select>
                       </label>
 
-                      <label className="space-y-2">
-                        <span className="text-xs uppercase tracking-[0.22em] text-gray-500">
-                          Developer / Dev Lead
-                        </span>
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between gap-3">
+                          <span className="text-xs uppercase tracking-[0.22em] text-gray-500">
+                            Developer / Dev Lead
+                          </span>
+                          {canChangeReporterOwnership ? (
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              className="border-slate-300 text-slate-700 hover:bg-slate-100 hover:text-slate-950"
+                              onClick={() =>
+                                setIsReporterOwnershipOpen((current) => !current)
+                              }
+                            >
+                              Change Ownership
+                            </Button>
+                          ) : null}
+                        </div>
                         <select
                           className="field-select"
                           value={detailDraft.bugDetails.developerLeadId}
@@ -1299,8 +1339,38 @@ const IssueDetailsDialog = ({
                             </option>
                           ))}
                         </select>
-                      </label>
+                      </div>
                     </div>
+
+                    {canChangeReporterOwnership && isReporterOwnershipOpen ? (
+                      <div className="mt-4 rounded-[20px] border border-dashed border-slate-300 bg-slate-50 p-4">
+                        <label className="space-y-2">
+                          <span className="text-xs uppercase tracking-[0.22em] text-gray-500">
+                            Reporter / QA Owner
+                          </span>
+                          <select
+                            className="field-select"
+                            value={detailDraft.bugDetails.testerOwnerId}
+                            onChange={(event) =>
+                              setDetailDraft((current) => ({
+                                ...current,
+                                bugDetails: {
+                                  ...current.bugDetails,
+                                  testerOwnerId: event.target.value,
+                                },
+                              }))
+                            }
+                          >
+                            <option value="">Select QA owner</option>
+                            {qaOwnerOptions.map((assignee) => (
+                              <option key={assignee._id} value={assignee._id}>
+                                {assignee.name} ({assignee.role})
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                      </div>
+                    ) : null}
 
                     <div className="mt-4 space-y-4">
                       <label className="space-y-2">
