@@ -43,7 +43,7 @@ const isImageAttachment = (attachment = {}) =>
   getAttachmentType(attachment).startsWith("image/");
 
 const MeetingCard = ({ metadata = {}, isOwn }) => {
-  const subject = metadata.title || "Teams meeting";
+  const subject = metadata.title || "Chat meeting";
   const joinUrl = metadata.meetingUrl || "";
 
   return (
@@ -65,7 +65,7 @@ const MeetingCard = ({ metadata = {}, isOwn }) => {
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-extrabold">{subject}</p>
           <p className={cn("mt-1 text-xs font-medium", isOwn ? "text-white/84" : "text-slate-500")}>
-            Microsoft Teams meeting
+            In-app chat meeting
           </p>
         </div>
       </div>
@@ -100,7 +100,7 @@ const MeetingCard = ({ metadata = {}, isOwn }) => {
                 : "bg-blue-600 text-white hover:bg-blue-700"
             )}
           >
-            Join Teams meeting
+            Join meeting
             <ExternalLink className="h-3.5 w-3.5" />
           </a>
         ) : null}

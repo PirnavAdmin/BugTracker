@@ -135,7 +135,7 @@ const ChatMeetingsSidebar = ({
           <CalendarDays className="mx-auto h-10 w-10 text-blue-500" />
           <p className="mt-4 text-sm font-bold text-slate-900">No meetings scheduled</p>
           <p className="mt-1 text-xs font-medium text-slate-500">
-            Save a Teams link to keep the chat aligned.
+            Schedule a chat meeting to keep the conversation aligned.
           </p>
         </div>
       )}

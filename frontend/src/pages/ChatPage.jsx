@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Archive, CalendarDays, FolderKanban, Pin, Star } from "lucide-react";
+import { useLocation, useNavigate } from "react-router-dom";
 import ChatMeetingDialog from "@/components/chat/ChatMeetingDialog";
 import ChatMeetingsPanel from "@/components/chat/ChatMeetingsPanel";
 import ChatMeetingsSidebar from "@/components/chat/ChatMeetingsSidebar";
@@ -13,7 +14,6 @@ import {
   buildMeetingDraft,
   canCreateMeeting,
   filterMeetingsByPreset,
-  isValidTeamsMeetingUrl,
   meetingToDraft,
   toMeetingPayload,
 } from "@/lib/chat-meetings";
@@ -30,6 +30,8 @@ const getId = (value) => String(value?._id || value?.id || value || "");
 
 const ChatPage = () => {
   const { token, user } = useAuth();
+  const location = useLocation();
+  const navigate = useNavigate();
   const [activeModule, setActiveModule] = useState("chats");
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isMeetingDialogOpen, setIsMeetingDialogOpen] = useState(false);
@@ -65,6 +67,10 @@ const ChatPage = () => {
   const setActiveConversation = useChatStore((state) => state.setActiveConversation);
   const setCurrentUserId = useChatStore((state) => state.setCurrentUserId);
   const canScheduleMeetings = canCreateMeeting(user?.role);
+  const queryConversationId = useMemo(
+    () => new URLSearchParams(location.search).get("conversation") || "",
+    [location.search]
+  );
 
   const activeConversation = useMemo(
     () =>
@@ -119,6 +125,19 @@ const ChatPage = () => {
   useEffect(() => {
     refreshMeetings().catch(() => {});
   }, [refreshMeetings]);
+
+  useEffect(() => {
+    if (!queryConversationId || !conversations.length) {
+      return;
+    }
+
+    if (activeConversationId !== queryConversationId) {
+      setActiveConversation(queryConversationId).catch(() => {});
+    }
+
+    setActiveModule("chats");
+    setIsSidebarOpen(false);
+  }, [activeConversationId, conversations.length, queryConversationId, setActiveConversation]);
 
   useEffect(() => {
     if (!toast?.id) {
@@ -184,12 +203,18 @@ const ChatPage = () => {
       return;
     }
 
-    window.open(meeting.meetingUrl, "_blank");
-  }, []);
+    setActiveModule("chats");
+    setIsSidebarOpen(false);
+    navigate(meeting.meetingUrl);
+  }, [navigate]);
 
   const handleCopyMeeting = useCallback(async (meeting) => {
     try {
-      await navigator.clipboard.writeText(meeting?.meetingUrl || "");
+      const absoluteUrl = new URL(
+        meeting?.meetingUrl || "/chat",
+        window.location.origin
+      ).toString();
+      await navigator.clipboard.writeText(absoluteUrl);
       setToast({
         id: Date.now(),
         type: "success",
@@ -256,11 +281,6 @@ const ChatPage = () => {
       return;
     }
 
-    if (!isValidTeamsMeetingUrl(payload.meetingUrl)) {
-      setMeetingError("Please enter a valid Microsoft Teams meeting link.");
-      return;
-    }
-
     setIsSavingMeeting(true);
     setMeetingError("");
 
@@ -281,6 +301,8 @@ const ChatPage = () => {
       await refreshMeetings();
       setIsMeetingDialogOpen(false);
       setEditingMeetingId("");
+      setActiveModule("chats");
+      setIsSidebarOpen(false);
       setToast({
         id: Date.now(),
         type: "success",

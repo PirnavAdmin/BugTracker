@@ -209,15 +209,13 @@ const serializeUser = (user) => {
 };
 
 const sanitizeMeetingSubject = (value = "") => sanitizeText(value, 160);
-const TEAMS_MEETING_URL_PREFIX = "https://teams.microsoft.com/l/meetup-join/";
-const canCreateMeetings = (role = "") => [ROLE_ADMIN, ROLE_MANAGER].includes(role);
+const buildMeetingUrl = ({ conversationId, meetingId }) =>
+  `/chat?conversation=${encodeURIComponent(objectIdString(conversationId))}&meeting=${encodeURIComponent(objectIdString(meetingId))}`;
+const canCreateMeetings = (role = "") => CHAT_ACCESS_ROLES.includes(role);
 const canManageMeeting = (meeting, user) =>
   user?.role === ROLE_ADMIN ||
-  (user?.role === ROLE_MANAGER &&
-    objectIdString(meeting?.scheduledBy) === objectIdString(user?._id));
-
-const isValidTeamsMeetingUrl = (value = "") =>
-  String(value || "").trim().startsWith(TEAMS_MEETING_URL_PREFIX);
+  user?.role === ROLE_MANAGER ||
+  objectIdString(meeting?.scheduledBy) === objectIdString(user?._id);
 
 const serializeConversation = (conversation, { unreadCount = 0 } = {}) => {
   const item =
@@ -1224,11 +1222,10 @@ const scheduleMeeting = asyncHandler(async (req, res) => {
 
   if (!canCreateMeetings(req.user.role)) {
     res.status(403);
-    throw new Error("Only Admin and Manager can create meetings");
+    throw new Error("You do not have permission to create meetings");
   }
 
   const title = sanitizeMeetingSubject(req.body?.title || req.body?.subject || "");
-  const meetingUrl = sanitizeText(req.body?.meetingUrl || req.body?.joinUrl || "", 1500);
   const description = sanitizeText(req.body?.description || "", 1000);
   const meetingWindow = resolveMeetingWindow({
     startDateTime: req.body?.startDateTime,
@@ -1239,11 +1236,6 @@ const scheduleMeeting = asyncHandler(async (req, res) => {
   if (!title) {
     res.status(400);
     throw new Error("Meeting title is required");
-  }
-
-  if (!meetingUrl || !isValidTeamsMeetingUrl(meetingUrl)) {
-    res.status(400);
-    throw new Error("Please enter a valid Microsoft Teams meeting link.");
   }
 
   if (req.body?.startDateTime && meetingWindow.error) {
@@ -1282,7 +1274,10 @@ const scheduleMeeting = asyncHandler(async (req, res) => {
     scheduledBy: req.user._id,
     title,
     description,
-    meetingUrl,
+    meetingUrl: buildMeetingUrl({
+      conversationId: conversation._id,
+      meetingId: new mongoose.Types.ObjectId(),
+    }),
     startTime: startDate,
     durationMinutes,
     participants: participants.map((participant) => ({
@@ -1292,13 +1287,18 @@ const scheduleMeeting = asyncHandler(async (req, res) => {
       role: participant.role,
     })),
   });
+  meeting.meetingUrl = buildMeetingUrl({
+    conversationId: conversation._id,
+    meetingId: meeting._id,
+  });
+  await meeting.save();
 
   const meetingTitle =
     conversation.name || conversation.projectId?.name || conversation.teamId?.name || "Chat";
   const message = await createMessageDocument({
     conversationId: conversation._id,
     sender: req.user,
-    message: `${req.user.name || "A teammate"} scheduled a Teams meeting`,
+    message: `${req.user.name || "A teammate"} scheduled a chat meeting`,
     metadata: {
       type: "meeting",
       meetingId: String(meeting._id || ""),
@@ -1315,6 +1315,14 @@ const scheduleMeeting = asyncHandler(async (req, res) => {
       participantCount: participants.length,
       conversationName: meetingTitle,
     },
+  });
+  const fullConversation = await loadConversationForUser(conversation._id, req.user, {
+    lean: true,
+  });
+  require("../socket").emitConversationMessage({
+    conversationId: conversation._id,
+    conversation: fullConversation,
+    message,
   });
 
   res.status(201).json({
@@ -1361,10 +1369,6 @@ const updateMeeting = asyncHandler(async (req, res) => {
   }
 
   const title = sanitizeMeetingSubject(req.body?.title || req.body?.subject || meeting.title);
-  const meetingUrl = sanitizeText(
-    req.body?.meetingUrl || req.body?.joinUrl || meeting.meetingUrl,
-    1500
-  );
   const description = sanitizeText(
     Object.prototype.hasOwnProperty.call(req.body || {}, "description")
       ? req.body.description
@@ -1385,11 +1389,6 @@ const updateMeeting = asyncHandler(async (req, res) => {
     throw new Error("Meeting title is required");
   }
 
-  if (!meetingUrl || !isValidTeamsMeetingUrl(meetingUrl)) {
-    res.status(400);
-    throw new Error("Please enter a valid Microsoft Teams meeting link.");
-  }
-
   if (
     Object.prototype.hasOwnProperty.call(req.body || {}, "startDateTime") &&
     req.body.startDateTime &&
@@ -1401,7 +1400,10 @@ const updateMeeting = asyncHandler(async (req, res) => {
 
   meeting.title = title;
   meeting.description = description;
-  meeting.meetingUrl = meetingUrl;
+  meeting.meetingUrl = buildMeetingUrl({
+    conversationId: meeting.conversationId,
+    meetingId: meeting._id,
+  });
   meeting.startTime = meetingWindow?.startDate || null;
   meeting.durationMinutes = meetingWindow?.durationMinutes || null;
   await meeting.save();
@@ -1409,7 +1411,7 @@ const updateMeeting = asyncHandler(async (req, res) => {
   const chatMessage = await createMessageDocument({
     conversationId: meeting.conversationId,
     sender: req.user,
-    message: `${req.user.name || "A teammate"} updated a Teams meeting`,
+    message: `${req.user.name || "A teammate"} updated a chat meeting`,
     metadata: {
       type: "meeting",
       action: "updated",
@@ -1426,6 +1428,14 @@ const updateMeeting = asyncHandler(async (req, res) => {
       },
       participantCount: (meeting.participants || []).length,
     },
+  });
+  const fullConversation = await loadConversationForUser(meeting.conversationId, req.user, {
+    lean: true,
+  });
+  require("../socket").emitConversationMessage({
+    conversationId: meeting.conversationId,
+    conversation: fullConversation,
+    message: chatMessage,
   });
 
   res.status(200).json({
@@ -1476,7 +1486,7 @@ const deleteMeeting = asyncHandler(async (req, res) => {
   const chatMessage = await createMessageDocument({
     conversationId: meeting.conversationId,
     sender: req.user,
-    message: `${req.user.name || "A teammate"} cancelled a Teams meeting`,
+    message: `${req.user.name || "A teammate"} cancelled a chat meeting`,
     metadata: {
       type: "meeting",
       action: "cancelled",
@@ -1493,6 +1503,14 @@ const deleteMeeting = asyncHandler(async (req, res) => {
       },
       participantCount: (meeting.participants || []).length,
     },
+  });
+  const fullConversation = await loadConversationForUser(meeting.conversationId, req.user, {
+    lean: true,
+  });
+  require("../socket").emitConversationMessage({
+    conversationId: meeting.conversationId,
+    conversation: fullConversation,
+    message: chatMessage,
   });
 
   res.status(200).json({

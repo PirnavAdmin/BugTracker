@@ -166,7 +166,7 @@ const ChatMeetingsPanel = ({
           <EmptyState
             icon={<CalendarDays className="h-6 w-6" />}
             title="No meetings found"
-            description="Create a meeting or adjust the filters to see scheduled Teams links."
+            description="Create a meeting or adjust the filters to see scheduled chat meetings."
             action={
               <Button type="button" onClick={onNewMeeting}>
                 <CalendarDays className="h-4 w-4" />

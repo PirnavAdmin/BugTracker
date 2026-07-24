@@ -5,8 +5,6 @@ import {
   toDateTimeInputValue,
 } from "@/lib/utils";
 
-export const TEAMS_MEETING_URL_PREFIX = "https://teams.microsoft.com/l/meetup-join/";
-
 const toDate = (value) => {
   if (!value) {
     return null;
@@ -15,9 +13,6 @@ const toDate = (value) => {
   const parsed = value instanceof Date ? new Date(value.getTime()) : new Date(value);
   return Number.isNaN(parsed.getTime()) ? null : parsed;
 };
-
-export const isValidTeamsMeetingUrl = (value = "") =>
-  String(value || "").trim().startsWith(TEAMS_MEETING_URL_PREFIX);
 
 export const getMeetingEndTime = (meeting) => {
   const start = toDate(meeting?.startTime);
@@ -92,7 +87,6 @@ export const buildMeetingDraft = (conversation) => ({
           )?.name || "teammate"
         }`
       : `${conversation?.name || conversation?.projectId?.name || conversation?.teamId?.name || "Team"} sync`,
-  meetingUrl: "",
   description: "",
   startDateTime: "",
   durationMinutes: "",
@@ -100,7 +94,6 @@ export const buildMeetingDraft = (conversation) => ({
 
 export const toMeetingPayload = (draft) => ({
   title: String(draft?.title || "").trim(),
-  meetingUrl: String(draft?.meetingUrl || "").trim(),
   description: String(draft?.description || "").trim(),
   startDateTime: draft?.startDateTime || "",
   durationMinutes: draft?.durationMinutes === "" ? "" : Number(draft?.durationMinutes || 0),
@@ -108,7 +101,6 @@ export const toMeetingPayload = (draft) => ({
 
 export const meetingToDraft = (meeting) => ({
   title: meeting?.title || "",
-  meetingUrl: meeting?.meetingUrl || "",
   description: meeting?.description || "",
   startDateTime: meeting?.startTime ? toDateTimeInputValue(meeting.startTime) : "",
   durationMinutes:
@@ -117,13 +109,13 @@ export const meetingToDraft = (meeting) => ({
       : "",
 });
 
-export const canCreateMeeting = (role = "") => ["Admin", "Manager"].includes(role);
+export const canCreateMeeting = (role = "") => Boolean(role);
 
 export const canManageMeeting = (meeting, user) =>
   user?.role === "Admin" ||
-  (user?.role === "Manager" &&
-    String(meeting?.scheduledBy?._id || meeting?.scheduledBy || "") ===
-      String(user?._id || user?.id || ""));
+  user?.role === "Manager" ||
+  String(meeting?.scheduledBy?._id || meeting?.scheduledBy || "") ===
+    String(user?._id || user?.id || "");
 
 export const filterMeetingsByPreset = (meetings = [], preset = "upcoming", now = new Date()) => {
   const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());

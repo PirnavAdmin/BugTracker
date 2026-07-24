@@ -9,7 +9,6 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { TEAMS_MEETING_URL_PREFIX } from "@/lib/chat-meetings";
 
 const ChatMeetingDialog = ({
   conversation,
@@ -30,7 +29,7 @@ const ChatMeetingDialog = ({
         <DialogHeader>
           <DialogTitle>{mode === "edit" ? "Edit meeting" : "Schedule meeting"}</DialogTitle>
           <DialogDescription>
-            Paste an existing Microsoft Teams meeting link and share it with this chat.
+            The meeting link is generated automatically inside this chat module.
           </DialogDescription>
         </DialogHeader>
 
@@ -43,18 +42,6 @@ const ChatMeetingDialog = ({
                 onChange={(event) => onChange("title", event.target.value)}
                 placeholder="Sprint Planning"
               />
-            </div>
-
-            <div className="space-y-2">
-              <label className="text-sm font-semibold text-slate-700">Teams Meeting Link</label>
-              <Input
-                value={draft.meetingUrl}
-                onChange={(event) => onChange("meetingUrl", event.target.value)}
-                placeholder={`${TEAMS_MEETING_URL_PREFIX}...`}
-              />
-              <p className="text-xs font-medium text-slate-500">
-                Must start with `{TEAMS_MEETING_URL_PREFIX}`
-              </p>
             </div>
 
             <div className="space-y-2">
@@ -93,7 +80,7 @@ const ChatMeetingDialog = ({
           <div className="rounded-[24px] border border-slate-200 bg-slate-50 p-4">
             <p className="text-sm font-bold text-slate-900">Participants</p>
             <p className="mt-1 text-xs font-medium text-slate-500">
-              Auto-filled from this chat
+              Auto-filled from this chat. The link stays inside this app.
             </p>
             <div className="mt-4 space-y-2">
               {participants.map((participant) => (

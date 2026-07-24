@@ -337,7 +337,7 @@ const ChatHeader = memo(
                 <>
                   <p className="text-sm font-bold text-slate-900">No meetings scheduled</p>
                   <p className="text-xs font-medium text-slate-500">
-                    Save a Teams link for this chat to keep everyone aligned.
+                    Schedule an in-app meeting for this chat to keep everyone aligned.
                   </p>
                 </>
               )}

@@ -1292,6 +1292,28 @@ const emitToUser = (userId, eventName, payload = {}) => {
   return Boolean(isOnline);
 };
 
+const emitConversationMessage = ({
+  conversationId,
+  conversation = null,
+  message = null,
+}) => {
+  if (!socketServer || !conversationId || !message) {
+    return false;
+  }
+
+  const participantRooms = (conversation?.participants || [])
+    .map((participant) => userRoomName(objectIdString(participant)))
+    .filter(Boolean);
+
+  socketServer.to([roomName(conversationId), ...participantRooms]).emit("receive_message", {
+    message,
+    conversationId: objectIdString(conversationId),
+    conversation,
+  });
+
+  return true;
+};
+
 const emitBugWorkflowEvent = ({
   workspaceId,
   eventName = "BugUpdated",
@@ -1319,6 +1341,7 @@ const emitBugWorkflowEvent = ({
 
 module.exports = {
   emitBugWorkflowEvent,
+  emitConversationMessage,
   emitWorkspaceEvent,
   emitToUser,
   getOnlineUsers,
