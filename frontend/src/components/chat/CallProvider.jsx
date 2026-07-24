@@ -1930,13 +1930,13 @@ export const CallProvider = ({ children }) => {
   const hasRemoteParticipants = remoteEntries.length > 0;
   const headerStatusLabel = getCallStatusLabel(activeCall, duration);
   const callTitle = isGroupCall
-    ? activeCall.channelName || "Group call"
-    : activeCall.peer?.name || "Call";
+    ? activeCall?.channelName || "Group call"
+    : activeCall?.peer?.name || "Call";
   const waitingTitle = isGroupCall
     ? "Waiting for participants to join"
-    : `Waiting for ${activeCall.peer?.name || "participant"} to join`;
+    : `Waiting for ${activeCall?.peer?.name || "participant"} to join`;
   const waitingSubtitle =
-    activeCall.status === "ringing"
+    activeCall?.status === "ringing"
       ? "Ringing now. You can continue chatting while waiting."
       : "Connecting meeting room and preparing media.";
   const getConnectionLabel = (userId) => {
