@@ -234,6 +234,7 @@ const serializeCall = (call, extras = {}) => ({
   invitedParticipantIds: (call.invitedParticipantIds || call.participants || []).map(
     objectIdString
   ),
+  meetingId: objectIdString(call.meetingId),
   ...extras,
 });
 
@@ -568,6 +569,7 @@ const setupChatSocket = (server) => {
         const call = await CallLog.create({
           conversationId: conversation._id,
           channelId: conversation._id,
+          meetingId: payload.meetingId || null,
           callerId: socket.user._id,
           createdBy: socket.user._id,
           receiverId: receiverId || null,
@@ -684,9 +686,11 @@ const setupChatSocket = (server) => {
           io,
           call,
           actor: socket.user,
-          message: isGroupCall
-            ? `${basePayload.channelName} group call started`
-            : `${callType === "video" ? "Video" : "Audio"} call started`,
+          message:
+            payload.notifyMessage ||
+            (isGroupCall
+              ? `${basePayload.channelName} group call started`
+              : `${callType === "video" ? "Video" : "Audio"} call started`),
         });
         await emitCallParticipants(io, call._id);
         callback?.({ ok: true, call: basePayload });

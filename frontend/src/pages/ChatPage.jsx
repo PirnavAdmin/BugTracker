@@ -6,6 +6,7 @@ import ChatMeetingsPanel from "@/components/chat/ChatMeetingsPanel";
 import ChatModuleNav from "@/components/chat/ChatModuleNav";
 import ChatSidebar from "@/components/chat/ChatSidebar";
 import ChatWindow from "@/components/chat/ChatWindow";
+import { useCall } from "@/components/chat/CallProvider";
 import EmptyState from "@/components/shared/EmptyState";
 import ToastNotice from "@/components/shared/ToastNotice";
 import { useAuth } from "@/hooks/use-auth";
@@ -13,6 +14,7 @@ import {
   buildMeetingDraft,
   canCreateMeeting,
   filterMeetingsByPreset,
+  getMeetingStatus,
   meetingToDraft,
   toMeetingPayload,
 } from "@/lib/chat-meetings";
@@ -29,6 +31,7 @@ const getId = (value) => String(value?._id || value?.id || value || "");
 
 const ChatPage = () => {
   const { token, user } = useAuth();
+  const { channelCalls, joinCall, startCall } = useCall();
   const location = useLocation();
   const navigate = useNavigate();
   const [activeModule, setActiveModule] = useState("chats");
@@ -44,6 +47,7 @@ const ChatPage = () => {
   const [isLoadingMeetings, setIsLoadingMeetings] = useState(false);
   const [editingMeetingId, setEditingMeetingId] = useState("");
   const [deletingMeetingIds, setDeletingMeetingIds] = useState([]);
+  const [waitingMeetingIds, setWaitingMeetingIds] = useState([]);
   const [toast, setToast] = useState(null);
   const activeConversationId = useChatStore((state) => state.activeConversationId);
   const conversations = useChatStore((state) => state.conversations);
@@ -249,20 +253,90 @@ const ChatPage = () => {
     }));
   }, []);
 
-  const handleJoinMeeting = useCallback((meeting) => {
-    if (!meeting?.meetingUrl) {
-      return;
-    }
+  const buildMeetingLink = useCallback(
+    (meeting) =>
+      `/chat?conversation=${encodeURIComponent(getId(meeting?.conversationId))}&meeting=${encodeURIComponent(getId(meeting))}`,
+    []
+  );
 
-    setActiveModule("chats");
-    setIsSidebarOpen(false);
-    navigate(meeting.meetingUrl);
-  }, [navigate]);
+  const handleJoinMeeting = useCallback(
+    async (meeting) => {
+      const conversationId = getId(meeting?.conversationId);
+      const meetingId = getId(meeting);
+
+      if (!conversationId || !meetingId) {
+        return;
+      }
+
+      const activeConversationCall = channelCalls[conversationId] || null;
+      const isHost = getId(meeting?.scheduledBy) === getId(user);
+      const status = getMeetingStatus(meeting);
+      const meetingStartTime = meeting?.startTime ? new Date(meeting.startTime).getTime() : null;
+      const isStartWindowOpen = !meetingStartTime || meetingStartTime <= Date.now();
+
+      await setActiveConversation(conversationId).catch(() => {});
+      navigate(`/chat?conversation=${encodeURIComponent(conversationId)}`);
+      setActiveModule("chats");
+      setIsSidebarOpen(false);
+
+      if (activeConversationCall?.callId) {
+        setWaitingMeetingIds((current) => current.filter((id) => id !== meetingId));
+        await joinCall(activeConversationCall);
+        return;
+      }
+
+      if (isHost && status !== "completed" && isStartWindowOpen) {
+        const conversation =
+          conversations.find((item) => getId(item) === conversationId) || activeConversation;
+
+        if (!conversation) {
+          setToast({
+            id: Date.now(),
+            type: "error",
+            message: "Open the chat first before starting the meeting.",
+          });
+          return;
+        }
+
+        await startCall({
+          conversation,
+          callType: "video",
+          meetingId,
+          notifyMessage: `${user?.name || "A teammate"} started the meeting "${meeting.title || "Meeting"}"`,
+        });
+        setToast({
+          id: Date.now(),
+          type: "success",
+          message: "Meeting started in app.",
+        });
+        return;
+      }
+
+      setWaitingMeetingIds((current) =>
+        current.includes(meetingId) ? current : [...current, meetingId]
+      );
+      setToast({
+        id: Date.now(),
+        type: "info",
+        message: "Waiting for the host to start the meeting.",
+      });
+    },
+    [
+      activeConversation,
+      channelCalls,
+      conversations,
+      joinCall,
+      navigate,
+      setActiveConversation,
+      startCall,
+      user,
+    ]
+  );
 
   const handleCopyMeeting = useCallback(async (meeting) => {
     try {
       const absoluteUrl = new URL(
-        meeting?.meetingUrl || "/chat",
+        buildMeetingLink(meeting),
         window.location.origin
       ).toString();
       await navigator.clipboard.writeText(absoluteUrl);
@@ -278,7 +352,7 @@ const ChatPage = () => {
         message: "Unable to copy the meeting link.",
       });
     }
-  }, []);
+  }, [buildMeetingLink]);
 
   const handleEditMeeting = useCallback((meeting) => {
     setMeetingDialogMode("edit");
@@ -384,12 +458,80 @@ const ChatPage = () => {
     refreshMeetings,
   ]);
 
+  useEffect(() => {
+    if (!waitingMeetingIds.length) {
+      return;
+    }
+
+    const nextWaitingIds = waitingMeetingIds.filter((meetingId) => {
+      const waitingMeeting = meetings.find((item) => getId(item) === meetingId);
+      const conversationId = getId(waitingMeeting?.conversationId);
+      return !channelCalls[conversationId]?.callId;
+    });
+
+    if (nextWaitingIds.length !== waitingMeetingIds.length) {
+      setWaitingMeetingIds(nextWaitingIds);
+      setToast({
+        id: Date.now(),
+        type: "success",
+        message: "Meeting started. Join the in-app call now.",
+      });
+    }
+  }, [channelCalls, meetings, waitingMeetingIds]);
+
+  const getMeetingActionMeta = useCallback(
+    (meeting) => {
+      const conversationId = getId(meeting?.conversationId);
+      const meetingId = getId(meeting);
+      const activeConversationCall = channelCalls[conversationId] || null;
+      const isHost = getId(meeting?.scheduledBy) === getId(user);
+      const status = getMeetingStatus(meeting);
+      const meetingStartTime = meeting?.startTime ? new Date(meeting.startTime).getTime() : null;
+      const isStartWindowOpen = !meetingStartTime || meetingStartTime <= Date.now();
+
+      if (activeConversationCall?.callId) {
+        return {
+          label: "Join",
+          disabled: false,
+        };
+      }
+
+      if (isHost) {
+        if (status === "completed") {
+          return {
+            label: "Completed",
+            disabled: true,
+          };
+        }
+
+        if (!isStartWindowOpen) {
+          return {
+            label: "Starts Soon",
+            disabled: true,
+          };
+        }
+
+        return {
+          label: "Start Meeting",
+          disabled: false,
+        };
+      }
+
+      return {
+        label: waitingMeetingIds.includes(meetingId) ? "Waiting for Host" : "Waiting for Host",
+        disabled: false,
+      };
+    },
+    [channelCalls, user, waitingMeetingIds]
+  );
+
   const renderModuleContent = () => {
     if (activeModule === "meetings") {
       return (
         <ChatMeetingsPanel
           currentUser={user}
           deletingMeetingIds={deletingMeetingIds}
+          getMeetingActionMeta={getMeetingActionMeta}
           meetings={meetings}
           search={meetingSearch}
           selectedFilter={meetingFilter}

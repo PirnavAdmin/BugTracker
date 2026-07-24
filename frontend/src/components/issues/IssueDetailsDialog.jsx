@@ -1273,7 +1273,14 @@ const IssueDetailsDialog = ({
 
                 {detailDraft.type === "Bug" ? (
                   <div className="rounded-[24px] border border-rose-100 bg-white p-4">
-                    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                    <div
+                      className={cn(
+                        "grid gap-4",
+                        canChangeReporterOwnership
+                          ? "sm:grid-cols-2 xl:grid-cols-3"
+                          : "sm:grid-cols-2"
+                      )}
+                    >
                       <label className="space-y-2">
                         <span className="text-xs uppercase tracking-[0.22em] text-gray-500">
                           Severity
@@ -1304,41 +1311,45 @@ const IssueDetailsDialog = ({
                         <span className="text-xs uppercase tracking-[0.22em] text-gray-500">
                           Developer / Dev Lead
                         </span>
-                        <div className="flex items-center gap-3">
-                          <select
-                            className="field-select flex-1"
-                            value={detailDraft.bugDetails.developerLeadId}
-                            onChange={(event) =>
-                              setDetailDraft((current) => ({
-                                ...current,
-                                bugDetails: {
-                                  ...current.bugDetails,
-                                  developerLeadId: event.target.value,
-                                },
-                              }))
+                        <select
+                          className="field-select"
+                          value={detailDraft.bugDetails.developerLeadId}
+                          onChange={(event) =>
+                            setDetailDraft((current) => ({
+                              ...current,
+                              bugDetails: {
+                                ...current.bugDetails,
+                                developerLeadId: event.target.value,
+                              },
+                            }))
+                          }
+                        >
+                          <option value="">Unassigned</option>
+                          {developerLeadOptions.map((assignee) => (
+                            <option key={assignee._id} value={assignee._id}>
+                              {assignee.name} ({assignee.role})
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      {canChangeReporterOwnership ? (
+                        <div className="space-y-2">
+                          <span className="text-xs uppercase tracking-[0.22em] text-gray-500">
+                            Reporter Ownership
+                          </span>
+                          <Button
+                            type="button"
+                            size="sm"
+                            className="h-11 w-full justify-center border border-amber-300 bg-amber-200 text-amber-950 hover:bg-amber-300"
+                            onClick={() =>
+                              setIsReporterOwnershipOpen((current) => !current)
                             }
                           >
-                            <option value="">Unassigned</option>
-                            {developerLeadOptions.map((assignee) => (
-                              <option key={assignee._id} value={assignee._id}>
-                                {assignee.name} ({assignee.role})
-                              </option>
-                            ))}
-                          </select>
-                          {canChangeReporterOwnership ? (
-                            <Button
-                              type="button"
-                              size="sm"
-                              className="shrink-0 border border-amber-300 bg-amber-200 text-amber-950 hover:bg-amber-300"
-                              onClick={() =>
-                                setIsReporterOwnershipOpen((current) => !current)
-                              }
-                            >
-                              Change Ownership
-                            </Button>
-                          ) : null}
+                            Change Ownership
+                          </Button>
                         </div>
-                      </div>
+                      ) : null}
                     </div>
 
                     {canChangeReporterOwnership && isReporterOwnershipOpen ? (

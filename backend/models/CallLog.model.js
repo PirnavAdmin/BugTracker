@@ -35,6 +35,12 @@ const callLogSchema = new Schema(
       default: null,
       index: true,
     },
+    meetingId: {
+      type: Schema.Types.ObjectId,
+      ref: "ChatMeeting",
+      default: null,
+      index: true,
+    },
     scope: {
       type: String,
       enum: ["direct", "group"],

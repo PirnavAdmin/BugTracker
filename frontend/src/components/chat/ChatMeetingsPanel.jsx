@@ -19,6 +19,8 @@ const FILTERS = [
   { id: "completed", label: "Completed" },
 ];
 
+const getId = (value) => String(value?._id || value?.id || value || "");
+
 const statusClassName = (status) => {
   if (status === "live") {
     return "bg-slate-950 text-white";
@@ -34,6 +36,7 @@ const statusClassName = (status) => {
 const ChatMeetingsPanel = ({
   currentUser,
   deletingMeetingIds = [],
+  getMeetingActionMeta,
   meetings,
   search,
   selectedFilter,
@@ -109,7 +112,11 @@ const ChatMeetingsPanel = ({
             {visibleMeetings.map((meeting) => {
               const status = getMeetingStatus(meeting);
               const canManage = canManageMeeting(meeting, currentUser);
-              const isDeleting = deletingMeetingIds.includes(String(meeting._id || ""));
+              const isDeleting = deletingMeetingIds.includes(getId(meeting));
+              const actionMeta = getMeetingActionMeta?.(meeting) || {
+                label: "Join",
+                disabled: false,
+              };
 
               return (
                 <motion.article
@@ -155,10 +162,11 @@ const ChatMeetingsPanel = ({
                       type="button"
                       size="sm"
                       className="bg-slate-950 text-white hover:bg-slate-800"
+                      disabled={actionMeta.disabled}
                       onClick={() => onJoin(meeting)}
                     >
                       <ExternalLink className="h-4 w-4" />
-                      Join
+                      {actionMeta.label}
                     </Button>
                     <Button
                       type="button"

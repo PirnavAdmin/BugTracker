@@ -1058,7 +1058,7 @@ export const CallProvider = ({ children }) => {
   );
 
   const startCall = useCallback(
-    async ({ conversation, callType }) => {
+    async ({ conversation, callType, meetingId = "", notifyMessage = "" }) => {
       if (!conversation) {
         return;
       }
@@ -1082,6 +1082,8 @@ export const CallProvider = ({ children }) => {
           conversationId: getId(conversation),
           receiverId: isGroup ? undefined : getId(receiver),
           callType,
+          meetingId: String(meetingId || ""),
+          notifyMessage: String(notifyMessage || ""),
         },
         (response) => {
           if (!response?.ok) {
