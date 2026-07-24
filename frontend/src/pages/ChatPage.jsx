@@ -162,11 +162,12 @@ const ChatPage = () => {
 
   const handleSelectConversation = useCallback(
     async (conversationId) => {
+      navigate(`/chat?conversation=${encodeURIComponent(conversationId)}`);
       await setActiveConversation(conversationId);
       setActiveModule("chats");
       setIsSidebarOpen(false);
     },
-    [setActiveConversation]
+    [navigate, setActiveConversation]
   );
 
   useEffect(() => {
