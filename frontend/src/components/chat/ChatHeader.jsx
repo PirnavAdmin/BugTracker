@@ -182,26 +182,19 @@ const ChatHeader = memo(
     };
 
     const handleToggleActionsMenu = (event) => {
-      setIsActionsMenuOpen((current) => {
-        if (current) {
-          return false;
-        }
+      const triggerRect = event.currentTarget.getBoundingClientRect();
+      const menuWidth = 224;
+      const viewportPadding = 12;
+      const nextLeft = Math.min(
+        Math.max(triggerRect.right - menuWidth, viewportPadding),
+        window.innerWidth - menuWidth - viewportPadding
+      );
 
-        const triggerRect = event.currentTarget.getBoundingClientRect();
-        const menuWidth = 224;
-        const viewportPadding = 12;
-        const nextLeft = Math.min(
-          Math.max(triggerRect.right - menuWidth, viewportPadding),
-          window.innerWidth - menuWidth - viewportPadding
-        );
-
-        setActionsMenuPosition({
-          top: triggerRect.bottom + 8,
-          left: nextLeft,
-        });
-
-        return true;
+      setActionsMenuPosition({
+        top: triggerRect.bottom + 8,
+        left: nextLeft,
       });
+      setIsActionsMenuOpen((current) => !current);
     };
 
     useEffect(() => {
