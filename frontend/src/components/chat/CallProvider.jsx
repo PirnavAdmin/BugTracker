@@ -1,4 +1,4 @@
-import {
+﻿import {
   createContext,
   useCallback,
   useContext,
@@ -344,6 +344,22 @@ const getPeerUiStatus = (state = "") => {
 
   if (["disconnected", "failed"].includes(state)) {
     return "Reconnecting";
+  }
+
+  return "Connecting";
+};
+
+const getCallStatusLabel = (call, duration) => {
+  if (!call) {
+    return "";
+  }
+
+  if (call.status === "ringing") {
+    return "Ringing";
+  }
+
+  if (call.status === "connected") {
+    return duration > 0 ? formatDuration(duration) : "Connected";
   }
 
   return "Connecting";
@@ -1911,6 +1927,18 @@ export const CallProvider = ({ children }) => {
   const sidebarRemoteEntries = featuredRemoteEntry
     ? remoteEntries.filter(([userId]) => userId !== featuredRemoteEntry[0])
     : remoteEntries;
+  const hasRemoteParticipants = remoteEntries.length > 0;
+  const headerStatusLabel = getCallStatusLabel(activeCall, duration);
+  const callTitle = isGroupCall
+    ? activeCall.channelName || "Group call"
+    : activeCall.peer?.name || "Call";
+  const waitingTitle = isGroupCall
+    ? "Waiting for participants to join"
+    : `Waiting for ${activeCall.peer?.name || "participant"} to join`;
+  const waitingSubtitle =
+    activeCall.status === "ringing"
+      ? "Ringing now. You can continue chatting while waiting."
+      : "Connecting meeting room and preparing media.";
   const getConnectionLabel = (userId) => {
     const status = peerStatuses[userId];
     if (["connected", "completed"].includes(status)) {
@@ -2022,18 +2050,19 @@ export const CallProvider = ({ children }) => {
       ) : null}
       {activeCall && !isMinimized ? (
         <div className="fixed inset-0 z-[75] flex items-center justify-center bg-slate-950/88 p-3 text-white backdrop-blur-sm">
-          <div className="flex h-full max-h-[820px] w-full max-w-6xl flex-col overflow-hidden rounded-[28px] border border-white/12 bg-slate-950 shadow-2xl">
-            <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-white/10 px-4 py-3">
+          <div className="relative flex h-full max-h-[820px] w-full max-w-6xl flex-col overflow-hidden rounded-[28px] border border-white/12 bg-slate-950 shadow-2xl">
+            <div className="flex shrink-0 items-center justify-between gap-3 border-b border-white/10 px-4 py-3 sm:px-5">
               <div className="min-w-0">
-                <h2 className="truncate text-lg font-extrabold">
-                  {isGroupCall
-                    ? activeCall.channelName || "Group call"
-                    : activeCall.peer?.name || "Call"}
-                </h2>
-                <p className="mt-0.5 text-xs font-semibold text-white/60">
-                  {activeCall.status === "ringing" ? "Ringing..." : formatDuration(duration)}
-                  {isGroupCall ? ` · ${participants.filter((item) => item.status === "Joined").length || 1} joined` : ""}
-                </p>
+                <h2 className="truncate text-base font-extrabold sm:text-lg">{callTitle}</h2>
+                <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-white/55 sm:text-xs">
+                  <span>{headerStatusLabel}</span>
+                  <span className="h-1 w-1 rounded-full bg-white/25" />
+                  <span>
+                    {joinedParticipantCount} participant{joinedParticipantCount === 1 ? "" : "s"}
+                  </span>
+                  <span className="h-1 w-1 rounded-full bg-emerald-300/60" />
+                  <span>{hasRemoteParticipants ? "Network stable" : "Waiting for media"}</span>
+                </div>
               </div>
               <div className="flex items-center gap-2">
                 <Button
@@ -2069,7 +2098,7 @@ export const CallProvider = ({ children }) => {
                       <div className="relative min-h-full overflow-hidden rounded-lg border border-emerald-300/70 bg-slate-800 shadow-lg">
                         <LocalVideo stream={localStream} user={user} showVideo={hasLocalVideo} />
                         <span className="absolute bottom-3 left-3 max-w-[75%] truncate rounded-full bg-black/60 px-3 py-1 text-xs font-bold">
-                          You {isMuted ? "Â· muted" : ""}
+                          You {isMuted ? "· muted" : ""}
                         </span>
                         <span className="absolute right-3 top-3 rounded-full bg-emerald-400 px-2 py-1 text-[10px] font-black uppercase text-slate-950">
                           Sharing
@@ -2086,7 +2115,7 @@ export const CallProvider = ({ children }) => {
                       <div className="relative min-h-[150px] overflow-hidden rounded-lg border border-white/10 bg-slate-800 shadow-lg">
                         <LocalVideo stream={localStream} user={user} showVideo={hasLocalVideo} />
                         <span className="absolute bottom-3 left-3 max-w-[82%] truncate rounded-full bg-black/60 px-3 py-1 text-[11px] font-bold">
-                          You {isMuted ? "Â· muted" : ""}
+                          You {isMuted ? "· muted" : ""}
                         </span>
                         {isScreenSharing ? (
                           <span className="absolute right-2 top-2 rounded-full bg-emerald-400 px-2 py-1 text-[9px] font-black uppercase text-slate-950">
@@ -2101,33 +2130,16 @@ export const CallProvider = ({ children }) => {
                   </div>
                 </div>
               ) : null}
+
               <div
                 className={cn(
-                  "relative grid h-full min-h-0 gap-2 overflow-y-auto p-2 sm:gap-3 sm:p-3",
-                  remoteEntries.length ? stageGridClass : "grid-cols-1",
+                  "relative h-full min-h-0 overflow-y-auto p-3 sm:p-5",
+                  hasRemoteParticipants && "grid gap-3 sm:gap-4",
+                  hasRemoteParticipants ? stageGridClass : "flex items-center justify-center",
                   isGroupCall && hasFeaturedShareLayout && "invisible pointer-events-none"
                 )}
               >
-                <div
-                  className={cn(
-                    "relative min-h-[240px] overflow-hidden rounded-lg border border-white/10 bg-slate-800",
-                    !remoteEntries.length && "min-h-full",
-                    remoteEntries.length &&
-                      "absolute bottom-4 right-4 z-20 h-28 min-h-0 w-40 shadow-2xl sm:h-36 sm:w-56"
-                  )}
-                >
-                  <LocalVideo stream={localStream} user={user} showVideo={hasLocalVideo} />
-                  <span className="absolute bottom-3 left-3 max-w-[75%] truncate rounded-full bg-black/60 px-3 py-1 text-xs font-bold">
-                    You {isMuted ? "· muted" : ""}
-                  </span>
-                  {isScreenSharing ? (
-                    <span className="absolute right-2 top-2 rounded-full bg-emerald-400 px-2 py-1 text-[10px] font-black uppercase text-slate-950">
-                      Sharing
-                    </span>
-                  ) : null}
-                </div>
-
-                {remoteEntries.length ? (
+                {hasRemoteParticipants ? (
                   remoteEntries.map(([userId, remoteMedia]) => {
                     const stream = remoteMedia?.stream || remoteMedia;
                     const participant = participantById.get(userId);
@@ -2140,7 +2152,7 @@ export const CallProvider = ({ children }) => {
                       <div
                         key={userId}
                         className={cn(
-                          "relative min-h-[210px] overflow-hidden rounded-lg border bg-slate-800 shadow-lg",
+                          "relative min-h-[210px] overflow-hidden rounded-[22px] border bg-slate-800 shadow-lg transition-all duration-300",
                           stageTileCount === 1 && "min-h-full",
                           raisedHands[userId] ||
                             ["connected", "completed"].includes(peerStatuses[userId])
@@ -2156,42 +2168,80 @@ export const CallProvider = ({ children }) => {
                           user={participant?.user || (!isGroupCall ? activeCall.peer : null)}
                           name={userName}
                         />
-                        <div className="absolute bottom-3 left-3 flex max-w-[75%] items-center gap-2 rounded-full bg-black/60 px-3 py-1 text-xs font-bold">
-                          <span className="truncate">{userName}</span>
-                          {screenSharers[userId] ? <MonitorUp className="h-3.5 w-3.5" /> : null}
+                        <div className="absolute inset-x-0 bottom-0 flex items-end justify-between gap-3 bg-gradient-to-t from-slate-950/95 via-slate-950/35 to-transparent px-4 pb-4 pt-10">
+                          <div className="flex max-w-[70%] items-center gap-2 rounded-full bg-black/55 px-3 py-1.5 text-xs font-bold">
+                            <span className="truncate">{userName}</span>
+                            {screenSharers[userId] ? <MonitorUp className="h-3.5 w-3.5" /> : null}
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="rounded-full bg-black/55 px-2 py-1 text-[10px] font-black uppercase text-white/70">
+                              {getConnectionLabel(userId)}
+                            </span>
+                            {raisedHands[userId] ? (
+                              <span className="rounded-full bg-amber-400 px-2 py-1 text-[10px] font-black uppercase text-slate-950">
+                                Hand
+                              </span>
+                            ) : null}
+                          </div>
                         </div>
-                        <span className="absolute right-3 top-3 rounded-full bg-black/55 px-2 py-1 text-[10px] font-black uppercase text-white/70">
-                          {getConnectionLabel(userId)}
-                        </span>
-                        {raisedHands[userId] ? (
-                          <span className="absolute right-3 top-11 rounded-full bg-amber-400 px-2 py-1 text-xs font-black text-slate-950">
-                            Hand
-                          </span>
-                        ) : null}
                       </div>
                     );
                   })
-                ) : !isGroupCall ? (
-                  <div className="relative min-h-full overflow-hidden rounded-lg border border-white/10 bg-slate-800 shadow-lg">
-                    <ParticipantPlaceholder
-                      user={activeCall.peer || null}
-                      name={activeCall.peer?.name || "Participant"}
-                      subtitle={
-                        activeCall.status === "ringing" ? "Waiting to join" : "Camera is off"
-                      }
-                    />
-                    <div className="absolute bottom-3 left-3 flex max-w-[75%] items-center gap-2 rounded-full bg-black/60 px-3 py-1 text-xs font-bold">
-                      <span className="truncate">{activeCall.peer?.name || "Participant"}</span>
-                    </div>
-                    <span className="absolute right-3 top-3 rounded-full bg-black/55 px-2 py-1 text-[10px] font-black uppercase text-white/70">
-                      {activeCall.status === "ringing" ? "Ringing" : "Connecting"}
-                    </span>
-                  </div>
                 ) : (
-                  <div className="hidden">
-                    {isGroupCall ? "Waiting for participants to join" : "Waiting for remote media"}
+                  <div className="flex w-full max-w-2xl flex-col items-center justify-center rounded-[28px] border border-white/10 bg-white/[0.04] px-6 py-10 text-center shadow-[0_24px_70px_rgba(15,23,42,0.45)]">
+                    <div className="mb-5 flex h-20 w-20 items-center justify-center rounded-[24px] border border-white/10 bg-white/5">
+                      <UserAvatar
+                        user={activeCall.peer || null}
+                        name={activeCall.peer?.name || activeCall.channelName || "Meeting"}
+                        className="h-16 w-16 rounded-[18px] border border-white/15"
+                        fallbackClassName="text-2xl"
+                      />
+                    </div>
+                    <h3 className="text-2xl font-extrabold text-white">{waitingTitle}</h3>
+                    <p className="mt-3 rounded-full bg-white/8 px-4 py-2 text-xs font-black uppercase tracking-[0.24em] text-amber-200">
+                      {activeCall.status === "ringing" ? "Ringing" : "Connecting"}
+                    </p>
+                    <p className="mt-4 max-w-lg text-sm font-medium leading-6 text-white/65">
+                      {waitingSubtitle}
+                    </p>
+                    <div className="mt-6 flex flex-wrap items-center justify-center gap-3 text-sm text-white/55">
+                      <span className="rounded-full border border-white/10 bg-white/5 px-4 py-2">
+                        {joinedParticipantCount} participant{joinedParticipantCount === 1 ? "" : "s"} in room
+                      </span>
+                      <span className="rounded-full border border-white/10 bg-white/5 px-4 py-2">
+                        {isGroupCall ? "Host controls start time" : "Auto-connect when they join"}
+                      </span>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="destructive"
+                      className="mt-8 rounded-full px-6"
+                      onClick={isGroupCall ? leaveCall : endCall}
+                    >
+                      <PhoneOff className="h-4 w-4" />
+                      {isGroupCall ? "Leave Meeting" : "Cancel Call"}
+                    </Button>
                   </div>
                 )}
+
+                <div className="pointer-events-none absolute bottom-24 right-3 z-20 sm:bottom-28 sm:right-5">
+                  <div className="pointer-events-auto relative h-28 w-40 overflow-hidden rounded-2xl border border-white/15 bg-slate-800 shadow-2xl sm:h-36 sm:w-56">
+                    <LocalVideo stream={localStream} user={user} showVideo={hasLocalVideo} />
+                    <div className="absolute inset-x-0 bottom-0 flex items-center justify-between gap-2 bg-gradient-to-t from-slate-950/95 via-slate-950/40 to-transparent px-3 pb-3 pt-8">
+                      <span className="truncate rounded-full bg-black/45 px-2.5 py-1 text-[11px] font-bold">
+                        You {isMuted ? "· muted" : ""}
+                      </span>
+                      <div className="flex items-center gap-1">
+                        {isScreenSharing ? (
+                          <span className="rounded-full bg-emerald-400 px-2 py-1 text-[9px] font-black uppercase text-slate-950">
+                            Share
+                          </span>
+                        ) : null}
+                        {isCameraOff ? <CameraOff className="h-3.5 w-3.5 text-white/70" /> : null}
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </div>
 
               {false && isGroupCall ? (
@@ -2222,72 +2272,79 @@ export const CallProvider = ({ children }) => {
               ) : null}
             </div>
 
-            <div className="flex shrink-0 flex-wrap items-center justify-center gap-3 border-t border-white/10 bg-slate-950 px-4 py-4">
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className={cn("bg-white/10 text-white hover:bg-white/20 hover:text-white", isMuted && "bg-rose-500")}
-                onClick={toggleMute}
-                title="Mute microphone"
-                aria-label="Mute microphone"
-              >
-                {isMuted ? <MicOff className="h-5 w-5" /> : <Mic className="h-5 w-5" />}
-              </Button>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className={cn("bg-white/10 text-white hover:bg-white/20 hover:text-white", isCameraOff && "bg-rose-500")}
-                onClick={toggleCamera}
-                title="Toggle camera"
-                aria-label="Toggle camera"
-              >
-                {isCameraOff ? <CameraOff className="h-5 w-5" /> : <Camera className="h-5 w-5" />}
-              </Button>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="bg-white/10 text-white hover:bg-white/20 hover:text-white"
-                onClick={shareScreen}
-                title="Share screen"
-                aria-label="Share screen"
-              >
-                <MonitorUp className="h-5 w-5" />
-              </Button>
-              {isGroupCall ? (
+            <div className="pointer-events-none absolute inset-x-0 bottom-4 z-30 flex justify-center px-4">
+              <div className="pointer-events-auto flex flex-wrap items-center justify-center gap-3 rounded-full border border-white/12 bg-slate-950/78 px-4 py-3 shadow-[0_18px_50px_rgba(15,23,42,0.45)] backdrop-blur-xl">
                 <Button
                   type="button"
                   variant="ghost"
                   size="icon"
-                  className={cn("bg-white/10 text-white hover:bg-white/20 hover:text-white", raisedHands[getId(user)] && "bg-amber-400 text-slate-950")}
-                  onClick={toggleRaiseHand}
-                  title="Raise hand"
-                  aria-label="Raise hand"
+                  className={cn("rounded-full bg-white/10 text-white hover:bg-white/20 hover:text-white", isMuted && "bg-rose-500")}
+                  onClick={toggleMute}
+                  title="Mute microphone"
+                  aria-label="Mute microphone"
                 >
-                  <Hand className="h-5 w-5" />
+                  {isMuted ? <MicOff className="h-5 w-5" /> : <Mic className="h-5 w-5" />}
                 </Button>
-              ) : null}
-              {isGroupCall ? (
-                <Button type="button" variant="secondary" onClick={leaveCall}>
-                  Leave
-                </Button>
-              ) : null}
-              {canEndForEveryone ? (
                 <Button
                   type="button"
-                  variant="destructive"
-                  size={isGroupCall ? "default" : "icon"}
-                  className={cn(!isGroupCall && "h-12 w-12 rounded-full")}
-                  onClick={endCall}
-                  title="End call"
-                  aria-label="End call"
+                  variant="ghost"
+                  size="icon"
+                  className={cn("rounded-full bg-white/10 text-white hover:bg-white/20 hover:text-white", isCameraOff && "bg-rose-500")}
+                  onClick={toggleCamera}
+                  title="Toggle camera"
+                  aria-label="Toggle camera"
                 >
-                  <PhoneOff className="h-5 w-5" />
-                  {isGroupCall ? "End for all" : null}
+                  {isCameraOff ? <CameraOff className="h-5 w-5" /> : <Camera className="h-5 w-5" />}
                 </Button>
-              ) : null}
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className={cn("rounded-full bg-white/10 text-white hover:bg-white/20 hover:text-white", isScreenSharing && "bg-emerald-500 text-white")}
+                  onClick={shareScreen}
+                  title="Share screen"
+                  aria-label="Share screen"
+                >
+                  <MonitorUp className="h-5 w-5" />
+                </Button>
+                {isGroupCall ? (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className={cn("rounded-full bg-white/10 text-white hover:bg-white/20 hover:text-white", raisedHands[getId(user)] && "bg-amber-400 text-slate-950")}
+                    onClick={toggleRaiseHand}
+                    title="Raise hand"
+                    aria-label="Raise hand"
+                  >
+                    <Hand className="h-5 w-5" />
+                  </Button>
+                ) : null}
+                {isGroupCall ? (
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    className="rounded-full border-white/10 bg-white/10 text-white hover:bg-white/20 hover:text-white"
+                    onClick={leaveCall}
+                  >
+                    Leave
+                  </Button>
+                ) : null}
+                {canEndForEveryone ? (
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    size={isGroupCall ? "default" : "icon"}
+                    className={cn("rounded-full", !isGroupCall && "h-12 w-12")}
+                    onClick={endCall}
+                    title="End call"
+                    aria-label="End call"
+                  >
+                    <PhoneOff className="h-5 w-5" />
+                    {isGroupCall ? "End for all" : null}
+                  </Button>
+                ) : null}
+              </div>
             </div>
           </div>
         </div>
@@ -2350,3 +2407,4 @@ export const useCall = () => {
 
   return context;
 };
+

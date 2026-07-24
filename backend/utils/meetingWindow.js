@@ -14,9 +14,35 @@ const parseDurationMinutes = (value) => {
   return NaN;
 };
 
+const INDIAN_TIME_OFFSET_MINUTES = 330;
+const DATE_TIME_WITHOUT_ZONE_PATTERN =
+  /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?$/;
+
 const parseMeetingDateTime = (value) => {
   if (!value) {
     return null;
+  }
+
+  if (typeof value === "string") {
+    const trimmedValue = value.trim();
+    const offsetlessMatch = trimmedValue.match(DATE_TIME_WITHOUT_ZONE_PATTERN);
+
+    if (offsetlessMatch) {
+      const [, year, month, day, hour, minute, second = "00"] = offsetlessMatch;
+      const utcTimestamp =
+        Date.UTC(
+          Number(year),
+          Number(month) - 1,
+          Number(day),
+          Number(hour),
+          Number(minute),
+          Number(second)
+        ) -
+        INDIAN_TIME_OFFSET_MINUTES * 60 * 1000;
+      const parsedIndianLocalDate = new Date(utcTimestamp);
+
+      return Number.isNaN(parsedIndianLocalDate.getTime()) ? null : parsedIndianLocalDate;
+    }
   }
 
   const parsedDate = new Date(value);
