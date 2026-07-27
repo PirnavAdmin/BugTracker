@@ -46,6 +46,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import { AnimatePresence, motion } from "framer-motion";
 import useAnalytics, { useDeveloperDashboard } from "@/hooks/use-analytics";
 import { useAuth } from "@/hooks/use-auth";
 import { fetchEpics, fetchProjects, fetchSprints } from "@/lib/api";
@@ -597,6 +598,236 @@ const ProgressRow = ({ label, meta, tone = "bg-blue-500", value }) => (
   </div>
 );
 
+const getDeveloperStatusTone = (status = "") => {
+  const normalizedStatus = String(status || "").toLowerCase();
+
+  if (
+    [
+      ISSUE_STATUS.DONE,
+      ISSUE_STATUS.CLOSED,
+      ISSUE_STATUS.FIXED,
+      ISSUE_STATUS.READY_FOR_QA,
+      ISSUE_STATUS.QA,
+    ].includes(status)
+  ) {
+    return "border-emerald-200 bg-emerald-50 text-emerald-700";
+  }
+
+  if ([ISSUE_STATUS.REOPEN, ISSUE_STATUS.BLOCKED, ISSUE_STATUS.REJECTED].includes(status)) {
+    return "border-rose-200 bg-rose-50 text-rose-700";
+  }
+
+  if (normalizedStatus.includes("progress") || status === ISSUE_STATUS.ASSIGNED) {
+    return "border-blue-200 bg-blue-50 text-blue-700";
+  }
+
+  return "border-slate-200 bg-slate-50 text-slate-700";
+};
+
+const DeveloperInsightCard = ({
+  accent = "blue",
+  helper,
+  itemsCount = 0,
+  kicker,
+  onClick,
+  progress = 0,
+  title,
+  trend,
+  value,
+}) => {
+  const themes = {
+    blue: {
+      bar: "from-blue-500 via-cyan-400 to-sky-300",
+      border: "border-blue-100/80",
+      chip: "bg-blue-50 text-blue-700",
+      glow: "from-blue-500/20 via-cyan-400/10 to-transparent",
+    },
+    emerald: {
+      bar: "from-emerald-500 via-teal-400 to-cyan-300",
+      border: "border-emerald-100/80",
+      chip: "bg-emerald-50 text-emerald-700",
+      glow: "from-emerald-500/20 via-teal-400/10 to-transparent",
+    },
+    violet: {
+      bar: "from-violet-500 via-fuchsia-400 to-pink-300",
+      border: "border-violet-100/80",
+      chip: "bg-violet-50 text-violet-700",
+      glow: "from-violet-500/20 via-fuchsia-400/10 to-transparent",
+    },
+    rose: {
+      bar: "from-rose-500 via-orange-400 to-amber-300",
+      border: "border-rose-100/80",
+      chip: "bg-rose-50 text-rose-700",
+      glow: "from-rose-500/20 via-orange-400/10 to-transparent",
+    },
+  };
+  const theme = themes[accent] || themes.blue;
+  const normalizedProgress = clamp(Number(progress) || 0, 0, 100);
+
+  return (
+    <motion.button
+      type="button"
+      onClick={onClick}
+      whileHover={{ y: -6, scale: 1.01 }}
+      whileTap={{ scale: 0.99 }}
+      className={cn(
+        "group relative overflow-hidden rounded-[24px] border bg-white/88 p-5 text-left shadow-[0_24px_54px_-34px_rgba(15,23,42,0.4)] backdrop-blur-xl transition",
+        theme.border
+      )}
+    >
+      <div className={cn("pointer-events-none absolute inset-0 bg-gradient-to-br opacity-90", theme.glow)} />
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-1.5">
+        <motion.div
+          className={cn("h-full rounded-full bg-gradient-to-r", theme.bar)}
+          initial={{ width: 0 }}
+          animate={{ width: `${Math.max(normalizedProgress, 10)}%` }}
+          transition={{ duration: 0.7, ease: "easeOut" }}
+        />
+      </div>
+      <div className="relative">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-[11px] font-bold uppercase tracking-[0.24em] text-slate-500">
+              {kicker}
+            </p>
+            <h3 className="mt-2 text-lg font-semibold text-slate-950">{title}</h3>
+          </div>
+          <span className={cn("rounded-full px-2.5 py-1 text-[11px] font-bold", theme.chip)}>
+            {itemsCount} items
+          </span>
+        </div>
+        <div className="mt-5 flex items-end justify-between gap-4">
+          <div>
+            <p className="text-4xl font-semibold tracking-tight text-slate-950">{value}</p>
+            <p className="mt-2 text-sm text-slate-500">{helper}</p>
+          </div>
+          <div className="flex h-16 w-16 items-center justify-center rounded-full border border-white/70 bg-white/75 shadow-inner">
+            <span className="text-sm font-bold text-slate-700">{normalizedProgress}%</span>
+          </div>
+        </div>
+        <div className="mt-5 space-y-2">
+          <div className="h-2 overflow-hidden rounded-full bg-slate-200/80">
+            <motion.div
+              className={cn("h-full rounded-full bg-gradient-to-r", theme.bar)}
+              initial={{ width: 0 }}
+              animate={{ width: `${Math.max(normalizedProgress, 10)}%` }}
+              transition={{ duration: 0.8, delay: 0.05, ease: "easeOut" }}
+            />
+          </div>
+          <div className="flex items-center justify-between gap-3 text-xs font-semibold">
+            <span className="text-slate-400">Click to inspect source issues</span>
+            <span className="text-slate-600">{trend}</span>
+          </div>
+        </div>
+      </div>
+    </motion.button>
+  );
+};
+
+const DeveloperInsightDetails = ({ insight }) => (
+  <AnimatePresence mode="wait">
+    {insight ? (
+      <motion.div
+        key={insight.key}
+        initial={{ opacity: 0, y: 14 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: 8 }}
+        transition={{ duration: 0.22, ease: "easeOut" }}
+      >
+        <AnalyticsPanel
+          title={insight.detailTitle}
+          description={insight.detailDescription}
+          className="overflow-hidden"
+        >
+          <div className="mb-4 grid gap-3 md:grid-cols-4">
+            {insight.detailStats.map((stat) => (
+              <MiniStat
+                key={`${insight.key}-${stat.label}`}
+                label={stat.label}
+                tone={stat.tone}
+                value={stat.value}
+              />
+            ))}
+          </div>
+
+          {insight.items.length ? (
+            <div className="grid gap-3 lg:grid-cols-2">
+              {insight.items.map((item) => (
+                <motion.article
+                  key={`${insight.key}-${item._id}`}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.18 }}
+                  className="rounded-[20px] border border-white/70 bg-white/76 p-4 shadow-[0_18px_38px_-30px_rgba(15,23,42,0.38)]"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="font-mono text-xs font-semibold text-blue-600">{item.issueId}</p>
+                      <h4 className="mt-1 line-clamp-2 text-sm font-semibold text-slate-950">
+                        {item.title}
+                      </h4>
+                    </div>
+                    <span
+                      className={cn(
+                        "shrink-0 rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.14em]",
+                        item.type === ISSUE_TYPES.BUG
+                          ? "border-rose-200 bg-rose-50 text-rose-700"
+                          : "border-blue-200 bg-blue-50 text-blue-700"
+                      )}
+                    >
+                      {item.type === ISSUE_TYPES.BUG ? "Bug" : "Task"}
+                    </span>
+                  </div>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <span
+                      className={cn(
+                        "rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.12em]",
+                        getDeveloperStatusTone(item.status)
+                      )}
+                    >
+                      {getIssueStatusLabel(item.status)}
+                    </span>
+                    <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-600">
+                      {item.priority || "Medium"}
+                    </span>
+                    {item.severity ? (
+                      <span className="rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-amber-700">
+                        {item.severity}
+                      </span>
+                    ) : null}
+                    {item.moduleName ? (
+                      <span className="rounded-full border border-cyan-200 bg-cyan-50 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-cyan-700">
+                        {item.moduleName}
+                      </span>
+                    ) : null}
+                  </div>
+                  <div className="mt-3 grid grid-cols-2 gap-3 text-xs text-slate-500">
+                    <div>
+                      <p className="font-semibold text-slate-700">Updated</p>
+                      <p className="mt-1">{item.updatedAt ? formatDateTime(item.updatedAt) : "Unknown"}</p>
+                    </div>
+                    <div>
+                      <p className="font-semibold text-slate-700">Due</p>
+                      <p className="mt-1">{item.dueAt ? formatDateTime(item.dueAt) : "No due date"}</p>
+                    </div>
+                  </div>
+                </motion.article>
+              ))}
+            </div>
+          ) : (
+            <AnalyticsEmptyState
+              className="min-h-[220px]"
+              icon={BarChart3}
+              title="No source items"
+              description="This insight will show matching task and bug records once they exist in the selected filter range."
+            />
+          )}
+        </AnalyticsPanel>
+      </motion.div>
+    ) : null}
+  </AnimatePresence>
+);
+
 const SegmentedToggle = ({ options, value, onChange }) => (
   <div className="inline-flex rounded-2xl border border-white/70 bg-white/72 p-1 shadow-[0_14px_32px_-26px_rgba(15,23,42,0.45)] backdrop-blur-xl">
     {options.map((option) => {
@@ -1075,6 +1306,7 @@ const DeveloperReportsDashboard = ({ user }) => {
   };
   const [draftFilters, setDraftFilters] = useState(defaultFilters);
   const [filters, setFilters] = useState(defaultFilters);
+  const [activeInsightKey, setActiveInsightKey] = useState("delivery");
 
   const {
     data: projects = [],
@@ -1175,6 +1407,70 @@ const DeveloperReportsDashboard = ({ user }) => {
   const hasSeverityDistributionChart = hasChartValues(severityDistributionData);
   const hasSprintTrendChart =
     hasChartValues(sprintTrendData, "tasks") || hasChartValues(sprintTrendData, "bugs");
+  const sourceIssues = useMemo(
+    () =>
+      asArray(data?.sourceIssues).sort(
+        (left, right) =>
+          new Date(right.updatedAt || right.createdAt || 0) -
+          new Date(left.updatedAt || left.createdAt || 0)
+      ),
+    [data?.sourceIssues]
+  );
+  const taskSourceIssues = useMemo(
+    () => sourceIssues.filter((issue) => issue.type !== ISSUE_TYPES.BUG),
+    [sourceIssues]
+  );
+  const bugSourceIssues = useMemo(
+    () => sourceIssues.filter((issue) => issue.type === ISSUE_TYPES.BUG),
+    [sourceIssues]
+  );
+  const completedSourceIssues = useMemo(
+    () => sourceIssues.filter((issue) => isClosed(issue)),
+    [sourceIssues]
+  );
+  const activeTaskSourceIssues = useMemo(
+    () => taskSourceIssues.filter((issue) => !isClosed(issue)),
+    [taskSourceIssues]
+  );
+  const activeBugSourceIssues = useMemo(
+    () => bugSourceIssues.filter((issue) => !isClosed(issue)),
+    [bugSourceIssues]
+  );
+  const readyForQaSourceIssues = useMemo(
+    () => bugSourceIssues.filter((issue) => isReadyForQa(issue)),
+    [bugSourceIssues]
+  );
+  const reopenedSourceIssues = useMemo(
+    () =>
+      bugSourceIssues.filter(
+        (issue) => issue.status === ISSUE_STATUS.REOPEN || Number(issue.reopenedCount || 0) > 0
+      ),
+    [bugSourceIssues]
+  );
+  const overdueTaskSourceIssues = useMemo(
+    () => taskSourceIssues.filter((issue) => isOverdue(issue)),
+    [taskSourceIssues]
+  );
+  const criticalBugSourceIssues = useMemo(
+    () =>
+      bugSourceIssues.filter(
+        (issue) =>
+          ["Blocker", "Critical"].includes(issue.severity) || issue.priority === "Critical"
+      ),
+    [bugSourceIssues]
+  );
+  const riskSourceIssues = useMemo(() => {
+    const seen = new Set();
+
+    return [...criticalBugSourceIssues, ...overdueTaskSourceIssues].filter((issue) => {
+      if (seen.has(issue._id)) {
+        return false;
+      }
+
+      seen.add(issue._id);
+      return true;
+    });
+  }, [criticalBugSourceIssues, overdueTaskSourceIssues]);
 
   if (error) {
     return (
@@ -1214,6 +1510,109 @@ const DeveloperReportsDashboard = ({ user }) => {
   const health = getWorkloadHealth(summary.openWork);
   const developerFilterControlClass =
     "h-11 w-full rounded-2xl border border-white/70 bg-white/90 px-4 text-sm font-semibold text-slate-700 shadow-sm outline-none transition focus:border-blue-300 focus:ring-2 focus:ring-blue-500/20 disabled:cursor-not-allowed disabled:opacity-60 dark:border-white/10 dark:bg-slate-950/70 dark:text-slate-100";
+  const qualitySourceIssues = [...readyForQaSourceIssues, ...reopenedSourceIssues]
+    .sort(
+      (left, right) =>
+        new Date(right.updatedAt || right.createdAt || 0) -
+        new Date(left.updatedAt || left.createdAt || 0)
+    )
+    .slice(0, 8);
+  const developerInsights = [
+    {
+      key: "delivery",
+      kicker: "Delivery Momentum",
+      title: "Completed Throughput",
+      value: `${summary.productivity}%`,
+      progress: summary.productivity,
+      helper: `${summary.completed} completed from ${summary.assignedWork} assigned items`,
+      trend:
+        productivityScore.trend >= 0
+          ? `+${productivityScore.trend}% vs previous sprint window`
+          : `${productivityScore.trend}% vs previous sprint window`,
+      accent: "blue",
+      items: completedSourceIssues.slice(0, 8),
+      itemsCount: completedSourceIssues.length,
+      detailTitle: "Completed Work Sources",
+      detailDescription:
+        "Closed tasks and bugs contributing to your current delivery progress.",
+      detailStats: [
+        { label: "Completed", value: summary.completed, tone: "emerald" },
+        { label: "Assigned", value: summary.assignedWork, tone: "blue" },
+        { label: "Velocity", value: productivityScore.velocity, tone: "violet" },
+        { label: "Progress", value: `${summary.productivity}%`, tone: "amber" },
+      ],
+    },
+    {
+      key: "execution",
+      kicker: "Execution Focus",
+      title: "Active Task Flow",
+      value: taskMetrics.open,
+      progress: taskMetrics.completionRate,
+      helper: `${taskMetrics.completed} completed, ${taskMetrics.overdue} overdue, ${taskMetrics.storyPointsCompleted} story points done`,
+      trend: `${taskMetrics.completionRate}% completion rate in current filter scope`,
+      accent: "emerald",
+      items: activeTaskSourceIssues.slice(0, 8),
+      itemsCount: activeTaskSourceIssues.length,
+      detailTitle: "Task Execution Sources",
+      detailDescription:
+        "Open and in-flight developer task items pulled from the task workflow source data.",
+      detailStats: [
+        { label: "Open Tasks", value: taskMetrics.open, tone: "blue" },
+        { label: "Done Tasks", value: taskMetrics.completed, tone: "emerald" },
+        { label: "Overdue", value: taskMetrics.overdue, tone: "rose" },
+        { label: "Story Points", value: taskMetrics.storyPointsCompleted, tone: "violet" },
+      ],
+    },
+    {
+      key: "quality",
+      kicker: "Quality Signal",
+      title: "Bug Quality Readiness",
+      value: `${bugMetrics.fixSuccessRate}%`,
+      progress: bugMetrics.fixSuccessRate,
+      helper: `${bugMetrics.readyForQa} ready for QA, ${bugMetrics.reopenRate}% reopen risk`,
+      trend: `${bugMetrics.closed} bugs closed with ${bugMetrics.inProgress} still moving`,
+      accent: "violet",
+      items: qualitySourceIssues,
+      itemsCount: readyForQaSourceIssues.length + reopenedSourceIssues.length,
+      detailTitle: "Bug Quality Sources",
+      detailDescription:
+        "Bugs currently moving toward QA along with reopened items that impact quality confidence.",
+      detailStats: [
+        { label: "Ready for QA", value: bugMetrics.readyForQa, tone: "violet" },
+        { label: "Closed Bugs", value: bugMetrics.closed, tone: "emerald" },
+        { label: "Reopen Risk", value: `${bugMetrics.reopenRate}%`, tone: "rose" },
+        { label: "QA Pass", value: `${bugMetrics.fixSuccessRate}%`, tone: "blue" },
+      ],
+    },
+    {
+      key: "risk",
+      kicker: "Risk Watch",
+      title: "Critical Attention Queue",
+      value: riskSourceIssues.length,
+      progress: percent(riskSourceIssues.length, Math.max(sourceIssues.length, 1)),
+      helper: `${criticalBugSourceIssues.length} critical bugs and ${overdueTaskSourceIssues.length} overdue tasks need attention`,
+      trend: `${activeBugSourceIssues.length} active bugs remain in current scope`,
+      accent: "rose",
+      items: riskSourceIssues.slice(0, 8),
+      itemsCount: riskSourceIssues.length,
+      detailTitle: "Risk Queue Sources",
+      detailDescription:
+        "Critical bugs and overdue tasks sourced from your current bug and task assignments.",
+      detailStats: [
+        { label: "Critical Bugs", value: criticalBugSourceIssues.length, tone: "rose" },
+        { label: "Overdue Tasks", value: overdueTaskSourceIssues.length, tone: "amber" },
+        { label: "Open Work", value: summary.openWork, tone: "blue" },
+        {
+          label: "Risk Share",
+          value: `${percent(riskSourceIssues.length, Math.max(sourceIssues.length, 1))}%`,
+          tone: "violet",
+        },
+      ],
+    },
+  ];
+  const activeInsight =
+    developerInsights.find((insight) => insight.key === activeInsightKey) ||
+    developerInsights[0];
 
   return (
     <div className="space-y-6">

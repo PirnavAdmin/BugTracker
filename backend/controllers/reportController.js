@@ -266,7 +266,26 @@ const getDeveloperDashboardAnalytics = asyncHandler(async (req, res) => {
           }
         ],
         rawIssues: [
-          { $project: { _id: 1, type: 1, status: 1, createdAt: 1, startedAt: 1, closedAt: 1, reopenedCount: 1 } }
+          {
+            $project: {
+              _id: 1,
+              title: 1,
+              type: 1,
+              status: 1,
+              priority: 1,
+              dueAt: 1,
+              updatedAt: 1,
+              createdAt: 1,
+              startedAt: 1,
+              closedAt: 1,
+              reopenedCount: 1,
+              displayBugId: 1,
+              issueKey: 1,
+              storyPoints: 1,
+              "bugDetails.severity": 1,
+              "bugDetails.moduleName": 1,
+            },
+          },
         ]
       }
     }
@@ -417,6 +436,24 @@ const getDeveloperDashboardAnalytics = asyncHandler(async (req, res) => {
     completed: Number(m.completed)
   }));
 
+  const sourceIssues = (analyticsResult.rawIssues || []).map((issue) => ({
+    _id: issue._id,
+    issueId: getDisplayKey(issue),
+    title: issue.title || "Untitled work item",
+    type: issue.type || ISSUE_TYPES.TASK,
+    status: issue.status || ISSUE_STATUS.TODO,
+    priority: issue.priority || "Medium",
+    severity: issue?.bugDetails?.severity || "",
+    moduleName: issue?.bugDetails?.moduleName || "General",
+    dueAt: issue.dueAt || null,
+    updatedAt: issue.updatedAt || issue.closedAt || issue.createdAt || null,
+    createdAt: issue.createdAt || null,
+    startedAt: issue.startedAt || null,
+    closedAt: issue.closedAt || null,
+    reopenedCount: Number(issue.reopenedCount || 0),
+    storyPoints: Number(issue.storyPoints || 0),
+  }));
+
   const now = new Date();
   const lastSprintStart = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000);
   const prevSprintStart = new Date(now.getTime() - 28 * 24 * 60 * 60 * 1000);
@@ -481,6 +518,7 @@ const getDeveloperDashboardAnalytics = asyncHandler(async (req, res) => {
     charts,
     recentActivity,
     moduleStats,
+    sourceIssues,
   };
 
   console.log("Analytics Response", JSON.stringify(analytics, null, 2));

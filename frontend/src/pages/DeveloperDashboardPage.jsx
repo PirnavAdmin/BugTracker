@@ -1859,9 +1859,9 @@ const DeveloperDashboardPage = () => {
       />
 
       <section className="space-y-5">
-          <section className="flex snap-x gap-3 overflow-x-auto pb-2 md:grid md:grid-cols-2 md:gap-4 md:overflow-visible md:pb-0 xl:grid-cols-4 [&>*]:min-w-[220px] [&>*]:snap-start md:[&>*]:min-w-0">
+          <section className="grid grid-flow-col auto-cols-[minmax(220px,1fr)] gap-3 overflow-x-auto pb-2 md:[grid-template-columns:repeat(5,minmax(0,1fr))] md:gap-4 md:overflow-visible md:pb-0 md:[&>*]:min-w-0 [&>*]:snap-start">
             {isLoading
-              ? Array.from({ length: 4 }, (_, index) => (
+              ? Array.from({ length: 5 }, (_, index) => (
                   <Skeleton
                     key={`developer-stat-${index}`}
                     className="h-[132px] w-full rounded-[24px]"
