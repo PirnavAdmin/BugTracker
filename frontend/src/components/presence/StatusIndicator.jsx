@@ -5,12 +5,18 @@ const statusClassName = {
   active: "bg-emerald-500",
   idle: "bg-yellow-400",
   offline: "bg-slate-400",
+  "in-call": "bg-amber-500",
+  "in-group-call": "bg-violet-500",
+  ringing: "bg-sky-500",
 };
 
 const statusLabel = {
-  active: "Active",
+  active: "Online",
   idle: "Idle",
   offline: "Offline",
+  "in-call": "In Call",
+  "in-group-call": "In Group Call",
+  ringing: "Ringing",
 };
 
 const StatusIndicator = ({

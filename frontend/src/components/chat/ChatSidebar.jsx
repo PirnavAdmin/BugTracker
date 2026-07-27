@@ -100,16 +100,11 @@ const ConversationButton = memo(
               </span>
             )}
             {conversation.type === "direct" ? (
-              <span
-                className={cn(
-                  "absolute -bottom-0.5 -right-0.5 h-3.5 w-3.5 rounded-full border-2",
-                  isActive ? "border-blue-500" : "border-white",
-                  isOnline ? "bg-emerald-500" : "bg-slate-300"
-                )}
+              <StatusIndicator
+                userId={getId(directUser)}
+                status={isOnline ? "active" : "offline"}
+                className="absolute -bottom-0.5 -right-0.5"
               />
-            ) : null}
-            {conversation.type === "direct" ? (
-              <StatusIndicator userId={getId(directUser)} className="absolute -bottom-0.5 -right-0.5" />
             ) : null}
           </div>
 

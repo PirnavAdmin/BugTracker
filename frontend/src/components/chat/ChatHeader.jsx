@@ -14,6 +14,7 @@ import {
   UsersRound,
 } from "lucide-react";
 import UserAvatar from "@/components/shared/UserAvatar";
+import StatusIndicator from "@/components/presence/StatusIndicator";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -46,38 +47,6 @@ const getConversationName = (conversation, currentUserId) => {
   }
 
   return conversation.name || conversation.projectId?.name || conversation.teamId?.name || "Group chat";
-};
-
-const presenceLabel = (status, isOnline) => {
-  if (status === "in-group-call") {
-    return "In Group Call";
-  }
-
-  if (status === "in-call") {
-    return "In Call";
-  }
-
-  if (status === "ringing") {
-    return "Ringing";
-  }
-
-  return isOnline ? "Online" : "Offline";
-};
-
-const presenceDotClass = (status, isOnline) => {
-  if (status === "in-group-call") {
-    return "bg-violet-500";
-  }
-
-  if (status === "in-call") {
-    return "bg-amber-500";
-  }
-
-  if (status === "ringing") {
-    return "bg-sky-500";
-  }
-
-  return isOnline ? "bg-emerald-500" : "bg-slate-300";
 };
 
 const ChatHeader = memo(
@@ -120,6 +89,8 @@ const ChatHeader = memo(
     const isOnline =
       conversation?.type === "direct" && onlineUsers.includes(getId(directUser));
     const directUserPresence = callPresence[getId(directUser)] || "";
+    const directPresenceStatus =
+      directUserPresence || (isOnline ? "active" : "offline");
     const currentUserPresence = callPresence[String(currentUserId)] || "";
     const isDirectCallAvailable =
       conversation?.type === "direct" && directUser && !activeCall && currentUserPresence !== "in-call";
@@ -348,17 +319,13 @@ const ChatHeader = memo(
           </div>
 
           <div className="mt-1 flex flex-wrap items-center gap-2 text-xs font-medium text-slate-500">
-            <span className="inline-flex items-center gap-1.5">
-              <span
-                className={cn(
-                  "h-2 w-2 rounded-full",
-                  presenceDotClass(directUserPresence, isOnline)
-                )}
-              />
-              {conversation?.type === "direct"
-                ? presenceLabel(directUserPresence, isOnline)
-                : `${participants.length} participants`}
-            </span>
+            {conversation?.type === "direct" ? (
+              <StatusIndicator status={directPresenceStatus} showLabel />
+            ) : (
+              <span className="inline-flex items-center gap-1.5">
+                {`${participants.length} participants`}
+              </span>
+            )}
             {conversation?.type !== "direct" ? (
               <span className="inline-flex items-center gap-1">
                 <UsersRound className="h-3.5 w-3.5" />
