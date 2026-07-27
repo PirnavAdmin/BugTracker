@@ -1160,6 +1160,11 @@
     min-height: var(--app-viewport-height);
   }
 
+  .auth-title {
+    font-size: clamp(1.35rem, 1.05rem + 1.1vw, 1.9rem);
+    line-height: 1.08;
+  }
+
   .auth-card-shell {
     width: var(--auth-card-max-width);
     max-height: calc(var(--app-viewport-height) - (var(--auth-page-padding) * 2));
@@ -1175,6 +1180,25 @@
 @media (max-height: 760px) {
   .auth-card-shell {
     border-radius: 1.25rem;
+  }
+
+  .auth-title {
+    font-size: clamp(1.15rem, 0.95rem + 0.9vw, 1.5rem);
+    line-height: 1.04;
+  }
+}
+
+@media (max-height: 680px) {
+  :root {
+    --auth-page-padding: 0.5rem;
+  }
+
+  .auth-title {
+    font-size: clamp(1.02rem, 0.9rem + 0.55vw, 1.25rem);
+  }
+
+  .auth-card-shell {
+    max-height: calc(var(--app-viewport-height) - 0.75rem);
   }
 }
 
