@@ -464,7 +464,7 @@ const SprintProgressWidget = ({ metrics, isLoading }) => {
 
   return (
     <div
-      className="group flex h-16 min-w-[240px] flex-1 flex-col justify-center rounded-[22px] border border-cyan-100/80 bg-[linear-gradient(135deg,rgba(255,255,255,0.86),rgba(239,246,255,0.78),rgba(236,254,255,0.68))] px-4 py-2 shadow-[0_16px_34px_-26px_rgba(14,165,233,0.78)] backdrop-blur-xl transition-all duration-300 hover:-translate-y-0.5 hover:border-cyan-200 hover:shadow-[0_18px_38px_-24px_rgba(14,165,233,0.9)] sm:max-w-[340px]"
+      className="group flex h-16 min-w-0 w-full flex-1 flex-col justify-center rounded-[22px] border border-cyan-100/80 bg-[linear-gradient(135deg,rgba(255,255,255,0.86),rgba(239,246,255,0.78),rgba(236,254,255,0.68))] px-4 py-2 shadow-[0_16px_34px_-26px_rgba(14,165,233,0.78)] backdrop-blur-xl transition-all duration-300 hover:-translate-y-0.5 hover:border-cyan-200 hover:shadow-[0_18px_38px_-24px_rgba(14,165,233,0.9)] sm:min-w-[240px] sm:max-w-[340px]"
       title="Sprint completion based on assigned tasks."
     >
       {isLoading ? (
@@ -708,14 +708,14 @@ const ProjectPanel = ({ projects, issues, onOpenProject }) => {
   );
 
   return (
-    <Card className="h-full border-white/70 bg-white/88 shadow-[0_18px_48px_-36px_rgba(15,23,42,0.36)] backdrop-blur-xl">
+    <Card className="h-full min-w-0 border-white/70 bg-white/88 shadow-[0_18px_48px_-36px_rgba(15,23,42,0.36)] backdrop-blur-xl">
       <CardHeader className="border-b border-slate-200/80 pb-3">
         <CardTitle className="flex items-center gap-2 text-base">
           <FolderKanban className="h-4 w-4 text-blue-600" />
           Assigned Projects
         </CardTitle>
       </CardHeader>
-      <CardContent className="max-h-[320px] space-y-3 overflow-y-auto p-3">
+      <CardContent className="max-h-[320px] space-y-3 overflow-x-hidden overflow-y-auto p-3">
         {projectCards.length ? (
           projectCards.map((project) => (
             <button
@@ -977,7 +977,7 @@ const ActivityList = ({ activity, compact = false, fallbackIssues = [], onOpenIs
         return (
           <button
             key={entry._id}
-            className="flex w-full gap-3 rounded-2xl border border-slate-200/80 bg-white/76 p-3 text-left shadow-sm transition hover:border-blue-200 hover:bg-white"
+            className="flex min-w-0 w-full gap-3 rounded-2xl border border-slate-200/80 bg-white/76 p-3 text-left shadow-sm transition hover:border-blue-200 hover:bg-white"
             type="button"
             onClick={() => issue?._id && onOpenIssue(issue._id)}
           >
@@ -985,7 +985,7 @@ const ActivityList = ({ activity, compact = false, fallbackIssues = [], onOpenIs
               <Activity className="h-3.5 w-3.5" />
             </span>
             <span className="min-w-0 flex-1">
-              <span className="block text-sm font-semibold text-slate-900">
+              <span className="block break-words text-sm font-semibold text-slate-900">
                 {entry.actor?.name || "System"} {activityText(entry)}
               </span>
               <span className="mt-0.5 block truncate text-xs text-slate-500">
@@ -1802,23 +1802,23 @@ const DeveloperDashboardPage = () => {
   }
 
   return (
-    <div className="page-wrapper space-y-5">
-      <section className="relative isolate flex flex-wrap items-center gap-3 overflow-hidden rounded-[26px] border border-blue-100/80 bg-white p-3 shadow-[0_24px_65px_-42px_rgba(37,99,235,0.65)]">
+    <div className="page-wrapper min-w-0 space-y-5 overflow-x-hidden">
+      <section className="relative isolate flex flex-wrap items-center gap-3 overflow-hidden rounded-[26px] border border-blue-100/80 bg-white p-3 shadow-[0_24px_65px_-42px_rgba(37,99,235,0.65)] sm:p-4">
         <GreetingBeachScene timeOfDay={timeOfDay} />
-        <div className="relative z-10 min-w-[240px] flex-1 px-3 py-1 [text-shadow:0_1px_12px_rgba(255,255,255,0.9)]">
-          <p className="text-xl font-semibold tracking-tight text-slate-950">
+        <div className="relative z-10 min-w-0 w-full flex-1 px-3 py-1 [text-shadow:0_1px_12px_rgba(255,255,255,0.9)] sm:min-w-[240px] sm:w-auto">
+          <p className="text-lg font-semibold tracking-tight text-slate-950 sm:text-xl">
             {greeting},{" "}
             <span className="inline-flex rounded-lg bg-gradient-to-r from-blue-600 to-cyan-500 px-2.5 py-0.5 text-white shadow-[0_8px_20px_-10px_rgba(37,99,235,0.9)]">
               {developerName}
             </span>
           </p>
-          <p className="mt-1 inline-flex rounded-lg bg-white/80 px-2 py-1 text-sm font-semibold text-slate-900 shadow-sm backdrop-blur-sm">
+          <p className="mt-1 inline-flex max-w-full rounded-lg bg-white/80 px-2 py-1 text-xs font-semibold text-slate-900 shadow-sm backdrop-blur-sm sm:text-sm">
             Welcome back. Here’s what’s happening with your work today.
           </p>
         </div>
-        <div className="relative z-10 ml-auto flex flex-wrap items-center justify-end gap-3">
+        <div className="relative z-10 flex w-full flex-wrap items-center justify-start gap-2 sm:ml-auto sm:w-auto sm:justify-end sm:gap-3">
           <Button
-            className="h-11 rounded-2xl"
+            className="h-9 flex-1 rounded-xl px-2 text-xs sm:h-11 sm:flex-none sm:rounded-2xl sm:px-4 sm:text-sm"
             type="button"
             variant="outline"
             onClick={() => navigate("/tasks")}
@@ -1827,7 +1827,7 @@ const DeveloperDashboardPage = () => {
             View Tasks
           </Button>
           <Button
-            className="h-11 rounded-2xl"
+            className="h-9 flex-1 rounded-xl px-2 text-xs sm:h-11 sm:flex-none sm:rounded-2xl sm:px-4 sm:text-sm"
             type="button"
             variant="outline"
             onClick={() => navigate("/reports")}
@@ -1836,7 +1836,7 @@ const DeveloperDashboardPage = () => {
             Reports
           </Button>
           <Button
-            className="h-11 rounded-2xl bg-[linear-gradient(90deg,#E11D48_0%,#F97316_55%,#EAB308_100%)] text-white shadow-[0_14px_28px_-18px_rgba(225,29,72,0.8)] hover:brightness-105"
+            className="h-9 flex-1 rounded-xl bg-[linear-gradient(90deg,#E11D48_0%,#F97316_55%,#EAB308_100%)] px-2 text-xs text-white shadow-[0_14px_28px_-18px_rgba(225,29,72,0.8)] hover:brightness-105 sm:h-11 sm:flex-none sm:rounded-2xl sm:px-4 sm:text-sm"
             type="button"
             onClick={() => setIsPriorityOpen(true)}
           >
@@ -1844,7 +1844,7 @@ const DeveloperDashboardPage = () => {
             Priority Queue
           </Button>
         </div>
-        <div className="relative z-10">
+        <div className="relative z-10 w-full sm:w-auto">
           <SprintProgressWidget metrics={sprintProgress} isLoading={isIssuesLoading} />
         </div>
       </section>
@@ -1870,7 +1870,7 @@ const DeveloperDashboardPage = () => {
               : statCards.map((card) => <StatCard key={card.label} {...card} />)}
           </section>
 
-          <Card className="overflow-hidden border-white/70 bg-white/90 shadow-[0_22px_64px_-42px_rgba(15,23,42,0.42)] backdrop-blur-xl">
+          <Card className="min-w-0 overflow-hidden border-white/70 bg-white/90 shadow-[0_22px_64px_-42px_rgba(15,23,42,0.42)] backdrop-blur-xl">
             <CardHeader className="border-b border-slate-200/80 bg-[linear-gradient(135deg,rgba(255,255,255,0.96),rgba(239,246,255,0.9),rgba(240,253,250,0.78))]">
               <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                 <div>
@@ -2065,21 +2065,21 @@ const DeveloperDashboardPage = () => {
             </CardContent>
           </Card>
 
-          <section className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+          <section className="grid min-w-0 gap-5 md:grid-cols-2 xl:grid-cols-3">
             <ProjectPanel
               projects={projects}
               issues={workflowIssues}
               onOpenProject={handleOpenProject}
             />
 
-            <Card className="h-full border-white/70 bg-white/88 shadow-[0_18px_48px_-36px_rgba(15,23,42,0.36)] backdrop-blur-xl">
+            <Card className="h-full min-w-0 border-white/70 bg-white/88 shadow-[0_18px_48px_-36px_rgba(15,23,42,0.36)] backdrop-blur-xl">
               <CardHeader className="border-b border-slate-200/80">
                 <CardTitle className="flex items-center gap-2 text-base">
                   <Activity className="h-4 w-4 text-blue-600" />
                   Activity Timeline
                 </CardTitle>
               </CardHeader>
-              <CardContent className="max-h-[320px] overflow-y-auto p-4">
+              <CardContent className="max-h-[320px] overflow-x-hidden overflow-y-auto p-3 sm:p-4">
                 {isActivityLoading ? (
                   <div className="space-y-3">
                     <Skeleton className="h-16 w-full rounded-2xl" />
@@ -2096,19 +2096,19 @@ const DeveloperDashboardPage = () => {
               </CardContent>
             </Card>
 
-            <Card className="h-full border-white/70 bg-white/88 shadow-[0_18px_48px_-36px_rgba(15,23,42,0.36)] backdrop-blur-xl md:col-span-2 xl:col-span-1">
+            <Card className="h-full min-w-0 border-white/70 bg-white/88 shadow-[0_18px_48px_-36px_rgba(15,23,42,0.36)] backdrop-blur-xl md:col-span-2 xl:col-span-1">
               <CardHeader className="border-b border-slate-200/80">
                 <CardTitle className="flex items-center gap-2 text-base">
                   <CalendarClock className="h-4 w-4 text-cyan-600" />
                   Recently Updated Issues
                 </CardTitle>
               </CardHeader>
-              <CardContent className="max-h-[320px] space-y-3 overflow-y-auto p-4">
+              <CardContent className="max-h-[320px] space-y-3 overflow-x-hidden overflow-y-auto p-3 sm:p-4">
                 {recentlyUpdatedIssues.length ? (
                   recentlyUpdatedIssues.map((issue) => (
                     <button
                       key={issue._id}
-                      className="flex w-full items-center justify-between gap-3 rounded-2xl border border-slate-200/80 bg-white/76 px-3 py-2.5 text-left shadow-sm transition hover:border-blue-200 hover:bg-white"
+                      className="flex min-w-0 w-full items-center justify-between gap-2 rounded-2xl border border-slate-200/80 bg-white/76 px-3 py-2.5 text-left shadow-sm transition hover:border-blue-200 hover:bg-white sm:gap-3"
                       type="button"
                       onClick={() => setSelectedIssue(issue)}
                     >
@@ -2116,7 +2116,7 @@ const DeveloperDashboardPage = () => {
                         <p className="truncate text-sm font-semibold text-slate-950">
                           {issue.title}
                         </p>
-                        <p className="mt-0.5 text-xs text-slate-500">
+                        <p className="mt-0.5 truncate text-xs text-slate-500">
                           {getIssueDisplayKey(issue)} - {formatDateTime(getLastUpdated(issue))}
                         </p>
                       </div>
