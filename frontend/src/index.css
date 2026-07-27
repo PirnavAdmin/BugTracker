@@ -8,6 +8,9 @@
   :root {
     --app-navbar-height: 4rem;
     --app-content-spacing: 1.5rem;
+    --app-viewport-height: 100vh;
+    --auth-page-padding: clamp(0.75rem, 2vh, 1.25rem);
+    --auth-card-max-width: min(100%, 430px);
     --background: 210 40% 98%;
     --foreground: 222 47% 11%;
     --card: 0 0% 100%;
@@ -43,11 +46,13 @@
 
   html {
     height: 100%;
+    min-height: 100%;
     overflow: hidden;
   }
 
   body {
     height: 100%;
+    min-height: 100%;
     overflow: hidden;
     @apply bg-background text-foreground antialiased;
     font-family: "Manrope", sans-serif;
@@ -72,7 +77,20 @@
 
   #root {
     height: 100%;
+    min-height: 100%;
     max-width: 100%;
+  }
+
+  @supports (height: 100dvh) {
+    :root {
+      --app-viewport-height: 100dvh;
+    }
+  }
+
+  @supports (height: 100svh) {
+    :root {
+      --app-viewport-height: 100svh;
+    }
   }
 
   @keyframes page-shell-enter {
@@ -1136,6 +1154,37 @@
 
   .auth-card-scroll::-webkit-scrollbar {
     display: none;
+  }
+
+  .auth-page-shell {
+    min-height: var(--app-viewport-height);
+  }
+
+  .auth-card-shell {
+    width: var(--auth-card-max-width);
+    max-height: calc(var(--app-viewport-height) - (var(--auth-page-padding) * 2));
+  }
+}
+
+@media (max-height: 900px) {
+  :root {
+    --auth-page-padding: clamp(0.625rem, 1.6vh, 1rem);
+  }
+}
+
+@media (max-height: 760px) {
+  .auth-card-shell {
+    border-radius: 1.25rem;
+  }
+}
+
+@media (max-width: 640px) {
+  :root {
+    --auth-card-max-width: min(100%, 28rem);
+  }
+
+  .auth-card-shell {
+    max-height: calc(var(--app-viewport-height) - 1rem);
   }
 }
 

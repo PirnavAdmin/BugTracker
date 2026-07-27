@@ -454,31 +454,31 @@ const AuthPage = () => {
 
   return (
     <main
-      className="relative min-h-screen overflow-hidden bg-[#031A33] text-white"
+      className="auth-page-shell relative min-h-screen overflow-hidden bg-[#031A33] text-white"
       style={{ fontFamily: '"Inter", sans-serif' }}
     >
       <div className="auth-illustration-fallback absolute inset-0" aria-hidden="true" />
       <div className="absolute inset-0 bg-[linear-gradient(135deg,rgba(3,26,51,0.96)_0%,rgba(2,18,37,0.98)_52%,rgba(1,11,24,1)_100%)]" />
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_25%,rgba(14,116,144,0.18)_0%,transparent_34%),radial-gradient(circle_at_48%_88%,rgba(37,99,235,0.16)_0%,transparent_32%)]" />
 
-      <div className="relative z-10 flex min-h-screen items-center justify-center px-4 py-3 sm:px-6 sm:py-4">
-        <div className="auth-fade-in w-full max-w-[430px] lg:max-w-[420px]">
-          <div className="relative flex max-h-[calc(100svh-1.5rem)] w-full flex-col overflow-hidden rounded-[28px] border border-white/18 bg-slate-950/[0.56] p-4 shadow-[0_30px_90px_-20px_rgba(0,0,0,0.86)] backdrop-blur-[26px] sm:p-5">
+      <div className="relative z-10 flex min-h-screen items-center justify-center px-3 py-3 sm:px-5 sm:py-4">
+        <div className="auth-fade-in w-full max-w-[430px]">
+          <div className="auth-card-shell relative flex w-full flex-col overflow-hidden rounded-[24px] border border-white/18 bg-slate-950/[0.56] p-3 shadow-[0_30px_90px_-20px_rgba(0,0,0,0.86)] backdrop-blur-[26px] sm:rounded-[28px] sm:p-5">
             <div className="pointer-events-none absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-cyan-200/60 to-transparent" />
             <div className="pointer-events-none absolute -right-20 -top-20 h-44 w-44 rounded-full bg-cyan-400/10 blur-3xl" />
             <div className="pointer-events-none absolute -bottom-24 -left-16 h-44 w-44 rounded-full bg-amber-400/10 blur-3xl" />
             <div className="relative flex min-h-0 flex-col">
-            <div className="shrink-0 space-y-2">
+            <div className="shrink-0 space-y-1.5 sm:space-y-2">
               <div className="flex items-center">
                 <img
                   src={pirnavLogo}
                   alt="CureCode logo"
-                  className="mb-5 h-28 w-auto object-contain sm:h-32"
+                  className="mb-3 h-16 w-auto object-contain sm:mb-4 sm:h-24 lg:h-28"
                 />
               </div>
               <p className="text-[13px] font-medium text-white/72">{eyebrowCopy}</p>
               <h1
-                className="text-[25px] font-semibold leading-tight text-white sm:text-[30px]"
+                className="text-[25px] font-semibold leading-tight text-white sm:text-[28px] lg:text-[30px]"
                 style={{ fontFamily: '"Poppins", sans-serif' }}
               >
                 {titleCopy}
@@ -487,7 +487,7 @@ const AuthPage = () => {
 
             {mode === "forgot" ? (
               <form
-                className="auth-card-scroll -mr-2 mt-4 min-h-0 flex-1 space-y-3.5 overflow-y-auto pr-2"
+                className="auth-card-scroll -mr-2 mt-3 min-h-0 flex-1 space-y-3 overflow-y-auto pr-2 sm:mt-4 sm:space-y-3.5"
                 onSubmit={handlePasswordResetSubmit}
               >
                 {successMessage ? (
@@ -657,7 +657,7 @@ const AuthPage = () => {
               </form>
             ) : (
               <form
-                className="mt-4 space-y-3.5"
+                className="auth-card-scroll -mr-2 mt-3 min-h-0 flex-1 space-y-3 overflow-y-auto pr-2 sm:mt-4 sm:space-y-3.5"
                 onSubmit={handleSubmit}
               >
                 {successMessage ? (
