@@ -27,6 +27,15 @@ const ProfilePage = () => {
   const [uploadError, setUploadError] = useState("");
   const fileInputRef = useRef(null);
 
+  const downloadAPK = () => {
+    const link = document.createElement("a");
+    link.href = "/downloads/CureCode.apk";
+    link.download = "CureCode.apk";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   const avatarMutation = useMutation({
     mutationFn: uploadProfileAvatar,
     onSuccess: (data) => {
@@ -293,7 +302,7 @@ const ProfilePage = () => {
             <p className="mt-2 text-sm text-slate-600">
               Check our documentation or contact support if you need assistance.
             </p>
-            <div className="mt-4 flex gap-3">
+            <div className="mt-4 flex flex-wrap gap-3">
               <Button asChild variant="outline" size="sm">
                 <a
                   href="/docs/pirnav-user-manual.html"
@@ -305,6 +314,14 @@ const ProfilePage = () => {
               </Button>
               <Button variant="outline" size="sm">
                 Contact Support
+              </Button>
+              <Button
+                size="sm"
+                className="bg-blue-600 text-white hover:bg-blue-700"
+                onClick={downloadAPK}
+              >
+                <Download className="h-4 w-4" />
+                Download APK
               </Button>
             </div>
           </CardContent>
