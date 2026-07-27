@@ -77,10 +77,6 @@ const ChatHeader = memo(
     const [removingParticipantId, setRemovingParticipantId] = useState("");
     const [participantActionError, setParticipantActionError] = useState("");
     const [isActionsMenuOpen, setIsActionsMenuOpen] = useState(false);
-    const [actionsMenuPosition, setActionsMenuPosition] = useState({
-      top: 0,
-      left: 0,
-    });
     const participants = conversation?.participants || [];
     const title = getConversationName(conversation, currentUserId);
     const directUser = participants.find(
@@ -152,19 +148,7 @@ const ChatHeader = memo(
       setIsActionsMenuOpen(false);
     };
 
-    const handleToggleActionsMenu = (event) => {
-      const triggerRect = event.currentTarget.getBoundingClientRect();
-      const menuWidth = 224;
-      const viewportPadding = 12;
-      const nextLeft = Math.min(
-        Math.max(triggerRect.right - menuWidth, viewportPadding),
-        window.innerWidth - menuWidth - viewportPadding
-      );
-
-      setActionsMenuPosition({
-        top: triggerRect.bottom + 8,
-        left: nextLeft,
-      });
+    const handleToggleActionsMenu = () => {
       setIsActionsMenuOpen((current) => !current);
     };
 
@@ -437,11 +421,7 @@ const ChatHeader = memo(
                   onClick={() => setIsActionsMenuOpen(false)}
                 />
                 <div
-                  className="fixed z-20 w-56 rounded-2xl border border-slate-200 bg-white p-2 shadow-[0_20px_50px_-30px_rgba(15,23,42,0.35)]"
-                  style={{
-                    top: actionsMenuPosition.top,
-                    left: actionsMenuPosition.left,
-                  }}
+                  className="absolute right-0 top-[calc(100%+8px)] z-20 w-56 max-w-[calc(100vw-1.5rem)] rounded-2xl border border-slate-200 bg-white p-2 shadow-[0_20px_50px_-30px_rgba(15,23,42,0.35)]"
                 >
                   <button
                     type="button"
