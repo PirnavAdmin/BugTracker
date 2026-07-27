@@ -1,7 +1,8 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
 import UserAvatar from "@/components/shared/UserAvatar";
+import ToastNotice from "@/components/shared/ToastNotice";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { uploadProfileAvatar } from "@/lib/api";
@@ -25,15 +26,49 @@ const ProfilePage = () => {
   const queryClient = useQueryClient();
   const [isEditing, setIsEditing] = useState(false);
   const [uploadError, setUploadError] = useState("");
+  const [toast, setToast] = useState(null);
   const fileInputRef = useRef(null);
 
-  const downloadAPK = () => {
-    const link = document.createElement("a");
-    link.href = "/downloads/CureCode.apk";
-    link.download = "CureCode.apk";
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+  useEffect(() => {
+    if (!toast?.id) {
+      return undefined;
+    }
+
+    const timer = window.setTimeout(() => {
+      setToast(null);
+    }, 3600);
+
+    return () => window.clearTimeout(timer);
+  }, [toast?.id]);
+
+  const downloadAPK = async () => {
+    try {
+      const response = await fetch("/downloads/CureCode.apk", {
+        method: "HEAD",
+        cache: "no-store",
+      });
+
+      const contentType = response.headers.get("content-type") || "";
+
+      if (!response.ok || contentType.includes("text/html")) {
+        throw new Error("APK_NOT_AVAILABLE");
+      }
+
+      const link = document.createElement("a");
+      link.href = "/downloads/CureCode.apk";
+      link.download = "CureCode.apk";
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch (error) {
+      setToast({
+        id: `apk-download-${Date.now()}`,
+        type: "warning",
+        title: "APK unavailable",
+        message:
+          "CureCode.apk is not available right now. Please upload the APK to frontend/public/downloads and redeploy.",
+      });
+    }
   };
 
   const avatarMutation = useMutation({
@@ -316,6 +351,7 @@ const ProfilePage = () => {
                 Contact Support
               </Button>
               <Button
+                type="button"
                 size="sm"
                 className="bg-blue-600 text-white hover:bg-blue-700"
                 onClick={downloadAPK}
@@ -327,6 +363,7 @@ const ProfilePage = () => {
           </CardContent>
         </Card>
       </div>
+      <ToastNotice toast={toast} onDismiss={() => setToast(null)} />
     </div>
   );
 };

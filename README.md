@@ -31,6 +31,10 @@ Full-stack Jira-like bug tracking and project management app with:
 |   |-- .dockerignore
 |   |-- .env.example
 |   |-- nginx.conf
+|   |-- public/
+|   |   `-- downloads/
+|   |       |-- .gitkeep
+|   |       `-- CureCode.apk
 |   `-- src/
 |-- deploy/
 |   `-- mongo/
@@ -123,6 +127,32 @@ docker compose up --build
 - Optional override recipient: local backend `/test-email?to=someone@example.com`
 - MongoDB: local MongoDB on port `27017`
 
+## APK Deployment
+
+Place the Android build here before running a frontend Docker build:
+
+```text
+frontend/public/downloads/CureCode.apk
+```
+
+How it works:
+
+- The frontend Docker build always creates `frontend/public/downloads/` if it is missing.
+- If `frontend/public/downloads/CureCode.apk` exists, the image copies it to `/usr/share/nginx/html/downloads/CureCode.apk`.
+- If the APK is missing, the Docker build continues and logs:
+
+```text
+WARNING: CureCode.apk not found. APK download will be unavailable.
+```
+
+Public download URL:
+
+```text
+https://<domain>/downloads/CureCode.apk
+```
+
+The Nginx config serves `/downloads/` as static files only, so a missing APK returns HTTP `404` instead of the React app shell.
+
 ## Frontend Setup (Ubuntu/macOS)
 
 Use the repo-pinned Node version before installing frontend dependencies. The repo now includes both `.nvmrc` and `.node-version`, and the frontend install preflight enforces the same Node/npm range as `frontend/package.json`.
@@ -149,6 +179,13 @@ For Dockerized runs from a fresh clone:
 ```bash
 cp .env.example .env
 docker compose up --build
+```
+
+For a frontend-only image build that includes the APK when present:
+
+```bash
+cd frontend
+docker build -t curecode-frontend .
 ```
 
 The frontend Docker build intentionally uses `npm ci`, so `frontend/package-lock.json` must stay committed and in sync with `frontend/package.json`.
@@ -205,6 +242,8 @@ npm run dev
 ## Deployment Notes
 
 - The frontend container serves static files through Nginx and proxies `/api` to the backend container.
+- APK deployment is file-based: drop `CureCode.apk` into `frontend/public/downloads/`, rebuild the frontend image, and redeploy the container.
+- The deployed APK is served directly from `/usr/share/nginx/html/downloads/CureCode.apk`.
 - The frontend Nginx config also proxies `/test-email` to the backend for quick mail verification in Dockerized runs.
 - The backend container connects to Mongo using compose network DNS (`mongo`).
 - Mail notifications in Docker require `EMAIL_HOST`, `EMAIL_PORT`, `EMAIL_USER`, `EMAIL_PASS`, `EMAIL_SECURE`, `EMAIL_FROM`, and `APP_URL` in the root compose `.env`.
@@ -226,7 +265,45 @@ docker compose up --build
 docker compose down
 docker compose down -v
 
+cd frontend && docker build -t curecode-frontend .
+cd frontend && mkdir -p public/downloads
 cd backend && npm run backup:export
 cd backend && npm run start
 cd frontend && npm run build
 ```
+
+## APK Verification
+
+After placing `frontend/public/downloads/CureCode.apk` and redeploying the frontend container:
+
+1. Verify the file exists in the container:
+
+```bash
+docker exec -it <frontend-container> ls -l /usr/share/nginx/html/downloads/
+```
+
+2. Verify the URL returns the APK MIME type:
+
+```bash
+curl -I https://<domain>/downloads/CureCode.apk
+```
+
+Expected header:
+
+```text
+Content-Type: application/vnd.android.package-archive
+```
+
+3. Verify the browser downloads `CureCode.apk` and not `CureCode.apk.html`.
+
+4. Verify the missing-file behavior:
+
+```bash
+curl -I https://<domain>/downloads/CureCode.apk
+```
+
+If the APK was not deployed, the response must be:
+
+- HTTP `404`
+- not `200`
+- not the React `index.html` page

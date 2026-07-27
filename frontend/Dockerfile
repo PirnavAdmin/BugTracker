@@ -6,6 +6,11 @@ COPY package*.json ./
 
 RUN npm ci --ignore-scripts
 
+# Keep the downloads folder available in the build context even when
+# developers have not placed an APK yet. This lets the image build stay
+# successful while still supporting optional APK bundling.
+RUN mkdir -p public/downloads
+
 COPY . .
 
 ARG VITE_API_BASE_URL=/api
@@ -36,8 +41,22 @@ RUN npm run build --ignore-scripts
 
 FROM nginx:1.27-alpine
 
+# Frontend runtime:
+# - Serve the Vite build from /usr/share/nginx/html
+# - If frontend/public/downloads/CureCode.apk exists at build time, copy it
+#   into /usr/share/nginx/html/downloads/CureCode.apk
+# - If it does not exist, continue the image build and log a warning
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=build /app/dist /usr/share/nginx/html
+COPY --from=build /app/public/downloads /tmp/downloads
+
+RUN mkdir -p /usr/share/nginx/html/downloads \
+    && if [ -f /tmp/downloads/CureCode.apk ]; then \
+        cp /tmp/downloads/CureCode.apk /usr/share/nginx/html/downloads/CureCode.apk; \
+      else \
+        echo "WARNING: CureCode.apk not found. APK download will be unavailable."; \
+      fi \
+    && rm -rf /tmp/downloads
 
 EXPOSE 80
 
