@@ -1,4 +1,4 @@
-import { Suspense, lazy, useEffect, useMemo, useRef, useState } from "react";
+﻿import { Suspense, lazy, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { NavLink, Navigate, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import {
@@ -1308,9 +1308,7 @@ const DeveloperReportsDashboard = ({ user }) => {
   const [filters, setFilters] = useState(defaultFilters);
   const [activeInsightKey, setActiveInsightKey] = useState("delivery");
 
-  const {
-    data: projects = [],
-  } = useQuery({
+  const { data: projects = [] } = useQuery({
     queryKey: ["projects", "developer-reports-options"],
     queryFn: fetchProjects,
     staleTime: 60_000,
@@ -1340,71 +1338,15 @@ const DeveloperReportsDashboard = ({ user }) => {
     setFilters(defaultFilters);
   };
 
-  const workDistributionData = useMemo(() => {
-    const metricRows = [
-      {
-        color: DEVELOPER_WORK_DISTRIBUTION_COLORS.Tasks,
-        name: "Tasks",
-        value: toNumber(data?.taskMetrics?.assigned),
-      },
-      {
-        color: DEVELOPER_WORK_DISTRIBUTION_COLORS.Bugs,
-        name: "Bugs",
-        value: toNumber(data?.bugMetrics?.assigned),
-      },
-    ].filter((item) => item.value > 0);
-
-    if (metricRows.length) {
-      return metricRows;
-    }
-
-    return asArray(data?.charts?.workDistribution)
-      .map((item, index) => ({
+  const sprintTrendData = useMemo(
+    () =>
+      (data?.charts?.sprintTrend || []).map((item) => ({
         ...item,
-        color:
-          DEVELOPER_WORK_DISTRIBUTION_COLORS[item?.name] ||
-          CHART_COLORS[index % CHART_COLORS.length],
-        value: toNumber(item?.value),
-      }))
-      .filter((item) => item.name && item.value > 0);
-  }, [data?.bugMetrics?.assigned, data?.charts?.workDistribution, data?.taskMetrics?.assigned]);
-
-  const severityDistributionData = useMemo(() => {
-    const knownRows = asArray(data?.charts?.severityDistribution)
-      .map((item, index) => ({
-        ...item,
-        color:
-          DEVELOPER_SEVERITY_COLORS[item?.name] ||
-          CHART_COLORS[index % CHART_COLORS.length],
-        value: toNumber(item?.value),
-      }))
-      .filter((item) => item.name && item.value > 0);
-    const knownTotal = sumChartValues(knownRows);
-    const bugTotal = toNumber(data?.bugMetrics?.assigned);
-    const unspecified = Math.max(bugTotal - knownTotal, 0);
-
-    return unspecified > 0
-      ? [
-          ...knownRows,
-          {
-            color: DEVELOPER_SEVERITY_COLORS.Unspecified,
-            name: "Unspecified",
-            value: unspecified,
-          },
-        ]
-      : knownRows;
-  }, [data?.bugMetrics?.assigned, data?.charts?.severityDistribution]);
-
-  const sprintTrendData = useMemo(() =>
-    (data?.charts?.sprintTrend || []).map(item => ({
-      ...item,
-      tasks: toNumber(item.tasks),
-      bugs: toNumber(item.bugs)
-    })),
+        tasks: toNumber(item.tasks),
+        bugs: toNumber(item.bugs),
+      })),
     [data?.charts?.sprintTrend]
   );
-  const hasWorkDistributionChart = hasChartValues(workDistributionData);
-  const hasSeverityDistributionChart = hasChartValues(severityDistributionData);
   const hasSprintTrendChart =
     hasChartValues(sprintTrendData, "tasks") || hasChartValues(sprintTrendData, "bugs");
   const sourceIssues = useMemo(
@@ -1486,19 +1428,7 @@ const DeveloperReportsDashboard = ({ user }) => {
     return <ReportsLoading />;
   }
 
-  const { summary, taskMetrics, bugMetrics, productivityScore, charts, recentActivity, moduleStats } = data;
-
-  if (import.meta.env.DEV) {
-    console.debug("Developer Analytics API Response:", data);
-    console.debug("Developer Reports chart data:", {
-      workDistributionData,
-      severityDistributionData,
-      sprintTrendData,
-      hasWorkDistributionChart,
-      hasSeverityDistributionChart,
-      hasSprintTrendChart,
-    });
-  }
+  const { summary, taskMetrics, bugMetrics, productivityScore, recentActivity, moduleStats } = data;
 
   const getWorkloadHealth = (assigned) => {
     if (assigned > 15) return { label: "Overloaded", tone: "bg-rose-500" };
@@ -1618,63 +1548,33 @@ const DeveloperReportsDashboard = ({ user }) => {
     <div className="space-y-6">
       <div className="rounded-[18px] border border-white/65 bg-slate-50/95 p-3 shadow-[0_18px_42px_-34px_rgba(15,23,42,0.45)] backdrop-blur-xl dark:border-white/10 dark:bg-slate-900/92">
         <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-[1fr_1fr_1fr_1fr_0.8fr_0.8fr_auto]">
-            <select
-              className={developerFilterControlClass}
-              value={draftFilters.projectId}
-              onChange={(e) => updateFilter("projectId", e.target.value)}
-            >
-              <option value="all">All Projects</option>
-              {projects.map((p) => (
-                <option key={p._id} value={p._id}>{p.name}</option>
-              ))}
-            </select>
-
-            <select
-              className={developerFilterControlClass}
-              value={draftFilters.sprintId}
-              disabled={!selectedProjectId}
-              onChange={(e) => updateFilter("sprintId", e.target.value)}
-            >
-              <option value="all">All Sprints</option>
-              <option value="backlog">Backlog</option>
-              {sprints.map((s) => (
-                <option key={s._id} value={s._id}>{s.name}</option>
-              ))}
-            </select>
-
-            <Input
-              aria-label="Date from"
-              className={developerFilterControlClass}
-              type="date"
-              value={draftFilters.dateFrom}
-              onChange={(e) => updateFilter("dateFrom", e.target.value)}
-            />
-            <Input
-              aria-label="Date to"
-              className={developerFilterControlClass}
-              type="date"
-              value={draftFilters.dateTo}
-              onChange={(e) => updateFilter("dateTo", e.target.value)}
-            />
-
-            <select
-              className={developerFilterControlClass}
-              value={draftFilters.priority}
-              onChange={(e) => updateFilter("priority", e.target.value)}
-            >
-              <option value="all">Priority</option>
-              {PRIORITIES.map((p) => <option key={p} value={p}>{p}</option>)}
-            </select>
-
-            <select
-              className={developerFilterControlClass}
-              value={draftFilters.severity}
-              onChange={(e) => updateFilter("severity", e.target.value)}
-            >
-              <option value="all">Severity</option>
-              {BUG_SEVERITY_OPTIONS.map((s) => <option key={s} value={s}>{s}</option>)}
-            </select>
-
+          <select className={developerFilterControlClass} value={draftFilters.projectId} onChange={(e) => updateFilter("projectId", e.target.value)}>
+            <option value="all">All Projects</option>
+            {projects.map((project) => (
+              <option key={project._id} value={project._id}>{project.name}</option>
+            ))}
+          </select>
+          <select className={developerFilterControlClass} value={draftFilters.sprintId} disabled={!selectedProjectId} onChange={(e) => updateFilter("sprintId", e.target.value)}>
+            <option value="all">All Sprints</option>
+            <option value="backlog">Backlog</option>
+            {sprints.map((sprint) => (
+              <option key={sprint._id} value={sprint._id}>{sprint.name}</option>
+            ))}
+          </select>
+          <Input aria-label="Date from" className={developerFilterControlClass} type="date" value={draftFilters.dateFrom} onChange={(e) => updateFilter("dateFrom", e.target.value)} />
+          <Input aria-label="Date to" className={developerFilterControlClass} type="date" value={draftFilters.dateTo} onChange={(e) => updateFilter("dateTo", e.target.value)} />
+          <select className={developerFilterControlClass} value={draftFilters.priority} onChange={(e) => updateFilter("priority", e.target.value)}>
+            <option value="all">Priority</option>
+            {PRIORITIES.map((priority) => (
+              <option key={priority} value={priority}>{priority}</option>
+            ))}
+          </select>
+          <select className={developerFilterControlClass} value={draftFilters.severity} onChange={(e) => updateFilter("severity", e.target.value)}>
+            <option value="all">Severity</option>
+            {BUG_SEVERITY_OPTIONS.map((severity) => (
+              <option key={severity} value={severity}>{severity}</option>
+            ))}
+          </select>
           <div className="flex items-center gap-2">
             <Button size="sm" onClick={applyFilters} className="h-11 px-4 text-sm">Apply</Button>
             <Button size="sm" variant="ghost" onClick={resetFilters} className="h-11 px-3 text-sm">Reset</Button>
@@ -1682,7 +1582,6 @@ const DeveloperReportsDashboard = ({ user }) => {
         </div>
       </div>
 
-      {/* Row 1: KPI Summary */}
       <div className="grid gap-4 md:grid-cols-3 lg:grid-cols-6">
         <KpiMiniCard title="Assigned Work" value={summary.assignedWork} icon={Layers3} tone="blue" />
         <KpiMiniCard title="Open Work" value={summary.openWork} icon={TimerReset} tone="amber" />
@@ -1692,129 +1591,92 @@ const DeveloperReportsDashboard = ({ user }) => {
         <KpiMiniCard title="Productivity %" value={`${summary.productivity}%`} icon={Zap} tone="emerald" />
       </div>
 
-      {/* Row 2: Performance Section */}
-      <div className="grid gap-6 lg:grid-cols-3">
-        <AnalyticsPanel title="Productivity Score" className="h-full">
-          <div className="flex flex-col items-center justify-center py-4">
-            <span className="text-5xl font-bold text-slate-900 dark:text-white">{productivityScore.current}%</span>
-            <div className="mt-2 flex items-center gap-1 text-sm font-medium text-emerald-600">
-              <TrendingUp className="h-4 w-4" />
-              <span>â†‘ {productivityScore.trend}% from last sprint</span>
-            </div>
-            <div className="mt-6 w-full">
-              <ProgressRow label="Personal Efficiency" value={taskMetrics.completionRate} meta="Completed vs Assigned" />
-            </div>
-          </div>
+      <section className="space-y-4">
+        <div className="flex flex-col gap-2">
+          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-blue-600">Developer Progress</p>
+          <h2 className="text-2xl font-semibold tracking-tight text-slate-950">Interactive delivery insights built from your task and bug workflow</h2>
+          <p className="text-sm text-slate-500">Each widget opens the source work items behind the metric so you can inspect progress, risk, and QA readiness without leaving reports.</p>
+        </div>
+
+        <div className="grid gap-4 xl:grid-cols-4">
+          {developerInsights.map((insight, index) => (
+            <motion.div key={insight.key} initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.24, delay: index * 0.05 }}>
+              <DeveloperInsightCard {...insight} onClick={() => setActiveInsightKey(insight.key)} />
+            </motion.div>
+          ))}
+        </div>
+
+        <DeveloperInsightDetails insight={activeInsight} />
+      </section>
+
+      <div className="grid gap-6 xl:grid-cols-[1.5fr_1fr]">
+        <AnalyticsPanel title="Sprint Delivery Trend" description="Completed tasks and bugs across the last 6 completed sprints.">
+          <ChartFrame height={320}>
+            {hasSprintTrendChart ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={sprintTrendData}>
+                  <defs>
+                    <linearGradient id="developerReportsTasks" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#2563eb" stopOpacity={0.32} />
+                      <stop offset="95%" stopColor="#2563eb" stopOpacity={0} />
+                    </linearGradient>
+                    <linearGradient id="developerReportsBugs" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#ef4444" stopOpacity={0.24} />
+                      <stop offset="95%" stopColor="#ef4444" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                  <XAxis dataKey="sprint" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: "#64748b" }} dy={10} />
+                  <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: "#64748b" }} />
+                  <Tooltip contentStyle={chartTooltipStyle} />
+                  <Area type="monotone" dataKey="tasks" stroke="#2563eb" strokeWidth={2.5} fillOpacity={1} fill="url(#developerReportsTasks)" />
+                  <Area type="monotone" dataKey="bugs" stroke="#ef4444" strokeWidth={2.5} fillOpacity={1} fill="url(#developerReportsBugs)" />
+                </AreaChart>
+              </ResponsiveContainer>
+            ) : (
+              <AnalyticsEmptyState className="min-h-[320px]" icon={AreaChartIcon} title="No trend data" description="Sprint performance trends will appear here." />
+            )}
+          </ChartFrame>
         </AnalyticsPanel>
 
-        <AnalyticsPanel title="Average Resolution Time" className="h-full">
-          <div className="flex flex-col items-center justify-center py-4">
-            <span className="text-5xl font-bold text-slate-900 dark:text-white">
-              {formatDuration(bugMetrics.avgResolutionTime || 2.3 * 24 * 60 * 60 * 1000)}
-            </span>
-            <p className="mt-2 text-sm text-slate-500">Average time to close items</p>
-            <div className="mt-6 grid w-full grid-cols-2 gap-4">
-              <MiniStat label="QA Pass Rate" tone="emerald" value={`${bugMetrics.fixSuccessRate}%`} />
-              <MiniStat label="Reopen Risk" tone="rose" value={`${bugMetrics.reopenRate}%`} />
-            </div>
-          </div>
-        </AnalyticsPanel>
+        <AnalyticsPanel title="Progress Signals" description="Fast read on workload mix, quality stability, and execution health.">
+          <div className="space-y-4">
+            <ProgressRow label="Task Completion Efficiency" value={taskMetrics.completionRate} meta={`${taskMetrics.completed} of ${taskMetrics.assigned} tasks completed`} tone="bg-blue-500" />
+            <ProgressRow label="Bug Fix Success" value={bugMetrics.fixSuccessRate} meta={`${bugMetrics.closed} bugs closed without frequent reopen loops`} tone="bg-violet-500" />
+            <ProgressRow label="QA Readiness" value={percent(bugMetrics.readyForQa, Math.max(bugMetrics.assigned, 1))} meta={`${bugMetrics.readyForQa} bugs are ready for QA handoff`} tone="bg-emerald-500" />
+            <ProgressRow label="Risk Pressure" value={percent(riskSourceIssues.length, Math.max(sourceIssues.length, 1))} meta={`${riskSourceIssues.length} items need quick attention`} tone="bg-rose-500" />
 
-        <AnalyticsPanel title="Velocity" className="h-full">
-          <div className="flex flex-col items-center justify-center py-4">
-            <span className="text-5xl font-bold text-slate-900 dark:text-white">{summary.completed} items</span>
-            <p className="mt-2 text-sm text-slate-500">Completed in current scope</p>
-            <div className="mt-6 w-full">
-              <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-400">Workload Health</p>
-              <div className="flex items-center justify-between rounded-lg bg-slate-50 p-3 dark:bg-slate-900">
-                <span className="text-sm font-medium">{health.label}</span>
-                <span className={cn("h-2.5 w-2.5 rounded-full", health.tone)} />
-              </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <MiniStat label="Avg Resolution" tone="amber" value={formatDuration(bugMetrics.avgResolutionTime || 0)} />
+              <MiniStat label="Workload Health" tone={health.label === "Overloaded" ? "rose" : health.label === "High" ? "amber" : "emerald"} value={health.label} />
+              <MiniStat label="Task vs Bug Mix" tone="blue" value={`${toNumber(taskMetrics.assigned)} / ${toNumber(bugMetrics.assigned)}`} />
+              <MiniStat label="Critical Bugs" tone="rose" value={criticalBugSourceIssues.length} />
             </div>
           </div>
         </AnalyticsPanel>
       </div>
 
-      {/* Row 3: Distribution Widgets */}
       <div className="grid gap-6 lg:grid-cols-2">
-        <DeveloperDistributionWidget
-          emptyDescription="Task and bug workload distribution will appear once work is assigned."
-          icon={Layers3}
-          rows={workDistributionData}
-          title="Work Distribution"
-          total={toNumber(taskMetrics.assigned) + toNumber(bugMetrics.assigned)}
-        />
-
-        <DeveloperDistributionWidget
-          emptyDescription="Bug severity distribution will appear once assigned bugs have severity."
-          icon={Bug}
-          rows={severityDistributionData}
-          title="Bug Severity Distribution"
-          total={toNumber(bugMetrics.assigned)}
-        />
-      </div>
-
-      {/* Row 4: Sprint Trend */}
-      <AnalyticsPanel title="Sprint Trend" description="Completed items over last 6 sprints">
-
-        <ChartFrame height={320}>
-          {hasSprintTrendChart ? (
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={sprintTrendData}>
-                <defs>
-                  <linearGradient id="colorTasks" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.1}/>
-                    <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
-                  </linearGradient>
-                  <linearGradient id="colorBugs" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#ef4444" stopOpacity={0.1}/>
-                    <stop offset="95%" stopColor="#ef4444" stopOpacity={0}/>
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-                <XAxis dataKey="sprint" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: "#64748b" }} dy={10} />
-                <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: "#64748b" }} />
-                <Tooltip contentStyle={chartTooltipStyle} />
-                <Area type="monotone" dataKey="tasks" stroke="#3b82f6" strokeWidth={2} fillOpacity={1} fill="url(#colorTasks)" isAnimationActive={false} />
-                <Area type="monotone" dataKey="bugs" stroke="#ef4444" strokeWidth={2} fillOpacity={1} fill="url(#colorBugs)" isAnimationActive={false} />
-              </AreaChart>
-            </ResponsiveContainer>
-          ) : <AnalyticsEmptyState className="min-h-[320px]" icon={AreaChartIcon} title="No trend data" description="Sprint performance trends will appear here." />}
-        </ChartFrame>
-
-      </AnalyticsPanel>
-
-      <div className="grid gap-6 lg:grid-cols-2">
-        {/* Row 5: Recent Activity Timeline */}
         <AnalyticsPanel title="Recent Activity Timeline" description="Last 15 activities">
           <div className="max-h-[400px] overflow-y-auto pr-2 dashboard-scrollbar">
             <div className="space-y-4">
               {recentActivity.map((activity, idx) => (
-                <div key={activity.id || idx} className="relative pl-6 pb-4 border-l border-slate-100 last:border-0 last:pb-0 dark:border-slate-800">
-                  <div className={cn("absolute -left-1.5 top-0 h-3 w-3 rounded-full border-2 border-white dark:border-slate-900",
-                    activity.action.includes("Fixed") || activity.action.includes("Completed") ? "bg-emerald-500" :
-                    activity.action.includes("QA") ? "bg-violet-500" :
-                    activity.action.includes("Reopened") ? "bg-rose-500" : "bg-blue-500"
-                  )} />
+                <div key={activity.id || idx} className="relative border-l border-slate-100 pb-4 pl-6 last:border-0 last:pb-0 dark:border-slate-800">
+                  <div className={cn("absolute -left-1.5 top-0 h-3 w-3 rounded-full border-2 border-white dark:border-slate-900", activity.action.includes("Fixed") || activity.action.includes("Completed") ? "bg-emerald-500" : activity.action.includes("QA") ? "bg-violet-500" : activity.action.includes("Reopened") ? "bg-rose-500" : "bg-blue-500")} />
                   <div className="flex flex-col">
                     <div className="flex items-center justify-between">
                       <span className="text-sm font-semibold text-slate-900 dark:text-white">{activity.action}</span>
                       <span className="text-[10px] font-medium text-slate-400">{formatDateTime(activity.createdAt)}</span>
                     </div>
-                    <p className="mt-0.5 text-xs text-slate-500">
-                      <span className="font-mono text-blue-600">{activity.issueId}</span>: {activity.issueTitle}
-                    </p>
+                    <p className="mt-0.5 text-xs text-slate-500"><span className="font-mono text-blue-600">{activity.issueId}</span>: {activity.issueTitle}</p>
                   </div>
                 </div>
               ))}
-              {recentActivity.length === 0 && (
-                <AnalyticsEmptyState title="No recent activity" description="Activities will appear as you work on items." icon={AreaChartIcon} />
-              )}
+              {recentActivity.length === 0 ? <AnalyticsEmptyState title="No recent activity" description="Activities will appear as you work on items." icon={AreaChartIcon} /> : null}
             </div>
           </div>
         </AnalyticsPanel>
 
-        {/* Row 6: Top Modules Worked On */}
         <AnalyticsPanel title="Top Modules Worked On">
           <div className="overflow-x-auto">
             <table className="w-full text-left text-sm">
@@ -1832,18 +1694,14 @@ const DeveloperReportsDashboard = ({ user }) => {
                     <td className="py-3 pr-4 font-medium text-slate-700 dark:text-slate-300">{stat.name}</td>
                     <td className="py-3 pr-4 text-right text-slate-600">{stat.tasks}</td>
                     <td className="py-3 pr-4 text-right text-slate-600">{stat.bugs}</td>
-                    <td className="py-3 text-right">
-                      <Badge variant="success" className="text-[10px]">{stat.completed}</Badge>
-                    </td>
+                    <td className="py-3 text-right"><Badge variant="success" className="text-[10px]">{stat.completed}</Badge></td>
                   </tr>
                 ))}
-                {moduleStats.length === 0 && (
+                {moduleStats.length === 0 ? (
                   <tr>
-                    <td colSpan={4} className="py-8">
-                      <AnalyticsEmptyState title="No module data" description="Start working on items to see module stats." icon={PieChartIcon} className="min-h-0 border-0 bg-transparent" />
-                    </td>
+                    <td colSpan={4} className="py-8"><AnalyticsEmptyState title="No module data" description="Start working on items to see module stats." icon={PieChartIcon} className="min-h-0 border-0 bg-transparent" /></td>
                   </tr>
-                )}
+                ) : null}
               </tbody>
             </table>
           </div>
@@ -1852,7 +1710,6 @@ const DeveloperReportsDashboard = ({ user }) => {
     </div>
   );
 };
-
 const KpiMiniCard = ({ title, value, icon: Icon, tone = "blue" }) => {
   const tones = {
     blue: "bg-blue-500",
@@ -2761,7 +2618,7 @@ const OrganizationReportsDashboard = () => {
                       <div className="min-w-0">
                         <p className="truncate text-sm font-semibold text-slate-950">{task.title}</p>
                         <p className="mt-1 truncate text-xs text-slate-500">
-                          {task.project?.name || "Unknown project"} Â· {resolveUserLabel(task.assignee)}
+                          {task.project?.name || "Unknown project"} Ã‚Â· {resolveUserLabel(task.assignee)}
                         </p>
                       </div>
                       <Badge variant={getIssuePriorityVariant(task.priority)}>
@@ -2893,7 +2750,7 @@ const OrganizationReportsDashboard = () => {
                       <div className="min-w-0">
                         <p className="truncate text-sm font-semibold text-slate-950">{bug.title}</p>
                         <p className="mt-1 truncate text-xs text-slate-500">
-                          {bug.project?.name || "Unknown project"} Â· {resolveUserLabel(bug.developerLead || bug.assignee)}
+                          {bug.project?.name || "Unknown project"} Ã‚Â· {resolveUserLabel(bug.developerLead || bug.assignee)}
                         </p>
                       </div>
                       <Badge variant={getIssuePriorityVariant(bug.priority)}>
@@ -2993,7 +2850,7 @@ const OrganizationReportsDashboard = () => {
                       <p className="text-xs font-bold uppercase tracking-[0.2em] text-blue-100">Top Performer Badge</p>
                     </div>
                     <h3 className="mt-2 text-2xl font-semibold">{topDeveloper.name}</h3>
-                    <p className="mt-1 text-sm text-blue-100">{topDeveloper.label} · overall rank #{topDeveloper.rank}</p>
+                    <p className="mt-1 text-sm text-blue-100">{topDeveloper.label} Â· overall rank #{topDeveloper.rank}</p>
                   </div>
                   <div className="rounded-2xl border border-white/15 bg-white/10 p-3 text-right backdrop-blur">
                     <div className="flex justify-end gap-0.5 text-amber-300">
@@ -3073,7 +2930,7 @@ const OrganizationReportsDashboard = () => {
                     <div className="min-w-0">
                       <p className="truncate text-sm font-semibold text-slate-950" title={developer.name}>{developer.name}</p>
                       <p className="mt-1 text-xs leading-5 text-slate-500">
-                        {developer.taskMetrics.completed} tasks · {developer.taskMetrics.deliveredPoints} points · {Math.round(developer.taskMetrics.completionRate)}% completion
+                        {developer.taskMetrics.completed} tasks Â· {developer.taskMetrics.deliveredPoints} points Â· {Math.round(developer.taskMetrics.completionRate)}% completion
                       </p>
                     </div>
                     <span className="col-start-2 text-sm font-bold text-blue-700 min-[1500px]:col-start-auto">{developer.taskScore}/100</span>
@@ -3097,7 +2954,7 @@ const OrganizationReportsDashboard = () => {
                     <div className="min-w-0">
                       <p className="truncate text-sm font-semibold text-slate-950" title={developer.name}>{developer.name}</p>
                       <p className="mt-1 text-xs leading-5 text-slate-500">
-                        {developer.bugMetrics.resolved} bugs resolved · {Math.round(developer.bugMetrics.fixRate)}% fix rate · {developer.bugMetrics.reopened} reopened
+                        {developer.bugMetrics.resolved} bugs resolved Â· {Math.round(developer.bugMetrics.fixRate)}% fix rate Â· {developer.bugMetrics.reopened} reopened
                       </p>
                     </div>
                     <span className="col-start-2 text-sm font-bold text-rose-700 min-[1500px]:col-start-auto">{developer.bugScore}/100</span>
@@ -4811,3 +4668,5 @@ const ReportsPage = () => {
 };
 
 export default ReportsPage;
+
+
