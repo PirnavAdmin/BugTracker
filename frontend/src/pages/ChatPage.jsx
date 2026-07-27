@@ -163,6 +163,10 @@ const ChatPage = () => {
   }, [refreshMeetings]);
 
   useEffect(() => {
+    if (activeModule !== "chats") {
+      return;
+    }
+
     if (!queryConversationId || !conversations.length) {
       return;
     }
@@ -171,9 +175,14 @@ const ChatPage = () => {
       setActiveConversation(queryConversationId).catch(() => {});
     }
 
-    setActiveModule("chats");
     setIsSidebarOpen(false);
-  }, [activeConversationId, conversations.length, queryConversationId, setActiveConversation]);
+  }, [
+    activeConversationId,
+    activeModule,
+    conversations.length,
+    queryConversationId,
+    setActiveConversation,
+  ]);
 
   useEffect(() => {
     if (!toast?.id) {
