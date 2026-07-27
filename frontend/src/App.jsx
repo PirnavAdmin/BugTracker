@@ -2,7 +2,6 @@ import { Suspense, lazy } from "react";
 import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 import AppShell from "@/components/layout/AppShell";
 import ActivityTracker from "@/components/presence/ActivityTracker";
-import { Skeleton } from "@/components/ui/skeleton";
 import { PresenceProvider } from "@/context/PresenceContext";
 import { useAuth } from "@/hooks/use-auth";
 import {
@@ -39,13 +38,14 @@ const TeamActivityPage = lazy(() => import("@/pages/TeamActivityPage"));
 const ProfilePage = lazy(() => import("@/pages/ProfilePage"));
 
 const PublicRouteFallback = () => (
-  <main className="flex min-h-screen items-center justify-center px-6 py-12">
-    <div className="w-full max-w-6xl space-y-5">
-      <Skeleton className="h-[220px] w-full rounded-[36px]" />
-      <div className="grid gap-5 lg:grid-cols-[1.05fr_0.95fr]">
-        <Skeleton className="h-[520px] w-full rounded-[32px]" />
-        <Skeleton className="h-[520px] w-full rounded-[32px]" />
-      </div>
+  <main className="grid min-h-screen place-items-center bg-[#111113] px-6 py-12 text-white">
+    <div className="grid justify-items-center gap-4">
+      <img
+        src="/icons/icon-192x192.png?v=20260727-3"
+        alt=""
+        className="h-24 w-24 rounded-3xl shadow-[0_20px_55px_rgba(0,0,0,0.35),0_0_36px_rgba(193,38,255,0.24)]"
+      />
+      <p className="text-sm font-bold">Loading CureCode</p>
     </div>
   </main>
 );
