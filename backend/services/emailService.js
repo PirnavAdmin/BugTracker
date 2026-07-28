@@ -1752,13 +1752,25 @@ const sendChatMeetingInviteEmail = async (emails, meeting, options = {}) => {
     participantLabels,
   });
 
-  return sendWorkspaceEmail({
+  const mailPayload = {
     workspaceId: options.workspaceId,
     to: emails,
     subject: `Meeting Scheduled: ${meetingTitleText || "Chat meeting"}`,
     html,
     text,
-  });
+  };
+
+  if (options.senderUserId) {
+    return sendPreferredUserNotificationEmail({
+      ...mailPayload,
+      senderUserId: options.senderUserId,
+      sourceLabel: "Meeting scheduler sender",
+      senderSource: "meeting-scheduler",
+      enforceUserFromIdentity: true,
+    });
+  }
+
+  return sendWorkspaceEmail(mailPayload);
 };
 
 const sendProjectMeetingInviteEmail = async (emails, meeting, options = {}) => {
@@ -1774,13 +1786,25 @@ const sendProjectMeetingInviteEmail = async (emails, meeting, options = {}) => {
     participantLabels,
   });
 
-  return sendWorkspaceEmail({
+  const mailPayload = {
     workspaceId: options.workspaceId,
     to: emails,
     subject: `Meeting Scheduled: ${meetingTitleText || "Project team meeting"}`,
     html,
     text,
-  });
+  };
+
+  if (options.senderUserId) {
+    return sendPreferredUserNotificationEmail({
+      ...mailPayload,
+      senderUserId: options.senderUserId,
+      sourceLabel: "Meeting scheduler sender",
+      senderSource: "meeting-scheduler",
+      enforceUserFromIdentity: true,
+    });
+  }
+
+  return sendWorkspaceEmail(mailPayload);
 };
 
 const sendTestEmail = async ({ to, workspaceId, overrideConfig = null }) =>

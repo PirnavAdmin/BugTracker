@@ -12,7 +12,7 @@ const User = require("../models/User");
 const { sendProjectMeetingInviteEmail } = require("../services/emailService");
 const { resolveMeetingWindow } = require("../utils/meetingWindow");
 const asyncHandler = require("../utils/asyncHandler");
-const { hasAdminAccess } = require("../utils/roles");
+const { ROLE_ADMIN, ROLE_MANAGER, ROLE_TEAM_LEAD, hasAdminAccess } = require("../utils/roles");
 const {
   buildProjectAccessQuery,
   loadSerializedProjectById,
@@ -28,6 +28,9 @@ const { ISSUE_STATUS } = require("../utils/issueStatus");
 const { attachMembersToTeams } = require("../utils/teamRelations");
 const { normalizeWorkspaceId } = require("../utils/workspace");
 const { PLANNING_ORDER_INCREMENT } = require("../utils/planningOrder");
+
+const canUseMeetingSchedulerSender = (role = "") =>
+  [ROLE_ADMIN, ROLE_MANAGER, ROLE_TEAM_LEAD].includes(role);
 const { createUniqueProjectShortCode } = require("../utils/displayIds");
 const TEAMS_MEETING_URL_PREFIX = "https://teams.microsoft.com/l/meetup-join/";
 
@@ -1358,6 +1361,7 @@ const scheduleProjectMeeting = asyncHandler(async (req, res) => {
       },
       {
         workspaceId: mailWorkspaceId,
+        senderUserId: canUseMeetingSchedulerSender(req.user.role) ? req.user._id : null,
       }
     );
   } catch (inviteError) {

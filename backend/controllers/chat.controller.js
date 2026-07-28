@@ -20,7 +20,7 @@ const {
 } = require("../utils/projectRelations");
 const { resolveMeetingWindow } = require("../utils/meetingWindow");
 const { normalizeWorkspaceId } = require("../utils/workspace");
-const { ROLE_ADMIN, ROLE_MANAGER } = require("../utils/roles");
+const { ROLE_ADMIN, ROLE_MANAGER, ROLE_TEAM_LEAD } = require("../utils/roles");
 
 const CHAT_ACCESS_ROLES = ["Admin", "Manager", "Team Lead", "Q/A Lead", "Developer", "Tester"];
 const MAX_MESSAGE_LENGTH = 4000;
@@ -213,6 +213,8 @@ const sanitizeMeetingSubject = (value = "") => sanitizeText(value, 160);
 const buildMeetingUrl = ({ conversationId, meetingId }) =>
   `/chat?conversation=${encodeURIComponent(objectIdString(conversationId))}&meeting=${encodeURIComponent(objectIdString(meetingId))}`;
 const canCreateMeetings = (role = "") => CHAT_ACCESS_ROLES.includes(role);
+const canUseMeetingSchedulerSender = (role = "") =>
+  [ROLE_ADMIN, ROLE_MANAGER, ROLE_TEAM_LEAD].includes(role);
 const canManageMeeting = (meeting, user) =>
   user?.role === ROLE_ADMIN ||
   user?.role === ROLE_MANAGER ||
@@ -1343,6 +1345,7 @@ const scheduleMeeting = asyncHandler(async (req, res) => {
       },
       {
         workspaceId: mailWorkspaceId,
+        senderUserId: canUseMeetingSchedulerSender(req.user.role) ? req.user._id : null,
       }
     );
   } catch (inviteError) {
