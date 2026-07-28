@@ -25,7 +25,7 @@ const ChatMeetingDialog = ({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl border-slate-200">
+      <DialogContent className="max-h-[calc(100vh-2rem)] max-w-2xl overflow-hidden border-slate-200">
         <DialogHeader>
           <DialogTitle>{mode === "edit" ? "Edit meeting" : "Schedule meeting"}</DialogTitle>
           <DialogDescription>
@@ -33,7 +33,7 @@ const ChatMeetingDialog = ({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_280px]">
+        <div className="grid min-h-0 gap-4 overflow-y-auto pr-1 lg:grid-cols-[minmax(0,1fr)_280px] lg:overflow-visible lg:pr-0">
           <div className="space-y-4">
             <div className="space-y-2">
               <label className="text-sm font-semibold text-slate-700">Meeting Title</label>
@@ -77,12 +77,12 @@ const ChatMeetingDialog = ({
             </div>
           </div>
 
-          <div className="rounded-[24px] border border-slate-200 bg-slate-50 p-4">
+          <div className="flex min-h-0 max-h-[360px] flex-col rounded-[24px] border border-slate-200 bg-slate-50 p-4 lg:max-h-[520px]">
             <p className="text-sm font-bold text-slate-900">Participants</p>
             <p className="mt-1 text-xs font-medium text-slate-500">
               Auto-filled from this chat. The link stays inside this app.
             </p>
-            <div className="mt-4 space-y-2">
+            <div className="mt-4 min-h-0 space-y-2 overflow-y-auto pr-1">
               {participants.map((participant) => (
                 <div
                   key={String(participant?._id || participant?.id || participant || "")}
