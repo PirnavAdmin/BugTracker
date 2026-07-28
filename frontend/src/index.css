@@ -222,6 +222,14 @@
     gap: 0.375rem;
   }
 
+  .call-stage-fullscreen-controls {
+    display: none;
+  }
+
+  .call-stage:fullscreen .call-stage-fullscreen-controls {
+    display: flex;
+  }
+
   .date-picker-input::-webkit-calendar-picker-indicator {
     cursor: pointer;
     opacity: 0;

@@ -270,7 +270,7 @@ const RemoteMedia = ({
   );
 };
 
-const LocalVideo = ({ stream, user, showVideo = true }) => {
+const LocalVideo = ({ stream, user, showVideo = true, compact = false }) => {
   const videoRef = useRef(null);
 
   useEffect(() => {
@@ -282,13 +282,21 @@ const LocalVideo = ({ stream, user, showVideo = true }) => {
 
   if (!showVideo) {
     return (
-      <div className="flex h-full flex-col items-center justify-center gap-3 bg-slate-800 text-white">
+      <div
+        className={cn(
+          "flex h-full flex-col items-center justify-center bg-slate-800 text-white",
+          compact ? "gap-0" : "gap-3"
+        )}
+      >
         <UserAvatar
           user={user}
-          className="h-24 w-24 rounded-2xl border border-white/15"
-          fallbackClassName="text-3xl"
+          className={cn(
+            "rounded-2xl border border-white/15",
+            compact ? "h-20 w-20" : "h-24 w-24"
+          )}
+          fallbackClassName={compact ? "text-2xl" : "text-3xl"}
         />
-        <div className="text-center">
+        <div className={cn("text-center", compact && "sr-only")}>
           <p className="text-sm font-bold text-white/90">You</p>
           <p className="text-xs font-semibold text-white/45">Camera is off</p>
         </div>
@@ -395,6 +403,7 @@ export const CallProvider = ({ children }) => {
   const stopRingtoneRef = useRef(null);
   const activeCallRef = useRef(null);
   const screenRef = useRef(null);
+  const callFrameRef = useRef(null);
   const stageRef = useRef(null);
   const negotiatingPeersRef = useRef(new Set());
   const restartingPeersRef = useRef(new Set());
@@ -1339,7 +1348,7 @@ export const CallProvider = ({ children }) => {
   }, [raisedHands, token, user]);
 
   const enterFullscreen = useCallback(() => {
-    stageRef.current?.requestFullscreen?.();
+    (callFrameRef.current || stageRef.current)?.requestFullscreen?.();
   }, []);
 
   const minimizeCall = useCallback(() => {
@@ -2008,6 +2017,85 @@ export const CallProvider = ({ children }) => {
       </div>
     );
   };
+  const renderCallControls = (className = "") => (
+    <div
+      className={cn(
+        "pointer-events-auto flex flex-wrap items-center justify-center gap-3 rounded-full border border-white/12 bg-slate-950/78 px-4 py-3 shadow-[0_18px_50px_rgba(15,23,42,0.45)] backdrop-blur-xl",
+        className
+      )}
+    >
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon"
+        className={cn("rounded-full bg-white/10 text-white hover:bg-white/20 hover:text-white", isMuted && "bg-rose-500")}
+        onClick={toggleMute}
+        title="Mute microphone"
+        aria-label="Mute microphone"
+      >
+        {isMuted ? <MicOff className="h-5 w-5" /> : <Mic className="h-5 w-5" />}
+      </Button>
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon"
+        className={cn("rounded-full bg-white/10 text-white hover:bg-white/20 hover:text-white", isCameraOff && "bg-rose-500")}
+        onClick={toggleCamera}
+        title="Toggle camera"
+        aria-label="Toggle camera"
+      >
+        {isCameraOff ? <CameraOff className="h-5 w-5" /> : <Camera className="h-5 w-5" />}
+      </Button>
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon"
+        className={cn("rounded-full bg-white/10 text-white hover:bg-white/20 hover:text-white", isScreenSharing && "bg-emerald-500 text-white")}
+        onClick={shareScreen}
+        title="Share screen"
+        aria-label="Share screen"
+      >
+        <MonitorUp className="h-5 w-5" />
+      </Button>
+      {isGroupCall ? (
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          className={cn("rounded-full bg-white/10 text-white hover:bg-white/20 hover:text-white", raisedHands[getId(user)] && "bg-amber-400 text-slate-950")}
+          onClick={toggleRaiseHand}
+          title="Raise hand"
+          aria-label="Raise hand"
+        >
+          <Hand className="h-5 w-5" />
+        </Button>
+      ) : null}
+      {isGroupCall ? (
+        <Button
+          type="button"
+          variant="secondary"
+          className="rounded-full border-white/10 bg-white/10 text-white hover:bg-white/20 hover:text-white"
+          onClick={leaveCall}
+        >
+          Leave
+        </Button>
+      ) : null}
+      {canEndForEveryone ? (
+        <Button
+          type="button"
+          variant="destructive"
+          size={isGroupCall ? "default" : "icon"}
+          className={cn("rounded-full", !isGroupCall && "h-12 w-12")}
+          onClick={endCall}
+          title="End call"
+          aria-label="End call"
+        >
+          <PhoneOff className="h-5 w-5" />
+          {isGroupCall ? "End for all" : null}
+        </Button>
+      ) : null}
+    </div>
+  );
 
   return (
     <CallContext.Provider value={value}>
@@ -2050,7 +2138,10 @@ export const CallProvider = ({ children }) => {
       ) : null}
       {activeCall && !isMinimized ? (
         <div className="fixed inset-0 z-[75] flex items-center justify-center bg-slate-950/88 p-3 text-white backdrop-blur-sm">
-          <div className="relative flex h-full max-h-[820px] w-full max-w-6xl flex-col overflow-hidden rounded-[28px] border border-white/12 bg-slate-950 shadow-2xl">
+          <div
+            ref={callFrameRef}
+            className="relative flex h-full max-h-[820px] w-full max-w-6xl flex-col overflow-hidden rounded-[28px] border border-white/12 bg-slate-950 shadow-2xl [&:fullscreen]:max-h-none [&:fullscreen]:max-w-none [&:fullscreen]:rounded-none [&:fullscreen]:border-0"
+          >
             <div className="flex shrink-0 items-center justify-between gap-3 border-b border-white/10 px-4 py-3 sm:px-5">
               <div className="min-w-0">
                 <h2 className="truncate text-base font-extrabold sm:text-lg">{callTitle}</h2>
@@ -2090,7 +2181,7 @@ export const CallProvider = ({ children }) => {
               </div>
             </div>
 
-            <div ref={stageRef} className="relative min-h-0 flex-1 overflow-hidden bg-slate-900">
+            <div ref={stageRef} className="call-stage relative min-h-0 flex-1 overflow-hidden bg-slate-900">
               {isGroupCall && hasFeaturedShareLayout ? (
                 <div className="absolute inset-0 z-10 flex min-h-0 flex-col gap-3 bg-slate-900 p-2 sm:p-3 lg:flex-row">
                   <div className="min-h-[280px] flex-1">
@@ -2113,7 +2204,7 @@ export const CallProvider = ({ children }) => {
                   <div className="grid w-full shrink-0 grid-cols-1 gap-3 lg:w-80">
                     {!isLocalFeaturedShare ? (
                       <div className="relative min-h-[150px] overflow-hidden rounded-lg border border-white/10 bg-slate-800 shadow-lg">
-                        <LocalVideo stream={localStream} user={user} showVideo={hasLocalVideo} />
+                        <LocalVideo stream={localStream} user={user} showVideo={hasLocalVideo} compact />
                         <span className="absolute bottom-3 left-3 max-w-[82%] truncate rounded-full bg-black/60 px-3 py-1 text-[11px] font-bold">
                           You {isMuted ? "· muted" : ""}
                         </span>
@@ -2226,7 +2317,7 @@ export const CallProvider = ({ children }) => {
 
                 <div className="pointer-events-none absolute bottom-24 right-3 z-20 sm:bottom-28 sm:right-5">
                   <div className="pointer-events-auto relative h-28 w-40 overflow-hidden rounded-2xl border border-white/15 bg-slate-800 shadow-2xl sm:h-36 sm:w-56">
-                    <LocalVideo stream={localStream} user={user} showVideo={hasLocalVideo} />
+                    <LocalVideo stream={localStream} user={user} showVideo={hasLocalVideo} compact />
                     <div className="absolute inset-x-0 bottom-0 flex items-center justify-between gap-2 bg-gradient-to-t from-slate-950/95 via-slate-950/40 to-transparent px-3 pb-3 pt-8">
                       <span className="truncate rounded-full bg-black/45 px-2.5 py-1 text-[11px] font-bold">
                         You {isMuted ? "· muted" : ""}
@@ -2242,6 +2333,10 @@ export const CallProvider = ({ children }) => {
                     </div>
                   </div>
                 </div>
+              </div>
+
+              <div className="call-stage-fullscreen-controls pointer-events-none absolute inset-x-0 bottom-5 z-40 justify-center px-4">
+                {renderCallControls()}
               </div>
 
               {false && isGroupCall ? (
@@ -2273,78 +2368,7 @@ export const CallProvider = ({ children }) => {
             </div>
 
             <div className="pointer-events-none absolute inset-x-0 bottom-4 z-30 flex justify-center px-4">
-              <div className="pointer-events-auto flex flex-wrap items-center justify-center gap-3 rounded-full border border-white/12 bg-slate-950/78 px-4 py-3 shadow-[0_18px_50px_rgba(15,23,42,0.45)] backdrop-blur-xl">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className={cn("rounded-full bg-white/10 text-white hover:bg-white/20 hover:text-white", isMuted && "bg-rose-500")}
-                  onClick={toggleMute}
-                  title="Mute microphone"
-                  aria-label="Mute microphone"
-                >
-                  {isMuted ? <MicOff className="h-5 w-5" /> : <Mic className="h-5 w-5" />}
-                </Button>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className={cn("rounded-full bg-white/10 text-white hover:bg-white/20 hover:text-white", isCameraOff && "bg-rose-500")}
-                  onClick={toggleCamera}
-                  title="Toggle camera"
-                  aria-label="Toggle camera"
-                >
-                  {isCameraOff ? <CameraOff className="h-5 w-5" /> : <Camera className="h-5 w-5" />}
-                </Button>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className={cn("rounded-full bg-white/10 text-white hover:bg-white/20 hover:text-white", isScreenSharing && "bg-emerald-500 text-white")}
-                  onClick={shareScreen}
-                  title="Share screen"
-                  aria-label="Share screen"
-                >
-                  <MonitorUp className="h-5 w-5" />
-                </Button>
-                {isGroupCall ? (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className={cn("rounded-full bg-white/10 text-white hover:bg-white/20 hover:text-white", raisedHands[getId(user)] && "bg-amber-400 text-slate-950")}
-                    onClick={toggleRaiseHand}
-                    title="Raise hand"
-                    aria-label="Raise hand"
-                  >
-                    <Hand className="h-5 w-5" />
-                  </Button>
-                ) : null}
-                {isGroupCall ? (
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    className="rounded-full border-white/10 bg-white/10 text-white hover:bg-white/20 hover:text-white"
-                    onClick={leaveCall}
-                  >
-                    Leave
-                  </Button>
-                ) : null}
-                {canEndForEveryone ? (
-                  <Button
-                    type="button"
-                    variant="destructive"
-                    size={isGroupCall ? "default" : "icon"}
-                    className={cn("rounded-full", !isGroupCall && "h-12 w-12")}
-                    onClick={endCall}
-                    title="End call"
-                    aria-label="End call"
-                  >
-                    <PhoneOff className="h-5 w-5" />
-                    {isGroupCall ? "End for all" : null}
-                  </Button>
-                ) : null}
-              </div>
+              {renderCallControls()}
             </div>
           </div>
         </div>
