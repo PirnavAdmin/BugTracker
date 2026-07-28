@@ -10,7 +10,7 @@ const {
 } = require("../utils/roles");
 const { getWorkspaceSenderState } = require("../utils/workspaceSender");
 const { normalizeWorkspaceId } = require("../utils/workspace");
-const { formatDateTime } = require("../utils/dateTime");
+const { INDIAN_TIME_ZONE, formatDateTime } = require("../utils/dateTime");
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const TESTER_SMTP_REQUIRED_MESSAGE =
   "Please configure your SMTP settings before assigning bugs by email.";
@@ -133,6 +133,24 @@ const createDetailRow = (label, value) => `
     )}</td>
   </tr>
 `;
+
+const buildEmailList = (items = []) => {
+  const normalizedItems = [...new Set(
+    (Array.isArray(items) ? items : [])
+      .map((item) => String(item || "").trim())
+      .filter(Boolean)
+  )];
+
+  if (!normalizedItems.length) {
+    return "<p style=\"margin: 0; color: #64748B; font-size: 14px;\">No participants listed.</p>";
+  }
+
+  return `
+    <ul style="margin: 0; padding: 0 0 0 18px; color: #334155; font-size: 14px; line-height: 1.8;">
+      ${normalizedItems.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}
+    </ul>
+  `;
+};
 
 const createEmailShell = ({
   preheader = "",
@@ -1598,50 +1616,170 @@ const sendBugAssignmentEmail = async (emails, bug, options = {}) => {
   });
 };
 
+const getMeetingEndDateTime = (meeting = {}) => {
+  const explicitEnd = meeting.endDateTime || meeting.endTime;
+
+  if (explicitEnd) {
+    return explicitEnd;
+  }
+
+  const startDate = meeting.startDateTime || meeting.startTime;
+  const durationMinutes = Number(meeting.durationMinutes || 0);
+
+  if (!startDate || !Number.isFinite(durationMinutes) || durationMinutes <= 0) {
+    return null;
+  }
+
+  const parsedStartDate = new Date(startDate);
+
+  if (Number.isNaN(parsedStartDate.getTime())) {
+    return null;
+  }
+
+  return new Date(parsedStartDate.getTime() + durationMinutes * 60 * 1000);
+};
+
+const buildMeetingInviteEmail = ({
+  title,
+  subtitle,
+  meeting,
+  joinLabel = "Join Meeting",
+  accentColor = "#2563EB",
+  participantLabels = [],
+}) => {
+  const titleText = String(title || "Meeting").trim();
+  const joinUrl = String(meeting?.joinUrl || meeting?.meetingUrl || "").trim();
+  const hasJoinUrl = Boolean(joinUrl);
+  const startDateTime = meeting?.startDateTime || meeting?.startTime;
+  const endDateTime = getMeetingEndDateTime(meeting);
+  const durationMinutes = Number(meeting?.durationMinutes || 0);
+  const durationLabel =
+    Number.isFinite(durationMinutes) && durationMinutes > 0
+      ? `${durationMinutes} minutes`
+      : "Not set";
+  const timeZoneLabel = "India Standard Time (Asia/Kolkata)";
+  const text = [
+    `Meeting Scheduled: ${titleText}`,
+    subtitle ? `Context: ${subtitle}` : "",
+    `Start: ${formatDateTime(startDateTime)} ${timeZoneLabel}`,
+    `End: ${formatDateTime(endDateTime)} ${timeZoneLabel}`,
+    `Duration: ${durationLabel}`,
+    hasJoinUrl ? `Join: ${joinUrl}` : "",
+    participantLabels.length ? `Participants:\n${participantLabels.map((item) => `- ${item}`).join("\n")}` : "",
+  ]
+    .filter(Boolean)
+    .join("\n");
+
+  const html = createEmailShell({
+    preheader: `Meeting scheduled: ${titleText}`,
+    title: "Meeting Scheduled",
+    subtitle: titleText,
+    accentColor,
+    body: `
+      ${
+        subtitle
+          ? `<p style="margin: 0 0 18px; color: #475569; font-size: 14px; line-height: 1.7;">${escapeHtml(
+              subtitle
+            )}</p>`
+          : ""
+      }
+      <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse: collapse; border-top: 1px solid #E2E8F0; border-bottom: 1px solid #E2E8F0;">
+        ${createDetailRow("Start", `${formatDateTime(startDateTime)} ${timeZoneLabel}`)}
+        ${createDetailRow("End", `${formatDateTime(endDateTime)} ${timeZoneLabel}`)}
+        ${createDetailRow("Duration", durationLabel)}
+        ${createDetailRow("Time Zone", INDIAN_TIME_ZONE)}
+      </table>
+      ${
+        hasJoinUrl
+          ? `<p style="margin: 26px 0 0;">
+              <a href="${escapeHtml(
+                joinUrl
+              )}" style="display: inline-block; background: ${escapeHtml(accentColor)}; color: #FFFFFF; padding: 12px 18px; border-radius: 8px; text-decoration: none; font-size: 14px; font-weight: 800;">
+                ${escapeHtml(joinLabel)}
+              </a>
+            </p>
+            <p style="margin: 14px 0 0; color: #64748B; font-size: 12px; line-height: 1.6;">
+              If the button does not work, open this link:<br />
+              <a href="${escapeHtml(joinUrl)}" style="color: ${escapeHtml(accentColor)}; text-decoration: underline; word-break: break-word;">${escapeHtml(
+                joinUrl
+              )}</a>
+            </p>`
+          : ""
+      }
+      <div style="margin: 26px 0 0;">
+        <p style="margin: 0 0 10px; color: #0F172A; font-size: 14px; font-weight: 800;">Participants</p>
+        ${buildEmailList(participantLabels)}
+      </div>
+    `,
+  });
+
+  return {
+    html,
+    text,
+  };
+};
+
+const getParticipantLabels = (participants = []) =>
+  (Array.isArray(participants) ? participants : [])
+    .map((participant) => {
+      if (!participant) {
+        return "";
+      }
+
+      if (typeof participant === "string") {
+        return participant;
+      }
+
+      const email = String(participant.email || "").trim();
+      const name = String(participant.name || "").trim();
+
+      return name && email ? `${name} <${email}>` : name || email;
+    })
+    .filter(Boolean);
+
+const sendChatMeetingInviteEmail = async (emails, meeting, options = {}) => {
+  const meetingTitleText = String(meeting?.title || "Chat meeting").trim();
+  const conversationName = String(meeting?.conversationName || "Chat").trim();
+  const participantLabels = getParticipantLabels(meeting?.participants || []);
+  const { html, text } = buildMeetingInviteEmail({
+    title: meetingTitleText || "Chat meeting",
+    subtitle: `${conversationName} chat meeting scheduled by ${
+      meeting?.scheduledByName || "a workspace member"
+    }.`,
+    meeting,
+    joinLabel: "Open Chat Meeting",
+    accentColor: "#0F766E",
+    participantLabels,
+  });
+
+  return sendWorkspaceEmail({
+    workspaceId: options.workspaceId,
+    to: emails,
+    subject: `Meeting Scheduled: ${meetingTitleText || "Chat meeting"}`,
+    html,
+    text,
+  });
+};
+
 const sendProjectMeetingInviteEmail = async (emails, meeting, options = {}) => {
   const meetingTitleText = String(meeting?.subject || "Project team meeting").trim();
-  const meetingTitle = escapeHtml(meetingTitleText || "Project team meeting");
-  const projectName = escapeHtml(meeting?.projectName || "Project");
-  const joinUrl = String(meeting?.joinUrl || "").trim();
-  const hasJoinUrl = Boolean(joinUrl);
+  const projectName = String(meeting?.projectName || "Project").trim();
+  const participantLabels = getParticipantLabels(meeting?.participants || []);
+  const { html, text } = buildMeetingInviteEmail({
+    title: meetingTitleText || "Project team meeting",
+    subtitle: `${projectName} project meeting.`,
+    meeting,
+    joinLabel: "Join Microsoft Teams Meeting",
+    accentColor: getProjectAccentColor(projectName),
+    participantLabels,
+  });
 
   return sendWorkspaceEmail({
     workspaceId: options.workspaceId,
     to: emails,
     subject: `Meeting Scheduled: ${meetingTitleText || "Project team meeting"}`,
-    html: `
-      <div style="font-family: Arial, sans-serif; padding: 20px;">
-        <h2 style="color: #2563EB;">Team Meeting Scheduled</h2>
-
-        <p><b>Project:</b> ${projectName}</p>
-        <p><b>Title:</b> ${meetingTitle}</p>
-        <p><b>Start:</b> ${escapeHtml(formatDateTime(meeting?.startDateTime))}</p>
-        <p><b>End:</b> ${escapeHtml(formatDateTime(meeting?.endDateTime))}</p>
-
-        ${
-          hasJoinUrl
-            ? `
-          <br />
-          <a
-            href="${escapeHtml(joinUrl)}"
-            style="background: #2563EB; color: #fff; padding: 10px 16px; border-radius: 6px; text-decoration: none;"
-          >
-            Join Microsoft Teams Meeting
-          </a>
-          <p style="margin-top: 12px; font-size: 12px; color: #64748B;">
-            If the button does not work, copy this URL:
-            <br />
-            <a href="${escapeHtml(joinUrl)}">${escapeHtml(joinUrl)}</a>
-          </p>
-        `
-            : ""
-        }
-
-        <p style="margin-top: 20px; color: #888; font-size: 12px;">
-          Automated notification from Pirnav Workspace
-        </p>
-      </div>
-    `,
+    html,
+    text,
   });
 };
 
@@ -1679,6 +1817,7 @@ module.exports = {
   isValidSmtpHost,
   sendIssueEmail,
   sendBugAssignmentEmail,
+  sendChatMeetingInviteEmail,
   sendProjectMeetingInviteEmail,
   sendTestEmail,
 };

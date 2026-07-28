@@ -11,6 +11,7 @@ const ProjectTeam = require("../models/ProjectTeam");
 const Team = require("../models/Team");
 const TeamMember = require("../models/TeamMember");
 const User = require("../models/User");
+const { sendChatMeetingInviteEmail } = require("../services/emailService");
 const asyncHandler = require("../utils/asyncHandler");
 const { uploadToS3 } = require("../utils/s3");
 const {
@@ -1325,10 +1326,39 @@ const scheduleMeeting = asyncHandler(async (req, res) => {
     message,
   });
 
+  let inviteWarning = "";
+
+  try {
+    await sendChatMeetingInviteEmail(
+      participants.map((participant) => participant.email),
+      {
+        title: meeting.title,
+        description: meeting.description || "",
+        meetingUrl: meeting.meetingUrl,
+        startTime: meeting.startTime,
+        durationMinutes: meeting.durationMinutes,
+        conversationName: meetingTitle,
+        scheduledByName: req.user.name || "",
+        participants,
+      },
+      {
+        workspaceId: mailWorkspaceId,
+      }
+    );
+  } catch (inviteError) {
+    inviteWarning = "Meeting created, but invite emails could not be sent right now.";
+    console.error("[chat-meetings] Failed to send meeting invites", {
+      conversationId: String(conversation._id),
+      meetingId: String(meeting._id),
+      error: inviteError?.message || inviteError,
+    });
+  }
+
   res.status(201).json({
     message: "Meeting scheduled successfully",
     meeting: serializeChatMeeting(meeting),
     chatMessage: message,
+    warning: inviteWarning || undefined,
   });
 });
 

@@ -1353,6 +1353,8 @@ const scheduleProjectMeeting = asyncHandler(async (req, res) => {
         startDateTime: meeting.startDateTime,
         endDateTime: meeting.endDateTime,
         projectName: project.name,
+        durationMinutes: meeting.durationMinutes,
+        participants,
       },
       {
         workspaceId: mailWorkspaceId,
