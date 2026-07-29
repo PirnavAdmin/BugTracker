@@ -447,8 +447,10 @@ const ChatPage = () => {
       setIsSidebarOpen(false);
       setToast({
         id: Date.now(),
-        type: "success",
-        message: response?.message || "Meeting saved successfully.",
+        type: response?.warning ? "warning" : "success",
+        message: [response?.message || "Meeting saved successfully.", response?.warning]
+          .filter(Boolean)
+          .join(" "),
       });
     } catch (error) {
       setMeetingError(

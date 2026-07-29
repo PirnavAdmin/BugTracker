@@ -2,9 +2,20 @@ const Notification = require("../models/Notification");
 const User = require("../models/User");
 const TeamMember = require("../models/TeamMember");
 const ProjectTeam = require("../models/ProjectTeam");
-const { emitToUser } = require("../socket");
 const { ROLE_TESTER, ROLE_QA_LEAD, ROLE_ADMIN } = require("../utils/roles");
 const { BUG_STATUS } = require("../utils/bugLifecycle");
+
+const emitNotificationToUser = (recipientId, notification) => {
+  try {
+    const { emitToUser } = require("../socket");
+
+    if (typeof emitToUser === "function") {
+      emitToUser(recipientId, "notification_received", notification);
+    }
+  } catch (error) {
+    console.error("[notificationService] Error emitting notification:", error);
+  }
+};
 
 /**
  * Finds all testers attached to a project through its teams
@@ -56,7 +67,7 @@ const createNotification = async ({
       link,
     });
 
-    emitToUser(recipientId, "notification_received", notification);
+    emitNotificationToUser(recipientId, notification);
 
     return notification;
   } catch (error) {
