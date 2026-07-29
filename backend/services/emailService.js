@@ -507,6 +507,19 @@ const getDefaultMailer = ({ workspaceId = "", fallbackReason = "" } = {}) =>
     workspaceId,
   });
 
+const getOptionalDefaultMailer = ({ workspaceId = "", fallbackReason = "" } = {}) => {
+  try {
+    return getDefaultMailer({ workspaceId, fallbackReason });
+  } catch (error) {
+    console.warn("[email] Global fallback sender unavailable", {
+      workspaceId: workspaceId ? normalizeWorkspaceId(workspaceId) : "",
+      fallbackReason,
+      message: error?.message || String(error),
+    });
+    return null;
+  }
+};
+
 const serializeMailerUser = (user) =>
   user
     ? {
@@ -975,16 +988,34 @@ const getWorkspaceMailer = async (workspaceId, { overrideConfig = null } = {}) =
       });
     }
 
-    return getDefaultMailer({
+    const fallbackMailer = getOptionalDefaultMailer({
       workspaceId: normalizedWorkspaceId,
       fallbackReason: workspaceMailerConfig.fallbackReason,
     });
+
+    if (fallbackMailer) {
+      return fallbackMailer;
+    }
+
+    throw createSmtpConfigurationRequiredError(
+      "No configured SMTP sender is available for this workspace.",
+      workspaceMailerConfig.fallbackReason
+    );
   }
 
-  return getDefaultMailer({
+  const fallbackMailer = getOptionalDefaultMailer({
     workspaceId: "",
     fallbackReason: "No workspace ID was provided. Using default SMTP sender.",
   });
+
+  if (fallbackMailer) {
+    return fallbackMailer;
+  }
+
+  throw createSmtpConfigurationRequiredError(
+    "No configured SMTP sender is available.",
+    "No workspace ID was provided and the global fallback sender is not configured."
+  );
 };
 
 const getNotificationMailer = async ({ creatorUserId, workspaceId }) => {
@@ -1032,7 +1063,7 @@ const getNotificationMailer = async ({ creatorUserId, workspaceId }) => {
         workspaceId: normalizedWorkspaceId,
       })
     : null;
-  const defaultMailer = getDefaultMailer({
+  const defaultMailer = getOptionalDefaultMailer({
     workspaceId: normalizedWorkspaceId,
     fallbackReason: [
       manualSenderConfig.fallbackReason,
@@ -1048,6 +1079,18 @@ const getNotificationMailer = async ({ creatorUserId, workspaceId }) => {
   appendUniqueMailer(attemptMailers, seenTransportKeys, manualMailer || null);
   appendUniqueMailer(attemptMailers, seenTransportKeys, workspaceMailer || null);
   appendUniqueMailer(attemptMailers, seenTransportKeys, defaultMailer);
+
+  if (!mailerResult) {
+    throw createSmtpConfigurationRequiredError(
+      "No configured SMTP sender is available for notifications.",
+      [
+        manualSenderConfig.fallbackReason,
+        !isTesterOwner ? workspaceMailerConfig.fallbackReason : "",
+      ]
+        .filter(Boolean)
+        .join(" ")
+    );
+  }
 
   console.log("[email] Issue notification sender resolution", {
     workspaceId: normalizedWorkspaceId,
@@ -1279,7 +1322,7 @@ const getPreferredUserOrDefaultMailer = async ({
         workspaceId: normalizedWorkspaceId,
       })
     : null;
-  const defaultMailer = getDefaultMailer({
+  const defaultMailer = getOptionalDefaultMailer({
     workspaceId: normalizedWorkspaceId,
     fallbackReason: userMailerConfig.fallbackReason,
   });
@@ -1289,20 +1332,29 @@ const getPreferredUserOrDefaultMailer = async ({
   appendUniqueMailer(attemptMailers, seenTransportKeys, preferredMailer);
   appendUniqueMailer(attemptMailers, seenTransportKeys, defaultMailer);
 
+  const mailerResult = preferredMailer || defaultMailer;
+
+  if (!mailerResult) {
+    throw createSmtpConfigurationRequiredError(
+      "No configured SMTP sender is available.",
+      userMailerConfig.fallbackReason
+    );
+  }
+
   console.log("[email] Preferred user sender resolution", {
     workspaceId: normalizedWorkspaceId,
     preferredSenderUserId: String(senderUserId || ""),
     preferredSenderEmail: userMailerConfig.senderUser?.email || "",
     preferredSenderRole: userMailerConfig.senderUser?.role || "",
     preferredSenderSmtpUser: userMailerConfig.config?.username || "",
-    finalSenderSource: (preferredMailer || defaultMailer).senderSource,
-    finalFrom: (preferredMailer || defaultMailer).from,
+    finalSenderSource: mailerResult.senderSource,
+    finalFrom: mailerResult.from,
     fallbackReason: userMailerConfig.fallbackReason || "",
     fallbackAttemptSources: attemptMailers.map((mailer) => mailer.senderSource),
   });
 
   return {
-    ...(preferredMailer || defaultMailer),
+    ...mailerResult,
     attemptMailers,
   };
 };
@@ -1773,12 +1825,9 @@ const sendChatMeetingInviteEmail = async (emails, meeting, options = {}) => {
   };
 
   if (options.senderUserId) {
-    return sendPreferredUserNotificationEmail({
+    return sendIssueNotificationEmail({
       ...mailPayload,
-      senderUserId: options.senderUserId,
-      sourceLabel: "Meeting scheduler sender",
-      senderSource: "meeting-scheduler",
-      enforceUserFromIdentity: true,
+      creatorUserId: options.senderUserId,
     });
   }
 
@@ -1807,12 +1856,9 @@ const sendProjectMeetingInviteEmail = async (emails, meeting, options = {}) => {
   };
 
   if (options.senderUserId) {
-    return sendPreferredUserNotificationEmail({
+    return sendIssueNotificationEmail({
       ...mailPayload,
-      senderUserId: options.senderUserId,
-      sourceLabel: "Meeting scheduler sender",
-      senderSource: "meeting-scheduler",
-      enforceUserFromIdentity: true,
+      creatorUserId: options.senderUserId,
     });
   }
 
