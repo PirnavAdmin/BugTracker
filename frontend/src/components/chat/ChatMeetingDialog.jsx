@@ -25,7 +25,7 @@ const ChatMeetingDialog = ({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-h-[calc(100vh-2rem)] max-w-2xl overflow-hidden border-slate-200">
+      <DialogContent className="max-w-xl overflow-hidden border border-slate-200 bg-white p-6 shadow-lg">
         <DialogHeader>
           <DialogTitle>{mode === "edit" ? "Edit meeting" : "Schedule meeting"}</DialogTitle>
           <DialogDescription>
@@ -33,68 +33,61 @@ const ChatMeetingDialog = ({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="grid min-h-0 gap-4 overflow-y-auto pr-1 lg:grid-cols-[minmax(0,1fr)_280px] lg:overflow-visible lg:pr-0">
-          <div className="space-y-4">
+        <div className="space-y-4">
+          <div className="space-y-2">
+            <label className="text-sm font-semibold text-slate-700">Meeting Title</label>
+            <Input
+              value={draft.title}
+              onChange={(event) => onChange("title", event.target.value)}
+              placeholder="Sprint Planning"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-sm font-semibold text-slate-700">Description</label>
+            <Textarea
+              value={draft.description}
+              onChange={(event) => onChange("description", event.target.value)}
+              placeholder="Optional agenda or notes"
+              className="min-h-[110px]"
+            />
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
-              <label className="text-sm font-semibold text-slate-700">Meeting Title</label>
+              <label className="text-sm font-semibold text-slate-700">Start Date & Time</label>
               <Input
-                value={draft.title}
-                onChange={(event) => onChange("title", event.target.value)}
-                placeholder="Sprint Planning"
+                type="datetime-local"
+                value={draft.startDateTime}
+                onChange={(event) => onChange("startDateTime", event.target.value)}
               />
             </div>
-
             <div className="space-y-2">
-              <label className="text-sm font-semibold text-slate-700">Description</label>
-              <Textarea
-                value={draft.description}
-                onChange={(event) => onChange("description", event.target.value)}
-                placeholder="Optional agenda or notes"
-                className="min-h-[110px]"
+              <label className="text-sm font-semibold text-slate-700">Duration</label>
+              <Input
+                type="number"
+                min="5"
+                step="5"
+                value={draft.durationMinutes}
+                onChange={(event) => onChange("durationMinutes", event.target.value)}
+                placeholder="30"
               />
-            </div>
-
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-2">
-                <label className="text-sm font-semibold text-slate-700">Start Date & Time</label>
-                <Input
-                  type="datetime-local"
-                  value={draft.startDateTime}
-                  onChange={(event) => onChange("startDateTime", event.target.value)}
-                />
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-semibold text-slate-700">Duration</label>
-                <Input
-                  type="number"
-                  min="5"
-                  step="5"
-                  value={draft.durationMinutes}
-                  onChange={(event) => onChange("durationMinutes", event.target.value)}
-                  placeholder="30"
-                />
-              </div>
             </div>
           </div>
 
-          <div className="flex min-h-0 max-h-[360px] flex-col rounded-[24px] border border-slate-200 bg-slate-50 p-4 lg:max-h-[520px]">
-            <p className="text-sm font-bold text-slate-900">Participants</p>
-            <p className="mt-1 text-xs font-medium text-slate-500">
-              Auto-filled from this chat. The link stays inside this app.
-            </p>
-            <div className="mt-4 min-h-0 space-y-2 overflow-y-auto pr-1">
+          <div className="space-y-3 rounded-[24px] border border-slate-200 bg-slate-50 p-4">
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-sm font-bold text-slate-900">Participants</p>
+              <p className="text-xs font-medium text-slate-500">Auto-filled from this chat</p>
+            </div>
+            <div className="flex flex-wrap gap-2 overflow-x-auto">
               {participants.map((participant) => (
-                <div
+                <span
                   key={String(participant?._id || participant?.id || participant || "")}
-                  className="rounded-2xl border border-white bg-white px-3 py-2"
+                  className="inline-flex rounded-full border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-900 shadow-sm"
                 >
-                  <p className="truncate text-sm font-bold text-slate-900">
-                    {participant?.name || "Participant"}
-                  </p>
-                  <p className="truncate text-xs font-medium text-slate-500">
-                    {participant?.email || participant?.role || "Workspace member"}
-                  </p>
-                </div>
+                  {participant?.name || participant?.email || "Participant"}
+                </span>
               ))}
             </div>
           </div>
