@@ -55,12 +55,12 @@ const ChatMeetingDialog = ({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="box-border max-w-[1000px] w-[min(1000px,95vw)] max-h-[90vh] overflow-hidden rounded-[20px] border border-slate-200 bg-white p-6 shadow-[0_24px_80px_rgba(15,23,42,0.16)] sm:p-8">
-        <form className="grid max-h-[calc(90vh-80px)] overflow-hidden" onSubmit={handleSubmit}>
-          <div className="overflow-y-auto pr-2">
-            <DialogHeader>
+      <DialogContent className="box-border w-[min(1040px,95vw)] max-w-none overflow-hidden rounded-[20px] border border-slate-200 bg-white p-5 shadow-[0_24px_80px_rgba(15,23,42,0.16)] sm:p-6">
+        <form className="grid max-h-[calc(95vh-48px)] gap-4 overflow-hidden" onSubmit={handleSubmit}>
+          <div className="grid min-h-0 gap-4 overflow-hidden">
+            <DialogHeader className="space-y-1 pr-12">
               <DialogTitle>{mode === "edit" ? "Edit meeting" : "Schedule meeting"}</DialogTitle>
-              <DialogDescription>
+              <DialogDescription className="leading-5">
                 The meeting link is generated automatically inside this chat module.
               </DialogDescription>
             </DialogHeader>
@@ -74,13 +74,13 @@ const ChatMeetingDialog = ({
                 value={draft.title}
                 onChange={(event) => onChange("title", event.target.value)}
                 placeholder="Sprint Planning"
-                className="h-12"
+                className="h-11"
                 aria-label="Meeting Title"
                 required
               />
             </div>
 
-            <div className="grid gap-4 lg:grid-cols-[65%_35%]">
+            <div className="grid min-h-0 gap-4 lg:grid-cols-[minmax(0,1.35fr)_minmax(300px,0.85fr)]">
               <div className="grid gap-2">
                 <label htmlFor="meeting-description" className="text-sm font-semibold text-slate-700">
                   Description
@@ -90,12 +90,12 @@ const ChatMeetingDialog = ({
                   value={draft.description}
                   onChange={(event) => onChange("description", event.target.value)}
                   placeholder="Optional agenda or notes"
-                  className="h-[180px] min-h-[180px] resize-none rounded-[18px] border-slate-200 bg-slate-50 px-4 py-3 text-sm leading-6"
+                  className="h-[132px] min-h-[132px] resize-none rounded-[16px] border-slate-200 bg-slate-50 px-4 py-3 text-sm leading-5"
                   aria-label="Meeting Description"
                 />
               </div>
 
-              <div className="grid gap-4">
+              <div className="grid gap-3">
                 <div className="grid gap-2">
                   <label htmlFor="meeting-date" className="text-sm font-semibold text-slate-700">
                     Date
@@ -105,7 +105,7 @@ const ChatMeetingDialog = ({
                     type="date"
                     value={startDate}
                     onChange={(event) => updateStartDateTime(event.target.value, startTime)}
-                    className="h-12"
+                    className="h-11"
                     aria-label="Start Date"
                     required
                   />
@@ -119,7 +119,7 @@ const ChatMeetingDialog = ({
                     type="time"
                     value={startTime}
                     onChange={(event) => updateStartDateTime(startDate, event.target.value)}
-                    className="h-12"
+                    className="h-11"
                     aria-label="Start Time"
                     required
                   />
@@ -136,7 +136,7 @@ const ChatMeetingDialog = ({
                     value={draft.durationMinutes}
                     onChange={(event) => onChange("durationMinutes", event.target.value)}
                     placeholder="30"
-                    className="h-12"
+                    className="h-11"
                     aria-label="Duration in minutes"
                     required
                   />
@@ -144,47 +144,45 @@ const ChatMeetingDialog = ({
               </div>
             </div>
 
-            <div className="mt-4 grid gap-2">
+            <div className="grid min-h-0 gap-2">
               <div className="flex items-center justify-between">
                 <p className="text-sm font-semibold text-slate-700">Participants</p>
                 <p className="text-xs font-medium text-slate-500">Auto-filled from this chat</p>
               </div>
-              <div className="h-[200px] min-h-[180px] max-h-[220px] overflow-hidden rounded-[18px] border border-slate-200 bg-slate-50 p-4">
-                <div className="h-full overflow-y-auto pr-1">
-                  <div className="flex flex-wrap gap-3">
-                    {participants.map((participant) => {
-                      const avatar = getParticipantAvatar(participant);
-                      const name = participant?.name || participant?.email || "Participant";
+              <div className="min-h-[104px] rounded-[16px] border border-slate-200 bg-slate-50 p-3">
+                <div className="flex flex-wrap gap-2">
+                  {participants.map((participant) => {
+                    const avatar = getParticipantAvatar(participant);
+                    const name = participant?.name || participant?.email || "Participant";
 
-                      return (
-                        <div
-                          key={String(participant?._id || participant?.id || participant || "")}
-                          className="flex min-w-[140px] max-w-[280px] items-center gap-3 rounded-[18px] border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm"
-                        >
-                          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 text-sm font-semibold text-slate-700">
-                            {typeof avatar === "string" && avatar.startsWith("http") ? (
-                              <img
-                                src={avatar}
-                                alt={name}
-                                className="h-full w-full rounded-full object-cover"
-                              />
-                            ) : (
-                              avatar
-                            )}
-                          </div>
-                          <span className="whitespace-normal break-words text-sm font-medium text-slate-900">
-                            {name}
-                          </span>
+                    return (
+                      <div
+                        key={String(participant?._id || participant?.id || participant || "")}
+                        className="flex max-w-[240px] items-center gap-2 rounded-full border border-slate-200 bg-white py-1 pl-1 pr-3 text-sm shadow-sm"
+                      >
+                        <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-slate-100 text-xs font-semibold text-slate-700">
+                          {typeof avatar === "string" && avatar.startsWith("http") ? (
+                            <img
+                              src={avatar}
+                              alt={name}
+                              className="h-full w-full rounded-full object-cover"
+                            />
+                          ) : (
+                            avatar
+                          )}
                         </div>
-                      );
-                    })}
-                  </div>
+                        <span className="truncate text-sm font-medium text-slate-900">
+                          {name}
+                        </span>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             </div>
           </div>
 
-          <DialogFooter className="sticky bottom-0 z-10 flex flex-col-reverse gap-3 border-t border-slate-200 bg-white/90 px-0 py-4 backdrop-blur-sm sm:static sm:flex-row sm:items-center sm:justify-end sm:bg-transparent sm:border-none sm:py-0">
+          <DialogFooter className="flex flex-col-reverse gap-3 border-t border-slate-200 bg-white pt-3 sm:flex-row sm:items-center sm:justify-between">
             <p className="text-xs font-medium text-rose-500">{error || ""}</p>
             <div className="flex flex-wrap items-center justify-end gap-3">
               <Button
