@@ -45,7 +45,12 @@ const ChatMeetingDialog = ({
       .join("")
       .slice(0, 2);
 
-    return participant?.avatarUrl || participant?.profilePicture || participant?.photo || initials;
+    const imageUrl = participant?.avatarUrl || participant?.profilePicture || participant?.photo || "";
+
+    return {
+      imageUrl,
+      initials,
+    };
   };
 
   const handleSubmit = (event) => {
@@ -90,7 +95,7 @@ const ChatMeetingDialog = ({
                   value={draft.description}
                   onChange={(event) => onChange("description", event.target.value)}
                   placeholder="Optional agenda or notes"
-                  className="h-[132px] min-h-[132px] resize-none rounded-[16px] border-slate-200 bg-slate-50 px-4 py-3 text-sm leading-5"
+                  className="h-[212px] min-h-[212px] resize-none rounded-[16px] border-slate-200 bg-slate-50 px-4 py-3 text-sm leading-5"
                   aria-label="Meeting Description"
                 />
               </div>
@@ -154,24 +159,29 @@ const ChatMeetingDialog = ({
                   {participants.map((participant) => {
                     const avatar = getParticipantAvatar(participant);
                     const name = participant?.name || participant?.email || "Participant";
+                    const imageUrl = avatar.imageUrl || "";
+                    const hasImage =
+                      imageUrl.startsWith("http") ||
+                      imageUrl.startsWith("/") ||
+                      imageUrl.startsWith("data:");
 
                     return (
                       <div
                         key={String(participant?._id || participant?.id || participant || "")}
-                        className="flex max-w-[240px] items-center gap-2 rounded-full border border-slate-200 bg-white py-1 pl-1 pr-3 text-sm shadow-sm"
+                        className="flex min-w-0 max-w-[240px] items-center gap-2 rounded-full border border-slate-200 bg-white py-1 pl-1 pr-3 text-sm shadow-sm"
                       >
-                        <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-slate-100 text-xs font-semibold text-slate-700">
-                          {typeof avatar === "string" && avatar.startsWith("http") ? (
+                        <div className="flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden rounded-full bg-slate-100 text-xs font-semibold text-slate-700">
+                          {hasImage ? (
                             <img
-                              src={avatar}
+                              src={imageUrl}
                               alt={name}
                               className="h-full w-full rounded-full object-cover"
                             />
                           ) : (
-                            avatar
+                            avatar.initials
                           )}
                         </div>
-                        <span className="truncate text-sm font-medium text-slate-900">
+                        <span className="min-w-0 truncate text-sm font-medium text-slate-900">
                           {name}
                         </span>
                       </div>

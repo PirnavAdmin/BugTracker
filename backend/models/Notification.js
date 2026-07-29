@@ -17,7 +17,7 @@ const notificationSchema = new Schema(
     },
     type: {
       type: String,
-      enum: ["assignment", "status_change", "team_queue", "sprint", "other"],
+      enum: ["assignment", "status_change", "team_queue", "sprint", "meeting", "other"],
       default: "other",
     },
     relatedId: {
@@ -27,7 +27,7 @@ const notificationSchema = new Schema(
     },
     onModel: {
       type: String,
-      enum: ["Issue", "Sprint", "Project"],
+      enum: ["Issue", "Sprint", "Project", "ChatMeeting"],
       default: "Issue",
     },
     link: {

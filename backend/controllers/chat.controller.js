@@ -11,7 +11,9 @@ const ProjectTeam = require("../models/ProjectTeam");
 const Team = require("../models/Team");
 const TeamMember = require("../models/TeamMember");
 const User = require("../models/User");
+const { buildAppUrl } = require("../config/env");
 const { sendChatMeetingInviteEmail } = require("../services/emailService");
+const { createNotification } = require("../services/notificationService");
 const asyncHandler = require("../utils/asyncHandler");
 const { uploadToS3 } = require("../utils/s3");
 const {
@@ -19,6 +21,7 @@ const {
   mergeProjectTeamIds,
 } = require("../utils/projectRelations");
 const { resolveMeetingWindow } = require("../utils/meetingWindow");
+const { formatDateTime } = require("../utils/dateTime");
 const { normalizeWorkspaceId } = require("../utils/workspace");
 const { ROLE_ADMIN, ROLE_MANAGER, ROLE_TEAM_LEAD } = require("../utils/roles");
 
@@ -212,6 +215,9 @@ const serializeUser = (user) => {
 const sanitizeMeetingSubject = (value = "") => sanitizeText(value, 160);
 const buildMeetingUrl = ({ conversationId, meetingId }) =>
   `/chat?conversation=${encodeURIComponent(objectIdString(conversationId))}&meeting=${encodeURIComponent(objectIdString(meetingId))}`;
+
+const buildMeetingAppUrl = ({ conversationId, meetingId }) =>
+  buildAppUrl(buildMeetingUrl({ conversationId, meetingId }));
 const canCreateMeetings = (role = "") => CHAT_ACCESS_ROLES.includes(role);
 const canUseMeetingSchedulerSender = (role = "") =>
   [ROLE_ADMIN, ROLE_MANAGER, ROLE_TEAM_LEAD].includes(role);
@@ -1328,15 +1334,43 @@ const scheduleMeeting = asyncHandler(async (req, res) => {
     message,
   });
 
+  const notificationText = `Meeting "${meeting.title}" scheduled for ${formatDateTime(
+    meeting.startTime
+  )} IST.`;
+  const meetingLink = buildMeetingUrl({
+    conversationId: conversation._id,
+    meetingId: meeting._id,
+  });
+
+  await Promise.all(
+    participants
+      .filter((participant) => String(participant.userId) !== String(req.user._id))
+      .map((participant) =>
+        createNotification({
+          recipientId: participant.userId,
+          text: notificationText,
+          type: "meeting",
+          relatedId: meeting._id,
+          onModel: "ChatMeeting",
+          link: meetingLink,
+        })
+      )
+  );
+
   let inviteWarning = "";
 
   try {
+    const absoluteMeetingUrl = buildMeetingAppUrl({
+      conversationId: conversation._id,
+      meetingId: meeting._id,
+    });
+
     await sendChatMeetingInviteEmail(
       participants.map((participant) => participant.email),
       {
         title: meeting.title,
         description: meeting.description || "",
-        meetingUrl: meeting.meetingUrl,
+        meetingUrl: absoluteMeetingUrl,
         startTime: meeting.startTime,
         durationMinutes: meeting.durationMinutes,
         conversationName: meetingTitle,

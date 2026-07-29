@@ -1648,6 +1648,7 @@ const buildMeetingInviteEmail = ({
   participantLabels = [],
 }) => {
   const titleText = String(title || "Meeting").trim();
+  const descriptionText = String(meeting?.description || "").trim();
   const joinUrl = String(meeting?.joinUrl || meeting?.meetingUrl || "").trim();
   const hasJoinUrl = Boolean(joinUrl);
   const startDateTime = meeting?.startDateTime || meeting?.startTime;
@@ -1664,6 +1665,7 @@ const buildMeetingInviteEmail = ({
     `Start: ${formatDateTime(startDateTime)} ${timeZoneLabel}`,
     `End: ${formatDateTime(endDateTime)} ${timeZoneLabel}`,
     `Duration: ${durationLabel}`,
+    descriptionText ? `Description:\n${descriptionText}` : "",
     hasJoinUrl ? `Join: ${joinUrl}` : "",
     participantLabels.length ? `Participants:\n${participantLabels.map((item) => `- ${item}`).join("\n")}` : "",
   ]
@@ -1689,6 +1691,16 @@ const buildMeetingInviteEmail = ({
         ${createDetailRow("Duration", durationLabel)}
         ${createDetailRow("Time Zone", INDIAN_TIME_ZONE)}
       </table>
+      ${
+        descriptionText
+          ? `<div style="margin: 22px 0 0;">
+              <p style="margin: 0 0 8px; color: #0F172A; font-size: 14px; font-weight: 800;">Description</p>
+              <div style="margin: 0; padding: 14px 16px; border: 1px solid #E2E8F0; border-radius: 10px; background: #F8FAFC; color: #334155; font-size: 14px; line-height: 1.7; white-space: pre-line;">${escapeHtml(
+                descriptionText
+              )}</div>
+            </div>`
+          : ""
+      }
       ${
         hasJoinUrl
           ? `<p style="margin: 26px 0 0;">
