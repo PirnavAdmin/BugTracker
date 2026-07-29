@@ -218,6 +218,23 @@ const buildMeetingUrl = ({ conversationId, meetingId }) =>
 
 const buildMeetingAppUrl = ({ conversationId, meetingId }) =>
   buildAppUrl(buildMeetingUrl({ conversationId, meetingId }));
+const getMeetingInviteFailureMessage = (error) => {
+  const responseText = String(error?.response || error?.message || "").toLowerCase();
+
+  if (error?.code === "EAUTH" || responseText.includes("535")) {
+    return "Meeting created, but invite emails could not be sent because SMTP authentication failed. Check the configured email username and password.";
+  }
+
+  if (error?.code === "SMTP_CONFIG_REQUIRED" || responseText.includes("smtp") && responseText.includes("configured")) {
+    return "Meeting created, but invite emails could not be sent because SMTP is not fully configured.";
+  }
+
+  if (["ENOTFOUND", "EAI_AGAIN", "ECONNREFUSED", "ETIMEDOUT"].includes(error?.code)) {
+    return "Meeting created, but invite emails could not be sent because the SMTP server could not be reached.";
+  }
+
+  return "Meeting created, but invite emails could not be sent right now.";
+};
 const canCreateMeetings = (role = "") => CHAT_ACCESS_ROLES.includes(role);
 const canUseMeetingSchedulerSender = (role = "") =>
   [ROLE_ADMIN, ROLE_MANAGER, ROLE_TEAM_LEAD].includes(role);
@@ -1383,10 +1400,12 @@ const scheduleMeeting = asyncHandler(async (req, res) => {
       }
     );
   } catch (inviteError) {
-    inviteWarning = "Meeting created, but invite emails could not be sent right now.";
+    inviteWarning = getMeetingInviteFailureMessage(inviteError);
     console.error("[chat-meetings] Failed to send meeting invites", {
       conversationId: String(conversation._id),
       meetingId: String(meeting._id),
+      code: inviteError?.code || "",
+      response: inviteError?.response || "",
       error: inviteError?.message || inviteError,
     });
   }
