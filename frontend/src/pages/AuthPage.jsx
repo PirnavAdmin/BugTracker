@@ -56,10 +56,10 @@ const isAdminDefaultLoginEnabledOnClient =
   import.meta.env.VITE_ENABLE_ADMIN_DEFAULT_LOGIN !== "false";
 
 const inputClassName =
-  "h-12 rounded-2xl border border-[#E5E7EB] bg-white pl-12 pr-4 text-[15px] font-medium text-[#111827] shadow-sm transition duration-200 placeholder:text-[#9CA3AF] hover:border-[#93C5FD] hover:shadow-[0_0_0_4px_rgba(37,99,235,0.06)] focus-visible:border-[#2563EB] focus-visible:ring-4 focus-visible:ring-blue-500/10 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-500";
+  "h-11 rounded-2xl border border-[#E5E7EB] bg-white pl-11 pr-4 text-[15px] font-medium text-[#111827] shadow-sm transition duration-200 placeholder:text-[#9CA3AF] hover:border-[#93C5FD] hover:shadow-[0_0_0_4px_rgba(37,99,235,0.06)] focus-visible:border-[#2563EB] focus-visible:ring-4 focus-visible:ring-blue-500/10 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-500";
 
 const passwordInputClassName =
-  "h-12 rounded-2xl border border-[#E5E7EB] bg-white pl-12 pr-12 text-[15px] font-medium text-[#111827] shadow-sm transition duration-200 placeholder:text-[#9CA3AF] hover:border-[#93C5FD] hover:shadow-[0_0_0_4px_rgba(37,99,235,0.06)] focus-visible:border-[#2563EB] focus-visible:ring-4 focus-visible:ring-blue-500/10 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-500";
+  "h-11 rounded-2xl border border-[#E5E7EB] bg-white pl-11 pr-12 text-[15px] font-medium text-[#111827] shadow-sm transition duration-200 placeholder:text-[#9CA3AF] hover:border-[#93C5FD] hover:shadow-[0_0_0_4px_rgba(37,99,235,0.06)] focus-visible:border-[#2563EB] focus-visible:ring-4 focus-visible:ring-blue-500/10 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-500";
 
 const getSafeRedirectPath = (search = "") => {
   const redirect = new URLSearchParams(search).get("redirect") || "";
@@ -477,45 +477,45 @@ const AuthPage = () => {
       <div className="pointer-events-none absolute bottom-[-10rem] right-1/3 h-[24rem] w-[24rem] rounded-full bg-[#ECFEFF]/80 blur-3xl" />
 
       <div className="relative z-10 grid min-h-screen grid-cols-1 lg:grid-cols-2">
-        <section className="relative hidden min-h-screen overflow-hidden px-10 py-9 lg:flex lg:flex-col xl:px-16">
+        <section className="relative hidden min-h-screen overflow-hidden px-[clamp(2rem,4vw,4rem)] py-[clamp(1rem,2.2vh,2.25rem)] lg:flex lg:flex-col">
           <div className="flex items-center gap-3">
-            <img src={pirnavLogo} alt="CureCode logo" className="h-16 w-auto object-contain" />
+            <img src={pirnavLogo} alt="CureCode logo" className="h-[clamp(2.75rem,5.2vh,4rem)] w-auto object-contain" />
           </div>
 
-          <div className="mt-10 max-w-[620px]">
-            <p className="text-sm font-semibold text-[#2563EB]">Where code gets cured.</p>
+          <div className="mt-[clamp(1.25rem,3vh,2.5rem)] max-w-[620px]">
+            <p className="text-[clamp(0.85rem,1.6vh,1rem)] font-semibold text-[#2563EB]">Where code gets cured.</p>
             <h1
-              className="mt-5 max-w-[600px] text-[clamp(3.2rem,5vw,5.7rem)] font-extrabold leading-[0.95] tracking-normal text-[#111827]"
+              className="mt-[clamp(0.65rem,1.7vh,1.25rem)] max-w-[600px] text-[clamp(3rem,4.8vw,5.2rem)] font-extrabold leading-[0.95] tracking-normal text-[#111827]"
               style={{ fontFamily: '"Poppins", "Inter", sans-serif' }}
             >
               Code better. Ship faster.
             </h1>
-            <p className="mt-6 max-w-[540px] text-lg font-medium leading-8 text-[#6B7280]">
+            <p className="mt-[clamp(0.9rem,2vh,1.5rem)] max-w-[540px] text-[clamp(1rem,1.55vw,1.15rem)] font-medium leading-[1.65] text-[#6B7280]">
               CureCode is your intelligent development platform that helps teams build,
               track, collaborate, and deliver bug-free software faster.
             </p>
           </div>
 
-          <div className="relative mt-auto h-[430px] max-h-[45vh] min-h-[360px]">
+          <div className="relative mt-auto h-[clamp(15rem,34vh,26rem)]">
             <div className="absolute left-4 top-16 h-9 w-9 rounded-xl border border-blue-100 bg-white shadow-lg" />
             <div className="absolute right-16 top-7 h-12 w-12 rounded-full border border-cyan-100 bg-cyan-50 shadow-lg" />
             <div className="absolute bottom-16 left-20 h-14 w-14 rotate-12 rounded-2xl border border-purple-100 bg-purple-50 shadow-lg" />
 
-            <div className="absolute left-1/2 top-1/2 h-[290px] w-[470px] -translate-x-1/2 -translate-y-1/2 rounded-[32px] border border-white bg-[linear-gradient(135deg,#EFF6FF_0%,#FFFFFF_45%,#ECFEFF_100%)] p-6 shadow-[0_30px_90px_-35px_rgba(15,23,42,0.45)]">
-              <div className="h-full rounded-[24px] border border-[#E5E7EB] bg-[#0F172A] p-5 shadow-inner">
-                <div className="mb-5 flex gap-2">
+            <div className="absolute left-1/2 top-1/2 aspect-[47/29] w-[clamp(23rem,45vw,29.375rem)] -translate-x-1/2 -translate-y-1/2 rounded-[32px] border border-white bg-[linear-gradient(135deg,#EFF6FF_0%,#FFFFFF_45%,#ECFEFF_100%)] p-[clamp(1rem,1.5vw,1.5rem)] shadow-[0_30px_90px_-35px_rgba(15,23,42,0.45)]">
+              <div className="h-full rounded-[24px] border border-[#E5E7EB] bg-[#0F172A] p-[clamp(1rem,1.3vw,1.25rem)] shadow-inner">
+                <div className="mb-[clamp(0.75rem,1.4vh,1.25rem)] flex gap-2">
                   <span className="h-3 w-3 rounded-full bg-[#F87171]" />
                   <span className="h-3 w-3 rounded-full bg-[#FBBF24]" />
                   <span className="h-3 w-3 rounded-full bg-[#34D399]" />
                 </div>
-                <div className="space-y-3 font-mono text-sm">
+                <div className="space-y-[clamp(0.35rem,1vh,0.75rem)] font-mono text-[clamp(0.7rem,1.2vw,0.875rem)]">
                   <p className="text-cyan-300">const cure = await CureCode.scan(repo);</p>
                   <p className="text-purple-300">{"deploy.fix({ bugs: cure.resolved });"}</p>
                   <p className="text-blue-300">{"team.ship({ confidence: \"high\" });"}</p>
-                  <div className="mt-6 grid grid-cols-3 gap-3">
-                    <div className="h-16 rounded-2xl bg-cyan-400/15" />
-                    <div className="h-16 rounded-2xl bg-blue-400/15" />
-                    <div className="h-16 rounded-2xl bg-purple-400/15" />
+                  <div className="mt-[clamp(0.75rem,2vh,1.5rem)] grid grid-cols-3 gap-3">
+                    <div className="h-[clamp(2.5rem,6vh,4rem)] rounded-2xl bg-cyan-400/15" />
+                    <div className="h-[clamp(2.5rem,6vh,4rem)] rounded-2xl bg-blue-400/15" />
+                    <div className="h-[clamp(2.5rem,6vh,4rem)] rounded-2xl bg-purple-400/15" />
                   </div>
                 </div>
               </div>
@@ -545,22 +545,22 @@ const AuthPage = () => {
           </div>
         </section>
 
-        <section className="flex min-h-screen items-center justify-center px-4 py-8 sm:px-8 lg:px-10">
-          <div className="w-full max-w-[500px]">
+        <section className="flex min-h-screen items-center justify-center px-4 py-[clamp(1rem,2.4vh,2rem)] sm:px-8 lg:px-10">
+          <div className="w-full max-w-[min(500px,92vw)]">
             <div className="mb-8 flex items-center justify-center lg:hidden">
               <img src={pirnavLogo} alt="CureCode logo" className="h-16 w-auto object-contain" />
             </div>
 
-            <div className="rounded-[18px] border border-[#E5E7EB] bg-white p-6 shadow-[0_30px_90px_-48px_rgba(15,23,42,0.45)] sm:p-9">
-              <div className="mb-8">
+            <div className="max-h-[calc(var(--app-viewport-height)-2rem)] overflow-y-auto rounded-[18px] border border-[#E5E7EB] bg-white p-[clamp(1.25rem,3vh,2rem)] shadow-[0_30px_90px_-48px_rgba(15,23,42,0.45)]">
+              <div className="mb-[clamp(1.25rem,2.8vh,2rem)]">
                 <p className="text-sm font-bold text-[#2563EB]">{premiumEyebrow}</p>
-                <h2 className="mt-3 text-3xl font-extrabold tracking-normal text-[#111827] sm:text-4xl">
+                <h2 className="mt-2 text-[clamp(2rem,3vw,2.6rem)] font-extrabold leading-[1.1] tracking-normal text-[#111827]">
                   {premiumTitle}
                 </h2>
               </div>
 
               {mode === "forgot" ? (
-                <form className="space-y-5" onSubmit={handlePasswordResetSubmit}>
+                <form className="space-y-[clamp(0.85rem,1.7vh,1.25rem)]" onSubmit={handlePasswordResetSubmit}>
                   {successMessage ? (
                     <div className="flex items-start gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700">
                       <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
@@ -647,7 +647,7 @@ const AuthPage = () => {
                     </div>
                   ) : null}
 
-                  <Button className="group h-12 w-full rounded-2xl border-0 bg-[linear-gradient(100deg,#2563EB_0%,#06B6D4_100%)] text-base font-bold text-white shadow-[0_18px_42px_-18px_rgba(37,99,235,0.75)] transition duration-300 hover:-translate-y-0.5 hover:shadow-[0_24px_52px_-18px_rgba(6,182,212,0.75)]" disabled={isResetPending} type="submit">
+                  <Button className="group h-11 w-full rounded-2xl border-0 bg-[linear-gradient(100deg,#2563EB_0%,#06B6D4_100%)] text-base font-bold text-white shadow-[0_18px_42px_-18px_rgba(37,99,235,0.75)] transition duration-300 hover:-translate-y-0.5 hover:shadow-[0_24px_52px_-18px_rgba(6,182,212,0.75)]" disabled={isResetPending} type="submit">
                     {resetSubmitLabel}
                     {isResetPending ? <LoaderCircle className="h-5 w-5 animate-spin" /> : <ArrowRight className="h-5 w-5 transition group-hover:translate-x-0.5" />}
                   </Button>
@@ -657,7 +657,7 @@ const AuthPage = () => {
                   </button>
                 </form>
               ) : (
-                <form className="space-y-5" onSubmit={handleSubmit}>
+                <form className="space-y-[clamp(0.85rem,1.7vh,1.25rem)]" onSubmit={handleSubmit}>
                   {successMessage ? (
                     <div className="flex items-start gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700">
                       <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
@@ -722,7 +722,7 @@ const AuthPage = () => {
                     </div>
                   ) : null}
 
-                  <Button className="group h-12 w-full rounded-2xl border-0 bg-[linear-gradient(100deg,#2563EB_0%,#06B6D4_100%)] text-base font-bold text-white shadow-[0_18px_42px_-18px_rgba(37,99,235,0.75)] transition duration-300 hover:-translate-y-0.5 hover:shadow-[0_24px_52px_-18px_rgba(6,182,212,0.75)]" disabled={authMutation.isPending} type="submit">
+                  <Button className="group h-11 w-full rounded-2xl border-0 bg-[linear-gradient(100deg,#2563EB_0%,#06B6D4_100%)] text-base font-bold text-white shadow-[0_18px_42px_-18px_rgba(37,99,235,0.75)] transition duration-300 hover:-translate-y-0.5 hover:shadow-[0_24px_52px_-18px_rgba(6,182,212,0.75)]" disabled={authMutation.isPending} type="submit">
                     {submitLabel}
                     {authMutation.isPending ? <LoaderCircle className="h-5 w-5 animate-spin" /> : <ArrowRight className="h-5 w-5 transition group-hover:translate-x-0.5" />}
                   </Button>
@@ -735,13 +735,13 @@ const AuthPage = () => {
                         <span className="h-px flex-1 bg-[#E5E7EB]" />
                       </div>
                       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                        <button type="button" className="flex h-12 items-center justify-center gap-3 rounded-2xl border border-[#E5E7EB] bg-white text-sm font-bold text-[#374151] shadow-sm transition hover:-translate-y-0.5 hover:border-blue-100 hover:shadow-md">
+                        <button type="button" className="flex h-11 items-center justify-center gap-3 rounded-2xl border border-[#E5E7EB] bg-white text-sm font-bold text-[#374151] shadow-sm transition hover:-translate-y-0.5 hover:border-blue-100 hover:shadow-md">
                           <span className="grid h-5 w-5 place-items-center rounded-full border border-[#E5E7EB] text-sm font-extrabold text-[#2563EB]">
                             G
                           </span>
                           Google
                         </button>
-                        <button type="button" className="flex h-12 items-center justify-center gap-3 rounded-2xl border border-[#E5E7EB] bg-white text-sm font-bold text-[#374151] shadow-sm transition hover:-translate-y-0.5 hover:border-blue-100 hover:shadow-md">
+                        <button type="button" className="flex h-11 items-center justify-center gap-3 rounded-2xl border border-[#E5E7EB] bg-white text-sm font-bold text-[#374151] shadow-sm transition hover:-translate-y-0.5 hover:border-blue-100 hover:shadow-md">
                           <span className="grid h-5 w-5 grid-cols-2 gap-0.5">
                             <span className="bg-[#F25022]" />
                             <span className="bg-[#7FBA00]" />
