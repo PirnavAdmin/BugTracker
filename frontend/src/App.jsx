@@ -1,4 +1,4 @@
-import { Suspense, lazy } from "react";
+import { Suspense, lazy, useEffect, useState } from "react";
 import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 import AppShell from "@/components/layout/AppShell";
 import ActivityTracker from "@/components/presence/ActivityTracker";
@@ -49,6 +49,49 @@ const PublicRouteFallback = () => (
     </div>
   </main>
 );
+
+const AUTH_SPLASH_VIDEO = "/animations/create_a_animation_for_mobile.mp4";
+const AUTH_SPLASH_FALLBACK_MS = 12000;
+
+const AuthSplashScreen = ({ onComplete }) => (
+  <main
+    className="relative grid min-h-screen place-items-center overflow-hidden bg-[#020617] px-6 text-white"
+    style={{ minHeight: "var(--app-viewport-height)" }}
+  >
+    <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_24%,rgba(14,165,233,0.16),transparent_34%),linear-gradient(135deg,#031A33_0%,#020617_62%,#000814_100%)]" />
+    <video
+      autoPlay
+      className="relative z-10 h-auto max-h-[calc(var(--app-viewport-height)-2rem)] w-full max-w-[min(100%,430px)] object-contain"
+      muted
+      playsInline
+      preload="auto"
+      src={AUTH_SPLASH_VIDEO}
+      onEnded={onComplete}
+      onError={onComplete}
+    />
+    <span className="sr-only">Loading CureCode</span>
+  </main>
+);
+
+const AuthSplashGate = ({ children }) => {
+  const [isSplashComplete, setIsSplashComplete] = useState(false);
+
+  useEffect(() => {
+    const timerId = window.setTimeout(() => {
+      setIsSplashComplete(true);
+    }, AUTH_SPLASH_FALLBACK_MS);
+
+    return () => window.clearTimeout(timerId);
+  }, []);
+
+  if (!isSplashComplete) {
+    return (
+      <AuthSplashScreen onComplete={() => setIsSplashComplete(true)} />
+    );
+  }
+
+  return children;
+};
 
 const getSafeRedirectPath = (search = "", fallback = "") => {
   const redirect = new URLSearchParams(search).get("redirect") || "";
@@ -160,9 +203,11 @@ const App = () => (
       path="/login"
       element={
         <PublicRoute>
-          <Suspense fallback={<PublicRouteFallback />}>
-            <AuthPage />
-          </Suspense>
+          <AuthSplashGate>
+            <Suspense fallback={<PublicRouteFallback />}>
+              <AuthPage />
+            </Suspense>
+          </AuthSplashGate>
         </PublicRoute>
       }
     />
@@ -170,9 +215,11 @@ const App = () => (
       path="/admin"
       element={
         <PublicRoute>
-          <Suspense fallback={<PublicRouteFallback />}>
-            <AuthPage />
-          </Suspense>
+          <AuthSplashGate>
+            <Suspense fallback={<PublicRouteFallback />}>
+              <AuthPage />
+            </Suspense>
+          </AuthSplashGate>
         </PublicRoute>
       }
     />
@@ -180,9 +227,11 @@ const App = () => (
       path="/auth"
       element={
         <PublicRoute>
-          <Suspense fallback={<PublicRouteFallback />}>
-            <AuthPage />
-          </Suspense>
+          <AuthSplashGate>
+            <Suspense fallback={<PublicRouteFallback />}>
+              <AuthPage />
+            </Suspense>
+          </AuthSplashGate>
         </PublicRoute>
       }
     />
