@@ -55,13 +55,13 @@ const AUTH_SPLASH_FALLBACK_MS = 12000;
 
 const AuthSplashScreen = ({ onComplete }) => (
   <main
-    className="relative grid min-h-screen place-items-center overflow-hidden bg-[#020617] px-6 text-white"
+    className="relative min-h-screen overflow-hidden bg-[#020617] text-white"
     style={{ minHeight: "var(--app-viewport-height)" }}
   >
     <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_24%,rgba(14,165,233,0.16),transparent_34%),linear-gradient(135deg,#031A33_0%,#020617_62%,#000814_100%)]" />
     <video
       autoPlay
-      className="relative z-10 h-auto max-h-[calc(var(--app-viewport-height)-2rem)] w-full max-w-[min(100%,430px)] object-contain"
+      className="absolute inset-0 z-10 h-full w-full object-cover"
       muted
       playsInline
       preload="auto"
