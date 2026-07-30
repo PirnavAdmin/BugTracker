@@ -2,13 +2,22 @@ import { useEffect, useMemo, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import {
   ArrowRight,
+  BarChart3,
+  Bot,
+  Bug,
   CheckCircle2,
+  Cloud,
+  Code2,
   Eye,
   EyeOff,
   KeyRound,
+  Laptop,
   LoaderCircle,
   LockKeyhole,
   Mail,
+  ShieldCheck,
+  Sparkles,
+  User,
 } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import pirnavLogo from "@/assets/pirnav-logo.png";
@@ -47,10 +56,10 @@ const isAdminDefaultLoginEnabledOnClient =
   import.meta.env.VITE_ENABLE_ADMIN_DEFAULT_LOGIN !== "false";
 
 const inputClassName =
-  "auth-input h-10 rounded-xl border border-white/25 bg-slate-950/70 pl-11 pr-4 text-sm text-slate-50 placeholder:text-slate-300 caret-white opacity-100 shadow-none transition duration-200 focus-visible:border-sky-300 focus-visible:ring-2 focus-visible:ring-sky-400/35 disabled:text-slate-50 disabled:opacity-100";
+  "h-12 rounded-2xl border border-[#E5E7EB] bg-white pl-12 pr-4 text-[15px] font-medium text-[#111827] shadow-sm transition duration-200 placeholder:text-[#9CA3AF] hover:border-[#93C5FD] hover:shadow-[0_0_0_4px_rgba(37,99,235,0.06)] focus-visible:border-[#2563EB] focus-visible:ring-4 focus-visible:ring-blue-500/10 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-500";
 
 const passwordInputClassName =
-  "auth-input h-10 rounded-xl border border-white/25 bg-slate-950/70 pl-11 pr-12 text-sm text-slate-50 placeholder:text-slate-300 caret-white opacity-100 shadow-none transition duration-200 focus-visible:border-sky-300 focus-visible:ring-2 focus-visible:ring-sky-400/35 disabled:text-slate-50 disabled:opacity-100";
+  "h-12 rounded-2xl border border-[#E5E7EB] bg-white pl-12 pr-12 text-[15px] font-medium text-[#111827] shadow-sm transition duration-200 placeholder:text-[#9CA3AF] hover:border-[#93C5FD] hover:shadow-[0_0_0_4px_rgba(37,99,235,0.06)] focus-visible:border-[#2563EB] focus-visible:ring-4 focus-visible:ring-blue-500/10 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-500";
 
 const getSafeRedirectPath = (search = "") => {
   const redirect = new URLSearchParams(search).get("redirect") || "";
@@ -451,6 +460,324 @@ const AuthPage = () => {
         ? "Reset your password"
         : "Enter OTP and new password"
       : "Sign in to your workspace";
+
+  const premiumTitle =
+    mode === "register"
+      ? "Create your workspace"
+      : titleCopy;
+  const premiumEyebrow = mode === "forgot" ? "Password Help" : "Welcome Back";
+
+  return (
+    <main
+      className="relative min-h-screen overflow-hidden bg-white text-[#111827]"
+      style={{ fontFamily: '"Inter", sans-serif', minHeight: "var(--app-viewport-height)" }}
+    >
+      <div className="pointer-events-none absolute -left-36 top-12 h-96 w-96 rounded-full bg-[#E0F2FE]/70 blur-3xl" />
+      <div className="pointer-events-none absolute right-[-8rem] top-[-8rem] h-[28rem] w-[28rem] rounded-full bg-[#F3E8FF]/70 blur-3xl" />
+      <div className="pointer-events-none absolute bottom-[-10rem] right-1/3 h-[24rem] w-[24rem] rounded-full bg-[#ECFEFF]/80 blur-3xl" />
+
+      <div className="relative z-10 grid min-h-screen grid-cols-1 lg:grid-cols-2">
+        <section className="relative hidden min-h-screen overflow-hidden px-10 py-9 lg:flex lg:flex-col xl:px-16">
+          <div className="flex items-center gap-3">
+            <img src={pirnavLogo} alt="CureCode logo" className="h-16 w-auto object-contain" />
+          </div>
+
+          <div className="mt-10 max-w-[620px]">
+            <p className="text-sm font-semibold text-[#2563EB]">Where code gets cured.</p>
+            <h1
+              className="mt-5 max-w-[600px] text-[clamp(3.2rem,5vw,5.7rem)] font-extrabold leading-[0.95] tracking-normal text-[#111827]"
+              style={{ fontFamily: '"Poppins", "Inter", sans-serif' }}
+            >
+              Code better. Ship faster.
+            </h1>
+            <p className="mt-6 max-w-[540px] text-lg font-medium leading-8 text-[#6B7280]">
+              CureCode is your intelligent development platform that helps teams build,
+              track, collaborate, and deliver bug-free software faster.
+            </p>
+          </div>
+
+          <div className="relative mt-auto h-[430px] max-h-[45vh] min-h-[360px]">
+            <div className="absolute left-4 top-16 h-9 w-9 rounded-xl border border-blue-100 bg-white shadow-lg" />
+            <div className="absolute right-16 top-7 h-12 w-12 rounded-full border border-cyan-100 bg-cyan-50 shadow-lg" />
+            <div className="absolute bottom-16 left-20 h-14 w-14 rotate-12 rounded-2xl border border-purple-100 bg-purple-50 shadow-lg" />
+
+            <div className="absolute left-1/2 top-1/2 h-[290px] w-[470px] -translate-x-1/2 -translate-y-1/2 rounded-[32px] border border-white bg-[linear-gradient(135deg,#EFF6FF_0%,#FFFFFF_45%,#ECFEFF_100%)] p-6 shadow-[0_30px_90px_-35px_rgba(15,23,42,0.45)]">
+              <div className="h-full rounded-[24px] border border-[#E5E7EB] bg-[#0F172A] p-5 shadow-inner">
+                <div className="mb-5 flex gap-2">
+                  <span className="h-3 w-3 rounded-full bg-[#F87171]" />
+                  <span className="h-3 w-3 rounded-full bg-[#FBBF24]" />
+                  <span className="h-3 w-3 rounded-full bg-[#34D399]" />
+                </div>
+                <div className="space-y-3 font-mono text-sm">
+                  <p className="text-cyan-300">const cure = await CureCode.scan(repo);</p>
+                  <p className="text-purple-300">{"deploy.fix({ bugs: cure.resolved });"}</p>
+                  <p className="text-blue-300">{"team.ship({ confidence: \"high\" });"}</p>
+                  <div className="mt-6 grid grid-cols-3 gap-3">
+                    <div className="h-16 rounded-2xl bg-cyan-400/15" />
+                    <div className="h-16 rounded-2xl bg-blue-400/15" />
+                    <div className="h-16 rounded-2xl bg-purple-400/15" />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="absolute left-[8%] top-[28%] flex items-center gap-2 rounded-2xl border border-[#E5E7EB] bg-white px-4 py-3 shadow-[0_18px_45px_-24px_rgba(37,99,235,0.65)]">
+              <Bug className="h-5 w-5 text-[#7C3AED]" />
+              <span className="text-sm font-bold text-[#111827]">Bug traced</span>
+            </div>
+            <div className="absolute right-[9%] top-[24%] rounded-2xl border border-[#E5E7EB] bg-white p-3 shadow-[0_18px_45px_-24px_rgba(6,182,212,0.65)]">
+              <Cloud className="h-7 w-7 text-[#06B6D4]" />
+            </div>
+            <div className="absolute bottom-[24%] right-[16%] rounded-2xl border border-[#E5E7EB] bg-white p-3 shadow-[0_18px_45px_-24px_rgba(37,99,235,0.65)]">
+              <ShieldCheck className="h-7 w-7 text-[#2563EB]" />
+            </div>
+            <div className="absolute bottom-[18%] left-[16%] rounded-2xl border border-[#E5E7EB] bg-white p-3 shadow-[0_18px_45px_-24px_rgba(124,58,237,0.65)]">
+              <Bot className="h-7 w-7 text-[#7C3AED]" />
+            </div>
+            <div className="absolute right-[28%] top-[7%] rounded-2xl border border-[#E5E7EB] bg-white p-3 shadow-[0_18px_45px_-24px_rgba(37,99,235,0.55)]">
+              <BarChart3 className="h-7 w-7 text-[#2563EB]" />
+            </div>
+            <div className="absolute bottom-[5%] left-[40%] flex items-center gap-2 rounded-2xl border border-[#E5E7EB] bg-white px-4 py-3 shadow-[0_18px_45px_-24px_rgba(6,182,212,0.55)]">
+              <Laptop className="h-5 w-5 text-[#2563EB]" />
+              <Code2 className="h-5 w-5 text-[#06B6D4]" />
+              <Sparkles className="h-5 w-5 text-[#7C3AED]" />
+            </div>
+          </div>
+        </section>
+
+        <section className="flex min-h-screen items-center justify-center px-4 py-8 sm:px-8 lg:px-10">
+          <div className="w-full max-w-[500px]">
+            <div className="mb-8 flex items-center justify-center lg:hidden">
+              <img src={pirnavLogo} alt="CureCode logo" className="h-16 w-auto object-contain" />
+            </div>
+
+            <div className="rounded-[18px] border border-[#E5E7EB] bg-white p-6 shadow-[0_30px_90px_-48px_rgba(15,23,42,0.45)] sm:p-9">
+              <div className="mb-8">
+                <p className="text-sm font-bold text-[#2563EB]">{premiumEyebrow}</p>
+                <h2 className="mt-3 text-3xl font-extrabold tracking-normal text-[#111827] sm:text-4xl">
+                  {premiumTitle}
+                </h2>
+              </div>
+
+              {mode === "forgot" ? (
+                <form className="space-y-5" onSubmit={handlePasswordResetSubmit}>
+                  {successMessage ? (
+                    <div className="flex items-start gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700">
+                      <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
+                      <span>{successMessage}</span>
+                    </div>
+                  ) : null}
+
+                  <div className="space-y-2">
+                    <label className="text-sm font-bold text-[#374151]" htmlFor="reset-email">Email</label>
+                    <div className="relative">
+                      <Mail className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-[#9CA3AF]" />
+                      <Input
+                        aria-invalid={Boolean(resetErrors.email)}
+                        autoComplete="email"
+                        className={cn(inputClassName, resetErrors.email && "border-rose-300 focus-visible:border-rose-400 focus-visible:ring-rose-500/10")}
+                        disabled={isResetPending}
+                        id="reset-email"
+                        name="email"
+                        placeholder="name@company.com"
+                        type="email"
+                        value={resetForm.email}
+                        onChange={handleResetChange}
+                      />
+                    </div>
+                    {resetErrors.email ? <p className="text-sm font-medium text-rose-500">{resetErrors.email}</p> : null}
+                  </div>
+
+                  {resetStep === "reset" ? (
+                    <>
+                      <div className="space-y-2">
+                        <label className="text-sm font-bold text-[#374151]" htmlFor="otp">OTP</label>
+                        <div className="relative">
+                          <KeyRound className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-[#9CA3AF]" />
+                          <Input
+                            aria-invalid={Boolean(resetErrors.otp)}
+                            autoComplete="one-time-code"
+                            className={cn(inputClassName, "tracking-[0.32em]", resetErrors.otp && "border-rose-300 focus-visible:border-rose-400")}
+                            disabled={isResetPending}
+                            id="otp"
+                            inputMode="numeric"
+                            name="otp"
+                            placeholder="000000"
+                            value={resetForm.otp}
+                            onChange={handleResetChange}
+                          />
+                        </div>
+                        {resetErrors.otp ? <p className="text-sm font-medium text-rose-500">{resetErrors.otp}</p> : null}
+                      </div>
+
+                      <div className="space-y-2">
+                        <label className="text-sm font-bold text-[#374151]" htmlFor="newPassword">New password</label>
+                        <div className="relative">
+                          <LockKeyhole className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-[#9CA3AF]" />
+                          <Input
+                            aria-invalid={Boolean(resetErrors.newPassword)}
+                            autoComplete="new-password"
+                            className={cn(passwordInputClassName, resetErrors.newPassword && "border-rose-300 focus-visible:border-rose-400")}
+                            disabled={isResetPending}
+                            id="newPassword"
+                            name="newPassword"
+                            placeholder="Create a new password"
+                            type={showResetPassword ? "text" : "password"}
+                            value={resetForm.newPassword}
+                            onChange={handleResetChange}
+                          />
+                          <button
+                            type="button"
+                            className="absolute right-3 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full text-[#6B7280] transition hover:bg-[#F8FAFC] hover:text-[#111827]"
+                            aria-label={showResetPassword ? "Hide password" : "Show password"}
+                            disabled={isResetPending}
+                            onClick={() => setShowResetPassword((current) => !current)}
+                          >
+                            {showResetPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                          </button>
+                        </div>
+                        {resetErrors.newPassword ? <p className="text-sm font-medium text-rose-500">{resetErrors.newPassword}</p> : null}
+                      </div>
+                    </>
+                  ) : null}
+
+                  {resetError ? (
+                    <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-600">
+                      {getAuthErrorMessage(resetError)}
+                    </div>
+                  ) : null}
+
+                  <Button className="group h-12 w-full rounded-2xl border-0 bg-[linear-gradient(100deg,#2563EB_0%,#06B6D4_100%)] text-base font-bold text-white shadow-[0_18px_42px_-18px_rgba(37,99,235,0.75)] transition duration-300 hover:-translate-y-0.5 hover:shadow-[0_24px_52px_-18px_rgba(6,182,212,0.75)]" disabled={isResetPending} type="submit">
+                    {resetSubmitLabel}
+                    {isResetPending ? <LoaderCircle className="h-5 w-5 animate-spin" /> : <ArrowRight className="h-5 w-5 transition group-hover:translate-x-0.5" />}
+                  </Button>
+
+                  <button type="button" className="w-full rounded-xl px-3 py-2 text-sm font-bold text-[#2563EB] transition hover:bg-blue-50" disabled={isResetPending} onClick={backToLogin}>
+                    Back to login
+                  </button>
+                </form>
+              ) : (
+                <form className="space-y-5" onSubmit={handleSubmit}>
+                  {successMessage ? (
+                    <div className="flex items-start gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700">
+                      <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
+                      <span>{successMessage}</span>
+                    </div>
+                  ) : null}
+
+                  {mode === "register" ? (
+                    <div className="space-y-2">
+                      <label className="text-sm font-bold text-[#374151]" htmlFor="fullName">Full name</label>
+                      <div className="relative">
+                        <User className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-[#9CA3AF]" />
+                        <Input aria-invalid={Boolean(fieldErrors.fullName)} className={cn(inputClassName, fieldErrors.fullName && "border-rose-300 focus-visible:border-rose-400")} disabled={authMutation.isPending} id="fullName" name="fullName" placeholder="Your name" value={formData.fullName} onChange={handleChange} />
+                      </div>
+                      {fieldErrors.fullName ? <p className="text-sm font-medium text-rose-500">{fieldErrors.fullName}</p> : null}
+                    </div>
+                  ) : null}
+
+                  <div className="space-y-2">
+                    <label className="text-sm font-bold text-[#374151]" htmlFor="email">Email</label>
+                    <div className="relative">
+                      <Mail className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-[#9CA3AF]" />
+                      <Input aria-invalid={Boolean(fieldErrors.email)} autoComplete="email" className={cn(inputClassName, fieldErrors.email && "border-rose-300 focus-visible:border-rose-400")} disabled={authMutation.isPending} id="email" name="email" placeholder="name@company.com" type="email" value={formData.email} onChange={handleChange} />
+                    </div>
+                    {fieldErrors.email ? <p className="text-sm font-medium text-rose-500">{fieldErrors.email}</p> : null}
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-sm font-bold text-[#374151]" htmlFor="password">Password</label>
+                    <div className="relative">
+                      <LockKeyhole className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-[#9CA3AF]" />
+                      <Input aria-invalid={Boolean(fieldErrors.password)} autoComplete={mode === "login" ? "current-password" : "new-password"} className={cn(passwordInputClassName, fieldErrors.password && "border-rose-300 focus-visible:border-rose-400")} disabled={authMutation.isPending} id="password" name="password" placeholder="Enter your password" type={showPassword ? "text" : "password"} value={formData.password} onChange={handleChange} />
+                      <button type="button" className="absolute right-3 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full text-[#6B7280] transition hover:bg-[#F8FAFC] hover:text-[#111827]" aria-label={showPassword ? "Hide password" : "Show password"} disabled={authMutation.isPending} onClick={() => setShowPassword((current) => !current)}>
+                        {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                      </button>
+                    </div>
+                    {fieldErrors.password ? <p className="text-sm font-medium text-rose-500">{fieldErrors.password}</p> : null}
+                  </div>
+
+                  {mode === "login" ? (
+                    <div className="flex items-center justify-between gap-3 text-sm">
+                      <label className="flex min-w-0 cursor-pointer items-center gap-2.5 text-[#374151]">
+                        <input checked={rememberMe} className="h-4 w-4 shrink-0 rounded border-[#D1D5DB] text-[#2563EB] focus:ring-2 focus:ring-blue-500/20" disabled={authMutation.isPending} type="checkbox" onChange={(event) => setRememberMe(event.target.checked)} />
+                        <span className="truncate font-bold">Remember me</span>
+                        <span className="shrink-0 font-medium text-[#6B7280]">30 days</span>
+                      </label>
+                      <button type="button" className="shrink-0 font-bold text-[#2563EB] transition hover:text-[#06B6D4]" disabled={authMutation.isPending} onClick={openForgotPassword}>
+                        Forgot Password
+                      </button>
+                    </div>
+                  ) : null}
+
+                  {canUseDefaultPassword ? (
+                    <button className="rounded-xl border border-blue-100 bg-blue-50 px-3 py-2 text-sm font-bold text-[#2563EB] transition hover:border-blue-200 hover:bg-blue-100 disabled:cursor-wait disabled:opacity-70" disabled={authMutation.isPending} type="button" onClick={handleUseDefaultPassword}>
+                      Use Default Password
+                    </button>
+                  ) : null}
+
+                  {authMutation.error ? (
+                    <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-600">
+                      {getAuthErrorMessage(authMutation.error)}
+                    </div>
+                  ) : null}
+
+                  <Button className="group h-12 w-full rounded-2xl border-0 bg-[linear-gradient(100deg,#2563EB_0%,#06B6D4_100%)] text-base font-bold text-white shadow-[0_18px_42px_-18px_rgba(37,99,235,0.75)] transition duration-300 hover:-translate-y-0.5 hover:shadow-[0_24px_52px_-18px_rgba(6,182,212,0.75)]" disabled={authMutation.isPending} type="submit">
+                    {submitLabel}
+                    {authMutation.isPending ? <LoaderCircle className="h-5 w-5 animate-spin" /> : <ArrowRight className="h-5 w-5 transition group-hover:translate-x-0.5" />}
+                  </Button>
+
+                  {mode === "login" ? (
+                    <>
+                      <div className="flex items-center gap-4 py-1">
+                        <span className="h-px flex-1 bg-[#E5E7EB]" />
+                        <span className="text-xs font-bold uppercase tracking-[0.16em] text-[#9CA3AF]">or continue with</span>
+                        <span className="h-px flex-1 bg-[#E5E7EB]" />
+                      </div>
+                      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                        <button type="button" className="flex h-12 items-center justify-center gap-3 rounded-2xl border border-[#E5E7EB] bg-white text-sm font-bold text-[#374151] shadow-sm transition hover:-translate-y-0.5 hover:border-blue-100 hover:shadow-md">
+                          <span className="grid h-5 w-5 place-items-center rounded-full border border-[#E5E7EB] text-sm font-extrabold text-[#2563EB]">
+                            G
+                          </span>
+                          Google
+                        </button>
+                        <button type="button" className="flex h-12 items-center justify-center gap-3 rounded-2xl border border-[#E5E7EB] bg-white text-sm font-bold text-[#374151] shadow-sm transition hover:-translate-y-0.5 hover:border-blue-100 hover:shadow-md">
+                          <span className="grid h-5 w-5 grid-cols-2 gap-0.5">
+                            <span className="bg-[#F25022]" />
+                            <span className="bg-[#7FBA00]" />
+                            <span className="bg-[#00A4EF]" />
+                            <span className="bg-[#FFB900]" />
+                          </span>
+                          Microsoft
+                        </button>
+                      </div>
+                    </>
+                  ) : null}
+
+                  <p className="text-center text-sm font-medium text-[#6B7280]">
+                    {mode === "login" ? "Don't have an account? " : "Already have an account? "}
+                    <button
+                      type="button"
+                      className="font-extrabold text-[#2563EB] transition hover:text-[#06B6D4]"
+                      disabled={authMutation.isPending}
+                      onClick={() => {
+                        authMutation.reset();
+                        setFieldErrors({});
+                        setSuccessMessage("");
+                        setMode((current) => (current === "login" ? "register" : "login"));
+                      }}
+                    >
+                      {mode === "login" ? "Create Account" : "Sign in"}
+                    </button>
+                  </p>
+                </form>
+              )}
+            </div>
+          </div>
+        </section>
+      </div>
+    </main>
+  );
 
   return (
     <main
