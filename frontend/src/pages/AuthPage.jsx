@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import pirnavLogo from "@/assets/pirnav-logo.png";
+import UserAvatar from "@/components/shared/UserAvatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/hooks/use-auth";
@@ -52,6 +53,7 @@ const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const passwordHasLetter = /[A-Za-z]/;
 const passwordHasNumber = /\d/;
 const ADMIN_ROUTE_PATH = "/admin";
+const REMEMBERED_LOGIN_KEY = "curecode_remembered_login";
 const isAdminDefaultLoginEnabledOnClient =
   import.meta.env.VITE_ENABLE_ADMIN_DEFAULT_LOGIN !== "false";
 
@@ -114,6 +116,65 @@ const getAuthErrorMessage = (error) => {
   return message || "Authentication failed.";
 };
 
+const readRememberedLogin = () => {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  try {
+    const rawValue = window.localStorage.getItem(REMEMBERED_LOGIN_KEY);
+    const rememberedLogin = rawValue ? JSON.parse(rawValue) : null;
+
+    if (!rememberedLogin?.email || typeof rememberedLogin.password !== "string") {
+      return null;
+    }
+
+    return {
+      email: rememberedLogin.email,
+      password: rememberedLogin.password,
+      user: rememberedLogin.user || null,
+      savedAt: rememberedLogin.savedAt || "",
+    };
+  } catch (error) {
+    window.localStorage.removeItem(REMEMBERED_LOGIN_KEY);
+    return null;
+  }
+};
+
+const writeRememberedLogin = ({ email, password, user }) => {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  window.localStorage.setItem(
+    REMEMBERED_LOGIN_KEY,
+    JSON.stringify({
+      email,
+      password,
+      user: user
+        ? {
+            _id: user._id,
+            name: user.name,
+            email: user.email || email,
+            role: user.role,
+            avatarUrl: user.avatarUrl,
+            profileUrl: user.profileUrl,
+            profileImageUrl: user.profileImageUrl,
+          }
+        : null,
+      savedAt: new Date().toISOString(),
+    })
+  );
+};
+
+const clearRememberedLogin = () => {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  window.localStorage.removeItem(REMEMBERED_LOGIN_KEY);
+};
+
 const validateForm = ({ mode, formData }) => {
   const errors = {};
 
@@ -161,6 +222,7 @@ const AuthPage = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [showResetPassword, setShowResetPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
+  const [rememberedLogin, setRememberedLogin] = useState(() => readRememberedLogin());
   const isAdminRoute = location.pathname === ADMIN_ROUTE_PATH;
   const canUseDefaultPassword =
     mode === "login" &&
@@ -179,8 +241,27 @@ const AuthPage = () => {
         variables.currentMode === "login" ||
         variables.currentMode === "admin-default"
       ) {
+        const shouldRemember = Boolean(variables.payload?.rememberMe);
+        const rememberedEmail = variables.payload?.email || data?.user?.email || "";
+        const rememberedPassword = variables.payload?.password || "";
+
+        if (shouldRemember && rememberedEmail && rememberedPassword) {
+          const nextRememberedLogin = {
+            email: rememberedEmail,
+            password: rememberedPassword,
+            user: data?.user || null,
+            savedAt: new Date().toISOString(),
+          };
+
+          writeRememberedLogin(nextRememberedLogin);
+          setRememberedLogin(nextRememberedLogin);
+        } else if (!shouldRemember) {
+          clearRememberedLogin();
+          setRememberedLogin(null);
+        }
+
         setAuthSession(data, {
-          rememberMe: Boolean(variables.payload?.rememberMe),
+          rememberMe: shouldRemember,
         });
         navigate(
           getSafeRedirectPath(location.search) ||
@@ -201,6 +282,22 @@ const AuthPage = () => {
       });
     },
   });
+
+  useEffect(() => {
+    const savedLogin = readRememberedLogin();
+
+    if (!savedLogin) {
+      return;
+    }
+
+    setRememberedLogin(savedLogin);
+    setRememberMe(true);
+    setFormData((current) => ({
+      ...current,
+      email: current.email || savedLogin.email,
+      password: current.password || savedLogin.password,
+    }));
+  }, []);
 
   const passwordResetRequestMutation = useMutation({
     mutationFn: requestPasswordReset,
@@ -242,7 +339,6 @@ const AuthPage = () => {
     setSuccessMessage(location.state.successMessage);
     setMode("login");
     setShowPassword(false);
-    setRememberMe(false);
     setFormData({
       ...initialForm,
       email: location.state.email || "",
@@ -331,6 +427,23 @@ const AuthPage = () => {
         rememberMe,
       },
     });
+  };
+
+  const handleRememberMeChange = (event) => {
+    const isChecked = event.target.checked;
+
+    setRememberMe(isChecked);
+
+    if (!isChecked) {
+      clearRememberedLogin();
+      setRememberedLogin(null);
+      return;
+    }
+
+    const savedLogin = readRememberedLogin();
+    if (savedLogin) {
+      setRememberedLogin(savedLogin);
+    }
   };
 
   const handleSubmit = async (event) => {
@@ -466,6 +579,10 @@ const AuthPage = () => {
       ? "Create your workspace"
       : titleCopy;
   const premiumEyebrow = mode === "forgot" ? "Password Help" : "Welcome Back";
+  const rememberedUser = rememberedLogin?.user || {
+    email: rememberedLogin?.email,
+    name: rememberedLogin?.email,
+  };
 
   return (
     <main
@@ -495,6 +612,25 @@ const AuthPage = () => {
               track, collaborate, and deliver bug-free software faster.
             </p>
           </div>
+
+          {mode === "login" && rememberedLogin ? (
+            <div className="mt-[clamp(1rem,2.4vh,1.75rem)] flex max-w-[520px] items-center gap-4 rounded-2xl border border-[#E5E7EB] bg-white/90 px-4 py-3 shadow-[0_18px_45px_-28px_rgba(37,99,235,0.55)] backdrop-blur">
+              <UserAvatar
+                user={rememberedUser}
+                className="h-14 w-14 shrink-0 border border-blue-100 shadow-sm"
+                fallbackClassName="text-base font-bold"
+              />
+              <div className="min-w-0">
+                <p className="text-sm font-bold text-[#2563EB]">Welcome back</p>
+                <p className="truncate text-base font-extrabold text-[#111827]">
+                  {rememberedUser?.name || rememberedLogin.email}
+                </p>
+                <p className="truncate text-sm font-medium text-[#6B7280]">
+                  Saved password: {"*".repeat(Math.min(rememberedLogin.password.length || 8, 12))}
+                </p>
+              </div>
+            </div>
+          ) : null}
 
           <div className="relative mt-auto h-[clamp(15rem,34vh,26rem)]">
             <div className="absolute left-4 top-16 h-9 w-9 rounded-xl border border-blue-100 bg-white shadow-lg" />
@@ -700,7 +836,7 @@ const AuthPage = () => {
                   {mode === "login" ? (
                     <div className="flex items-center justify-between gap-3 text-sm">
                       <label className="flex min-w-0 cursor-pointer items-center gap-2.5 text-[#374151]">
-                        <input checked={rememberMe} className="h-4 w-4 shrink-0 rounded border-[#D1D5DB] text-[#2563EB] focus:ring-2 focus:ring-blue-500/20" disabled={authMutation.isPending} type="checkbox" onChange={(event) => setRememberMe(event.target.checked)} />
+                        <input checked={rememberMe} className="h-4 w-4 shrink-0 rounded border-[#D1D5DB] text-[#2563EB] focus:ring-2 focus:ring-blue-500/20" disabled={authMutation.isPending} type="checkbox" onChange={handleRememberMeChange} />
                         <span className="truncate font-bold">Remember me</span>
                         <span className="shrink-0 font-medium text-[#6B7280]">30 days</span>
                       </label>
