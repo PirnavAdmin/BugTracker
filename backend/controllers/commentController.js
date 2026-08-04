@@ -12,7 +12,7 @@ const {
 } = require("../utils/issuePresentation");
 const { ISSUE_TYPES, getCanonicalIssueType } = require("../utils/issueTypes");
 const { buildProjectAccessQuery } = require("../utils/projectRelations");
-const { hasAdminAccess } = require("../utils/roles");
+const { ROLE_DEVELOPER, hasAdminAccess } = require("../utils/roles");
 const { normalizeWorkspaceId } = require("../utils/workspace");
 
 const isAssignedToUser = (issue, userId) =>
@@ -22,6 +22,25 @@ const hasDirectBugAccess = (issue, userId) =>
   [issue?.reporter, issue?.bugDetails?.testerOwner, issue?.bugDetails?.developerLead].some(
     (value) => value && String(value) === String(userId)
   );
+const getIdString = (value) => String(value?._id || value || "");
+const getBugDeveloperAssignmentId = (issue) =>
+  getIdString(
+    issue?.bugDetails?.developerLead ||
+      issue?.assignedDeveloperId ||
+      issue?.assignee
+  );
+const isBugReportedAndUnpicked = (issue) => {
+  if (getCanonicalIssueType(issue?.type, "") !== ISSUE_TYPES.BUG) {
+    return false;
+  }
+
+  const status = String(issue?.status || "").trim().toUpperCase();
+
+  return (
+    ["REPORTED", "NEW", "NEEDS_TRIAGE", "AVAILABLE_QUEUE", "OPEN", "TRIAGED"].includes(status) &&
+    !getBugDeveloperAssignmentId(issue)
+  );
+};
 
 const getAccessibleIssue = async (user, issueId) => {
   const issue = await Issue.findById(issueId);
@@ -80,6 +99,11 @@ const createComment = asyncHandler(async (req, res) => {
   if (!issue) {
     res.status(404);
     throw new Error("Issue not found or inaccessible");
+  }
+
+  if (req.user.role === ROLE_DEVELOPER && isBugReportedAndUnpicked(issue)) {
+    res.status(403);
+    throw new Error("Pick this bug from the work queue before adding comments or screenshots.");
   }
 
   const invalidAttachmentId = normalizedAttachmentIds.find(

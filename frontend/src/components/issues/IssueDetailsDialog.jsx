@@ -346,7 +346,7 @@ const IssueDetailsDialog = ({
   contentClassName = "",
 }) => {
   const queryClient = useQueryClient();
-  const { role } = useAuth();
+  const { role, user } = useAuth();
   const [commentText, setCommentText] = useState("");
   const [commentImageFiles, setCommentImageFiles] = useState([]);
   const [commentImagePreviews, setCommentImagePreviews] = useState([]);
@@ -679,6 +679,11 @@ const IssueDetailsDialog = ({
   const handleSubmitComment = async (event) => {
     event.preventDefault();
 
+    if (!canUseCommentComposer) {
+      setDetailsError(commentLockedMessage);
+      return;
+    }
+
     if (!commentText.trim() && !commentImageFiles.length) {
       return;
     }
@@ -713,7 +718,11 @@ const IssueDetailsDialog = ({
 
     event.preventDefault();
 
-    if ((!commentText.trim() && !commentImageFiles.length) || createCommentMutation.isPending) {
+    if (
+      !canUseCommentComposer ||
+      (!commentText.trim() && !commentImageFiles.length) ||
+      createCommentMutation.isPending
+    ) {
       return;
     }
 
@@ -721,6 +730,10 @@ const IssueDetailsDialog = ({
   };
 
   const handleCommentPaste = (event) => {
+    if (!canUseCommentComposer) {
+      return;
+    }
+
     const files = Array.from(event.clipboardData?.files || []).filter(isImageFile);
 
     if (!files.length) {
@@ -750,6 +763,7 @@ const IssueDetailsDialog = ({
   const issueTeamName = issue.teamId?.name || "No team assigned";
   const issueKey = getIssueDisplayKey(issue);
   const isBug = isBugIssue(issue);
+  const currentUserId = resolveNestedUserId(user);
   const statusOptions =
     statusOptionsOverride?.length
       ? statusOptionsOverride
@@ -770,6 +784,52 @@ const IssueDetailsDialog = ({
     (sum, worklog) => sum + Number(worklog.minutes || 0),
     0
   );
+  const bugDeveloperOwnerId =
+    resolveNestedUserId(bugDetails.developerLead) ||
+    resolveNestedUserId(issue.assignedDeveloperId) ||
+    issueAssigneeId;
+  const normalizedBugStatus = normalizeBugStatusForIssue(issue);
+  const isBugStillInWorkQueue =
+    isBug &&
+    [
+      ISSUE_STATUS.NEW,
+      ISSUE_STATUS.NEEDS_TRIAGE,
+      ISSUE_STATUS.AVAILABLE_QUEUE,
+      ISSUE_STATUS.OPEN,
+      ISSUE_STATUS.TRIAGED,
+    ].includes(normalizedBugStatus) &&
+    !bugDeveloperOwnerId;
+  const isCurrentDeveloperBugOwner =
+    !bugDeveloperOwnerId || bugDeveloperOwnerId === currentUserId;
+  const canUseCommentComposer =
+    role !== ROLE_DEVELOPER ||
+    !isBug ||
+    (!isBugStillInWorkQueue && isCurrentDeveloperBugOwner);
+  const commentLockedMessage =
+    "Pick this bug from the work queue before adding comments or pasted screenshots.";
+  const canUploadMoreDetailsAttachment = role !== ROLE_DEVELOPER;
+  const commentAttachmentIds = new Set(
+    comments.flatMap((comment) =>
+      (comment.attachments || []).map((attachment) => resolveNestedUserId(attachment))
+    )
+  );
+  const testerVisibleAttachments = attachments.filter((attachment) => {
+    const uploaderRole = attachment.uploadedBy?.role;
+    const uploaderId = resolveNestedUserId(attachment.uploadedBy);
+    const reporterId = resolveNestedUserId(issue.reporter);
+    const testerOwnerId = resolveNestedUserId(testerOwner);
+
+    const isTesterOrigin =
+      uploaderRole === ROLE_TESTER ||
+      uploaderRole === ROLE_QA_LEAD ||
+      (uploaderId && (uploaderId === reporterId || uploaderId === testerOwnerId));
+
+    return !commentAttachmentIds.has(resolveNestedUserId(attachment)) && isTesterOrigin;
+  });
+  const moreDetailsAttachments =
+    role === ROLE_DEVELOPER
+      ? testerVisibleAttachments.filter(isPreviewableImage)
+      : testerVisibleAttachments;
   const issueDependencyText = issueDependency
     ? formatDependencyLabel(issueDependency)
     : issueDependencyId
@@ -835,16 +895,26 @@ const IssueDetailsDialog = ({
   };
   const commentComposer = (
     <form className="space-y-3 rounded-[24px] border border-blue-100 bg-white p-4 shadow-sm" onSubmit={handleSubmitComment}>
+      {!canUseCommentComposer ? (
+        <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-800">
+          {commentLockedMessage}
+        </div>
+      ) : null}
       <Textarea
         ref={commentTextareaRef}
         className="min-h-[140px] max-h-[320px] resize-none overflow-y-auto rounded-[20px] border-slate-200 bg-slate-50 text-base leading-7"
-        placeholder="Add a status update, implementation note, or paste an image"
+        placeholder={
+          canUseCommentComposer
+            ? "Add a status update, implementation note, or paste an image"
+            : "Pick this bug before adding comments or screenshots"
+        }
         value={commentText}
         onChange={(event) => setCommentText(event.target.value)}
         onKeyDown={(event) => {
           void handleCommentComposerKeyDown(event);
         }}
         onPaste={handleCommentPaste}
+        disabled={!canUseCommentComposer}
       />
       {commentImagePreviews.length ? (
         <div className="grid gap-3 sm:grid-cols-2">
@@ -878,7 +948,11 @@ const IssueDetailsDialog = ({
       </p>
       <Button
         className="w-full"
-        disabled={createCommentMutation.isPending || uploadAttachmentMutation.isPending}
+        disabled={
+          !canUseCommentComposer ||
+          createCommentMutation.isPending ||
+          uploadAttachmentMutation.isPending
+        }
         type="submit"
       >
         {createCommentMutation.isPending || uploadAttachmentMutation.isPending ? "Posting..." : "Add Comment"}
@@ -961,44 +1035,46 @@ const IssueDetailsDialog = ({
   );
   const attachmentsPanel = (
     <div className="space-y-4">
-      <div className="space-y-3 rounded-2xl border border-dashed border-blue-200 bg-white p-3 shadow-sm">
-        <Input
-          className="cursor-pointer rounded-xl border-slate-200 bg-blue-50/50 file:mr-3 file:rounded-lg file:border-0 file:bg-blue-600 file:px-3 file:py-1.5 file:text-sm file:font-semibold file:text-white hover:bg-blue-50"
-          type="file"
-          accept={ATTACHMENT_ACCEPT}
-          onChange={(event) => setSelectedFile(event.target.files?.[0] || null)}
-        />
-        <Button
-          className="w-full"
-          disabled={!selectedFile || uploadAttachmentMutation.isPending}
-          type="button"
-          onClick={async () => {
-            if (!selectedFile) {
-              return;
-            }
+      {canUploadMoreDetailsAttachment ? (
+        <div className="space-y-3 rounded-2xl border border-dashed border-blue-200 bg-white p-3 shadow-sm">
+          <Input
+            className="cursor-pointer rounded-xl border-slate-200 bg-blue-50/50 file:mr-3 file:rounded-lg file:border-0 file:bg-blue-600 file:px-3 file:py-1.5 file:text-sm file:font-semibold file:text-white hover:bg-blue-50"
+            type="file"
+            accept={ATTACHMENT_ACCEPT}
+            onChange={(event) => setSelectedFile(event.target.files?.[0] || null)}
+          />
+          <Button
+            className="w-full"
+            disabled={!selectedFile || uploadAttachmentMutation.isPending}
+            type="button"
+            onClick={async () => {
+              if (!selectedFile) {
+                return;
+              }
 
-            try {
-              setDetailsError("");
-              await uploadAttachmentMutation.mutateAsync({
-                issueId: issue._id,
-                file: selectedFile,
-              });
-            } catch (error) {
-              setDetailsError(
-                error.response?.data?.message || "Unable to upload attachment."
-              );
-            }
-          }}
-        >
-          {uploadAttachmentMutation.isPending ? "Uploading..." : "Upload Attachment"}
-        </Button>
-      </div>
+              try {
+                setDetailsError("");
+                await uploadAttachmentMutation.mutateAsync({
+                  issueId: issue._id,
+                  file: selectedFile,
+                });
+              } catch (error) {
+                setDetailsError(
+                  error.response?.data?.message || "Unable to upload attachment."
+                );
+              }
+            }}
+          >
+            {uploadAttachmentMutation.isPending ? "Uploading..." : "Upload Attachment"}
+          </Button>
+        </div>
+      ) : null}
 
       <div className="space-y-3">
         {isAttachmentsLoading ? (
           <Skeleton className="h-16 w-full" />
-        ) : attachments.length ? (
-          attachments.map((attachment) => {
+        ) : moreDetailsAttachments.length ? (
+          moreDetailsAttachments.map((attachment) => {
             const canPreview = isPreviewableImage(attachment);
 
             return (
@@ -1064,7 +1140,7 @@ const IssueDetailsDialog = ({
           })
         ) : (
           <div className="rounded-[20px] border border-dashed border-gray-200 bg-white px-4 py-6 text-center text-sm text-gray-500 shadow-sm">
-            No attachments uploaded yet.
+            No tester attachments uploaded yet.
           </div>
         )}
       </div>

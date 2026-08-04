@@ -32,6 +32,7 @@ const {
 } = require("../utils/planningIssueTypes");
 const { normalizeWorkspaceId } = require("../utils/workspace");
 const { ISSUE_TYPES } = require("../utils/issueTypes");
+const { ROLE_DEVELOPER } = require("../utils/roles");
 const {
   getSprintLifecycleState,
   isSprintLocked,
@@ -54,6 +55,25 @@ const uploadIssueAttachmentMiddleware = multer({
 const getActorId = (user) => user?.id || user?._id;
 const SPRINT_EDIT_BLOCKED_MESSAGE =
   "Sprint has ended. Create a new sprint to continue working.";
+const getIdString = (value) => String(value?._id || value || "");
+const getBugDeveloperAssignmentId = (issue) =>
+  getIdString(
+    issue?.bugDetails?.developerLead ||
+      issue?.assignedDeveloperId ||
+      issue?.assignee
+  );
+const isBugReportedAndUnpicked = (issue) => {
+  if (String(issue?.type || "") !== ISSUE_TYPES.BUG) {
+    return false;
+  }
+
+  const status = String(issue?.status || "").trim().toUpperCase();
+
+  return (
+    ["REPORTED", "NEW", "NEEDS_TRIAGE", "AVAILABLE_QUEUE", "OPEN", "TRIAGED"].includes(status) &&
+    !getBugDeveloperAssignmentId(issue)
+  );
+};
 
 const formatAttachment = (attachment) => ({
   ...(typeof attachment?.toObject === "function" ? attachment.toObject() : attachment),
@@ -691,6 +711,11 @@ const uploadIssueAttachment = asyncHandler(async (req, res) => {
   if (!issue) {
     res.status(404);
     throw new Error("Issue not found or inaccessible");
+  }
+
+  if (req.user.role === ROLE_DEVELOPER && isBugReportedAndUnpicked(issue)) {
+    res.status(403);
+    throw new Error("Pick this bug from the work queue before adding screenshots or attachments.");
   }
 
   const sprintMutationAccess = await ensureIssueSprintIsMutable(issue);
