@@ -1,9 +1,8 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import {
   ArrowRight,
   BarChart3,
-  Bot,
   Bug,
   CalendarDays,
   Check,
@@ -17,6 +16,7 @@ import {
   LockKeyhole,
   Mail,
   MessageSquare,
+  Phone,
   Presentation,
   Shield,
   ShieldCheck,
@@ -76,7 +76,7 @@ const features = [
   { title: "Team Meetings", text: "Connect, discuss and decide", icon: Users, tone: "orange" },
   { title: "Chat & Collab", text: "Real-time team communication", icon: MessageSquare, tone: "blue" },
   { title: "Reports & Analytics", text: "Insightful reports and dashboards", icon: BarChart3, tone: "indigo" },
-  { title: "AI Assistant", text: "Smart suggestions and automation", icon: Bot, tone: "rose" },
+  { title: "Secure Release", text: "Ship reviewed fixes with confidence", icon: ShieldCheck, tone: "rose" },
 ];
 
 const pricingPlans = [
@@ -123,9 +123,9 @@ const pricingPlans = [
 
 const addOns = [
   { title: "Extra Storage", text: "Starts at Rs49/month", icon: Shield },
-  { title: "AI Assistant", text: "Rs199/month", icon: Sparkles },
   { title: "Meeting Recording", text: "Rs199/month", icon: Video },
   { title: "Advanced Analytics", text: "Rs149/month", icon: BarChart3 },
+  { title: "Priority Support", text: "Rs249/month", icon: Phone },
 ];
 
 const trustBadges = [
@@ -305,11 +305,42 @@ const AuthPage = () => {
   const [showResetPassword, setShowResetPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
   const [rememberedLogin, setRememberedLogin] = useState(() => readRememberedLogin());
+  const marketingScrollerRef = useRef(null);
+  const sectionRefs = useRef({});
   const isAdminRoute = location.pathname === ADMIN_ROUTE_PATH;
   const canUseDefaultPassword =
     mode === "login" &&
     isAdminRoute &&
     isAdminDefaultLoginEnabledOnClient;
+  const sectionOrder = useMemo(
+    () => ["hero", "features", "pricing", "resources", "enterprise", "contact"],
+    []
+  );
+
+  const scrollToSection = (sectionId, options = {}) => {
+    const sectionNode = sectionRefs.current[sectionId];
+    const scrollerNode = marketingScrollerRef.current;
+
+    if (!sectionNode || !scrollerNode) {
+      return;
+    }
+
+    const top = sectionNode.offsetTop - 24;
+    scrollerNode.scrollTo({
+      top,
+      behavior: options.behavior || "smooth",
+    });
+
+    if (options.updateHash !== false) {
+      navigate(`${location.pathname}#${sectionId}`, { replace: true });
+    }
+  };
+
+  const setSectionRef = (sectionId) => (node) => {
+    if (node) {
+      sectionRefs.current[sectionId] = node;
+    }
+  };
 
   const authMutation = useMutation({
     mutationFn: ({ currentMode, payload }) =>
@@ -380,6 +411,39 @@ const AuthPage = () => {
       password: current.password || savedLogin.password,
     }));
   }, []);
+
+  useEffect(() => {
+    const hashSection = location.hash.replace("#", "");
+
+    if (!hashSection || !sectionOrder.includes(hashSection)) {
+      return;
+    }
+
+    window.requestAnimationFrame(() => {
+      scrollToSection(hashSection, { behavior: "auto", updateHash: false });
+    });
+  }, [location.hash, sectionOrder]);
+
+  useEffect(() => {
+    const timerId = window.setInterval(() => {
+      const scrollerNode = marketingScrollerRef.current;
+
+      if (!scrollerNode || scrollerNode.matches(":hover")) {
+        return;
+      }
+
+      const currentTop = scrollerNode.scrollTop;
+      const currentIndex = sectionOrder.reduce((activeIndex, sectionId, index) => {
+        const sectionTop = sectionRefs.current[sectionId]?.offsetTop || 0;
+        return sectionTop - 80 <= currentTop ? index : activeIndex;
+      }, 0);
+      const nextSection = sectionOrder[(currentIndex + 1) % sectionOrder.length];
+
+      scrollToSection(nextSection, { updateHash: false });
+    }, 7000);
+
+    return () => window.clearInterval(timerId);
+  }, [sectionOrder]);
 
   const passwordResetRequestMutation = useMutation({
     mutationFn: requestPasswordReset,
@@ -678,31 +742,34 @@ const AuthPage = () => {
 
   return (
     <main
-      className="h-[var(--app-viewport-height)] overflow-y-auto bg-[#FBFCFF] text-[#080B2F]"
+      className="min-h-[var(--app-viewport-height)] overflow-y-auto bg-[#FBFCFF] text-[#080B2F] xl:h-[var(--app-viewport-height)] xl:overflow-hidden"
       style={{ fontFamily: '"Inter", sans-serif' }}
     >
-      <div className="mx-auto grid min-h-full max-w-[1920px] grid-cols-1 xl:grid-cols-[minmax(0,1.88fr)_minmax(480px,0.96fr)]">
-        <section className="relative border-r border-[#E7EBF7] px-5 py-6 sm:px-8 lg:px-10 xl:px-12">
+      <div className="mx-auto grid min-h-full max-w-[1920px] grid-cols-1 xl:h-full xl:grid-cols-[minmax(0,1.86fr)_minmax(480px,0.98fr)]">
+        <section
+          ref={marketingScrollerRef}
+          className="relative overflow-visible border-r border-[#E7EBF7] px-5 py-6 sm:px-8 lg:px-10 xl:h-full xl:overflow-y-auto xl:overscroll-contain xl:scroll-smooth xl:px-12 xl:[scrollbar-width:none] xl:[&::-webkit-scrollbar]:hidden"
+        >
           <div className="absolute inset-0 -z-10 bg-[radial-gradient(circle_at_18%_14%,rgba(37,99,235,0.08),transparent_28%),radial-gradient(circle_at_80%_18%,rgba(124,58,237,0.08),transparent_24%),linear-gradient(135deg,#FFFFFF_0%,#F7FAFF_54%,#FBF8FF_100%)]" />
 
-          <header className="flex flex-wrap items-center justify-between gap-5">
+          <header className="sticky top-0 z-20 -mx-5 flex flex-wrap items-center justify-between gap-5 border-b border-[#E7EBF7]/70 bg-[#FBFCFF]/92 px-5 py-4 backdrop-blur sm:-mx-8 sm:px-8 lg:-mx-10 lg:px-10 xl:-mx-12 xl:px-12">
             <img src={pirnavLogo} alt="CureCode" className="h-12 w-auto object-contain sm:h-14" />
             <nav className="hidden items-center gap-10 text-[15px] font-extrabold text-[#080B2F] lg:flex">
-              <button className="inline-flex items-center gap-2 transition hover:text-[#6D28D9]" type="button">
+              <button className="inline-flex items-center gap-2 transition hover:text-[#6D28D9]" type="button" onClick={() => scrollToSection("features")}>
                 Features <ChevronDown className="h-4 w-4" />
               </button>
-              <button className="transition hover:text-[#6D28D9]" type="button">Pricing</button>
-              <button className="inline-flex items-center gap-2 transition hover:text-[#6D28D9]" type="button">
+              <button className="transition hover:text-[#6D28D9]" type="button" onClick={() => scrollToSection("pricing")}>Pricing</button>
+              <button className="inline-flex items-center gap-2 transition hover:text-[#6D28D9]" type="button" onClick={() => scrollToSection("resources")}>
                 Resources <ChevronDown className="h-4 w-4" />
               </button>
-              <button className="transition hover:text-[#6D28D9]" type="button">Enterprise</button>
-              <button className="transition hover:text-[#6D28D9]" type="button">Contact Sales</button>
+              <button className="transition hover:text-[#6D28D9]" type="button" onClick={() => scrollToSection("enterprise")}>Enterprise</button>
+              <button className="transition hover:text-[#6D28D9]" type="button" onClick={() => scrollToSection("contact")}>Contact Sales</button>
             </nav>
           </header>
 
-          <div className="mt-10 max-w-[720px] lg:mt-14">
+          <div ref={setSectionRef("hero")} className="mt-10 max-w-[760px] lg:mt-14">
             <h1
-              className="text-[clamp(3.1rem,6vw,6.5rem)] font-extrabold leading-[0.98] tracking-normal text-[#080B2F]"
+              className="text-[clamp(3.5rem,6vw,7rem)] font-extrabold leading-[0.98] tracking-normal text-[#080B2F]"
               style={{ fontFamily: '"Poppins", "Inter", sans-serif' }}
             >
               Code better.
@@ -715,7 +782,7 @@ const AuthPage = () => {
             </p>
           </div>
 
-          <div className="mt-8 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-6">
+          <div ref={setSectionRef("features")} className="mt-8 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-6">
             {features.map((feature) => {
               const Icon = feature.icon;
               return (
@@ -730,7 +797,7 @@ const AuthPage = () => {
             })}
           </div>
 
-          <section className="mt-10">
+          <section ref={setSectionRef("pricing")} className="mt-10">
             <div className="flex flex-wrap items-center justify-between gap-4">
               <h2 className="text-[clamp(1.35rem,2vw,2rem)] font-extrabold text-[#080B2F]">
                 Simple, flexible pricing for teams of all sizes
@@ -797,7 +864,9 @@ const AuthPage = () => {
                     )}
                     type="button"
                     onClick={() => {
-                      if (plan.name !== "Enterprise") {
+                      if (plan.name === "Enterprise") {
+                        scrollToSection("contact");
+                      } else {
                         setMode("register");
                       }
                     }}
@@ -836,7 +905,72 @@ const AuthPage = () => {
             </div>
           </div>
 
-          <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
+          <section ref={setSectionRef("resources")} className="mt-8 rounded-[10px] border border-[#DDE3F2] bg-white p-6 shadow-[0_16px_42px_-34px_rgba(8,11,47,0.42)]">
+            <div className="flex flex-wrap items-start justify-between gap-5">
+              <div>
+                <p className="text-sm font-extrabold uppercase tracking-[0.14em] text-[#6D28D9]">Resources</p>
+                <h2 className="mt-2 text-2xl font-extrabold text-[#080B2F]">Everything your team needs to move work forward</h2>
+              </div>
+              <button className="h-10 rounded-[8px] border border-[#8A2BFF] px-5 text-sm font-extrabold text-[#6D28D9] transition hover:bg-violet-50" type="button" onClick={() => setMode("register")}>
+                Explore Resources
+              </button>
+            </div>
+            <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-3">
+              {[
+                ["Project playbooks", "Templates for sprint planning, bug triage, and release reviews."],
+                ["Team dashboards", "Shared views for owners, priorities, blockers, and delivery health."],
+                ["Security guides", "Practical controls for access, audit trails, and workspace safety."],
+              ].map(([title, text]) => (
+                <article key={title} className="rounded-[10px] border border-[#E7EBF7] bg-[#FAFBFF] p-5">
+                  <h3 className="text-base font-extrabold text-[#080B2F]">{title}</h3>
+                  <p className="mt-3 text-sm font-semibold leading-6 text-[#667196]">{text}</p>
+                </article>
+              ))}
+            </div>
+          </section>
+
+          <section ref={setSectionRef("enterprise")} className="mt-8 rounded-[10px] border border-[#DDE3F2] bg-[linear-gradient(135deg,#F8FAFF,#F4F0FF)] p-6 shadow-[0_16px_42px_-34px_rgba(8,11,47,0.42)]">
+            <div className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr] lg:items-center">
+              <div>
+                <p className="text-sm font-extrabold uppercase tracking-[0.14em] text-[#6D28D9]">Enterprise</p>
+                <h2 className="mt-2 text-2xl font-extrabold text-[#080B2F]">Governance, scale, and support for larger teams</h2>
+                <p className="mt-3 text-sm font-semibold leading-6 text-[#667196]">
+                  Configure secure workspaces with dedicated support, SSO readiness,
+                  custom integrations, and audit-friendly project history.
+                </p>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
+                {["SSO & SCIM", "Dedicated Support", "Advanced Security"].map((item) => (
+                  <div key={item} className="flex items-center gap-3 rounded-[10px] bg-white px-4 py-3 text-sm font-extrabold text-[#080B2F]">
+                    <ShieldCheck className="h-5 w-5 text-[#6D28D9]" />
+                    {item}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </section>
+
+          <section ref={setSectionRef("contact")} className="mt-8 rounded-[10px] border border-[#DDE3F2] bg-white p-6 shadow-[0_16px_42px_-34px_rgba(8,11,47,0.42)]">
+            <div className="flex flex-wrap items-center justify-between gap-5">
+              <div>
+                <p className="text-sm font-extrabold uppercase tracking-[0.14em] text-[#6D28D9]">Contact Sales</p>
+                <h2 className="mt-2 text-2xl font-extrabold text-[#080B2F]">Plan the right CureCode workspace</h2>
+                <p className="mt-3 text-sm font-semibold leading-6 text-[#667196]">
+                  Talk through pricing, onboarding, and controls for your team size.
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-3">
+                <a className="inline-flex h-11 items-center justify-center rounded-[8px] bg-[linear-gradient(100deg,#8428E8,#1178F2)] px-6 text-sm font-extrabold text-white shadow-[0_16px_36px_-18px_rgba(109,40,217,0.8)]" href="mailto:sales@curecode.com">
+                  Email Sales
+                </a>
+                <button className="h-11 rounded-[8px] border border-[#8A2BFF] px-6 text-sm font-extrabold text-[#6D28D9] transition hover:bg-violet-50" type="button" onClick={() => setMode("register")}>
+                  Create Account
+                </button>
+              </div>
+            </div>
+          </section>
+
+          <div className="mt-6 grid grid-cols-1 gap-4 pb-8 sm:grid-cols-2 xl:grid-cols-5">
             {trustBadges.map(([title, text, Icon]) => (
               <div key={title} className="flex items-center gap-3">
                 <span className="grid h-10 w-10 place-items-center rounded-[8px] bg-[#F1F4FF] text-[#455079]">
@@ -851,13 +985,13 @@ const AuthPage = () => {
           </div>
         </section>
 
-        <aside className="relative flex min-h-[900px] flex-col justify-center gap-10 bg-[linear-gradient(180deg,#FFFFFF_0%,#FBFAFF_100%)] px-5 py-8 sm:px-8 lg:px-14 xl:px-16">
+        <aside className="relative flex min-h-[900px] flex-col justify-center gap-7 bg-[linear-gradient(180deg,#FFFFFF_0%,#FBFAFF_100%)] px-5 py-8 sm:px-8 lg:px-14 xl:h-full xl:min-h-0 xl:overflow-hidden xl:px-16">
           <div className="absolute right-8 top-8 hidden rounded-full bg-[#F2EAFE] px-7 py-2 text-sm font-extrabold text-[#080B2F] md:inline-flex">
             <span className="mr-6 text-[#7C2DFF]">v2.0</span>
             New & Improved
           </div>
 
-          <div className="mx-auto w-full max-w-[560px] rounded-[14px] border border-[#DDE3F2] bg-white p-[clamp(1.25rem,2.5vw,2.25rem)] shadow-[0_24px_80px_-48px_rgba(8,11,47,0.45)]">
+          <div className="mx-auto w-full max-w-[560px] rounded-[14px] border border-[#DDE3F2] bg-white p-[clamp(1.25rem,2.2vw,2.1rem)] shadow-[0_24px_80px_-48px_rgba(8,11,47,0.45)] xl:max-h-[calc(100vh-3rem)] xl:overflow-hidden">
             <div className="mb-7">
               <p className="text-base font-extrabold text-[#6D28D9]">{authEyebrow}</p>
               <h2
