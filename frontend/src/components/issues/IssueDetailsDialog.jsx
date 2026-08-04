@@ -6,7 +6,6 @@ import {
   Download,
   Eye,
   FileText,
-  ImageIcon,
   Info,
   LoaderCircle,
   MessageSquareText,
@@ -1083,29 +1082,13 @@ const IssueDetailsDialog = ({
                 className="rounded-[20px] border border-gray-200 bg-white p-3 text-sm shadow-sm"
               >
                 {canPreview ? (
-                  <div className="space-y-3">
-                    <AttachmentImagePreview
-                      attachment={attachment}
-                      issueId={issue._id}
-                      className="min-h-[240px]"
-                      imageClassName="max-h-[460px]"
-                      onClick={() => setPreviewAttachment(attachment)}
-                    />
-                    <div className="flex min-w-0 items-start gap-3">
-                      <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
-                        <ImageIcon className="h-5 w-5" />
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate font-semibold text-gray-900">
-                          {attachment.fileName}
-                        </p>
-                        <p className="mt-1 text-xs text-gray-500">
-                          {attachment.uploadedBy?.name || "Unknown user"} at{" "}
-                          {formatDateTime(attachment.createdAt)}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
+                  <AttachmentImagePreview
+                    attachment={attachment}
+                    issueId={issue._id}
+                    className="min-h-[240px]"
+                    imageClassName="max-h-[460px]"
+                    onClick={() => setPreviewAttachment(attachment)}
+                  />
                 ) : (
                   <>
                     <div className="flex items-start gap-3">
