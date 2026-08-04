@@ -197,6 +197,7 @@ const IssueComposer = ({
   const [error, setError] = useState("");
   const [attachmentFiles, setAttachmentFiles] = useState([]);
   const [attachmentNote, setAttachmentNote] = useState("");
+  const [attachmentPasteHint, setAttachmentPasteHint] = useState("");
   const [isUploadingAttachments, setIsUploadingAttachments] = useState(false);
   const [attachmentPreviews, setAttachmentPreviews] = useState([]);
   const attachmentInputRef = useRef(null);
@@ -529,16 +530,23 @@ const IssueComposer = ({
       ...current,
       ...Array.from(event.target.files || []),
     ]);
+    setAttachmentPasteHint("");
   };
 
   const handleAttachmentPaste = (event) => {
+    if (event.defaultPrevented) {
+      return;
+    }
+
     const pastedImages = getClipboardImageFiles(event.clipboardData);
 
     if (!pastedImages.length) {
+      setAttachmentPasteHint("No image found in clipboard. Copy a screenshot or image, then paste here.");
       return;
     }
 
     event.preventDefault();
+    event.stopPropagation();
 
     const renamedImages = pastedImages.map((file, index) =>
       new File([file], buildPastedAttachmentName(file, index), {
@@ -547,6 +555,7 @@ const IssueComposer = ({
     );
 
     setAttachmentFiles((current) => [...current, ...renamedImages]);
+    setAttachmentPasteHint(`${renamedImages.length} screenshot${renamedImages.length === 1 ? "" : "s"} added.`);
 
     if (attachmentInputRef.current) {
       attachmentInputRef.current.value = "";
@@ -1208,13 +1217,14 @@ const IssueComposer = ({
                   Message / Screenshots
                 </span>
                 <div className={attachmentComposerClass}>
-                  <div className={attachmentDropClass}>
+                  <div className={attachmentDropClass} onPaste={handleAttachmentPaste}>
                     <Textarea
                       className="min-h-[70px] resize-y border-0 bg-transparent px-0 py-0 text-sm shadow-none focus-visible:ring-0"
                       placeholder="Write a note for this attachment, then paste a screenshot here"
                       value={attachmentNote}
                       onChange={(event) => setAttachmentNote(event.target.value)}
                       onPaste={handleAttachmentPaste}
+                      onPasteCapture={handleAttachmentPaste}
                       disabled={isSubmitPending}
                     />
                   </div>
@@ -1230,6 +1240,11 @@ const IssueComposer = ({
                     </Button>
                     <span className="text-xs font-medium text-slate-500">Paste screenshots directly into the message box.</span>
                   </div>
+                  {attachmentPasteHint ? (
+                    <p className="rounded-xl border border-blue-100 bg-white px-3 py-2 text-xs font-semibold text-blue-700">
+                      {attachmentPasteHint}
+                    </p>
+                  ) : null}
                   <Input
                     ref={attachmentInputRef}
                     type="file"
@@ -1467,13 +1482,14 @@ const IssueComposer = ({
                   Message / Screenshots
                 </span>
                 <div className={attachmentComposerClass}>
-                  <div className={attachmentDropClass}>
+                  <div className={attachmentDropClass} onPaste={handleAttachmentPaste}>
                     <Textarea
                       className="min-h-[82px] resize-y border-0 bg-transparent px-0 py-0 text-sm shadow-none focus-visible:ring-0"
                       placeholder="Write a note for this attachment, then paste a screenshot here"
                       value={attachmentNote}
                       onChange={(event) => setAttachmentNote(event.target.value)}
                       onPaste={handleAttachmentPaste}
+                      onPasteCapture={handleAttachmentPaste}
                       disabled={isSubmitPending}
                     />
                   </div>
@@ -1489,6 +1505,11 @@ const IssueComposer = ({
                     </Button>
                     <span className="text-xs font-medium text-slate-500">Paste screenshots directly into the message box.</span>
                   </div>
+                  {attachmentPasteHint ? (
+                    <p className="rounded-xl border border-blue-100 bg-white px-3 py-2 text-xs font-semibold text-blue-700">
+                      {attachmentPasteHint}
+                    </p>
+                  ) : null}
                   <Input
                     ref={attachmentInputRef}
                     type="file"
