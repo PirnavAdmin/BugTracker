@@ -313,41 +313,27 @@ const AuthPage = () => {
   const [rememberedLogin, setRememberedLogin] = useState(() => readRememberedLogin());
   const [activeSection, setActiveSection] = useState("features");
   const [registerStep, setRegisterStep] = useState("profile");
+  const [billingCycle, setBillingCycle] = useState("monthly");
   const marketingScrollerRef = useRef(null);
-  const sectionRefs = useRef({});
   const isAdminRoute = location.pathname === ADMIN_ROUTE_PATH;
   const canUseDefaultPassword =
     mode === "login" &&
     isAdminRoute &&
     isAdminDefaultLoginEnabledOnClient;
   const sectionOrder = useMemo(
-    () => ["hero", "features", "pricing", "resources", "enterprise", "contact"],
+    () => ["features", "pricing", "resources", "enterprise", "contact"],
     []
   );
 
   const scrollToSection = (sectionId, options = {}) => {
-    const sectionNode = sectionRefs.current[sectionId];
-    const scrollerNode = marketingScrollerRef.current;
-
-    if (!sectionNode || !scrollerNode) {
+    if (!sectionOrder.includes(sectionId)) {
       return;
     }
 
-    const top = sectionNode.offsetTop - 24;
     setActiveSection(sectionId);
-    scrollerNode.scrollTo({
-      top,
-      behavior: options.behavior || "smooth",
-    });
 
     if (options.updateHash !== false) {
       navigate(`${location.pathname}#${sectionId}`, { replace: true });
-    }
-  };
-
-  const setSectionRef = (sectionId) => (node) => {
-    if (node) {
-      sectionRefs.current[sectionId] = node;
     }
   };
 
@@ -428,9 +414,7 @@ const AuthPage = () => {
       return;
     }
 
-    window.requestAnimationFrame(() => {
-      scrollToSection(hashSection, { behavior: "auto", updateHash: false });
-    });
+    setActiveSection(hashSection);
   }, [location.hash, sectionOrder]);
 
   useEffect(() => {
@@ -441,42 +425,13 @@ const AuthPage = () => {
         return;
       }
 
-      const currentTop = scrollerNode.scrollTop;
-      const currentIndex = sectionOrder.reduce((activeIndex, sectionId, index) => {
-        const sectionTop = sectionRefs.current[sectionId]?.offsetTop || 0;
-        return sectionTop - 80 <= currentTop ? index : activeIndex;
-      }, 0);
+      const currentIndex = Math.max(sectionOrder.indexOf(activeSection), 0);
       const nextSection = sectionOrder[(currentIndex + 1) % sectionOrder.length];
 
-      scrollToSection(nextSection, { updateHash: false });
+      setActiveSection(nextSection);
     }, 7000);
 
     return () => window.clearInterval(timerId);
-  }, [sectionOrder]);
-
-  useEffect(() => {
-    const scrollerNode = marketingScrollerRef.current;
-
-    if (!scrollerNode) {
-      return undefined;
-    }
-
-    const handleScroll = () => {
-      const currentTop = scrollerNode.scrollTop;
-      const nextActiveSection = sectionOrder.reduce((activeId, sectionId) => {
-        const sectionTop = sectionRefs.current[sectionId]?.offsetTop || 0;
-        return sectionTop - 100 <= currentTop ? sectionId : activeId;
-      }, sectionOrder[0]);
-
-      if (nextActiveSection !== activeSection) {
-        setActiveSection(nextActiveSection);
-      }
-    };
-
-    scrollerNode.addEventListener("scroll", handleScroll, { passive: true });
-    handleScroll();
-
-    return () => scrollerNode.removeEventListener("scroll", handleScroll);
   }, [activeSection, sectionOrder]);
 
   const passwordResetRequestMutation = useMutation({
@@ -810,6 +765,25 @@ const AuthPage = () => {
     email: rememberedLogin?.email,
     name: rememberedLogin?.email,
   };
+  const getDisplayedPlanPrice = (plan) => {
+    const basePrice = Number(plan.price) || 0;
+
+    if (billingCycle === "monthly" || basePrice === 0) {
+      return {
+        oldPrice: plan.oldPrice,
+        price: plan.price,
+        suffix: plan.suffix,
+        helper: basePrice === 0 ? "Free forever" : "Billed monthly",
+      };
+    }
+
+    return {
+      oldPrice: plan.oldPrice ? String(Number(plan.oldPrice) * 12) : "",
+      price: String(Math.round(basePrice * 12 * 0.8)),
+      suffix: plan.suffix === "forever" ? "forever" : "/user/year",
+      helper: "Billed annually",
+    };
+  };
 
   return (
     <main
@@ -819,7 +793,7 @@ const AuthPage = () => {
       <div className="mx-auto grid min-h-full max-w-[1920px] grid-cols-1 xl:h-full xl:grid-cols-[minmax(0,1.86fr)_minmax(480px,0.98fr)]">
         <section
           ref={marketingScrollerRef}
-          className="relative overflow-visible border-r border-[#E7EBF7] px-5 py-6 sm:px-8 lg:px-10 xl:h-full xl:overflow-y-auto xl:overscroll-contain xl:scroll-smooth xl:px-12 xl:[scrollbar-width:none] xl:[&::-webkit-scrollbar]:hidden"
+          className="relative overflow-visible border-r border-[#E7EBF7] px-5 py-6 sm:px-8 lg:px-10 xl:h-full xl:overflow-hidden xl:px-12"
         >
           <div className="absolute inset-0 -z-10 bg-[radial-gradient(circle_at_18%_14%,rgba(37,99,235,0.08),transparent_28%),radial-gradient(circle_at_80%_18%,rgba(124,58,237,0.08),transparent_24%),linear-gradient(135deg,#FFFFFF_0%,#F7FAFF_54%,#FBF8FF_100%)]" />
 
@@ -849,221 +823,231 @@ const AuthPage = () => {
             </nav>
           </header>
 
-          <div ref={setSectionRef("hero")} className="mt-8 max-w-[760px] lg:mt-12">
-            <h1
-              className="text-[clamp(3.5rem,6vw,7rem)] font-extrabold leading-[0.98] tracking-normal text-[#080B2F]"
-              style={{ fontFamily: '"Poppins", "Inter", sans-serif' }}
-            >
-              Code better.
-              <br />
-              Ship <span className="bg-[linear-gradient(100deg,#0A6BFF,#8A2BFF)] bg-clip-text text-transparent">faster.</span>
-            </h1>
-            <p className="mt-7 max-w-[660px] text-[clamp(1rem,1.35vw,1.25rem)] font-semibold leading-8 text-[#55618A]">
-              CureCode is the all-in-one engineering collaboration platform to
-              plan, build, track and deliver bug-free software.
-            </p>
-          </div>
-
-          <div ref={setSectionRef("features")} className="mt-8 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-6">
-            {features.map((feature) => {
-              const Icon = feature.icon;
-              return (
-                <div key={feature.title} className="rounded-[10px] border border-white bg-white/88 p-4 shadow-[0_16px_44px_-32px_rgba(8,11,47,0.42)]">
-                  <div className={cn("mb-3 grid h-10 w-10 place-items-center rounded-[9px]", getFeatureTone(feature.tone))}>
-                    <Icon className="h-5 w-5" />
-                  </div>
-                  <h3 className="text-sm font-extrabold text-[#080B2F]">{feature.title}</h3>
-                  <p className="mt-2 text-xs font-semibold leading-5 text-[#667196]">{feature.text}</p>
-                </div>
-              );
-            })}
-          </div>
-
-          <section ref={setSectionRef("pricing")} className="mt-10">
-            <div className="flex flex-wrap items-center justify-between gap-4">
-              <h2 className="text-[clamp(1.35rem,2vw,2rem)] font-extrabold text-[#080B2F]">
-                Simple, flexible pricing for teams of all sizes
-              </h2>
-              <div className="flex flex-wrap items-center gap-5">
-                <div className="inline-flex items-center rounded-full border border-[#D9DEF2] bg-white p-1 text-sm font-extrabold shadow-sm">
-                  <span className="rounded-full bg-[#F4F0FF] px-5 py-2 text-[#080B2F]">Monthly</span>
-                  <span className="px-4 py-2 text-[#667196]">Yearly</span>
-                  <span className="rounded-full bg-emerald-50 px-4 py-2 text-emerald-600">Save up to 20%</span>
-                </div>
-                <span className="inline-flex items-center gap-1 text-sm font-bold text-[#455079]">
-                  All prices in INR <Info className="h-4 w-4" />
-                </span>
-              </div>
-            </div>
-
-            <div className="mt-7 grid grid-cols-1 gap-5 md:grid-cols-2 2xl:grid-cols-4">
-              {pricingPlans.map((plan) => (
-                <article
-                  key={plan.name}
-                  className={cn(
-                    "relative flex min-h-[430px] flex-col rounded-[10px] border bg-white p-6 shadow-[0_18px_50px_-36px_rgba(8,11,47,0.4)]",
-                    plan.popular ? "border-[#8A2BFF] ring-1 ring-[#8A2BFF]" : "border-[#DDE3F2]"
-                  )}
-                >
-                  {plan.popular ? (
-                    <div className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-t-[8px] bg-[linear-gradient(100deg,#7C2DFF,#A433FF)] px-7 py-1.5 text-xs font-extrabold uppercase text-white">
-                      Most Popular
-                    </div>
-                  ) : null}
-                  <h3 className="text-xl font-extrabold text-[#080B2F]">{plan.name}</h3>
-                  <p className="mt-2 text-sm font-semibold text-[#667196]">{plan.tagline}</p>
-                  <div className="mt-7">
-                    {plan.oldPrice ? (
-                      <div className="mb-1 flex items-center gap-3">
-                        <span className="text-lg font-extrabold text-[#98A1BF] line-through">Rs{plan.oldPrice}</span>
-                        <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-extrabold text-emerald-600">{plan.discount}</span>
-                      </div>
-                    ) : null}
-                    <div className="flex items-end gap-2">
-                      <span className="text-4xl font-extrabold text-[#080B2F]">Rs{plan.price}</span>
-                      <span className="pb-1 text-sm font-bold text-[#455079]">{plan.suffix}</span>
-                    </div>
-                    {plan.oldPrice ? (
-                      <span className="mt-4 inline-flex rounded-[8px] bg-amber-50 px-3 py-1.5 text-sm font-bold text-amber-700">
-                        Offer ends in 13d : 08h : 45m
-                      </span>
-                    ) : null}
-                  </div>
-                  <ul className="mt-6 space-y-3">
-                    {plan.features.map((item) => (
-                      <li key={item} className="flex items-start gap-3 text-sm font-semibold text-[#455079]">
-                        <Check className="mt-0.5 h-4 w-4 shrink-0 text-emerald-500" />
-                        {item}
-                      </li>
-                    ))}
-                  </ul>
-                  <button
-                    className={cn(
-                      "mt-auto h-11 rounded-[8px] border text-sm font-extrabold transition hover:-translate-y-0.5",
-                      plan.name === "Starter" || plan.name === "Enterprise"
-                        ? "border-[#8A2BFF] bg-white text-[#6D28D9] hover:bg-violet-50"
-                        : "border-transparent bg-[linear-gradient(100deg,#7C2DFF,#B22BFF)] text-white shadow-[0_18px_36px_-18px_rgba(124,45,255,0.7)]"
-                    )}
-                    type="button"
-                    onClick={() => {
-                      if (plan.name === "Enterprise") {
-                        scrollToSection("contact");
-                      } else {
-                        openRegister();
-                      }
-                    }}
+          <div className="flex h-[calc(100%-4rem)] min-h-0 flex-col justify-center overflow-hidden">
+            {activeSection === "features" ? (
+              <section className="animate-in fade-in duration-300">
+                <div className="max-w-[760px]">
+                  <h1
+                    className="text-[clamp(3.5rem,6vw,7rem)] font-extrabold leading-[0.98] tracking-normal text-[#080B2F]"
+                    style={{ fontFamily: '"Poppins", "Inter", sans-serif' }}
                   >
-                    {plan.action}
-                  </button>
-                  {plan.name === "Growth" || plan.name === "Business" ? (
-                    <p className="mt-3 text-center text-sm font-bold text-[#6D28D9]">14-Day Free Trial</p>
-                  ) : null}
-                </article>
-              ))}
-            </div>
-          </section>
+                    Code better.
+                    <br />
+                    Ship <span className="bg-[linear-gradient(100deg,#0A6BFF,#8A2BFF)] bg-clip-text text-transparent">faster.</span>
+                  </h1>
+                  <p className="mt-7 max-w-[660px] text-[clamp(1rem,1.35vw,1.25rem)] font-semibold leading-8 text-[#55618A]">
+                    CureCode is the all-in-one engineering collaboration platform to
+                    plan, build, track and deliver bug-free software.
+                  </p>
+                </div>
 
-          <div className="mt-6 rounded-[10px] border border-[#DDE3F2] bg-white p-5 shadow-[0_16px_42px_-34px_rgba(8,11,47,0.42)]">
-            <div className="flex flex-wrap items-center gap-4">
-              <div className="min-w-[180px]">
-                <p className="text-sm font-extrabold text-[#080B2F]">Add-Ons <span className="text-[#6D28D9]">(Scale as you grow)</span></p>
-              </div>
-              <div className="grid flex-1 grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                {addOns.map((addOn) => {
-                  const Icon = addOn.icon;
-                  return (
-                    <div key={addOn.title} className="flex items-center gap-3 border-l border-[#E7EBF7] px-4">
-                      <span className="grid h-10 w-10 place-items-center rounded-[9px] border border-violet-100 text-[#7C2DFF]">
-                        <Icon className="h-5 w-5" />
-                      </span>
-                      <div>
-                        <p className="text-sm font-extrabold text-[#080B2F]">{addOn.title}</p>
-                        <p className="text-xs font-bold text-[#667196]">{addOn.text}</p>
+                <div className="mt-8 grid grid-cols-2 gap-4 lg:grid-cols-3 2xl:grid-cols-6">
+                  {features.map((feature) => {
+                    const Icon = feature.icon;
+                    return (
+                      <div key={feature.title} className="min-h-[150px] rounded-[10px] border border-white bg-white/88 p-4 shadow-[0_16px_44px_-32px_rgba(8,11,47,0.42)]">
+                        <div className={cn("mb-3 grid h-10 w-10 place-items-center rounded-[9px]", getFeatureTone(feature.tone))}>
+                          <Icon className="h-5 w-5" />
+                        </div>
+                        <h3 className="text-sm font-extrabold text-[#080B2F]">{feature.title}</h3>
+                        <p className="mt-2 text-xs font-semibold leading-5 text-[#667196]">{feature.text}</p>
                       </div>
+                    );
+                  })}
+                </div>
+              </section>
+            ) : null}
+
+            {activeSection === "pricing" ? (
+              <section className="animate-in fade-in duration-300">
+                <div className="flex flex-wrap items-center justify-between gap-4">
+                  <h2 className="text-[clamp(1.5rem,2.1vw,2.35rem)] font-extrabold text-[#080B2F]">
+                    Simple, flexible pricing for teams of all sizes
+                  </h2>
+                  <div className="flex flex-wrap items-center gap-4">
+                    <div className="inline-flex items-center rounded-full border border-[#D9DEF2] bg-white p-1 text-sm font-extrabold shadow-sm">
+                      {["monthly", "annual"].map((cycle) => (
+                        <button
+                          key={cycle}
+                          className={cn(
+                            "rounded-full px-5 py-2 capitalize transition",
+                            billingCycle === cycle ? "bg-[#F4F0FF] text-[#080B2F]" : "text-[#667196] hover:text-[#6D28D9]"
+                          )}
+                          type="button"
+                          onClick={() => setBillingCycle(cycle)}
+                        >
+                          {cycle === "annual" ? "Annual" : "Monthly"}
+                        </button>
+                      ))}
+                      <span className="rounded-full bg-emerald-50 px-4 py-2 text-emerald-600">Save up to 20%</span>
                     </div>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
+                    <span className="inline-flex items-center gap-1 text-sm font-bold text-[#455079]">
+                      All prices in INR <Info className="h-4 w-4" />
+                    </span>
+                  </div>
+                </div>
 
-          <section ref={setSectionRef("resources")} className="mt-8 rounded-[10px] border border-[#DDE3F2] bg-white p-6 shadow-[0_16px_42px_-34px_rgba(8,11,47,0.42)]">
-            <div className="flex flex-wrap items-start justify-between gap-5">
-              <div>
+                <div className="mt-6 grid grid-cols-4 gap-4">
+                  {pricingPlans.map((plan) => {
+                    const displayPlan = getDisplayedPlanPrice(plan);
+
+                    return (
+                      <article
+                        key={plan.name}
+                        className={cn(
+                          "relative flex min-h-[360px] flex-col rounded-[10px] border bg-white p-5 shadow-[0_18px_50px_-36px_rgba(8,11,47,0.4)]",
+                          plan.popular ? "border-[#8A2BFF] ring-1 ring-[#8A2BFF]" : "border-[#DDE3F2]"
+                        )}
+                      >
+                        {plan.popular ? (
+                          <div className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-t-[8px] bg-[linear-gradient(100deg,#7C2DFF,#A433FF)] px-6 py-1.5 text-xs font-extrabold uppercase text-white">
+                            Most Popular
+                          </div>
+                        ) : null}
+                        <h3 className="text-lg font-extrabold text-[#080B2F]">{plan.name}</h3>
+                        <p className="mt-1 text-xs font-semibold text-[#667196]">{plan.tagline}</p>
+                        <div className="mt-5">
+                          {displayPlan.oldPrice ? (
+                            <div className="mb-1 flex items-center gap-2">
+                              <span className="text-base font-extrabold text-[#98A1BF] line-through">Rs{displayPlan.oldPrice}</span>
+                              <span className="rounded-full bg-emerald-50 px-2 py-1 text-[11px] font-extrabold text-emerald-600">{plan.discount}</span>
+                            </div>
+                          ) : null}
+                          <div className="flex items-end gap-1">
+                            <span className="text-3xl font-extrabold text-[#080B2F]">Rs{displayPlan.price}</span>
+                            <span className="pb-1 text-xs font-bold text-[#455079]">{displayPlan.suffix}</span>
+                          </div>
+                          <p className="mt-2 text-xs font-bold text-[#667196]">{displayPlan.helper}</p>
+                        </div>
+                        <ul className="mt-4 space-y-2">
+                          {plan.features.slice(0, 5).map((item) => (
+                            <li key={item} className="flex items-start gap-2 text-xs font-semibold text-[#455079]">
+                              <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-500" />
+                              {item}
+                            </li>
+                          ))}
+                        </ul>
+                        <button
+                          className={cn(
+                            "mt-auto h-10 rounded-[8px] border text-xs font-extrabold transition hover:-translate-y-0.5",
+                            plan.name === "Starter" || plan.name === "Enterprise"
+                              ? "border-[#8A2BFF] bg-white text-[#6D28D9] hover:bg-violet-50"
+                              : "border-transparent bg-[linear-gradient(100deg,#7C2DFF,#B22BFF)] text-white shadow-[0_18px_36px_-18px_rgba(124,45,255,0.7)]"
+                          )}
+                          type="button"
+                          onClick={() => {
+                            if (plan.name === "Enterprise") {
+                              scrollToSection("contact");
+                            } else {
+                              openRegister();
+                            }
+                          }}
+                        >
+                          {plan.action}
+                        </button>
+                      </article>
+                    );
+                  })}
+                </div>
+
+                <div className="mt-5 rounded-[10px] border border-[#DDE3F2] bg-white p-4 shadow-[0_16px_42px_-34px_rgba(8,11,47,0.42)]">
+                  <div className="grid grid-cols-4 gap-3">
+                    {addOns.map((addOn) => {
+                      const Icon = addOn.icon;
+                      return (
+                        <div key={addOn.title} className="flex items-center gap-3 border-l border-[#E7EBF7] px-3">
+                          <span className="grid h-9 w-9 place-items-center rounded-[9px] border border-violet-100 text-[#7C2DFF]">
+                            <Icon className="h-4 w-4" />
+                          </span>
+                          <div>
+                            <p className="text-xs font-extrabold text-[#080B2F]">{addOn.title}</p>
+                            <p className="text-[11px] font-bold text-[#667196]">{addOn.text}</p>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </section>
+            ) : null}
+
+            {activeSection === "resources" ? (
+              <section className="animate-in fade-in duration-300">
                 <p className="text-sm font-extrabold uppercase tracking-[0.14em] text-[#6D28D9]">Resources</p>
-                <h2 className="mt-2 text-2xl font-extrabold text-[#080B2F]">Everything your team needs to move work forward</h2>
-              </div>
-              <button className="h-10 rounded-[8px] border border-[#8A2BFF] px-5 text-sm font-extrabold text-[#6D28D9] transition hover:bg-violet-50" type="button" onClick={openRegister}>
-                Explore Resources
-              </button>
-            </div>
-            <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-3">
-              {[
-                ["Project playbooks", "Templates for sprint planning, bug triage, and release reviews."],
-                ["Team dashboards", "Shared views for owners, priorities, blockers, and delivery health."],
-                ["Security guides", "Practical controls for access, audit trails, and workspace safety."],
-              ].map(([title, text]) => (
-                <article key={title} className="rounded-[10px] border border-[#E7EBF7] bg-[#FAFBFF] p-5">
-                  <h3 className="text-base font-extrabold text-[#080B2F]">{title}</h3>
-                  <p className="mt-3 text-sm font-semibold leading-6 text-[#667196]">{text}</p>
-                </article>
-              ))}
-            </div>
-          </section>
+                <h2 className="mt-3 max-w-[760px] text-[clamp(2.4rem,4vw,4.5rem)] font-extrabold leading-tight text-[#080B2F]">
+                  Everything your team needs to move work forward
+                </h2>
+                <div className="mt-8 grid grid-cols-3 gap-5">
+                  {[
+                    ["Project playbooks", "Templates for sprint planning, bug triage, and release reviews."],
+                    ["Team dashboards", "Shared views for owners, priorities, blockers, and delivery health."],
+                    ["Security guides", "Practical controls for access, audit trails, and workspace safety."],
+                  ].map(([title, text]) => (
+                    <article key={title} className="min-h-[210px] rounded-[10px] border border-[#E7EBF7] bg-white p-6 shadow-[0_16px_42px_-34px_rgba(8,11,47,0.42)]">
+                      <h3 className="text-lg font-extrabold text-[#080B2F]">{title}</h3>
+                      <p className="mt-4 text-sm font-semibold leading-6 text-[#667196]">{text}</p>
+                    </article>
+                  ))}
+                </div>
+                <button className="mt-8 h-11 rounded-[8px] border border-[#8A2BFF] px-6 text-sm font-extrabold text-[#6D28D9] transition hover:bg-violet-50" type="button" onClick={openRegister}>
+                  Explore Resources
+                </button>
+              </section>
+            ) : null}
 
-          <section ref={setSectionRef("enterprise")} className="mt-8 rounded-[10px] border border-[#DDE3F2] bg-[linear-gradient(135deg,#F8FAFF,#F4F0FF)] p-6 shadow-[0_16px_42px_-34px_rgba(8,11,47,0.42)]">
-            <div className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr] lg:items-center">
-              <div>
+            {activeSection === "enterprise" ? (
+              <section className="animate-in fade-in duration-300 rounded-[10px] border border-[#DDE3F2] bg-[linear-gradient(135deg,#F8FAFF,#F4F0FF)] p-8 shadow-[0_16px_42px_-34px_rgba(8,11,47,0.42)]">
                 <p className="text-sm font-extrabold uppercase tracking-[0.14em] text-[#6D28D9]">Enterprise</p>
-                <h2 className="mt-2 text-2xl font-extrabold text-[#080B2F]">Governance, scale, and support for larger teams</h2>
-                <p className="mt-3 text-sm font-semibold leading-6 text-[#667196]">
+                <h2 className="mt-3 max-w-[780px] text-[clamp(2.4rem,4vw,4.5rem)] font-extrabold leading-tight text-[#080B2F]">
+                  Governance, scale, and support for larger teams
+                </h2>
+                <p className="mt-5 max-w-[720px] text-base font-semibold leading-7 text-[#667196]">
                   Configure secure workspaces with dedicated support, SSO readiness,
                   custom integrations, and audit-friendly project history.
                 </p>
-              </div>
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
-                {["SSO & SCIM", "Dedicated Support", "Advanced Security"].map((item) => (
-                  <div key={item} className="flex items-center gap-3 rounded-[10px] bg-white px-4 py-3 text-sm font-extrabold text-[#080B2F]">
-                    <ShieldCheck className="h-5 w-5 text-[#6D28D9]" />
-                    {item}
-                  </div>
-                ))}
-              </div>
-            </div>
-          </section>
+                <div className="mt-8 grid grid-cols-3 gap-4">
+                  {["SSO & SCIM", "Dedicated Support", "Advanced Security"].map((item) => (
+                    <div key={item} className="flex items-center gap-3 rounded-[10px] bg-white px-5 py-4 text-sm font-extrabold text-[#080B2F]">
+                      <ShieldCheck className="h-5 w-5 text-[#6D28D9]" />
+                      {item}
+                    </div>
+                  ))}
+                </div>
+              </section>
+            ) : null}
 
-          <section ref={setSectionRef("contact")} className="mt-8 rounded-[10px] border border-[#DDE3F2] bg-white p-6 shadow-[0_16px_42px_-34px_rgba(8,11,47,0.42)]">
-            <div className="flex flex-wrap items-center justify-between gap-5">
-              <div>
+            {activeSection === "contact" ? (
+              <section className="animate-in fade-in duration-300 rounded-[10px] border border-[#DDE3F2] bg-white p-8 shadow-[0_16px_42px_-34px_rgba(8,11,47,0.42)]">
                 <p className="text-sm font-extrabold uppercase tracking-[0.14em] text-[#6D28D9]">Contact Sales</p>
-                <h2 className="mt-2 text-2xl font-extrabold text-[#080B2F]">Plan the right CureCode workspace</h2>
-                <p className="mt-3 text-sm font-semibold leading-6 text-[#667196]">
+                <h2 className="mt-3 max-w-[760px] text-[clamp(2.4rem,4vw,4.5rem)] font-extrabold leading-tight text-[#080B2F]">
+                  Plan the right CureCode workspace
+                </h2>
+                <p className="mt-5 max-w-[680px] text-base font-semibold leading-7 text-[#667196]">
                   Talk through pricing, onboarding, and controls for your team size.
                 </p>
-              </div>
-              <div className="flex flex-wrap gap-3">
-                <a className="inline-flex h-11 items-center justify-center rounded-[8px] bg-[linear-gradient(100deg,#8428E8,#1178F2)] px-6 text-sm font-extrabold text-white shadow-[0_16px_36px_-18px_rgba(109,40,217,0.8)]" href="mailto:sales@curecode.com">
-                  Email Sales
-                </a>
-                <button className="h-11 rounded-[8px] border border-[#8A2BFF] px-6 text-sm font-extrabold text-[#6D28D9] transition hover:bg-violet-50" type="button" onClick={openRegister}>
-                  Create Account
-                </button>
-              </div>
-            </div>
-          </section>
-
-          <div className="mt-6 grid grid-cols-1 gap-4 pb-8 sm:grid-cols-2 xl:grid-cols-5">
-            {trustBadges.map(([title, text, Icon]) => (
-              <div key={title} className="flex items-center gap-3">
-                <span className="grid h-10 w-10 place-items-center rounded-[8px] bg-[#F1F4FF] text-[#455079]">
-                  <Icon className="h-5 w-5" />
-                </span>
-                <div>
-                  <p className="text-sm font-extrabold text-[#080B2F]">{title}</p>
-                  <p className="text-xs font-semibold text-[#667196]">{text}</p>
+                <div className="mt-8 flex flex-wrap gap-3">
+                  <a className="inline-flex h-11 items-center justify-center rounded-[8px] bg-[linear-gradient(100deg,#8428E8,#1178F2)] px-6 text-sm font-extrabold text-white shadow-[0_16px_36px_-18px_rgba(109,40,217,0.8)]" href="mailto:sales@curecode.com">
+                    Email Sales
+                  </a>
+                  <button className="h-11 rounded-[8px] border border-[#8A2BFF] px-6 text-sm font-extrabold text-[#6D28D9] transition hover:bg-violet-50" type="button" onClick={openRegister}>
+                    Create Account
+                  </button>
                 </div>
-              </div>
-            ))}
+                <div className="mt-8 grid grid-cols-3 gap-4">
+                  {trustBadges.slice(0, 3).map(([title, text, Icon]) => (
+                    <div key={title} className="flex items-center gap-3 rounded-[10px] bg-[#F7F8FE] p-4">
+                      <span className="grid h-10 w-10 place-items-center rounded-[8px] bg-white text-[#455079]">
+                        <Icon className="h-5 w-5" />
+                      </span>
+                      <div>
+                        <p className="text-sm font-extrabold text-[#080B2F]">{title}</p>
+                        <p className="text-xs font-semibold text-[#667196]">{text}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            ) : null}
           </div>
         </section>
 
