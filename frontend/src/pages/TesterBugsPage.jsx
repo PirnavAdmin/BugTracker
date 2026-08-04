@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSearchParams } from "react-router-dom";
-import { AlertTriangle, FolderKanban, LoaderCircle, Plus, Search, SlidersHorizontal, Trash2 } from "lucide-react";
+import { AlertTriangle, ClipboardList, FolderKanban, LoaderCircle, Plus, Search, SlidersHorizontal, Trash2 } from "lucide-react";
 import {
   createIssue,
   deleteIssue,
@@ -45,6 +45,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 
 const ATTACHMENT_ACCEPT =
   "image/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.log,.csv,.json,.xml,.zip";
+const TESTER_BUG_SELECTION_KEY = "curecode_tester_bug_saved_selection";
 
 const getReporterId = (issue) => resolveUserId(issue?.reporter);
 const getTesterOwnerId = (issue) =>
@@ -54,6 +55,24 @@ const isTesterTeam = (team, testerId) =>
   (team?.members || []).some((member) => resolveUserId(member) === testerId);
 const getAssignedTeamsForTester = (project, testerId) =>
   getProjectTeams(project).filter((team) => isTesterTeam(team, testerId));
+const readSavedBugSelection = () => {
+  if (typeof window === "undefined") {
+    return { enabled: false, projectId: "", teamId: "" };
+  }
+
+  try {
+    const value = JSON.parse(window.localStorage.getItem(TESTER_BUG_SELECTION_KEY) || "{}");
+
+    return {
+      enabled: Boolean(value.enabled),
+      projectId: String(value.projectId || ""),
+      teamId: String(value.teamId || ""),
+    };
+  } catch (error) {
+    window.localStorage.removeItem(TESTER_BUG_SELECTION_KEY);
+    return { enabled: false, projectId: "", teamId: "" };
+  }
+};
 
 const buildTesterProject = (project, testerId) => {
   const assignedTeams = getAssignedTeamsForTester(project, testerId);
@@ -97,6 +116,10 @@ const TesterBugsPage = () => {
   const { user } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const reportFormRef = useRef(null);
+  const [activePanel, setActivePanel] = useState(() =>
+    searchParams.get("view") === "report" ? "create" : "board"
+  );
+  const [savedBugSelection, setSavedBugSelection] = useState(() => readSavedBugSelection());
   const [selectedIssue, setSelectedIssue] = useState(null);
   const [deleteCandidate, setDeleteCandidate] = useState(null);
   const [toast, setToast] = useState(null);
@@ -188,6 +211,8 @@ const TesterBugsPage = () => {
     if (activeView !== "report") {
       return undefined;
     }
+
+    setActivePanel("create");
 
     const frameId = window.requestAnimationFrame(() => {
       reportFormRef.current?.scrollIntoView({
@@ -367,11 +392,12 @@ const TesterBugsPage = () => {
     return Promise.resolve();
   };
 
-  const handleOpenReportBug = () => {
+  const showCreatePanel = () => {
     const nextParams = new URLSearchParams(searchParams);
     nextParams.set("view", "report");
     nextParams.delete("bug");
     setSearchParams(nextParams);
+    setActivePanel("create");
 
     window.requestAnimationFrame(() => {
       reportFormRef.current?.scrollIntoView({
@@ -379,6 +405,34 @@ const TesterBugsPage = () => {
         block: "start",
       });
     });
+  };
+
+  const showBoardPanel = () => {
+    const nextParams = new URLSearchParams(searchParams);
+    nextParams.delete("view");
+    setSearchParams(nextParams);
+    setActivePanel("board");
+  };
+
+  const handleRememberSelectionChange = ({ checked, projectId, teamId }) => {
+    const nextSelection = {
+      enabled: Boolean(checked),
+      projectId: checked ? String(projectId || "") : "",
+      teamId: checked ? String(teamId || "") : "",
+    };
+
+    setSavedBugSelection(nextSelection);
+
+    if (typeof window !== "undefined") {
+      if (checked) {
+        window.localStorage.setItem(
+          TESTER_BUG_SELECTION_KEY,
+          JSON.stringify(nextSelection)
+        );
+      } else {
+        window.localStorage.removeItem(TESTER_BUG_SELECTION_KEY);
+      }
+    }
   };
 
   const handleConfirmDelete = async () => {
@@ -424,9 +478,68 @@ const TesterBugsPage = () => {
     );
   }
 
+  const savedProjectExists =
+    savedBugSelection.enabled &&
+    assignedProjects.some(
+      (project) => String(project._id) === String(savedBugSelection.projectId)
+    );
+  const savedProject = savedProjectExists
+    ? assignedProjects.find(
+        (project) => String(project._id) === String(savedBugSelection.projectId)
+      )
+    : null;
+  const savedTeamExists =
+    savedProject &&
+    getProjectTeams(savedProject).some(
+      (team) => String(team._id) === String(savedBugSelection.teamId)
+    );
+  const defaultSavedProjectId = savedProjectExists ? savedBugSelection.projectId : "";
+  const defaultSavedTeamId = savedTeamExists ? savedBugSelection.teamId : "";
+
   return (
     <ErrorBoundary>
     <div className="mx-auto w-[98%] max-w-none space-y-4">
+      <section className="overflow-hidden rounded-[28px] border border-white/70 bg-[linear-gradient(135deg,#F8FBFF_0%,#EEF6FF_48%,#F7F3FF_100%)] p-5 shadow-[0_18px_50px_-34px_rgba(15,23,42,0.45)] backdrop-blur">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <div className="max-w-3xl">
+            <p className="text-xs font-bold uppercase tracking-[0.18em] text-blue-600">Tester Workspace</p>
+            <h1 className="mt-2 text-2xl font-semibold text-slate-950 sm:text-3xl">
+              Create and track project bugs
+            </h1>
+            <p className="mt-2 text-sm leading-6 text-slate-600">
+              Report assigned project issues with screenshots, then switch back to the board to verify fixes.
+            </p>
+          </div>
+          <div className="grid grid-cols-2 gap-2 rounded-2xl border border-white/80 bg-white/80 p-1 shadow-sm">
+            <button
+              className={`inline-flex h-11 items-center justify-center gap-2 rounded-xl px-4 text-sm font-semibold transition ${
+                activePanel === "create"
+                  ? "bg-blue-600 text-white shadow-sm"
+                  : "text-slate-600 hover:bg-blue-50 hover:text-blue-700"
+              }`}
+              type="button"
+              onClick={showCreatePanel}
+            >
+              <Plus className="h-4 w-4" />
+              Create Bug
+            </button>
+            <button
+              className={`inline-flex h-11 items-center justify-center gap-2 rounded-xl px-4 text-sm font-semibold transition ${
+                activePanel === "board"
+                  ? "bg-blue-600 text-white shadow-sm"
+                  : "text-slate-600 hover:bg-blue-50 hover:text-blue-700"
+              }`}
+              type="button"
+              onClick={showBoardPanel}
+            >
+              <ClipboardList className="h-4 w-4" />
+              Bug Board
+            </button>
+          </div>
+        </div>
+      </section>
+
+      {activePanel === "board" ? (
       <Card className="overflow-hidden border-white/70 bg-white/92 shadow-[0_18px_50px_-34px_rgba(15,23,42,0.45)] backdrop-blur">
         <CardHeader className="border-b border-slate-200/80 bg-white/94 p-4 sm:p-5">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
@@ -437,10 +550,6 @@ const TesterBugsPage = () => {
               </CardDescription>
             </div>
             <div className="flex flex-wrap items-center gap-2">
-              <Button type="button" variant="outline" onClick={handleOpenReportBug}>
-                <Plus className="h-4 w-4" />
-                Report Bug
-              </Button>
               <Button type="button" variant="outline" onClick={() => queryClient.invalidateQueries({ queryKey: ["issues"] })}>
                 <SlidersHorizontal className="h-4 w-4" />
                 Refresh Board
@@ -533,10 +642,15 @@ const TesterBugsPage = () => {
           />
         </CardContent>
       </Card>
+      ) : null}
 
+      {activePanel === "create" ? (
       <div ref={reportFormRef}>
         <IssueComposer
+          key={`${defaultSavedProjectId || "default"}-${defaultSavedTeamId || "default"}`}
           defaultAssigneeId={testerId}
+          defaultProjectId={defaultSavedProjectId}
+          defaultTeamId={defaultSavedTeamId}
           defaultStatus={ISSUE_STATUS.TODO}
           defaultType="Bug"
           isPending={createIssueMutation.isPending || uploadAttachmentMutation.isPending}
@@ -573,8 +687,11 @@ const TesterBugsPage = () => {
           attachmentAccept={ATTACHMENT_ACCEPT}
           isTesterBugReport
           reporterName={user?.name || user?.email || "Tester"}
+          rememberSelection={savedBugSelection.enabled}
+          onRememberSelectionChange={handleRememberSelectionChange}
         />
       </div>
+      ) : null}
 
       <IssueDetailsDialog
         deletingId={deleteIssueMutation.isPending ? deleteIssueMutation.variables : ""}

@@ -261,6 +261,8 @@ const IssueComposer = ({
   onUploadAttachment,
   isTesterBugReport = false,
   reporterName = "",
+  rememberSelection = false,
+  onRememberSelectionChange,
 }) => {
   const resolvedDefaultType = allowedTypes.includes(defaultType)
     ? defaultType
@@ -1054,6 +1056,39 @@ const IssueComposer = ({
                     </span>
                   </span>
                 </label>
+
+                {isTesterBugReport ? (
+                  <label
+                    className={cn(
+                      testerCompactActionClass,
+                      "sm:col-span-2 lg:col-span-2",
+                      rememberSelection
+                        ? "border-emerald-300 bg-emerald-50 ring-1 ring-emerald-200"
+                        : "border-slate-200"
+                    )}
+                  >
+                    <input
+                      type="checkbox"
+                      className="mt-0.5 h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                      checked={rememberSelection}
+                      onChange={(event) =>
+                        onRememberSelectionChange?.({
+                          checked: event.target.checked,
+                          projectId: formData.projectId,
+                          teamId: formData.teamId,
+                        })
+                      }
+                    />
+                    <span className="min-w-0">
+                      <span className="block text-[13px] font-semibold leading-4 text-slate-800">
+                        Save project and team for next bug
+                      </span>
+                      <span className="block text-xs leading-4 text-slate-500">
+                        Keep this Assigned Project and Team selected next time
+                      </span>
+                    </span>
+                  </label>
+                ) : null}
 
                 <label
                   className={cn(
