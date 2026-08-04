@@ -785,10 +785,10 @@ const AuthPage = () => {
 
   return (
     <main
-      className="min-h-[var(--app-viewport-height)] overflow-y-auto bg-[#FBFCFF] text-[#080B2F] xl:h-[var(--app-viewport-height)] xl:overflow-hidden"
+      className="auth-page-shell overflow-y-auto bg-[#FBFCFF] text-[#080B2F] xl:h-[var(--app-viewport-height)] xl:overflow-hidden"
       style={{ fontFamily: '"Inter", sans-serif' }}
     >
-      <div className="mx-auto grid min-h-full max-w-[1920px] grid-cols-1 xl:h-full xl:grid-cols-[minmax(0,1.86fr)_minmax(480px,0.98fr)]">
+      <div className="mx-auto grid min-h-full max-w-[1920px] grid-cols-1 xl:h-full xl:grid-cols-[minmax(0,1fr)_minmax(34rem,34rem)]">
         <section
           ref={marketingScrollerRef}
           className="relative order-2 overflow-visible border-r border-[#E7EBF7] px-5 py-6 sm:px-8 lg:px-10 xl:order-1 xl:h-full xl:overflow-hidden xl:px-12"
@@ -826,7 +826,7 @@ const AuthPage = () => {
               <section className="min-w-0 animate-in fade-in duration-300">
                 <div className="max-w-[760px]">
                   <h1
-                    className="text-[clamp(3.5rem,6vw,7rem)] font-extrabold leading-[0.98] tracking-normal text-[#080B2F]"
+                    className="text-[clamp(3.25rem,5.6vw,6.25rem)] font-extrabold leading-[0.98] tracking-normal text-[#080B2F]"
                     style={{ fontFamily: '"Poppins", "Inter", sans-serif' }}
                   >
                     Code better.
@@ -1049,17 +1049,18 @@ const AuthPage = () => {
           </div>
         </section>
 
-        <aside className="relative order-1 flex min-h-[var(--app-viewport-height)] flex-col justify-center gap-5 bg-[linear-gradient(180deg,#FFFFFF_0%,#FBFAFF_100%)] px-5 py-5 sm:px-8 lg:px-14 xl:order-2 xl:h-full xl:min-h-0 xl:overflow-hidden xl:px-16">
+        <aside className="relative order-1 flex min-h-[var(--app-viewport-height)] flex-col justify-center gap-5 bg-[linear-gradient(180deg,#FFFFFF_0%,#FBFAFF_100%)] px-5 py-[var(--auth-page-padding)] sm:px-8 lg:px-10 xl:order-2 xl:h-full xl:min-h-0 xl:overflow-hidden">
           <div className="absolute right-8 top-6 hidden rounded-full bg-[#F2EAFE] px-7 py-2 text-sm font-extrabold text-[#080B2F] md:inline-flex">
             <span className="mr-6 text-[#7C2DFF]">v2.0</span>
             New & Improved
           </div>
 
-          <div className="mx-auto w-full max-w-[540px] rounded-[14px] border border-[#DDE3F2] bg-white p-[clamp(1rem,1.65vw,1.55rem)] shadow-[0_24px_80px_-48px_rgba(8,11,47,0.45)] xl:max-h-[calc(100vh-2rem)] xl:overflow-hidden">
+          <div className="auth-card-shell mx-auto rounded-[14px] border border-[#DDE3F2] bg-white p-[clamp(1rem,1.45vw,1.35rem)] shadow-[0_24px_80px_-48px_rgba(8,11,47,0.45)]">
+            <div className="auth-card-scroll w-full pr-1">
             <div className="mb-5">
               <p className="text-sm font-extrabold text-[#6D28D9]">{authEyebrow}</p>
               <h2
-                className="mt-2 text-[clamp(1.75rem,2.1vw,2.25rem)] font-extrabold leading-tight text-[#080B2F]"
+                className="auth-title mt-2 font-extrabold text-[#080B2F]"
                 style={{ fontFamily: '"Poppins", "Inter", sans-serif' }}
               >
                 {authTitle}
@@ -1386,6 +1387,7 @@ const AuthPage = () => {
                 </p>
               </form>
             )}
+            </div>
           </div>
         </aside>
       </div>

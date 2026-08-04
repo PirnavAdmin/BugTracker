@@ -9,8 +9,9 @@
     --app-navbar-height: 4rem;
     --app-content-spacing: 1.5rem;
     --app-viewport-height: 100vh;
-    --auth-page-padding: clamp(0.75rem, 2vh, 1.25rem);
-    --auth-card-max-width: min(100%, 430px);
+    --auth-page-padding: clamp(0.75rem, 1.6vh, 1.25rem);
+    --auth-card-width: 31.5rem;
+    --auth-card-max-width: min(100%, var(--auth-card-width));
     --background: 210 40% 98%;
     --foreground: 222 47% 11%;
     --card: 0 0% 100%;
@@ -48,6 +49,8 @@
     height: 100%;
     min-height: 100%;
     overflow: hidden;
+    text-size-adjust: 100%;
+    -webkit-text-size-adjust: 100%;
   }
 
   body {
@@ -56,6 +59,7 @@
     overflow: hidden;
     @apply bg-background text-foreground antialiased;
     font-family: "Manrope", sans-serif;
+    font-synthesis: none;
     background:
       radial-gradient(circle at top left, rgba(191, 219, 254, 0.55), transparent 28%),
       radial-gradient(circle at top right, rgba(224, 231, 255, 0.7), transparent 30%),
@@ -81,15 +85,16 @@
     max-width: 100%;
   }
 
+  input,
+  button,
+  select,
+  textarea {
+    font: inherit;
+  }
+
   @supports (height: 100dvh) {
     :root {
       --app-viewport-height: 100dvh;
-    }
-  }
-
-  @supports (height: 100svh) {
-    :root {
-      --app-viewport-height: 100svh;
     }
   }
 
@@ -1157,11 +1162,26 @@
   }
 
   .auth-card-scroll {
-    scrollbar-width: none;
+    flex: 1 1 auto;
+    max-height: 100%;
+    min-height: 0;
+    overflow-y: auto;
+    scrollbar-color: rgba(100, 116, 139, 0.38) transparent;
+    scrollbar-gutter: stable;
+    scrollbar-width: thin;
   }
 
   .auth-card-scroll::-webkit-scrollbar {
-    display: none;
+    width: 6px;
+  }
+
+  .auth-card-scroll::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .auth-card-scroll::-webkit-scrollbar-thumb {
+    background: rgba(100, 116, 139, 0.28);
+    border-radius: 999px;
   }
 
   .auth-page-shell {
@@ -1174,6 +1194,8 @@
   }
 
   .auth-card-shell {
+    display: flex;
+    overflow: hidden;
     width: var(--auth-card-max-width);
     max-height: calc(var(--app-viewport-height) - (var(--auth-page-padding) * 2));
   }
@@ -1212,7 +1234,8 @@
 
 @media (max-width: 640px) {
   :root {
-    --auth-card-max-width: min(100%, 28rem);
+    --auth-card-width: 28rem;
+    --auth-card-max-width: min(100%, var(--auth-card-width));
   }
 
   .auth-card-shell {
