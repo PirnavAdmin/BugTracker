@@ -58,6 +58,18 @@ const buildPastedAttachmentName = (file, index) => {
     ? file.name
     : `pasted-attachment-${Date.now()}-${index + 1}.${extension}`;
 };
+const getClipboardImageFiles = (clipboardData) => {
+  const files = Array.from(clipboardData?.files || []).filter(isImageFile);
+
+  if (files.length) {
+    return files;
+  }
+
+  return Array.from(clipboardData?.items || [])
+    .filter((item) => item.kind === "file" && String(item.type || "").startsWith("image/"))
+    .map((item) => item.getAsFile())
+    .filter(Boolean);
+};
 
 const resolveProjectSelection = (defaultProjectId, projects = []) => {
   if (
@@ -517,7 +529,7 @@ const IssueComposer = ({
   };
 
   const handleAttachmentPaste = (event) => {
-    const pastedImages = Array.from(event.clipboardData?.files || []).filter(isImageFile);
+    const pastedImages = getClipboardImageFiles(event.clipboardData);
 
     if (!pastedImages.length) {
       return;
@@ -1205,9 +1217,6 @@ const IssueComposer = ({
                 />
                 {attachmentFiles.length ? (
                   <div className="space-y-3 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs leading-5 text-slate-600">
-                    <div className="font-medium">
-                      {attachmentFiles.map((file) => file.name).join(", ")}
-                    </div>
                     {attachmentPreviews.length ? (
                       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                         {attachmentPreviews.map((preview) => {
@@ -1228,16 +1237,13 @@ const IssueComposer = ({
                               className="h-44 w-full object-contain"
                               src={preview.url}
                             />
-                            <figcaption className="truncate border-t border-slate-200 px-2 py-1.5 text-[11px] font-medium text-slate-600">
-                              {preview.name}
-                            </figcaption>
                           </figure>
                           );
                         })}
                       </div>
                     ) : null}
                     <div className="flex flex-wrap gap-2">
-                      {attachmentFiles.map((file, fileIndex) => (
+                      {attachmentFiles.map((file, fileIndex) => !isImageFile(file) ? (
                         <span key={`${file.name}-${fileIndex}`} className="inline-flex max-w-full items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-700">
                           <span className="truncate">{file.name}</span>
                           <button
@@ -1249,7 +1255,7 @@ const IssueComposer = ({
                             x
                           </button>
                         </span>
-                      ))}
+                      ) : null)}
                     </div>
                   </div>
                 ) : null}
@@ -1454,9 +1460,6 @@ const IssueComposer = ({
                 />
                 {attachmentFiles.length ? (
                   <div className="space-y-3 rounded-2xl border border-slate-200 bg-white/80 px-3 py-2 text-xs leading-5 text-slate-600">
-                    <div className="font-medium">
-                      {attachmentFiles.map((file) => file.name).join(", ")}
-                    </div>
                     {attachmentPreviews.length ? (
                       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                         {attachmentPreviews.map((preview) => {
@@ -1477,16 +1480,13 @@ const IssueComposer = ({
                               className="h-48 w-full object-contain"
                               src={preview.url}
                             />
-                            <figcaption className="truncate border-t border-slate-200 px-3 py-2 text-[11px] font-medium text-slate-600">
-                              {preview.name}
-                            </figcaption>
                           </figure>
                           );
                         })}
                       </div>
                     ) : null}
                     <div className="flex flex-wrap gap-2">
-                      {attachmentFiles.map((file, fileIndex) => (
+                      {attachmentFiles.map((file, fileIndex) => !isImageFile(file) ? (
                         <span key={`${file.name}-${fileIndex}`} className="inline-flex max-w-full items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-700">
                           <span className="truncate">{file.name}</span>
                           <button
@@ -1498,7 +1498,7 @@ const IssueComposer = ({
                             x
                           </button>
                         </span>
-                      ))}
+                      ) : null)}
                     </div>
                   </div>
                 ) : null}
