@@ -8,7 +8,6 @@ import {
   Check,
   CheckCircle2,
   ChevronDown,
-  Code2,
   Eye,
   EyeOff,
   Info,
@@ -114,7 +113,7 @@ const pricingPlans = [
     price: "1499",
     suffix: "/user/month",
     action: "Contact Sales",
-    features: ["Everything in Business", "SSO & SCIM", "Dedicated Support", "On-premise Option", "Custom Integrations", "Advanced Security"],
+    features: ["Everything in Business", "Dedicated Support", "On-premise Option", "Custom Integrations", "Advanced Security"],
   },
 ];
 
@@ -1001,11 +1000,11 @@ const AuthPage = () => {
                   Governance, scale, and support for larger teams
                 </h2>
                 <p className="mt-5 max-w-[720px] text-base font-semibold leading-7 text-[#667196]">
-                  Configure secure workspaces with dedicated support, SSO readiness,
+                  Configure secure workspaces with dedicated support,
                   custom integrations, and audit-friendly project history.
                 </p>
-                <div className="mt-8 grid grid-cols-1 gap-4 sm:grid-cols-3">
-                  {["SSO & SCIM", "Dedicated Support", "Advanced Security"].map((item) => (
+                <div className="mt-8 grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  {["Dedicated Support", "Advanced Security"].map((item) => (
                     <div key={item} className="flex items-center gap-3 rounded-[10px] bg-white px-5 py-4 text-sm font-extrabold text-[#080B2F]">
                       <ShieldCheck className="h-5 w-5 text-[#6D28D9]" />
                       {item}
@@ -1374,14 +1373,6 @@ const AuthPage = () => {
                           <span className="bg-[#FFB900]" />
                         </span>
                         Microsoft
-                      </button>
-                      <button className="flex h-10 items-center justify-center gap-3 rounded-[8px] border border-[#DFE4F2] bg-white text-sm font-extrabold text-[#080B2F] shadow-sm transition hover:-translate-y-0.5 hover:border-violet-100 hover:shadow-md" type="button">
-                        <Code2 className="h-5 w-5" />
-                        GitHub
-                      </button>
-                      <button className="flex h-10 items-center justify-center gap-3 rounded-[8px] border border-[#DFE4F2] bg-white text-sm font-extrabold text-[#080B2F] shadow-sm transition hover:-translate-y-0.5 hover:border-violet-100 hover:shadow-md" type="button">
-                        <ShieldCheck className="h-5 w-5 text-[#6D28D9]" />
-                        SSO / SAML
                       </button>
                     </div>
                   </>
