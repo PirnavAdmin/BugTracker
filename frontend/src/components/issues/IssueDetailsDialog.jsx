@@ -7,12 +7,12 @@ import {
   Eye,
   FileText,
   ImageIcon,
+  Info,
   LoaderCircle,
   MessageSquareText,
   PencilLine,
   Trash2,
   UserCircle2,
-  Users2,
 } from "lucide-react";
 import {
   createComment,
@@ -360,6 +360,7 @@ const IssueDetailsDialog = ({
   const [previewLoadingId, setPreviewLoadingId] = useState("");
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
   const [isMoreDetailsOpen, setIsMoreDetailsOpen] = useState(false);
+  const [isIssueInfoOpen, setIsIssueInfoOpen] = useState(false);
   const [isReporterOwnershipOpen, setIsReporterOwnershipOpen] = useState(false);
   const commentTextareaRef = useRef(null);
 
@@ -769,6 +770,27 @@ const IssueDetailsDialog = ({
     (sum, worklog) => sum + Number(worklog.minutes || 0),
     0
   );
+  const issueDependencyText = issueDependency
+    ? formatDependencyLabel(issueDependency)
+    : issueDependencyId
+      ? "Linked work item"
+      : "No dependency";
+  const issueInfoRows = [
+    ["Project", issue.projectId?.name || "Unknown project"],
+    ["Team", issueTeamName],
+    ["Created", formatDateTime(issue.createdAt)],
+    ["Started", formatDateTime(issue.startedAt)],
+    ["Due", formatDueAt(issue.dueAt)],
+    ["Depends On", issueDependencyText],
+    ["Epic", issueEpicName],
+    ["Sprint", issueSprintName],
+    ["Sprint Goal", issueSprintGoal],
+    ["Story Owner", storyOwnerName],
+    ["Story Points", issue.storyPoints != null ? issue.storyPoints : "Not set"],
+    ["Estimated Time", formatMinutes(issue.timeEstimateMinutes)],
+    ["Logged Time", formatMinutes(issueLoggedMinutes)],
+    ["Remaining Time", formatMinutes(issue.remainingEstimateMinutes)],
+  ];
   const canChangeStatusForRole = Boolean(role) && canEditStatus;
   const canShowDeleteAction = canDeleteIssue && typeof onDeleteIssue === "function";
   const canChangeReporterOwnership = isBug && hasAdminPanelAccess(role);
@@ -1109,6 +1131,40 @@ const IssueDetailsDialog = ({
           contentClassName
         )}
       >
+        <button
+          type="button"
+          aria-expanded={isIssueInfoOpen}
+          aria-label="Show issue information"
+          className={cn(
+            "absolute right-16 top-4 z-[75] inline-flex h-9 w-9 items-center justify-center rounded-full border border-blue-200 bg-blue-50 text-blue-700 shadow-sm transition hover:bg-blue-100 hover:text-blue-900 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-2",
+            compactDrawer && "right-14 top-3"
+          )}
+          onClick={() => setIsIssueInfoOpen((current) => !current)}
+        >
+          <Info className="h-4 w-4" />
+        </button>
+        {isIssueInfoOpen ? (
+          <div
+            className={cn(
+              "absolute right-4 top-16 z-[74] w-[min(420px,calc(100vw-2rem))] rounded-2xl border border-blue-100 bg-white p-4 shadow-2xl",
+              compactDrawer && "right-3 top-14"
+            )}
+          >
+            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-blue-600">
+              Issue Information
+            </p>
+            <dl className="mt-3 divide-y divide-slate-100">
+              {issueInfoRows.map(([label, value]) => (
+                <div key={label} className="grid grid-cols-[130px_minmax(0,1fr)] gap-3 py-2 text-sm">
+                  <dt className="font-medium text-slate-500">{label}</dt>
+                  <dd className="min-w-0 break-words font-semibold text-slate-900">
+                    {value}
+                  </dd>
+                </div>
+              ))}
+            </dl>
+          </div>
+        ) : null}
         <DialogHeader
           className={cn(
             "sticky top-0 z-10 border-b border-slate-200/80 bg-white/95 px-4 py-3 pr-44 shadow-sm backdrop-blur-xl sm:px-6 sm:py-4 sm:pr-72",
@@ -1118,7 +1174,7 @@ const IssueDetailsDialog = ({
           {canMarkTaskComplete || canShowDeleteAction ? (
             <div
               className={cn(
-                "absolute right-16 top-3 flex items-center gap-2 sm:top-4",
+                "absolute right-28 top-3 flex items-center gap-2 sm:top-4",
                 compactDrawer && "hidden"
               )}
             >
@@ -1256,7 +1312,7 @@ const IssueDetailsDialog = ({
             </div>
 
             {isBug ? (
-              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
                 <div className="rounded-[24px] border border-blue-100 bg-blue-50 p-4 shadow-sm">
                   <p className="text-xs uppercase tracking-[0.22em] text-blue-600">
                     Module / Page
@@ -1287,22 +1343,6 @@ const IssueDetailsDialog = ({
                   </p>
                   <p className="mt-2 text-sm font-semibold text-gray-900">
                     {bugDetails.severity || "Not set"}
-                  </p>
-                </div>
-                <div className="rounded-[24px] border border-gray-200 bg-white p-4 shadow-sm">
-                  <p className="text-xs uppercase tracking-[0.22em] text-gray-500">
-                    Tester / QA Owner
-                  </p>
-                  <p className="mt-2 text-sm font-semibold text-gray-900">
-                    {testerOwnerName}
-                  </p>
-                </div>
-                <div className="rounded-[24px] border border-gray-200 bg-white p-4 shadow-sm">
-                  <p className="text-xs uppercase tracking-[0.22em] text-gray-500">
-                    Developer / Dev Lead
-                  </p>
-                  <p className="mt-2 text-sm font-semibold text-gray-900">
-                    {developerLead?.name || "Unassigned"}
                   </p>
                 </div>
               </div>
@@ -2032,145 +2072,6 @@ const IssueDetailsDialog = ({
                 </Button>
               </form>
             ) : null}
-
-            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-              <div className="rounded-[24px] border border-gray-200 bg-white p-4 shadow-sm">
-                <p className="text-xs uppercase tracking-[0.22em] text-gray-500">Project</p>
-                <p className="mt-2 text-sm font-semibold text-gray-900">
-                  {issue.projectId?.name || "Unknown project"}
-                </p>
-              </div>
-
-              <div className="rounded-[24px] border border-gray-200 bg-white p-4 shadow-sm">
-                <div className="flex items-center gap-2 text-xs uppercase tracking-[0.22em] text-gray-500">
-                  <Users2 className="h-3.5 w-3.5" />
-                  Team
-                </div>
-                <p className="mt-2 text-sm font-semibold text-gray-900">{issueTeamName}</p>
-              </div>
-
-              <div className="rounded-[24px] border border-gray-200 bg-white p-4 shadow-sm">
-                <div className="flex items-center gap-2 text-xs uppercase tracking-[0.22em] text-gray-500">
-                  <CalendarDays className="h-3.5 w-3.5" />
-                  Created
-                </div>
-                <p className="mt-2 text-sm font-semibold text-gray-900">
-                  {formatDateTime(issue.createdAt)}
-                </p>
-              </div>
-
-              <div className="rounded-[24px] border border-gray-200 bg-white p-4 shadow-sm">
-                <div className="flex items-center gap-2 text-xs uppercase tracking-[0.22em] text-gray-500">
-                  <CalendarDays className="h-3.5 w-3.5" />
-                  Started
-                </div>
-                <p className="mt-2 text-sm font-semibold text-gray-900">
-                  {formatDateTime(issue.startedAt)}
-                </p>
-              </div>
-
-              <div className="rounded-[24px] border border-gray-200 bg-white p-4 shadow-sm">
-                <div className="flex items-center gap-2 text-xs uppercase tracking-[0.22em] text-gray-500">
-                  <CalendarDays className="h-3.5 w-3.5" />
-                  Due
-                </div>
-                <p className="mt-2 text-sm font-semibold text-gray-900">
-                  {formatDueAt(issue.dueAt)}
-                </p>
-              </div>
-
-              <div className="rounded-[24px] border border-gray-200 bg-white p-4 shadow-sm">
-                <p className="text-xs uppercase tracking-[0.22em] text-gray-500">
-                  Depends On
-                </p>
-                {issueDependency ? (
-                  <>
-                    <p className="mt-2 text-sm font-semibold text-gray-900">
-                      {formatDependencyLabel(issueDependency)}
-                    </p>
-                    <p className="mt-1 text-xs text-gray-500">
-                      {getIssueStatusLabel(issueDependency.status)}
-                    </p>
-                  </>
-                ) : issueDependencyId ? (
-                  <p className="mt-2 text-sm font-semibold text-gray-900">Linked work item</p>
-                ) : (
-                  <p className="mt-2 text-sm font-semibold text-gray-900">No dependency</p>
-                )}
-              </div>
-
-              <div className="rounded-[24px] border border-gray-200 bg-white p-4 shadow-sm">
-                <p className="text-xs uppercase tracking-[0.22em] text-gray-500">
-                  Epic
-                </p>
-                <p className="mt-2 text-sm font-semibold text-gray-900">
-                  {issueEpicName}
-                </p>
-              </div>
-
-              <div className="rounded-[24px] border border-gray-200 bg-white p-4 shadow-sm">
-                <p className="text-xs uppercase tracking-[0.22em] text-gray-500">
-                  Sprint
-                </p>
-                <p className="mt-2 text-sm font-semibold text-gray-900">
-                  {issueSprintName}
-                </p>
-              </div>
-
-              <div className="rounded-[24px] border border-gray-200 bg-white p-4 shadow-sm">
-                <p className="text-xs uppercase tracking-[0.22em] text-gray-500">
-                  Sprint Goal
-                </p>
-                <p className="mt-2 text-sm font-semibold text-gray-900">
-                  {issueSprintGoal}
-                </p>
-              </div>
-
-              <div className="rounded-[24px] border border-gray-200 bg-white p-4 shadow-sm">
-                <p className="text-xs uppercase tracking-[0.22em] text-gray-500">
-                  Story Owner
-                </p>
-                <p className="mt-2 text-sm font-semibold text-gray-900">
-                  {storyOwnerName}
-                </p>
-              </div>
-
-              <div className="rounded-[24px] border border-gray-200 bg-white p-4 shadow-sm">
-                <p className="text-xs uppercase tracking-[0.22em] text-gray-500">
-                  Story Points
-                </p>
-                <p className="mt-2 text-sm font-semibold text-gray-900">
-                  {issue.storyPoints != null ? issue.storyPoints : "Not set"}
-                </p>
-              </div>
-
-              <div className="rounded-[24px] border border-gray-200 bg-white p-4 shadow-sm">
-                <p className="text-xs uppercase tracking-[0.22em] text-gray-500">
-                  Estimated Time
-                </p>
-                <p className="mt-2 text-sm font-semibold text-gray-900">
-                  {formatMinutes(issue.timeEstimateMinutes)}
-                </p>
-              </div>
-
-              <div className="rounded-[24px] border border-gray-200 bg-white p-4 shadow-sm">
-                <p className="text-xs uppercase tracking-[0.22em] text-gray-500">
-                  Logged Time
-                </p>
-                <p className="mt-2 text-sm font-semibold text-gray-900">
-                  {formatMinutes(issueLoggedMinutes)}
-                </p>
-              </div>
-
-              <div className="rounded-[24px] border border-gray-200 bg-white p-4 shadow-sm">
-                <p className="text-xs uppercase tracking-[0.22em] text-gray-500">
-                  Remaining Time
-                </p>
-                <p className="mt-2 text-sm font-semibold text-gray-900">
-                  {formatMinutes(issue.remainingEstimateMinutes)}
-                </p>
-              </div>
-            </div>
 
             {isBug ? (
               <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
