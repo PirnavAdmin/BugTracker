@@ -22,7 +22,6 @@ import {
   Sparkles,
   User,
   Users,
-  Video,
 } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import pirnavLogo from "@/assets/pirnav-logo.png";
@@ -105,7 +104,7 @@ const pricingPlans = [
     suffix: "/user/month",
     action: "Start Free Trial",
     popular: true,
-    features: ["Unlimited Users", "Unlimited Projects", "Unlimited Issues", "100 GB Storage", "Meeting Recording", "Custom Workflows", "SLA & Priorities"],
+    features: ["Up to 150 Users", "Unlimited Projects", "Unlimited Issues", "100 GB Storage", "Individual Developer Reports", "Custom Workflows", "SLA & Priorities"],
   },
   {
     name: "Enterprise",
@@ -121,9 +120,9 @@ const pricingPlans = [
 
 const addOns = [
   { title: "Extra Storage", text: "Starts at Rs49/month", icon: Shield },
-  { title: "Meeting Recording", text: "Rs199/month", icon: Video },
   { title: "Advanced Analytics", text: "Rs149/month", icon: BarChart3 },
   { title: "Priority Support", text: "Rs249/month", icon: Phone },
+  { title: "Extra Projects", text: "Rs99/month", icon: CalendarDays },
 ];
 
 const trustBadges = [
@@ -896,11 +895,11 @@ const AuthPage = () => {
                         key={plan.name}
                         className={cn(
                           "relative flex min-h-[360px] flex-col rounded-[10px] border bg-white p-5 shadow-[0_18px_50px_-36px_rgba(8,11,47,0.4)]",
-                          plan.popular ? "border-[#8A2BFF] ring-1 ring-[#8A2BFF]" : "border-[#DDE3F2]"
+                          plan.popular ? "border-[#8A2BFF] pt-9 ring-1 ring-[#8A2BFF]" : "border-[#DDE3F2]"
                         )}
                       >
                         {plan.popular ? (
-                          <div className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-t-[8px] bg-[linear-gradient(100deg,#7C2DFF,#A433FF)] px-6 py-1.5 text-xs font-extrabold uppercase text-white">
+                          <div className="absolute left-1/2 top-0 -translate-x-1/2 -translate-y-1/2 rounded-[8px] bg-[linear-gradient(100deg,#7C2DFF,#A433FF)] px-6 py-2 text-center text-xs font-extrabold uppercase leading-tight text-white shadow-[0_14px_28px_-18px_rgba(124,45,255,0.8)]">
                             Most Popular
                           </div>
                         ) : null}
