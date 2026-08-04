@@ -17,7 +17,6 @@ import {
   Mail,
   MessageSquare,
   Phone,
-  Presentation,
   Shield,
   ShieldCheck,
   Sparkles,
@@ -27,7 +26,6 @@ import {
 } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import pirnavLogo from "@/assets/pirnav-logo.png";
-import workspacePreview from "@/assets/auth/bug-tracker-workspace-login.png";
 import UserAvatar from "@/components/shared/UserAvatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -1259,32 +1257,6 @@ const AuthPage = () => {
               </form>
             )}
           </div>
-
-          {mode === "login" ? (
-            <div className="mx-auto flex w-full max-w-[600px] flex-col gap-6 rounded-[14px] border border-[#ECEBFA] bg-[#F4F0FF] p-6 shadow-[0_20px_70px_-50px_rgba(109,40,217,0.55)] sm:flex-row sm:items-center">
-              <div className="flex-1">
-                <h3 className="text-lg font-extrabold text-[#080B2F]">Try CureCode free for 14 days</h3>
-                <ul className="mt-4 space-y-3 text-sm font-semibold text-[#455079]">
-                  {["Full access to all Business features", "Invite your whole team", "Cancel anytime, risk-free"].map((item) => (
-                    <li key={item} className="flex items-center gap-2">
-                      <Check className="h-4 w-4 text-[#7C2DFF]" />
-                      {item}
-                    </li>
-                  ))}
-                </ul>
-                <button className="mt-5 h-11 rounded-[8px] bg-[linear-gradient(100deg,#8428E8,#A62BFF)] px-9 text-sm font-extrabold text-white shadow-[0_16px_36px_-18px_rgba(109,40,217,0.8)]" type="button" onClick={() => setMode("register")}>
-                  Start Free Trial
-                </button>
-                <p className="mt-3 inline-flex rounded-full bg-white/70 px-4 py-1.5 text-xs font-bold text-[#667196]">No credit card required</p>
-              </div>
-              <div className="relative aspect-[4/3] w-full overflow-hidden rounded-[10px] border border-white/80 bg-white shadow-[0_20px_55px_-34px_rgba(8,11,47,0.55)] sm:w-56">
-                <img src={workspacePreview} alt="CureCode workspace preview" className="h-full w-full object-cover object-left-top" />
-                <div className="absolute bottom-5 right-5 grid h-16 w-16 place-items-center rounded-full bg-[conic-gradient(from_90deg,#1178F2,#7C2DFF,#28D4AE,#1178F2)] text-white shadow-lg">
-                  <Presentation className="h-7 w-7" />
-                </div>
-              </div>
-            </div>
-          ) : null}
         </aside>
       </div>
     </main>
