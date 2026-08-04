@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   ClipboardList,
@@ -52,6 +52,12 @@ const defaultTypeOptions = ISSUE_TYPE_OPTIONS;
 const DEFAULT_ATTACHMENT_ACCEPT =
   "image/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.log,.csv,.json,.xml,.zip";
 const isImageFile = (file) => String(file?.type || "").startsWith("image/");
+const buildPastedAttachmentName = (file, index) => {
+  const extension = String(file?.type || "").split("/")[1] || "png";
+  return file?.name && file.name !== "image.png"
+    ? file.name
+    : `pasted-attachment-${Date.now()}-${index + 1}.${extension}`;
+};
 
 const resolveProjectSelection = (defaultProjectId, projects = []) => {
   if (
@@ -178,8 +184,10 @@ const IssueComposer = ({
   );
   const [error, setError] = useState("");
   const [attachmentFiles, setAttachmentFiles] = useState([]);
+  const [attachmentNote, setAttachmentNote] = useState("");
   const [isUploadingAttachments, setIsUploadingAttachments] = useState(false);
   const [attachmentPreviews, setAttachmentPreviews] = useState([]);
+  const attachmentInputRef = useRef(null);
 
   const selectedProject = useMemo(
     () => findProjectById(projects, formData.projectId),
@@ -504,6 +512,42 @@ const IssueComposer = ({
   ]);
   const isSubmitPending = isPending || isUploadingAttachments;
 
+  const handleAttachmentFileChange = (event) => {
+    setAttachmentFiles(Array.from(event.target.files || []));
+  };
+
+  const handleAttachmentPaste = (event) => {
+    const pastedImages = Array.from(event.clipboardData?.files || []).filter(isImageFile);
+
+    if (!pastedImages.length) {
+      return;
+    }
+
+    event.preventDefault();
+
+    const renamedImages = pastedImages.map((file, index) =>
+      new File([file], buildPastedAttachmentName(file, index), {
+        type: file.type || "image/png",
+      })
+    );
+
+    setAttachmentFiles((current) => [...current, ...renamedImages]);
+
+    if (attachmentInputRef.current) {
+      attachmentInputRef.current.value = "";
+    }
+  };
+
+  const removeAttachmentFile = (indexToRemove) => {
+    setAttachmentFiles((current) =>
+      current.filter((_, fileIndex) => fileIndex !== indexToRemove)
+    );
+
+    if (attachmentInputRef.current) {
+      attachmentInputRef.current.value = "";
+    }
+  };
+
   const applyModuleOwnership = (moduleName) => {
     const ownership = moduleOwnerships.find(
       (item) =>
@@ -570,7 +614,9 @@ const IssueComposer = ({
 
       const createdIssue = await onSubmit({
         title: formData.title.trim(),
-        description: formData.description.trim(),
+        description: [formData.description.trim(), attachmentNote.trim()]
+          .filter(Boolean)
+          .join("\n\nAttachment notes:\n"),
         type: formData.type,
         status: isBugType ? ISSUE_STATUS.NEW : formData.status,
         priority: formData.priority,
@@ -635,6 +681,7 @@ const IssueComposer = ({
         })
       );
       setAttachmentFiles([]);
+      setAttachmentNote("");
     } catch (submitError) {
       setError(
         submitError.response?.data?.message || "Unable to create the work item."
@@ -1140,13 +1187,20 @@ const IssueComposer = ({
                   Attachments
                 </span>
                 <Input
+                  ref={attachmentInputRef}
                   type="file"
                   multiple
                   accept={attachmentAccept}
                   className="h-10 rounded-xl border-slate-300 bg-white px-3 text-sm shadow-none file:mr-3 file:rounded-lg file:border-0 file:bg-slate-100 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-slate-700"
-                  onChange={(event) =>
-                    setAttachmentFiles(Array.from(event.target.files || []))
-                  }
+                  onChange={handleAttachmentFileChange}
+                  disabled={isSubmitPending}
+                />
+                <Textarea
+                  className="min-h-[74px] resize-y rounded-xl border-slate-300 bg-white px-3 py-2 text-sm shadow-none focus-visible:border-blue-500 focus-visible:ring-blue-500/20"
+                  placeholder="Write attachment notes or paste an image here"
+                  value={attachmentNote}
+                  onChange={(event) => setAttachmentNote(event.target.value)}
+                  onPaste={handleAttachmentPaste}
                   disabled={isSubmitPending}
                 />
                 {attachmentFiles.length ? (
@@ -1156,8 +1210,19 @@ const IssueComposer = ({
                     </div>
                     {attachmentPreviews.length ? (
                       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                        {attachmentPreviews.map((preview) => (
-                          <figure key={preview.url} className="overflow-hidden rounded-xl border border-slate-200 bg-slate-50">
+                        {attachmentPreviews.map((preview) => {
+                          const fileIndex = attachmentFiles.findIndex((file) => file.name === preview.name);
+
+                          return (
+                          <figure key={preview.url} className="relative overflow-hidden rounded-xl border border-slate-200 bg-slate-50">
+                            <button
+                              aria-label={`Remove ${preview.name}`}
+                              className="absolute right-2 top-2 z-10 grid h-7 w-7 place-items-center rounded-full bg-white/95 text-base font-bold leading-none text-slate-600 shadow transition hover:bg-rose-50 hover:text-rose-600"
+                              type="button"
+                              onClick={() => removeAttachmentFile(fileIndex)}
+                            >
+                              x
+                            </button>
                             <img
                               alt={preview.name}
                               className="h-44 w-full object-contain"
@@ -1167,9 +1232,25 @@ const IssueComposer = ({
                               {preview.name}
                             </figcaption>
                           </figure>
-                        ))}
+                          );
+                        })}
                       </div>
                     ) : null}
+                    <div className="flex flex-wrap gap-2">
+                      {attachmentFiles.map((file, fileIndex) => (
+                        <span key={`${file.name}-${fileIndex}`} className="inline-flex max-w-full items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-700">
+                          <span className="truncate">{file.name}</span>
+                          <button
+                            aria-label={`Remove ${file.name}`}
+                            className="grid h-5 w-5 shrink-0 place-items-center rounded-full text-sm font-bold leading-none text-slate-500 transition hover:bg-rose-50 hover:text-rose-600"
+                            type="button"
+                            onClick={() => removeAttachmentFile(fileIndex)}
+                          >
+                            x
+                          </button>
+                        </span>
+                      ))}
+                    </div>
                   </div>
                 ) : null}
               </label>
@@ -1355,13 +1436,20 @@ const IssueComposer = ({
                   Attachments
                 </span>
                 <Input
+                  ref={attachmentInputRef}
                   type="file"
                   multiple
                   accept={attachmentAccept}
                   className="h-12 rounded-2xl border-slate-200 bg-white shadow-none file:mr-3 file:rounded-xl file:border-0 file:bg-slate-100 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-slate-700"
-                  onChange={(event) =>
-                    setAttachmentFiles(Array.from(event.target.files || []))
-                  }
+                  onChange={handleAttachmentFileChange}
+                  disabled={isSubmitPending}
+                />
+                <Textarea
+                  className="min-h-[86px] resize-y rounded-2xl border-slate-200 bg-white px-3 py-2 text-sm shadow-none focus-visible:border-blue-500 focus-visible:ring-blue-500/20"
+                  placeholder="Write attachment notes or paste an image here"
+                  value={attachmentNote}
+                  onChange={(event) => setAttachmentNote(event.target.value)}
+                  onPaste={handleAttachmentPaste}
                   disabled={isSubmitPending}
                 />
                 {attachmentFiles.length ? (
@@ -1371,8 +1459,19 @@ const IssueComposer = ({
                     </div>
                     {attachmentPreviews.length ? (
                       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                        {attachmentPreviews.map((preview) => (
-                          <figure key={preview.url} className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+                        {attachmentPreviews.map((preview) => {
+                          const fileIndex = attachmentFiles.findIndex((file) => file.name === preview.name);
+
+                          return (
+                          <figure key={preview.url} className="relative overflow-hidden rounded-2xl border border-slate-200 bg-white">
+                            <button
+                              aria-label={`Remove ${preview.name}`}
+                              className="absolute right-2 top-2 z-10 grid h-7 w-7 place-items-center rounded-full bg-white/95 text-base font-bold leading-none text-slate-600 shadow transition hover:bg-rose-50 hover:text-rose-600"
+                              type="button"
+                              onClick={() => removeAttachmentFile(fileIndex)}
+                            >
+                              x
+                            </button>
                             <img
                               alt={preview.name}
                               className="h-48 w-full object-contain"
@@ -1382,9 +1481,25 @@ const IssueComposer = ({
                               {preview.name}
                             </figcaption>
                           </figure>
-                        ))}
+                          );
+                        })}
                       </div>
                     ) : null}
+                    <div className="flex flex-wrap gap-2">
+                      {attachmentFiles.map((file, fileIndex) => (
+                        <span key={`${file.name}-${fileIndex}`} className="inline-flex max-w-full items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-700">
+                          <span className="truncate">{file.name}</span>
+                          <button
+                            aria-label={`Remove ${file.name}`}
+                            className="grid h-5 w-5 shrink-0 place-items-center rounded-full text-sm font-bold leading-none text-slate-500 transition hover:bg-rose-50 hover:text-rose-600"
+                            type="button"
+                            onClick={() => removeAttachmentFile(fileIndex)}
+                          >
+                            x
+                          </button>
+                        </span>
+                      ))}
+                    </div>
                   </div>
                 ) : null}
               </label>
