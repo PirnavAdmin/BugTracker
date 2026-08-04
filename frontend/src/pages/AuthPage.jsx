@@ -134,6 +134,14 @@ const trustBadges = [
   ["GDPR Compliant", "Your data is safe", ShieldCheck],
 ];
 
+const navItems = [
+  { label: "Features", sectionId: "features", hasMenu: true },
+  { label: "Pricing", sectionId: "pricing" },
+  { label: "Resources", sectionId: "resources", hasMenu: true },
+  { label: "Enterprise", sectionId: "enterprise" },
+  { label: "Contact Sales", sectionId: "contact" },
+];
+
 const getSafeRedirectPath = (search = "") => {
   const redirect = new URLSearchParams(search).get("redirect") || "";
 
@@ -303,6 +311,8 @@ const AuthPage = () => {
   const [showResetPassword, setShowResetPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
   const [rememberedLogin, setRememberedLogin] = useState(() => readRememberedLogin());
+  const [activeSection, setActiveSection] = useState("features");
+  const [registerStep, setRegisterStep] = useState("profile");
   const marketingScrollerRef = useRef(null);
   const sectionRefs = useRef({});
   const isAdminRoute = location.pathname === ADMIN_ROUTE_PATH;
@@ -324,6 +334,7 @@ const AuthPage = () => {
     }
 
     const top = sectionNode.offsetTop - 24;
+    setActiveSection(sectionId);
     scrollerNode.scrollTo({
       top,
       behavior: options.behavior || "smooth",
@@ -442,6 +453,31 @@ const AuthPage = () => {
 
     return () => window.clearInterval(timerId);
   }, [sectionOrder]);
+
+  useEffect(() => {
+    const scrollerNode = marketingScrollerRef.current;
+
+    if (!scrollerNode) {
+      return undefined;
+    }
+
+    const handleScroll = () => {
+      const currentTop = scrollerNode.scrollTop;
+      const nextActiveSection = sectionOrder.reduce((activeId, sectionId) => {
+        const sectionTop = sectionRefs.current[sectionId]?.offsetTop || 0;
+        return sectionTop - 100 <= currentTop ? sectionId : activeId;
+      }, sectionOrder[0]);
+
+      if (nextActiveSection !== activeSection) {
+        setActiveSection(nextActiveSection);
+      }
+    };
+
+    scrollerNode.addEventListener("scroll", handleScroll, { passive: true });
+    handleScroll();
+
+    return () => scrollerNode.removeEventListener("scroll", handleScroll);
+  }, [activeSection, sectionOrder]);
 
   const passwordResetRequestMutation = useMutation({
     mutationFn: requestPasswordReset,
@@ -595,7 +631,44 @@ const AuthPage = () => {
     setFieldErrors({});
     setSuccessMessage("");
     setShowPassword(false);
+    setRegisterStep("profile");
     setMode((current) => (current === "login" ? "register" : "login"));
+  };
+
+  const openRegister = () => {
+    authMutation.reset();
+    setFieldErrors({});
+    setSuccessMessage("");
+    setShowPassword(false);
+    setRegisterStep("profile");
+    setMode("register");
+  };
+
+  const continueRegisterProfile = () => {
+    authMutation.reset();
+    setSuccessMessage("");
+
+    const errors = {};
+
+    if (!formData.fullName.trim()) {
+      errors.fullName = "Full name is required";
+    } else if (formData.fullName.trim().length < 2) {
+      errors.fullName = "Full name must be at least 2 characters long";
+    }
+
+    if (!formData.email.trim()) {
+      errors.email = "Email is required";
+    } else if (!emailRegex.test(formData.email.trim())) {
+      errors.email = "Please enter a valid email address";
+    }
+
+    if (Object.keys(errors).length) {
+      setFieldErrors(errors);
+      return;
+    }
+
+    setFieldErrors({});
+    setRegisterStep("security");
   };
 
   const handleSubmit = async (event) => {
@@ -750,22 +823,33 @@ const AuthPage = () => {
         >
           <div className="absolute inset-0 -z-10 bg-[radial-gradient(circle_at_18%_14%,rgba(37,99,235,0.08),transparent_28%),radial-gradient(circle_at_80%_18%,rgba(124,58,237,0.08),transparent_24%),linear-gradient(135deg,#FFFFFF_0%,#F7FAFF_54%,#FBF8FF_100%)]" />
 
-          <header className="sticky top-0 z-20 -mx-5 flex flex-wrap items-center justify-between gap-5 border-b border-[#E7EBF7]/70 bg-[#FBFCFF]/92 px-5 py-4 backdrop-blur sm:-mx-8 sm:px-8 lg:-mx-10 lg:px-10 xl:-mx-12 xl:px-12">
-            <img src={pirnavLogo} alt="CureCode" className="h-12 w-auto object-contain sm:h-14" />
-            <nav className="hidden items-center gap-10 text-[15px] font-extrabold text-[#080B2F] lg:flex">
-              <button className="inline-flex items-center gap-2 transition hover:text-[#6D28D9]" type="button" onClick={() => scrollToSection("features")}>
-                Features <ChevronDown className="h-4 w-4" />
-              </button>
-              <button className="transition hover:text-[#6D28D9]" type="button" onClick={() => scrollToSection("pricing")}>Pricing</button>
-              <button className="inline-flex items-center gap-2 transition hover:text-[#6D28D9]" type="button" onClick={() => scrollToSection("resources")}>
-                Resources <ChevronDown className="h-4 w-4" />
-              </button>
-              <button className="transition hover:text-[#6D28D9]" type="button" onClick={() => scrollToSection("enterprise")}>Enterprise</button>
-              <button className="transition hover:text-[#6D28D9]" type="button" onClick={() => scrollToSection("contact")}>Contact Sales</button>
+          <header className="flex flex-wrap items-center justify-between gap-5 py-2">
+            <img src={pirnavLogo} alt="CureCode" className="h-10 w-auto object-contain sm:h-11" />
+            <nav className="hidden items-center gap-8 text-[13px] font-extrabold text-[#080B2F] lg:flex xl:gap-10">
+              {navItems.map((item) => {
+                const isActive = activeSection === item.sectionId;
+
+                return (
+                  <button
+                    key={item.sectionId}
+                    className={cn(
+                      "inline-flex h-9 items-center gap-2 rounded-full px-3 transition",
+                      isActive
+                        ? "bg-[#F2EAFE] text-[#6D28D9]"
+                        : "text-[#080B2F] hover:bg-[#F7F4FF] hover:text-[#6D28D9]"
+                    )}
+                    type="button"
+                    onClick={() => scrollToSection(item.sectionId)}
+                  >
+                    {item.label}
+                    {item.hasMenu ? <ChevronDown className="h-3.5 w-3.5" /> : null}
+                  </button>
+                );
+              })}
             </nav>
           </header>
 
-          <div ref={setSectionRef("hero")} className="mt-10 max-w-[760px] lg:mt-14">
+          <div ref={setSectionRef("hero")} className="mt-8 max-w-[760px] lg:mt-12">
             <h1
               className="text-[clamp(3.5rem,6vw,7rem)] font-extrabold leading-[0.98] tracking-normal text-[#080B2F]"
               style={{ fontFamily: '"Poppins", "Inter", sans-serif' }}
@@ -865,7 +949,7 @@ const AuthPage = () => {
                       if (plan.name === "Enterprise") {
                         scrollToSection("contact");
                       } else {
-                        setMode("register");
+                        openRegister();
                       }
                     }}
                   >
@@ -909,7 +993,7 @@ const AuthPage = () => {
                 <p className="text-sm font-extrabold uppercase tracking-[0.14em] text-[#6D28D9]">Resources</p>
                 <h2 className="mt-2 text-2xl font-extrabold text-[#080B2F]">Everything your team needs to move work forward</h2>
               </div>
-              <button className="h-10 rounded-[8px] border border-[#8A2BFF] px-5 text-sm font-extrabold text-[#6D28D9] transition hover:bg-violet-50" type="button" onClick={() => setMode("register")}>
+              <button className="h-10 rounded-[8px] border border-[#8A2BFF] px-5 text-sm font-extrabold text-[#6D28D9] transition hover:bg-violet-50" type="button" onClick={openRegister}>
                 Explore Resources
               </button>
             </div>
@@ -961,7 +1045,7 @@ const AuthPage = () => {
                 <a className="inline-flex h-11 items-center justify-center rounded-[8px] bg-[linear-gradient(100deg,#8428E8,#1178F2)] px-6 text-sm font-extrabold text-white shadow-[0_16px_36px_-18px_rgba(109,40,217,0.8)]" href="mailto:sales@curecode.com">
                   Email Sales
                 </a>
-                <button className="h-11 rounded-[8px] border border-[#8A2BFF] px-6 text-sm font-extrabold text-[#6D28D9] transition hover:bg-violet-50" type="button" onClick={() => setMode("register")}>
+                <button className="h-11 rounded-[8px] border border-[#8A2BFF] px-6 text-sm font-extrabold text-[#6D28D9] transition hover:bg-violet-50" type="button" onClick={openRegister}>
                   Create Account
                 </button>
               </div>
@@ -989,7 +1073,7 @@ const AuthPage = () => {
             New & Improved
           </div>
 
-          <div className="mx-auto w-full max-w-[560px] rounded-[14px] border border-[#DDE3F2] bg-white p-[clamp(1.25rem,2.2vw,2.1rem)] shadow-[0_24px_80px_-48px_rgba(8,11,47,0.45)] xl:max-h-[calc(100vh-3rem)] xl:overflow-y-auto xl:[scrollbar-width:none] xl:[&::-webkit-scrollbar]:hidden">
+          <div className="mx-auto w-full max-w-[560px] rounded-[14px] border border-[#DDE3F2] bg-white p-[clamp(1.25rem,2.2vw,2.1rem)] shadow-[0_24px_80px_-48px_rgba(8,11,47,0.45)] xl:max-h-[calc(100vh-3rem)] xl:overflow-hidden">
             <div className="mb-7">
               <p className="text-base font-extrabold text-[#6D28D9]">{authEyebrow}</p>
               <h2
@@ -1019,25 +1103,35 @@ const AuthPage = () => {
                   </div>
                 ) : null}
 
-                <div className="space-y-2">
-                  <label className="text-sm font-extrabold text-[#080B2F]" htmlFor="reset-email">Email</label>
-                  <div className="relative">
-                    <Mail className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-[#8B94B8]" />
-                    <Input
-                      aria-invalid={Boolean(resetErrors.email)}
-                      autoComplete="email"
-                      className={cn(fieldClassName, resetErrors.email && "border-rose-300 focus-visible:border-rose-400")}
-                      disabled={isResetPending}
-                      id="reset-email"
-                      name="email"
-                      placeholder="name@company.com"
-                      type="email"
-                      value={resetForm.email}
-                      onChange={handleResetChange}
-                    />
+                {resetStep === "request" ? (
+                  <div className="space-y-2">
+                    <label className="text-sm font-extrabold text-[#080B2F]" htmlFor="reset-email">Email</label>
+                    <div className="relative">
+                      <Mail className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-[#8B94B8]" />
+                      <Input
+                        aria-invalid={Boolean(resetErrors.email)}
+                        autoComplete="email"
+                        className={cn(fieldClassName, resetErrors.email && "border-rose-300 focus-visible:border-rose-400")}
+                        disabled={isResetPending}
+                        id="reset-email"
+                        name="email"
+                        placeholder="name@company.com"
+                        type="email"
+                        value={resetForm.email}
+                        onChange={handleResetChange}
+                      />
+                    </div>
+                    {resetErrors.email ? <p className="text-sm font-semibold text-rose-500">{resetErrors.email}</p> : null}
                   </div>
-                  {resetErrors.email ? <p className="text-sm font-semibold text-rose-500">{resetErrors.email}</p> : null}
-                </div>
+                ) : (
+                  <div className="flex items-center gap-3 rounded-[10px] border border-[#E7EBF7] bg-[#FAFBFF] px-4 py-3">
+                    <Mail className="h-5 w-5 text-[#8B94B8]" />
+                    <div className="min-w-0">
+                      <p className="text-xs font-extrabold uppercase tracking-[0.12em] text-[#667196]">Reset email</p>
+                      <p className="truncate text-sm font-extrabold text-[#080B2F]">{resetForm.email}</p>
+                    </div>
+                  </div>
+                )}
 
                 {resetStep === "reset" ? (
                   <>
@@ -1127,7 +1221,18 @@ const AuthPage = () => {
                 </button>
               </form>
             ) : (
-              <form className="space-y-5" onSubmit={handleSubmit}>
+              <form
+                className="space-y-4"
+                onSubmit={(event) => {
+                  if (mode === "register" && registerStep === "profile") {
+                    event.preventDefault();
+                    continueRegisterProfile();
+                    return;
+                  }
+
+                  handleSubmit(event);
+                }}
+              >
                 {successMessage ? (
                   <div className="flex items-start gap-3 rounded-[10px] border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700">
                     <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
@@ -1136,53 +1241,102 @@ const AuthPage = () => {
                 ) : null}
 
                 {mode === "register" ? (
-                  <div className="space-y-2">
-                    <label className="text-sm font-extrabold text-[#080B2F]" htmlFor="fullName">Full name</label>
-                    <div className="relative">
-                      <User className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-[#8B94B8]" />
-                      <Input aria-invalid={Boolean(fieldErrors.fullName)} className={cn(fieldClassName, fieldErrors.fullName && "border-rose-300 focus-visible:border-rose-400")} disabled={authMutation.isPending} id="fullName" name="fullName" placeholder="Your name" value={formData.fullName} onChange={handleChange} />
-                    </div>
-                    {fieldErrors.fullName ? <p className="text-sm font-semibold text-rose-500">{fieldErrors.fullName}</p> : null}
+                  <div className="grid grid-cols-2 gap-3 rounded-[10px] bg-[#F7F8FE] p-1 text-sm font-extrabold">
+                    <button
+                      className={cn(
+                        "h-9 rounded-[8px] transition",
+                        registerStep === "profile" ? "bg-white text-[#6D28D9] shadow-sm" : "text-[#667196]"
+                      )}
+                      type="button"
+                      onClick={() => setRegisterStep("profile")}
+                    >
+                      Profile
+                    </button>
+                    <button
+                      className={cn(
+                        "h-9 rounded-[8px] transition",
+                        registerStep === "security" ? "bg-white text-[#6D28D9] shadow-sm" : "text-[#667196]"
+                      )}
+                      type="button"
+                      onClick={continueRegisterProfile}
+                    >
+                      Security
+                    </button>
                   </div>
                 ) : null}
 
-                <div className="space-y-2">
-                  <label className="text-sm font-extrabold text-[#080B2F]" htmlFor="email">Email</label>
-                  <div className="relative">
-                    <Mail className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-[#8B94B8]" />
-                    <Input aria-invalid={Boolean(fieldErrors.email)} autoComplete="email" className={cn(fieldClassName, fieldErrors.email && "border-rose-300 focus-visible:border-rose-400")} disabled={authMutation.isPending} id="email" name="email" placeholder="name@company.com" type="email" value={formData.email} onChange={handleChange} />
-                  </div>
-                  {fieldErrors.email ? <p className="text-sm font-semibold text-rose-500">{fieldErrors.email}</p> : null}
-                </div>
+                {mode === "register" && registerStep === "profile" ? (
+                  <>
+                    <div className="space-y-2">
+                      <label className="text-sm font-extrabold text-[#080B2F]" htmlFor="fullName">Full name</label>
+                      <div className="relative">
+                        <User className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-[#8B94B8]" />
+                        <Input aria-invalid={Boolean(fieldErrors.fullName)} className={cn(fieldClassName, fieldErrors.fullName && "border-rose-300 focus-visible:border-rose-400")} disabled={authMutation.isPending} id="fullName" name="fullName" placeholder="Your name" value={formData.fullName} onChange={handleChange} />
+                      </div>
+                      {fieldErrors.fullName ? <p className="text-sm font-semibold text-rose-500">{fieldErrors.fullName}</p> : null}
+                    </div>
 
-                <div className="space-y-2">
-                  <label className="text-sm font-extrabold text-[#080B2F]" htmlFor="password">Password</label>
-                  <div className="relative">
-                    <LockKeyhole className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-[#8B94B8]" />
-                    <Input aria-invalid={Boolean(fieldErrors.password)} autoComplete={mode === "login" ? "current-password" : "new-password"} className={cn(passwordFieldClassName, fieldErrors.password && "border-rose-300 focus-visible:border-rose-400")} disabled={authMutation.isPending} id="password" name="password" placeholder="Enter your password" type={showPassword ? "text" : "password"} value={formData.password} onChange={handleChange} />
-                    <button aria-label={showPassword ? "Hide password" : "Show password"} className="absolute right-3 top-1/2 grid h-9 w-9 -translate-y-1/2 place-items-center rounded-full text-[#667196] transition hover:bg-[#F4F6FC] hover:text-[#080B2F]" disabled={authMutation.isPending} type="button" onClick={() => setShowPassword((current) => !current)}>
-                      {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
-                    </button>
-                  </div>
-                  {fieldErrors.password ? <p className="text-sm font-semibold text-rose-500">{fieldErrors.password}</p> : null}
-                </div>
+                    <div className="space-y-2">
+                      <label className="text-sm font-extrabold text-[#080B2F]" htmlFor="email">Email</label>
+                      <div className="relative">
+                        <Mail className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-[#8B94B8]" />
+                        <Input aria-invalid={Boolean(fieldErrors.email)} autoComplete="email" className={cn(fieldClassName, fieldErrors.email && "border-rose-300 focus-visible:border-rose-400")} disabled={authMutation.isPending} id="email" name="email" placeholder="name@company.com" type="email" value={formData.email} onChange={handleChange} />
+                      </div>
+                      {fieldErrors.email ? <p className="text-sm font-semibold text-rose-500">{fieldErrors.email}</p> : null}
+                    </div>
 
-                {mode === "register" ? (
-                  <div className="space-y-2">
-                    <label className="text-sm font-extrabold text-[#080B2F]" htmlFor="role">Role</label>
-                    <select
-                      className="h-12 w-full rounded-[10px] border border-[#DFE4F2] bg-white px-4 text-[15px] font-semibold text-[#080B2F] shadow-[0_8px_22px_-18px_rgba(8,11,47,0.38)] transition focus:border-[#6D28D9] focus:outline-none focus:ring-4 focus:ring-violet-500/10"
-                      disabled={authMutation.isPending}
-                      id="role"
-                      name="role"
-                      value={formData.role}
-                      onChange={handleChange}
-                    >
-                      <option>Developer</option>
-                      <option>Tester</option>
-                      <option>Admin</option>
-                    </select>
-                  </div>
+                    <div className="space-y-2">
+                      <label className="text-sm font-extrabold text-[#080B2F]" htmlFor="role">Role</label>
+                      <select
+                        className="h-12 w-full rounded-[10px] border border-[#DFE4F2] bg-white px-4 text-[15px] font-semibold text-[#080B2F] shadow-[0_8px_22px_-18px_rgba(8,11,47,0.38)] transition focus:border-[#6D28D9] focus:outline-none focus:ring-4 focus:ring-violet-500/10"
+                        disabled={authMutation.isPending}
+                        id="role"
+                        name="role"
+                        value={formData.role}
+                        onChange={handleChange}
+                      >
+                        <option>Developer</option>
+                        <option>Tester</option>
+                        <option>Admin</option>
+                      </select>
+                    </div>
+
+                    <Button className="group h-12 w-full rounded-[8px] border-0 bg-[linear-gradient(100deg,#8428E8,#1178F2)] text-base font-extrabold text-white shadow-[0_18px_42px_-18px_rgba(109,40,217,0.75)] transition duration-300 hover:-translate-y-0.5" disabled={authMutation.isPending} type="button" onClick={continueRegisterProfile}>
+                      Continue
+                      <ArrowRight className="h-5 w-5 transition group-hover:translate-x-0.5" />
+                    </Button>
+                  </>
+                ) : null}
+
+                {(mode === "login" || registerStep === "security") ? (
+                  <>
+                    <div className="space-y-2">
+                      <label className="text-sm font-extrabold text-[#080B2F]" htmlFor="email">Email</label>
+                      <div className="relative">
+                        <Mail className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-[#8B94B8]" />
+                        <Input aria-invalid={Boolean(fieldErrors.email)} autoComplete="email" className={cn(fieldClassName, fieldErrors.email && "border-rose-300 focus-visible:border-rose-400")} disabled={authMutation.isPending || mode === "register"} id="email" name="email" placeholder="name@company.com" type="email" value={formData.email} onChange={handleChange} />
+                      </div>
+                      {fieldErrors.email ? <p className="text-sm font-semibold text-rose-500">{fieldErrors.email}</p> : null}
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-sm font-extrabold text-[#080B2F]" htmlFor="password">Password</label>
+                      <div className="relative">
+                        <LockKeyhole className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-[#8B94B8]" />
+                        <Input aria-invalid={Boolean(fieldErrors.password)} autoComplete={mode === "login" ? "current-password" : "new-password"} className={cn(passwordFieldClassName, fieldErrors.password && "border-rose-300 focus-visible:border-rose-400")} disabled={authMutation.isPending} id="password" name="password" placeholder={mode === "login" ? "Enter your password" : "Create a secure password"} type={showPassword ? "text" : "password"} value={formData.password} onChange={handleChange} />
+                        <button aria-label={showPassword ? "Hide password" : "Show password"} className="absolute right-3 top-1/2 grid h-9 w-9 -translate-y-1/2 place-items-center rounded-full text-[#667196] transition hover:bg-[#F4F6FC] hover:text-[#080B2F]" disabled={authMutation.isPending} type="button" onClick={() => setShowPassword((current) => !current)}>
+                          {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                        </button>
+                      </div>
+                      {fieldErrors.password ? <p className="text-sm font-semibold text-rose-500">{fieldErrors.password}</p> : null}
+                    </div>
+                  </>
+                ) : null}
+
+                {mode === "register" && registerStep === "security" ? (
+                  <button className="w-full rounded-[8px] px-3 py-2 text-sm font-extrabold text-[#6D28D9] transition hover:bg-violet-50" disabled={authMutation.isPending} type="button" onClick={() => setRegisterStep("profile")}>
+                    Back to profile
+                  </button>
                 ) : null}
 
                 {mode === "login" ? (
@@ -1198,7 +1352,7 @@ const AuthPage = () => {
                   </div>
                 ) : null}
 
-                {canUseDefaultPassword ? (
+                {canUseDefaultPassword && mode === "login" ? (
                   <button className="rounded-[8px] border border-violet-100 bg-violet-50 px-3 py-2 text-sm font-extrabold text-[#6D28D9] transition hover:border-violet-200 hover:bg-violet-100 disabled:cursor-wait disabled:opacity-70" disabled={authMutation.isPending} type="button" onClick={handleUseDefaultPassword}>
                     Use Default Password
                   </button>
@@ -1210,10 +1364,12 @@ const AuthPage = () => {
                   </div>
                 ) : null}
 
-                <Button className="group h-12 w-full rounded-[8px] border-0 bg-[linear-gradient(100deg,#8428E8,#1178F2)] text-base font-extrabold text-white shadow-[0_18px_42px_-18px_rgba(109,40,217,0.75)] transition duration-300 hover:-translate-y-0.5" disabled={authMutation.isPending} type="submit">
-                  {submitLabel}
-                  {authMutation.isPending ? <Sparkles className="h-5 w-5 animate-pulse" /> : <ArrowRight className="h-5 w-5 transition group-hover:translate-x-0.5" />}
-                </Button>
+                {(mode === "login" || registerStep === "security") ? (
+                  <Button className="group h-12 w-full rounded-[8px] border-0 bg-[linear-gradient(100deg,#8428E8,#1178F2)] text-base font-extrabold text-white shadow-[0_18px_42px_-18px_rgba(109,40,217,0.75)] transition duration-300 hover:-translate-y-0.5" disabled={authMutation.isPending} type="submit">
+                    {submitLabel}
+                    {authMutation.isPending ? <Sparkles className="h-5 w-5 animate-pulse" /> : <ArrowRight className="h-5 w-5 transition group-hover:translate-x-0.5" />}
+                  </Button>
+                ) : null}
 
                 {mode === "login" ? (
                   <>
