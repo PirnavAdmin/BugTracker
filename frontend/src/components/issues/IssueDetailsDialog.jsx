@@ -1255,6 +1255,59 @@ const IssueDetailsDialog = ({
               </div>
             </div>
 
+            {isBug ? (
+              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                <div className="rounded-[24px] border border-blue-100 bg-blue-50 p-4 shadow-sm">
+                  <p className="text-xs uppercase tracking-[0.22em] text-blue-600">
+                    Module / Page
+                  </p>
+                  <p className="mt-2 text-sm font-semibold text-gray-900">
+                    {bugDetails.moduleName || "Not mapped"}
+                  </p>
+                </div>
+                <div className="rounded-[24px] border border-violet-100 bg-violet-50 p-4 shadow-sm">
+                  <p className="text-xs uppercase tracking-[0.22em] text-violet-600">
+                    Bug Category
+                  </p>
+                  <p className="mt-2 text-sm font-semibold text-gray-900">
+                    {bugDetails.category || "Not selected"}
+                  </p>
+                </div>
+                <div className="rounded-[24px] border border-cyan-100 bg-cyan-50 p-4 shadow-sm">
+                  <p className="text-xs uppercase tracking-[0.22em] text-cyan-700">
+                    Affected Platform
+                  </p>
+                  <p className="mt-2 text-sm font-semibold text-gray-900">
+                    {bugDetails.affectedPlatform || "Not set"}
+                  </p>
+                </div>
+                <div className="rounded-[24px] border border-rose-100 bg-rose-50 p-4 shadow-sm">
+                  <p className="text-xs uppercase tracking-[0.22em] text-rose-500">
+                    Severity
+                  </p>
+                  <p className="mt-2 text-sm font-semibold text-gray-900">
+                    {bugDetails.severity || "Not set"}
+                  </p>
+                </div>
+                <div className="rounded-[24px] border border-gray-200 bg-white p-4 shadow-sm">
+                  <p className="text-xs uppercase tracking-[0.22em] text-gray-500">
+                    Tester / QA Owner
+                  </p>
+                  <p className="mt-2 text-sm font-semibold text-gray-900">
+                    {testerOwnerName}
+                  </p>
+                </div>
+                <div className="rounded-[24px] border border-gray-200 bg-white p-4 shadow-sm">
+                  <p className="text-xs uppercase tracking-[0.22em] text-gray-500">
+                    Developer / Dev Lead
+                  </p>
+                  <p className="mt-2 text-sm font-semibold text-gray-900">
+                    {developerLead?.name || "Unassigned"}
+                  </p>
+                </div>
+              </div>
+            ) : null}
+
             <div className="flex flex-wrap items-center justify-between gap-3 rounded-[24px] border border-slate-200 bg-slate-50 px-4 py-3">
               <div>
                 <p className="text-sm font-semibold text-slate-900">More Details</p>
@@ -2121,54 +2174,6 @@ const IssueDetailsDialog = ({
 
             {isBug ? (
               <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-                <div className="rounded-[24px] border border-blue-100 bg-blue-50 p-4 shadow-sm">
-                  <p className="text-xs uppercase tracking-[0.22em] text-blue-600">
-                    Module / Page
-                  </p>
-                  <p className="mt-2 text-sm font-semibold text-gray-900">
-                    {bugDetails.moduleName || "Not mapped"}
-                  </p>
-                </div>
-                <div className="rounded-[24px] border border-violet-100 bg-violet-50 p-4 shadow-sm">
-                  <p className="text-xs uppercase tracking-[0.22em] text-violet-600">
-                    Bug Category
-                  </p>
-                  <p className="mt-2 text-sm font-semibold text-gray-900">
-                    {bugDetails.category || "Not selected"}
-                  </p>
-                </div>
-                <div className="rounded-[24px] border border-cyan-100 bg-cyan-50 p-4 shadow-sm">
-                  <p className="text-xs uppercase tracking-[0.22em] text-cyan-700">
-                    Affected Platform
-                  </p>
-                  <p className="mt-2 text-sm font-semibold text-gray-900">
-                    {bugDetails.affectedPlatform || "Not set"}
-                  </p>
-                </div>
-                <div className="rounded-[24px] border border-rose-100 bg-rose-50 p-4 shadow-sm">
-                  <p className="text-xs uppercase tracking-[0.22em] text-rose-500">
-                    Severity
-                  </p>
-                  <p className="mt-2 text-sm font-semibold text-gray-900">
-                    {bugDetails.severity || "Not set"}
-                  </p>
-                </div>
-                <div className="rounded-[24px] border border-gray-200 bg-white p-4 shadow-sm">
-                  <p className="text-xs uppercase tracking-[0.22em] text-gray-500">
-                    Tester / QA Owner
-                  </p>
-                  <p className="mt-2 text-sm font-semibold text-gray-900">
-                    {testerOwnerName}
-                  </p>
-                </div>
-                <div className="rounded-[24px] border border-gray-200 bg-white p-4 shadow-sm">
-                  <p className="text-xs uppercase tracking-[0.22em] text-gray-500">
-                    Developer / Dev Lead
-                  </p>
-                  <p className="mt-2 text-sm font-semibold text-gray-900">
-                    {developerLead?.name || "Unassigned"}
-                  </p>
-                </div>
                 <div className="rounded-[24px] border border-gray-200 bg-white p-4 shadow-sm sm:col-span-2 xl:col-span-3">
                   <p className="text-xs uppercase tracking-[0.22em] text-gray-500">
                     Steps to Reproduce
