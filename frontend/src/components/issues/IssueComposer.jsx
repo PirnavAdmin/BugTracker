@@ -51,6 +51,7 @@ import {
 const defaultTypeOptions = ISSUE_TYPE_OPTIONS;
 const DEFAULT_ATTACHMENT_ACCEPT =
   "image/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.log,.csv,.json,.xml,.zip";
+const isImageFile = (file) => String(file?.type || "").startsWith("image/");
 
 const resolveProjectSelection = (defaultProjectId, projects = []) => {
   if (
@@ -178,6 +179,7 @@ const IssueComposer = ({
   const [error, setError] = useState("");
   const [attachmentFiles, setAttachmentFiles] = useState([]);
   const [isUploadingAttachments, setIsUploadingAttachments] = useState(false);
+  const [attachmentPreviews, setAttachmentPreviews] = useState([]);
 
   const selectedProject = useMemo(
     () => findProjectById(projects, formData.projectId),
@@ -239,6 +241,21 @@ const IssueComposer = ({
     [formData.teamId, selectedProjectWithTeams]
   );
   const isBugType = formData.type === "Bug";
+
+  useEffect(() => {
+    const previews = attachmentFiles
+      .filter(isImageFile)
+      .map((file) => ({
+        name: file.name,
+        url: URL.createObjectURL(file),
+      }));
+
+    setAttachmentPreviews(previews);
+
+    return () => {
+      previews.forEach((preview) => URL.revokeObjectURL(preview.url));
+    };
+  }, [attachmentFiles]);
   const testerOptions = useMemo(
     () =>
       projectMembers.filter((assignee) => assignee.role === "Tester").length
@@ -553,7 +570,7 @@ const IssueComposer = ({
 
       const createdIssue = await onSubmit({
         title: formData.title.trim(),
-        description: "",
+        description: formData.description.trim(),
         type: formData.type,
         status: isBugType ? ISSUE_STATUS.NEW : formData.status,
         priority: formData.priority,
@@ -593,6 +610,19 @@ const IssueComposer = ({
             }
           : {}),
       });
+
+      if (includeAttachments && onUploadAttachment && attachmentFiles.length) {
+        setIsUploadingAttachments(true);
+
+        await Promise.all(
+          attachmentFiles.map((file) =>
+            onUploadAttachment({
+              issueId: createdIssue._id,
+              file,
+            })
+          )
+        );
+      }
 
       setFormData(
         buildInitialState({
@@ -1120,8 +1150,26 @@ const IssueComposer = ({
                   disabled={isSubmitPending}
                 />
                 {attachmentFiles.length ? (
-                  <div className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs leading-5 text-slate-600">
-                    {attachmentFiles.map((file) => file.name).join(", ")}
+                  <div className="space-y-3 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs leading-5 text-slate-600">
+                    <div className="font-medium">
+                      {attachmentFiles.map((file) => file.name).join(", ")}
+                    </div>
+                    {attachmentPreviews.length ? (
+                      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                        {attachmentPreviews.map((preview) => (
+                          <figure key={preview.url} className="overflow-hidden rounded-xl border border-slate-200 bg-slate-50">
+                            <img
+                              alt={preview.name}
+                              className="h-44 w-full object-contain"
+                              src={preview.url}
+                            />
+                            <figcaption className="truncate border-t border-slate-200 px-2 py-1.5 text-[11px] font-medium text-slate-600">
+                              {preview.name}
+                            </figcaption>
+                          </figure>
+                        ))}
+                      </div>
+                    ) : null}
                   </div>
                 ) : null}
               </label>
@@ -1317,8 +1365,26 @@ const IssueComposer = ({
                   disabled={isSubmitPending}
                 />
                 {attachmentFiles.length ? (
-                  <div className="rounded-2xl border border-slate-200 bg-white/80 px-3 py-2 text-xs leading-5 text-slate-600">
-                    {attachmentFiles.map((file) => file.name).join(", ")}
+                  <div className="space-y-3 rounded-2xl border border-slate-200 bg-white/80 px-3 py-2 text-xs leading-5 text-slate-600">
+                    <div className="font-medium">
+                      {attachmentFiles.map((file) => file.name).join(", ")}
+                    </div>
+                    {attachmentPreviews.length ? (
+                      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                        {attachmentPreviews.map((preview) => (
+                          <figure key={preview.url} className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+                            <img
+                              alt={preview.name}
+                              className="h-48 w-full object-contain"
+                              src={preview.url}
+                            />
+                            <figcaption className="truncate border-t border-slate-200 px-3 py-2 text-[11px] font-medium text-slate-600">
+                              {preview.name}
+                            </figcaption>
+                          </figure>
+                        ))}
+                      </div>
+                    ) : null}
                   </div>
                 ) : null}
               </label>

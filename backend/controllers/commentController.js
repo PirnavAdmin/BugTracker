@@ -1,6 +1,7 @@
 const mongoose = require("mongoose");
 const Comment = require("../models/Comment");
 const Issue = require("../models/Issue");
+const IssueAttachment = require("../models/IssueAttachment");
 const Project = require("../models/Project");
 const { emitBugWorkflowEvent } = require("../socket");
 const asyncHandler = require("../utils/asyncHandler");
@@ -58,11 +59,15 @@ const getAccessibleIssue = async (user, issueId) => {
 };
 
 const createComment = asyncHandler(async (req, res) => {
-  const { issueId, text } = req.body;
+  const { issueId, text, attachmentIds = [] } = req.body;
+  const normalizedText = typeof text === "string" ? text.trim() : "";
+  const normalizedAttachmentIds = Array.isArray(attachmentIds)
+    ? attachmentIds.map((id) => String(id || "").trim()).filter(Boolean)
+    : [];
 
-  if (!issueId || !text) {
+  if (!issueId || (!normalizedText && !normalizedAttachmentIds.length)) {
     res.status(400);
-    throw new Error("Issue and comment text are required");
+    throw new Error("Issue and comment text or attachment is required");
   }
 
   if (!mongoose.isValidObjectId(issueId)) {
@@ -77,10 +82,32 @@ const createComment = asyncHandler(async (req, res) => {
     throw new Error("Issue not found or inaccessible");
   }
 
+  const invalidAttachmentId = normalizedAttachmentIds.find(
+    (attachmentId) => !mongoose.isValidObjectId(attachmentId)
+  );
+
+  if (invalidAttachmentId) {
+    res.status(400);
+    throw new Error("Invalid attachment id");
+  }
+
+  const commentAttachments = normalizedAttachmentIds.length
+    ? await IssueAttachment.find({
+        _id: { $in: normalizedAttachmentIds },
+        issueId: issue._id,
+      })
+    : [];
+
+  if (commentAttachments.length !== normalizedAttachmentIds.length) {
+    res.status(400);
+    throw new Error("One or more attachments do not belong to this issue");
+  }
+
   const comment = await Comment.create({
     issueId,
     userId: req.user._id,
-    comment: text.trim(),
+    comment: normalizedText,
+    attachments: normalizedAttachmentIds,
   });
   issue.updatedAt = new Date();
   issue.updatedBy = req.user._id;
@@ -118,6 +145,7 @@ const createComment = asyncHandler(async (req, res) => {
   ]);
 
   await comment.populate("userId", "name email role");
+  await comment.populate("attachments");
 
   if (getCanonicalIssueType(issue.type, "") === ISSUE_TYPES.BUG) {
     await populateIssueDocument(issue);
@@ -153,6 +181,7 @@ const getComments = asyncHandler(async (req, res) => {
     issueId: req.params.issueId,
   })
     .populate("userId", "name email role")
+    .populate("attachments")
     .sort({ createdAt: 1 });
 
   res.status(200).json(comments);

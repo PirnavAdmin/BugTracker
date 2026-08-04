@@ -134,6 +134,94 @@ const resolveProjectManager = (project = {}) => {
 };
 const isPreviewableImage = (attachment) =>
   String(attachment?.mimeType || "").toLowerCase().startsWith("image/");
+const isImageFile = (file) => String(file?.type || "").startsWith("image/");
+const buildPastedImageName = (file, index) => {
+  const extension = String(file?.type || "").split("/")[1] || "png";
+  return file?.name && file.name !== "image.png"
+    ? file.name
+    : `pasted-comment-image-${Date.now()}-${index + 1}.${extension}`;
+};
+
+const AttachmentImagePreview = ({
+  attachment,
+  issueId,
+  className = "",
+  imageClassName = "",
+  onClick,
+}) => {
+  const [imageUrl, setImageUrl] = useState("");
+  const [error, setError] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+
+  useEffect(() => {
+    if (!attachment?._id || !issueId || !isPreviewableImage(attachment)) {
+      return undefined;
+    }
+
+    let objectUrl = "";
+    let isCurrent = true;
+
+    const loadImage = async () => {
+      setIsLoading(true);
+      setError("");
+
+      try {
+        const blob = await fetchAttachmentBlob(attachment, issueId);
+        objectUrl = URL.createObjectURL(blob);
+
+        if (isCurrent) {
+          setImageUrl(objectUrl);
+        }
+      } catch (loadError) {
+        if (isCurrent) {
+          setError(loadError.response?.data?.message || "Unable to load image.");
+        }
+      } finally {
+        if (isCurrent) {
+          setIsLoading(false);
+        }
+      }
+    };
+
+    loadImage();
+
+    return () => {
+      isCurrent = false;
+
+      if (objectUrl) {
+        URL.revokeObjectURL(objectUrl);
+      }
+    };
+  }, [attachment, issueId]);
+
+  return (
+    <button
+      className={cn(
+        "group relative flex min-h-[190px] w-full items-center justify-center overflow-hidden rounded-2xl border border-slate-200 bg-slate-50 text-sm text-slate-500",
+        onClick && "cursor-zoom-in",
+        className
+      )}
+      disabled={!onClick || isLoading || Boolean(error)}
+      type="button"
+      onClick={onClick}
+    >
+      {isLoading ? (
+        <span className="inline-flex items-center gap-2">
+          <LoaderCircle className="h-4 w-4 animate-spin" />
+          Loading image
+        </span>
+      ) : error ? (
+        <span className="px-4 text-center text-rose-600">{error}</span>
+      ) : imageUrl ? (
+        <img
+          alt={attachment.fileName || "Attachment image"}
+          className={cn("max-h-[360px] w-full object-contain transition group-hover:scale-[1.01]", imageClassName)}
+          src={imageUrl}
+        />
+      ) : null}
+    </button>
+  );
+};
 
 const getBugDetailsDraft = (issue) => {
   const bugDetails = resolveBugDetails(issue);
@@ -262,6 +350,8 @@ const IssueDetailsDialog = ({
   const queryClient = useQueryClient();
   const { role } = useAuth();
   const [commentText, setCommentText] = useState("");
+  const [commentImageFiles, setCommentImageFiles] = useState([]);
+  const [commentImagePreviews, setCommentImagePreviews] = useState([]);
   const [selectedFile, setSelectedFile] = useState(null);
   const [detailDraft, setDetailDraft] = useState(buildDetailDraft(issue));
   const [detailsError, setDetailsError] = useState("");
@@ -355,6 +445,8 @@ const IssueDetailsDialog = ({
 
     setDetailDraft(buildDetailDraft(issue));
     setDetailsError("");
+    setCommentText("");
+    setCommentImageFiles([]);
     setSelectedFile(null);
     setActiveDetailTab("discussion");
     setPreviewAttachment(null);
@@ -363,6 +455,19 @@ const IssueDetailsDialog = ({
     setIsMoreDetailsOpen(false);
     setIsReporterOwnershipOpen(false);
   }, [issue]);
+
+  useEffect(() => {
+    const previews = commentImageFiles.map((file) => ({
+      name: file.name,
+      url: URL.createObjectURL(file),
+    }));
+
+    setCommentImagePreviews(previews);
+
+    return () => {
+      previews.forEach((preview) => URL.revokeObjectURL(preview.url));
+    };
+  }, [commentImageFiles]);
 
   useEffect(() => {
     const textarea = commentTextareaRef.current;
@@ -544,8 +649,12 @@ const IssueDetailsDialog = ({
     mutationFn: createComment,
     onSuccess: () => {
       setCommentText("");
+      setCommentImageFiles([]);
       queryClient.invalidateQueries({
         queryKey: ["comments", issue?._id],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["issue", issue?._id, "attachments"],
       });
     },
   });
@@ -571,14 +680,31 @@ const IssueDetailsDialog = ({
   const handleSubmitComment = async (event) => {
     event.preventDefault();
 
-    if (!commentText.trim()) {
+    if (!commentText.trim() && !commentImageFiles.length) {
       return;
     }
 
-    await createCommentMutation.mutateAsync({
-      issueId: issue._id,
-      text: commentText.trim(),
-    });
+    try {
+      setDetailsError("");
+      const uploadedAttachments = commentImageFiles.length
+        ? await Promise.all(
+            commentImageFiles.map((file) =>
+              uploadAttachmentMutation.mutateAsync({
+                issueId: issue._id,
+                file,
+              })
+            )
+          )
+        : [];
+
+      await createCommentMutation.mutateAsync({
+        issueId: issue._id,
+        text: commentText.trim(),
+        attachmentIds: uploadedAttachments.map((attachment) => attachment._id),
+      });
+    } catch (error) {
+      setDetailsError(error.response?.data?.message || "Unable to add comment.");
+    }
   };
 
   const handleCommentComposerKeyDown = async (event) => {
@@ -588,14 +714,29 @@ const IssueDetailsDialog = ({
 
     event.preventDefault();
 
-    if (!commentText.trim() || createCommentMutation.isPending) {
+    if ((!commentText.trim() && !commentImageFiles.length) || createCommentMutation.isPending) {
       return;
     }
 
-    await createCommentMutation.mutateAsync({
-      issueId: issue._id,
-      text: commentText.trim(),
-    });
+    await handleSubmitComment(event);
+  };
+
+  const handleCommentPaste = (event) => {
+    const files = Array.from(event.clipboardData?.files || []).filter(isImageFile);
+
+    if (!files.length) {
+      return;
+    }
+
+    event.preventDefault();
+
+    const renamedFiles = files.map((file, index) =>
+      new File([file], buildPastedImageName(file, index), {
+        type: file.type || "image/png",
+      })
+    );
+
+    setCommentImageFiles((current) => [...current, ...renamedFiles]);
   };
 
   if (!issue) {
@@ -678,22 +819,50 @@ const IssueDetailsDialog = ({
       <Textarea
         ref={commentTextareaRef}
         className="min-h-[140px] max-h-[320px] resize-none overflow-y-auto rounded-[20px] border-slate-200 bg-slate-50 text-base leading-7"
-        placeholder="Add a status update or implementation note"
+        placeholder="Add a status update, implementation note, or paste an image"
         value={commentText}
         onChange={(event) => setCommentText(event.target.value)}
         onKeyDown={(event) => {
           void handleCommentComposerKeyDown(event);
         }}
+        onPaste={handleCommentPaste}
       />
+      {commentImagePreviews.length ? (
+        <div className="grid gap-3 sm:grid-cols-2">
+          {commentImagePreviews.map((preview, index) => (
+            <figure key={preview.url} className="overflow-hidden rounded-2xl border border-blue-100 bg-blue-50/40">
+              <img
+                alt={preview.name}
+                className="h-44 w-full object-contain"
+                src={preview.url}
+              />
+              <figcaption className="flex items-center justify-between gap-2 border-t border-blue-100 bg-white px-3 py-2 text-xs">
+                <span className="min-w-0 truncate font-medium text-slate-700">{preview.name}</span>
+                <button
+                  className="shrink-0 rounded-lg px-2 py-1 font-semibold text-rose-600 transition hover:bg-rose-50"
+                  type="button"
+                  onClick={() =>
+                    setCommentImageFiles((current) =>
+                      current.filter((_, fileIndex) => fileIndex !== index)
+                    )
+                  }
+                >
+                  Remove
+                </button>
+              </figcaption>
+            </figure>
+          ))}
+        </div>
+      ) : null}
       <p className="text-xs text-slate-500">
-        Press <span className="font-semibold">Enter</span> to post and <span className="font-semibold">Shift + Enter</span> for a new line.
+        Press <span className="font-semibold">Enter</span> to post, <span className="font-semibold">Shift + Enter</span> for a new line, or paste an image to attach it.
       </p>
       <Button
         className="w-full"
-        disabled={createCommentMutation.isPending}
+        disabled={createCommentMutation.isPending || uploadAttachmentMutation.isPending}
         type="submit"
       >
-        {createCommentMutation.isPending ? "Posting..." : "Add Comment"}
+        {createCommentMutation.isPending || uploadAttachmentMutation.isPending ? "Posting..." : "Add Comment"}
       </Button>
     </form>
   );
@@ -725,9 +894,41 @@ const IssueDetailsDialog = ({
                     {formatDate(comment.createdAt)} at {formatTime(comment.createdAt)}
                   </span>
                 </div>
-                <p className="mt-2 rounded-2xl bg-slate-50 px-3 py-2 text-sm leading-6 text-gray-700">
-                  {comment.comment || comment.text}
-                </p>
+                {comment.comment || comment.text ? (
+                  <p className="mt-2 rounded-2xl bg-slate-50 px-3 py-2 text-sm leading-6 text-gray-700">
+                    {comment.comment || comment.text}
+                  </p>
+                ) : null}
+                {comment.attachments?.length ? (
+                  <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                    {comment.attachments.map((attachment) =>
+                      isPreviewableImage(attachment) ? (
+                        <figure key={attachment._id} className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+                          <AttachmentImagePreview
+                            attachment={attachment}
+                            issueId={issue._id}
+                            className="min-h-[180px] border-0"
+                            imageClassName="max-h-[260px]"
+                            onClick={() => setPreviewAttachment(attachment)}
+                          />
+                          <figcaption className="truncate border-t border-slate-200 px-3 py-2 text-xs font-medium text-slate-600">
+                            {attachment.fileName}
+                          </figcaption>
+                        </figure>
+                      ) : (
+                        <button
+                          key={attachment._id}
+                          className="flex items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-left text-xs font-semibold text-slate-700 transition hover:border-blue-200 hover:bg-blue-50"
+                          type="button"
+                          onClick={() => downloadAttachment(attachment, issue._id)}
+                        >
+                          <FileText className="h-4 w-4 text-blue-600" />
+                          <span className="min-w-0 truncate">{attachment.fileName}</span>
+                        </button>
+                      )
+                    )}
+                  </div>
+                ) : null}
               </div>
             </div>
           </div>
@@ -830,51 +1031,59 @@ const IssueDetailsDialog = ({
                 key={attachment._id}
                 className="rounded-[20px] border border-gray-200 bg-white p-3 text-sm shadow-sm"
               >
-                <div className="flex items-start gap-3">
-                  <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
-                    {canPreview ? (
-                      <ImageIcon className="h-5 w-5" />
-                    ) : (
-                      <FileText className="h-5 w-5" />
-                    )}
+                {canPreview ? (
+                  <div className="space-y-3">
+                    <AttachmentImagePreview
+                      attachment={attachment}
+                      issueId={issue._id}
+                      className="min-h-[240px]"
+                      imageClassName="max-h-[460px]"
+                      onClick={() => setPreviewAttachment(attachment)}
+                    />
+                    <div className="flex min-w-0 items-start gap-3">
+                      <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
+                        <ImageIcon className="h-5 w-5" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate font-semibold text-gray-900">
+                          {attachment.fileName}
+                        </p>
+                        <p className="mt-1 text-xs text-gray-500">
+                          {attachment.uploadedBy?.name || "Unknown user"} at{" "}
+                          {formatDateTime(attachment.createdAt)}
+                        </p>
+                      </div>
+                    </div>
                   </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate font-semibold text-gray-900">
-                      {attachment.fileName}
-                    </p>
-                    <p className="mt-1 text-xs text-gray-500">
-                      {attachment.uploadedBy?.name || "Unknown user"} at{" "}
-                      {formatDateTime(attachment.createdAt)}
-                    </p>
-                  </div>
-                </div>
-                <div className="mt-3 flex flex-wrap gap-2 pl-0 sm:pl-13">
-                  {canPreview ? (
+                ) : (
+                  <>
+                    <div className="flex items-start gap-3">
+                      <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
+                        <FileText className="h-5 w-5" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate font-semibold text-gray-900">
+                          {attachment.fileName}
+                        </p>
+                        <p className="mt-1 text-xs text-gray-500">
+                          {attachment.uploadedBy?.name || "Unknown user"} at{" "}
+                          {formatDateTime(attachment.createdAt)}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="mt-3">
                     <Button
                       className="h-9 rounded-xl px-3"
-                      disabled={previewLoadingId === attachment._id}
                       type="button"
                       variant="outline"
-                      onClick={() => setPreviewAttachment(attachment)}
+                      onClick={() => downloadAttachment(attachment, issue._id)}
                     >
-                      {previewLoadingId === attachment._id ? (
-                        <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />
-                      ) : (
-                        <Eye className="mr-2 h-4 w-4" />
-                      )}
-                      Preview
+                      <Download className="mr-2 h-4 w-4" />
+                      Download
                     </Button>
-                  ) : null}
-                  <Button
-                    className="h-9 rounded-xl px-3"
-                    type="button"
-                    variant="outline"
-                    onClick={() => downloadAttachment(attachment, issue._id)}
-                  >
-                    <Download className="mr-2 h-4 w-4" />
-                    Download
-                  </Button>
-                </div>
+                    </div>
+                  </>
+                )}
               </div>
             );
           })

@@ -18,9 +18,13 @@ const commentSchema = new Schema(
     },
     comment: {
       type: String,
-      required: [true, "Comment is required"],
       trim: true,
-      minlength: [1, "Comment cannot be empty"],
+      default: "",
+    },
+    attachments: {
+      type: [Schema.Types.ObjectId],
+      ref: "IssueAttachment",
+      default: [],
     },
     createdAt: {
       type: Date,
