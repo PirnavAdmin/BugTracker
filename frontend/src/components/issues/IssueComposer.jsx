@@ -52,23 +52,104 @@ const defaultTypeOptions = ISSUE_TYPE_OPTIONS;
 const DEFAULT_ATTACHMENT_ACCEPT =
   "image/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.log,.csv,.json,.xml,.zip";
 const isImageFile = (file) => String(file?.type || "").startsWith("image/");
+const isLikelyImageFile = (file) =>
+  isImageFile(file) || /\.(png|jpe?g|gif|webp|bmp|svg)$/i.test(String(file?.name || ""));
 const buildPastedAttachmentName = (file, index) => {
   const extension = String(file?.type || "").split("/")[1] || "png";
   return file?.name && file.name !== "image.png"
     ? file.name
     : `pasted-attachment-${Date.now()}-${index + 1}.${extension}`;
 };
-const getClipboardImageFiles = (clipboardData) => {
-  const files = Array.from(clipboardData?.files || []).filter(isImageFile);
+const getExtensionFromMimeType = (mimeType = "") =>
+  ({
+    "image/jpeg": "jpg",
+    "image/png": "png",
+    "image/gif": "gif",
+    "image/webp": "webp",
+    "image/bmp": "bmp",
+    "image/svg+xml": "svg",
+  })[String(mimeType || "").toLowerCase()] || "png";
+const fileFromDataUrl = (dataUrl, index) => {
+  const match = String(dataUrl || "").match(/^data:([^;,]+)(;base64)?,(.*)$/i);
+
+  if (!match) {
+    return null;
+  }
+
+  const mimeType = match[1] || "image/png";
+  const isBase64 = Boolean(match[2]);
+  const payload = match[3] || "";
+  const binary = isBase64 ? atob(payload) : decodeURIComponent(payload);
+  const bytes = new Uint8Array(binary.length);
+
+  for (let byteIndex = 0; byteIndex < binary.length; byteIndex += 1) {
+    bytes[byteIndex] = binary.charCodeAt(byteIndex);
+  }
+
+  return new File(
+    [bytes],
+    `pasted-document-image-${Date.now()}-${index + 1}.${getExtensionFromMimeType(mimeType)}`,
+    { type: mimeType }
+  );
+};
+const getImageUrlsFromHtml = (html = "") => {
+  const container = document.createElement("div");
+  container.innerHTML = html;
+
+  return Array.from(container.querySelectorAll("img"))
+    .map((image) => image.getAttribute("src") || "")
+    .filter(Boolean);
+};
+const getClipboardAttachmentFiles = async (clipboardData) => {
+  const files = Array.from(clipboardData?.files || []);
 
   if (files.length) {
     return files;
   }
 
-  return Array.from(clipboardData?.items || [])
-    .filter((item) => item.kind === "file" && String(item.type || "").startsWith("image/"))
+  const itemFiles = Array.from(clipboardData?.items || [])
+    .filter((item) => item.kind === "file")
     .map((item) => item.getAsFile())
     .filter(Boolean);
+
+  if (itemFiles.length) {
+    return itemFiles;
+  }
+
+  const html = clipboardData?.getData?.("text/html") || "";
+  const imageUrls = getImageUrlsFromHtml(html);
+  const dataUrlFiles = imageUrls
+    .filter((url) => /^data:image\//i.test(url))
+    .map(fileFromDataUrl)
+    .filter(Boolean);
+
+  if (dataUrlFiles.length) {
+    return dataUrlFiles;
+  }
+
+  const remoteImageUrls = imageUrls.filter((url) => /^https?:\/\//i.test(url));
+  const remoteFiles = await Promise.all(
+    remoteImageUrls.map(async (url, index) => {
+      try {
+        const response = await fetch(url);
+        const blob = await response.blob();
+
+        if (!blob.type.startsWith("image/")) {
+          return null;
+        }
+
+        return new File(
+          [blob],
+          `pasted-document-image-${Date.now()}-${index + 1}.${getExtensionFromMimeType(blob.type)}`,
+          { type: blob.type }
+        );
+      } catch (error) {
+        return null;
+      }
+    })
+  );
+
+  return remoteFiles.filter(Boolean);
 };
 
 const resolveProjectSelection = (defaultProjectId, projects = []) => {
@@ -533,29 +614,29 @@ const IssueComposer = ({
     setAttachmentPasteHint("");
   };
 
-  const handleAttachmentPaste = (event) => {
+  const handleAttachmentPaste = async (event) => {
     if (event.defaultPrevented) {
-      return;
-    }
-
-    const pastedImages = getClipboardImageFiles(event.clipboardData);
-
-    if (!pastedImages.length) {
-      setAttachmentPasteHint("No image found in clipboard. Copy a screenshot or image, then paste here.");
       return;
     }
 
     event.preventDefault();
     event.stopPropagation();
 
-    const renamedImages = pastedImages.map((file, index) =>
+    const pastedAttachments = await getClipboardAttachmentFiles(event.clipboardData);
+
+    if (!pastedAttachments.length) {
+      setAttachmentPasteHint("No image or file was found in clipboard. Copy the image itself, then paste here.");
+      return;
+    }
+
+    const renamedImages = pastedAttachments.map((file, index) =>
       new File([file], buildPastedAttachmentName(file, index), {
-        type: file.type || "image/png",
+        type: file.type || (isLikelyImageFile(file) ? "image/png" : "application/octet-stream"),
       })
     );
 
     setAttachmentFiles((current) => [...current, ...renamedImages]);
-    setAttachmentPasteHint(`${renamedImages.length} screenshot${renamedImages.length === 1 ? "" : "s"} added.`);
+    setAttachmentPasteHint(`${renamedImages.length} pasted item${renamedImages.length === 1 ? "" : "s"} added.`);
 
     if (attachmentInputRef.current) {
       attachmentInputRef.current.value = "";
