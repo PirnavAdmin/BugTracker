@@ -26,9 +26,7 @@ import {
   downloadAttachment,
 } from "@/lib/api";
 import {
-  BUG_ALTERNATE_TRANSITIONS,
   BUG_SEVERITY_OPTIONS,
-  BUG_STATUS_FLOW,
   BUG_STATUS_OPTIONS,
   getIssueDisplayKey,
   getIssuePriorityVariant,
@@ -751,7 +749,6 @@ const IssueDetailsDialog = ({
   const issueTeamName = issue.teamId?.name || "No team assigned";
   const issueKey = getIssueDisplayKey(issue);
   const isBug = isBugIssue(issue);
-  const currentBugStatus = normalizeBugStatusForIssue(issue);
   const statusOptions =
     statusOptionsOverride?.length
       ? statusOptionsOverride
@@ -2160,49 +2157,31 @@ const IssueDetailsDialog = ({
             </div>
 
             {isBug ? (
-              <div className="space-y-4 rounded-[28px] border border-slate-200 bg-white p-5 shadow-[0_18px_50px_-42px_rgba(15,23,42,0.5)]">
-                <div>
-                  <p className="text-sm font-semibold text-slate-950">
-                    Defect Life Cycle
+              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                <div className="rounded-[24px] border border-blue-100 bg-blue-50 p-4 shadow-sm">
+                  <p className="text-xs uppercase tracking-[0.22em] text-blue-600">
+                    Module / Page
+                  </p>
+                  <p className="mt-2 text-sm font-semibold text-gray-900">
+                    {bugDetails.moduleName || "Not mapped"}
                   </p>
                 </div>
-                <div className="flex flex-wrap items-center gap-2">
-                  {BUG_STATUS_FLOW.map((status, index) => {
-                    const isActive = currentBugStatus === status;
-
-                    return (
-                      <div key={status} className="flex items-center gap-2">
-                        <span
-                          className={`rounded-full border px-3 py-1.5 text-xs font-semibold ${
-                            isActive
-                              ? "border-blue-200 bg-blue-50 text-blue-700"
-                              : "border-slate-200 bg-slate-50 text-slate-600"
-                          }`}
-                        >
-                          {getIssueStatusLabel(status)}
-                        </span>
-                        {index < BUG_STATUS_FLOW.length - 1 ? (
-                          <span className="text-slate-300">-&gt;</span>
-                        ) : null}
-                      </div>
-                    );
-                  })}
+                <div className="rounded-[24px] border border-violet-100 bg-violet-50 p-4 shadow-sm">
+                  <p className="text-xs uppercase tracking-[0.22em] text-violet-600">
+                    Bug Category
+                  </p>
+                  <p className="mt-2 text-sm font-semibold text-gray-900">
+                    {bugDetails.category || "Not selected"}
+                  </p>
                 </div>
-                <div className="grid gap-2 sm:grid-cols-2">
-                  {BUG_ALTERNATE_TRANSITIONS.map((transition) => (
-                    <div
-                      key={transition.join("-")}
-                      className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-3 py-2 text-xs font-medium text-slate-600"
-                    >
-                      {transition.map(getIssueStatusLabel).join(" -> ")}
-                    </div>
-                  ))}
+                <div className="rounded-[24px] border border-cyan-100 bg-cyan-50 p-4 shadow-sm">
+                  <p className="text-xs uppercase tracking-[0.22em] text-cyan-700">
+                    Affected Platform
+                  </p>
+                  <p className="mt-2 text-sm font-semibold text-gray-900">
+                    {bugDetails.affectedPlatform || "Not set"}
+                  </p>
                 </div>
-              </div>
-            ) : null}
-
-            {isBug ? (
-              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
                 <div className="rounded-[24px] border border-rose-100 bg-rose-50 p-4 shadow-sm">
                   <p className="text-xs uppercase tracking-[0.22em] text-rose-500">
                     Severity

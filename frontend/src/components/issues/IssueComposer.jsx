@@ -525,7 +525,10 @@ const IssueComposer = ({
   const isSubmitPending = isPending || isUploadingAttachments;
 
   const handleAttachmentFileChange = (event) => {
-    setAttachmentFiles(Array.from(event.target.files || []));
+    setAttachmentFiles((current) => [
+      ...current,
+      ...Array.from(event.target.files || []),
+    ]);
   };
 
   const handleAttachmentPaste = (event) => {
@@ -559,6 +562,12 @@ const IssueComposer = ({
       attachmentInputRef.current.value = "";
     }
   };
+
+  const attachmentComposerClass =
+    "space-y-3 rounded-2xl border border-blue-100 bg-gradient-to-br from-blue-50/70 to-white p-3 shadow-sm";
+  const attachmentDropClass =
+    "flex min-h-[96px] cursor-text flex-col justify-center rounded-xl border border-dashed border-blue-200 bg-white px-3 py-2 transition focus-within:border-blue-400 focus-within:ring-2 focus-within:ring-blue-500/15";
+  const attachmentPreviewGridClass = "grid gap-3 sm:grid-cols-2 lg:grid-cols-3";
 
   const applyModuleOwnership = (moduleName) => {
     const ownership = moduleOwnerships.find(
@@ -1193,32 +1202,47 @@ const IssueComposer = ({
             </div>
 
             {includeAttachments ? (
-              <label className={testerFieldGroupClass}>
+              <div className={testerFieldGroupClass}>
                 <span className={cn(testerFieldLabelClass, "flex items-center gap-2")}>
                   <FileText className="h-4 w-4 text-blue-600" />
-                  Attachments
+                  Message / Screenshots
                 </span>
-                <Input
-                  ref={attachmentInputRef}
-                  type="file"
-                  multiple
-                  accept={attachmentAccept}
-                  className="h-10 rounded-xl border-slate-300 bg-white px-3 text-sm shadow-none file:mr-3 file:rounded-lg file:border-0 file:bg-slate-100 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-slate-700"
-                  onChange={handleAttachmentFileChange}
-                  disabled={isSubmitPending}
-                />
-                <Textarea
-                  className="min-h-[74px] resize-y rounded-xl border-slate-300 bg-white px-3 py-2 text-sm shadow-none focus-visible:border-blue-500 focus-visible:ring-blue-500/20"
-                  placeholder="Write attachment notes or paste an image here"
-                  value={attachmentNote}
-                  onChange={(event) => setAttachmentNote(event.target.value)}
-                  onPaste={handleAttachmentPaste}
-                  disabled={isSubmitPending}
-                />
-                {attachmentFiles.length ? (
-                  <div className="space-y-3 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs leading-5 text-slate-600">
+                <div className={attachmentComposerClass}>
+                  <div className={attachmentDropClass}>
+                    <Textarea
+                      className="min-h-[70px] resize-y border-0 bg-transparent px-0 py-0 text-sm shadow-none focus-visible:ring-0"
+                      placeholder="Write a note for this attachment, then paste a screenshot here"
+                      value={attachmentNote}
+                      onChange={(event) => setAttachmentNote(event.target.value)}
+                      onPaste={handleAttachmentPaste}
+                      disabled={isSubmitPending}
+                    />
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Button
+                      className="h-9 rounded-xl px-3 text-xs"
+                      type="button"
+                      variant="outline"
+                      disabled={isSubmitPending}
+                      onClick={() => attachmentInputRef.current?.click()}
+                    >
+                      Choose Files
+                    </Button>
+                    <span className="text-xs font-medium text-slate-500">Paste screenshots directly into the message box.</span>
+                  </div>
+                  <Input
+                    ref={attachmentInputRef}
+                    type="file"
+                    multiple
+                    accept={attachmentAccept}
+                    className="sr-only"
+                    onChange={handleAttachmentFileChange}
+                    disabled={isSubmitPending}
+                  />
+                  {attachmentFiles.length ? (
+                  <div className="space-y-3 text-xs leading-5 text-slate-600">
                     {attachmentPreviews.length ? (
-                      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                      <div className={attachmentPreviewGridClass}>
                         {attachmentPreviews.map((preview) => {
                           const fileIndex = attachmentFiles.findIndex((file) => file.name === preview.name);
 
@@ -1258,8 +1282,9 @@ const IssueComposer = ({
                       ) : null)}
                     </div>
                   </div>
-                ) : null}
-              </label>
+                  ) : null}
+                </div>
+              </div>
             ) : null}
           </div>
         </div>
@@ -1436,32 +1461,47 @@ const IssueComposer = ({
             </div>
 
             {includeAttachments ? (
-              <label className="space-y-2">
+              <div className="space-y-2">
                 <span className="flex items-center gap-2 text-sm font-medium text-gray-700">
                   <FileText className="h-4 w-4 text-blue-600" />
-                  Attachments
+                  Message / Screenshots
                 </span>
-                <Input
-                  ref={attachmentInputRef}
-                  type="file"
-                  multiple
-                  accept={attachmentAccept}
-                  className="h-12 rounded-2xl border-slate-200 bg-white shadow-none file:mr-3 file:rounded-xl file:border-0 file:bg-slate-100 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-slate-700"
-                  onChange={handleAttachmentFileChange}
-                  disabled={isSubmitPending}
-                />
-                <Textarea
-                  className="min-h-[86px] resize-y rounded-2xl border-slate-200 bg-white px-3 py-2 text-sm shadow-none focus-visible:border-blue-500 focus-visible:ring-blue-500/20"
-                  placeholder="Write attachment notes or paste an image here"
-                  value={attachmentNote}
-                  onChange={(event) => setAttachmentNote(event.target.value)}
-                  onPaste={handleAttachmentPaste}
-                  disabled={isSubmitPending}
-                />
-                {attachmentFiles.length ? (
-                  <div className="space-y-3 rounded-2xl border border-slate-200 bg-white/80 px-3 py-2 text-xs leading-5 text-slate-600">
+                <div className={attachmentComposerClass}>
+                  <div className={attachmentDropClass}>
+                    <Textarea
+                      className="min-h-[82px] resize-y border-0 bg-transparent px-0 py-0 text-sm shadow-none focus-visible:ring-0"
+                      placeholder="Write a note for this attachment, then paste a screenshot here"
+                      value={attachmentNote}
+                      onChange={(event) => setAttachmentNote(event.target.value)}
+                      onPaste={handleAttachmentPaste}
+                      disabled={isSubmitPending}
+                    />
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Button
+                      className="h-9 rounded-xl px-3 text-xs"
+                      type="button"
+                      variant="outline"
+                      disabled={isSubmitPending}
+                      onClick={() => attachmentInputRef.current?.click()}
+                    >
+                      Choose Files
+                    </Button>
+                    <span className="text-xs font-medium text-slate-500">Paste screenshots directly into the message box.</span>
+                  </div>
+                  <Input
+                    ref={attachmentInputRef}
+                    type="file"
+                    multiple
+                    accept={attachmentAccept}
+                    className="sr-only"
+                    onChange={handleAttachmentFileChange}
+                    disabled={isSubmitPending}
+                  />
+                  {attachmentFiles.length ? (
+                  <div className="space-y-3 text-xs leading-5 text-slate-600">
                     {attachmentPreviews.length ? (
-                      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                      <div className={attachmentPreviewGridClass}>
                         {attachmentPreviews.map((preview) => {
                           const fileIndex = attachmentFiles.findIndex((file) => file.name === preview.name);
 
@@ -1501,8 +1541,9 @@ const IssueComposer = ({
                       ) : null)}
                     </div>
                   </div>
-                ) : null}
-              </label>
+                  ) : null}
+                </div>
+              </div>
             ) : null}
           </div>
         </div>
