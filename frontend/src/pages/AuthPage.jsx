@@ -792,7 +792,7 @@ const AuthPage = () => {
       <div className="mx-auto grid min-h-full max-w-[1920px] grid-cols-1 xl:h-full xl:grid-cols-[minmax(0,1.86fr)_minmax(480px,0.98fr)]">
         <section
           ref={marketingScrollerRef}
-          className="relative overflow-visible border-r border-[#E7EBF7] px-5 py-6 sm:px-8 lg:px-10 xl:h-full xl:overflow-hidden xl:px-12"
+          className="relative order-2 overflow-visible border-r border-[#E7EBF7] px-5 py-6 sm:px-8 lg:px-10 xl:order-1 xl:h-full xl:overflow-hidden xl:px-12"
         >
           <div className="absolute inset-0 -z-10 bg-[radial-gradient(circle_at_18%_14%,rgba(37,99,235,0.08),transparent_28%),radial-gradient(circle_at_80%_18%,rgba(124,58,237,0.08),transparent_24%),linear-gradient(135deg,#FFFFFF_0%,#F7FAFF_54%,#FBF8FF_100%)]" />
 
@@ -822,9 +822,9 @@ const AuthPage = () => {
             </nav>
           </header>
 
-          <div className="flex h-[calc(100%-4rem)] min-h-0 flex-col justify-center overflow-hidden">
+          <div className="flex min-h-[680px] min-w-0 flex-col justify-center overflow-visible xl:h-[calc(100%-4rem)] xl:min-h-0 xl:overflow-hidden">
             {activeSection === "features" ? (
-              <section className="animate-in fade-in duration-300">
+              <section className="min-w-0 animate-in fade-in duration-300">
                 <div className="max-w-[760px]">
                   <h1
                     className="text-[clamp(3.5rem,6vw,7rem)] font-extrabold leading-[0.98] tracking-normal text-[#080B2F]"
@@ -840,7 +840,7 @@ const AuthPage = () => {
                   </p>
                 </div>
 
-                <div className="mt-8 grid grid-cols-2 gap-4 lg:grid-cols-3 2xl:grid-cols-6">
+                <div className="mt-8 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-6">
                   {features.map((feature) => {
                     const Icon = feature.icon;
                     return (
@@ -858,7 +858,7 @@ const AuthPage = () => {
             ) : null}
 
             {activeSection === "pricing" ? (
-              <section className="animate-in fade-in duration-300">
+              <section className="min-w-0 animate-in fade-in duration-300">
                 <div className="flex flex-wrap items-center justify-between gap-4">
                   <h2 className="text-[clamp(1.5rem,2.1vw,2.35rem)] font-extrabold text-[#080B2F]">
                     Simple, flexible pricing for teams of all sizes
@@ -886,7 +886,7 @@ const AuthPage = () => {
                   </div>
                 </div>
 
-                <div className="mt-6 grid grid-cols-4 gap-4">
+                <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
                   {pricingPlans.map((plan) => {
                     const displayPlan = getDisplayedPlanPrice(plan);
 
@@ -950,7 +950,7 @@ const AuthPage = () => {
                 </div>
 
                 <div className="mt-5 rounded-[10px] border border-[#DDE3F2] bg-white p-4 shadow-[0_16px_42px_-34px_rgba(8,11,47,0.42)]">
-                  <div className="grid grid-cols-4 gap-3">
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
                     {addOns.map((addOn) => {
                       const Icon = addOn.icon;
                       return (
@@ -971,12 +971,12 @@ const AuthPage = () => {
             ) : null}
 
             {activeSection === "resources" ? (
-              <section className="animate-in fade-in duration-300">
+              <section className="min-w-0 animate-in fade-in duration-300">
                 <p className="text-sm font-extrabold uppercase tracking-[0.14em] text-[#6D28D9]">Resources</p>
-                <h2 className="mt-3 max-w-[760px] text-[clamp(2.4rem,4vw,4.5rem)] font-extrabold leading-tight text-[#080B2F]">
+                <h2 className="mt-3 max-w-[760px] text-[clamp(2rem,3.2vw,3.75rem)] font-extrabold leading-tight text-[#080B2F]">
                   Everything your team needs to move work forward
                 </h2>
-                <div className="mt-8 grid grid-cols-3 gap-5">
+                <div className="mt-8 grid grid-cols-1 gap-5 sm:grid-cols-3">
                   {[
                     ["Project playbooks", "Templates for sprint planning, bug triage, and release reviews."],
                     ["Team dashboards", "Shared views for owners, priorities, blockers, and delivery health."],
@@ -995,16 +995,16 @@ const AuthPage = () => {
             ) : null}
 
             {activeSection === "enterprise" ? (
-              <section className="animate-in fade-in duration-300 rounded-[10px] border border-[#DDE3F2] bg-[linear-gradient(135deg,#F8FAFF,#F4F0FF)] p-8 shadow-[0_16px_42px_-34px_rgba(8,11,47,0.42)]">
+              <section className="min-w-0 animate-in fade-in duration-300 rounded-[10px] border border-[#DDE3F2] bg-[linear-gradient(135deg,#F8FAFF,#F4F0FF)] p-8 shadow-[0_16px_42px_-34px_rgba(8,11,47,0.42)]">
                 <p className="text-sm font-extrabold uppercase tracking-[0.14em] text-[#6D28D9]">Enterprise</p>
-                <h2 className="mt-3 max-w-[780px] text-[clamp(2.4rem,4vw,4.5rem)] font-extrabold leading-tight text-[#080B2F]">
+                <h2 className="mt-3 max-w-[780px] text-[clamp(2rem,3.2vw,3.75rem)] font-extrabold leading-tight text-[#080B2F]">
                   Governance, scale, and support for larger teams
                 </h2>
                 <p className="mt-5 max-w-[720px] text-base font-semibold leading-7 text-[#667196]">
                   Configure secure workspaces with dedicated support, SSO readiness,
                   custom integrations, and audit-friendly project history.
                 </p>
-                <div className="mt-8 grid grid-cols-3 gap-4">
+                <div className="mt-8 grid grid-cols-1 gap-4 sm:grid-cols-3">
                   {["SSO & SCIM", "Dedicated Support", "Advanced Security"].map((item) => (
                     <div key={item} className="flex items-center gap-3 rounded-[10px] bg-white px-5 py-4 text-sm font-extrabold text-[#080B2F]">
                       <ShieldCheck className="h-5 w-5 text-[#6D28D9]" />
@@ -1016,9 +1016,9 @@ const AuthPage = () => {
             ) : null}
 
             {activeSection === "contact" ? (
-              <section className="animate-in fade-in duration-300 rounded-[10px] border border-[#DDE3F2] bg-white p-8 shadow-[0_16px_42px_-34px_rgba(8,11,47,0.42)]">
+              <section className="min-w-0 animate-in fade-in duration-300 rounded-[10px] border border-[#DDE3F2] bg-white p-8 shadow-[0_16px_42px_-34px_rgba(8,11,47,0.42)]">
                 <p className="text-sm font-extrabold uppercase tracking-[0.14em] text-[#6D28D9]">Contact Sales</p>
-                <h2 className="mt-3 max-w-[760px] text-[clamp(2.4rem,4vw,4.5rem)] font-extrabold leading-tight text-[#080B2F]">
+                <h2 className="mt-3 max-w-[760px] text-[clamp(2rem,3.2vw,3.75rem)] font-extrabold leading-tight text-[#080B2F]">
                   Plan the right CureCode workspace
                 </h2>
                 <p className="mt-5 max-w-[680px] text-base font-semibold leading-7 text-[#667196]">
@@ -1032,7 +1032,7 @@ const AuthPage = () => {
                     Create Account
                   </button>
                 </div>
-                <div className="mt-8 grid grid-cols-3 gap-4">
+                <div className="mt-8 grid grid-cols-1 gap-4 sm:grid-cols-3">
                   {trustBadges.slice(0, 3).map(([title, text, Icon]) => (
                     <div key={title} className="flex items-center gap-3 rounded-[10px] bg-[#F7F8FE] p-4">
                       <span className="grid h-10 w-10 place-items-center rounded-[8px] bg-white text-[#455079]">
@@ -1050,25 +1050,25 @@ const AuthPage = () => {
           </div>
         </section>
 
-        <aside className="relative flex min-h-[900px] flex-col justify-center gap-7 bg-[linear-gradient(180deg,#FFFFFF_0%,#FBFAFF_100%)] px-5 py-8 sm:px-8 lg:px-14 xl:h-full xl:min-h-0 xl:overflow-hidden xl:px-16">
-          <div className="absolute right-8 top-8 hidden rounded-full bg-[#F2EAFE] px-7 py-2 text-sm font-extrabold text-[#080B2F] md:inline-flex">
+        <aside className="relative order-1 flex min-h-[var(--app-viewport-height)] flex-col justify-center gap-5 bg-[linear-gradient(180deg,#FFFFFF_0%,#FBFAFF_100%)] px-5 py-5 sm:px-8 lg:px-14 xl:order-2 xl:h-full xl:min-h-0 xl:overflow-hidden xl:px-16">
+          <div className="absolute right-8 top-6 hidden rounded-full bg-[#F2EAFE] px-7 py-2 text-sm font-extrabold text-[#080B2F] md:inline-flex">
             <span className="mr-6 text-[#7C2DFF]">v2.0</span>
             New & Improved
           </div>
 
-          <div className="mx-auto w-full max-w-[560px] rounded-[14px] border border-[#DDE3F2] bg-white p-[clamp(1.25rem,2.2vw,2.1rem)] shadow-[0_24px_80px_-48px_rgba(8,11,47,0.45)] xl:max-h-[calc(100vh-3rem)] xl:overflow-hidden">
-            <div className="mb-7">
-              <p className="text-base font-extrabold text-[#6D28D9]">{authEyebrow}</p>
+          <div className="mx-auto w-full max-w-[540px] rounded-[14px] border border-[#DDE3F2] bg-white p-[clamp(1rem,1.65vw,1.55rem)] shadow-[0_24px_80px_-48px_rgba(8,11,47,0.45)] xl:max-h-[calc(100vh-2rem)] xl:overflow-hidden">
+            <div className="mb-5">
+              <p className="text-sm font-extrabold text-[#6D28D9]">{authEyebrow}</p>
               <h2
-                className="mt-3 text-[clamp(1.9rem,2.5vw,2.65rem)] font-extrabold leading-tight text-[#080B2F]"
+                className="mt-2 text-[clamp(1.75rem,2.1vw,2.25rem)] font-extrabold leading-tight text-[#080B2F]"
                 style={{ fontFamily: '"Poppins", "Inter", sans-serif' }}
               >
                 {authTitle}
               </h2>
-              <p className="mt-3 text-base font-semibold text-[#667196]">{authSubtitle}</p>
+              <p className="mt-2 text-sm font-semibold text-[#667196]">{authSubtitle}</p>
               {mode === "login" && rememberedLogin ? (
-                <div className="mt-5 flex items-center gap-3 rounded-[10px] border border-[#E7EBF7] bg-[#FAFBFF] px-4 py-3">
-                  <UserAvatar user={rememberedUser} className="h-10 w-10 shrink-0" />
+                <div className="mt-4 flex items-center gap-3 rounded-[10px] border border-[#E7EBF7] bg-[#FAFBFF] px-4 py-2.5">
+                  <UserAvatar user={rememberedUser} className="h-9 w-9 shrink-0" />
                   <div className="min-w-0">
                     <p className="truncate text-sm font-extrabold text-[#080B2F]">{rememberedUser?.name || rememberedLogin.email}</p>
                     <p className="truncate text-xs font-semibold text-[#667196]">Saved workspace login</p>
@@ -1078,7 +1078,7 @@ const AuthPage = () => {
             </div>
 
             {mode === "forgot" ? (
-              <form className="space-y-5" onSubmit={handlePasswordResetSubmit}>
+              <form className="space-y-3.5" onSubmit={handlePasswordResetSubmit}>
                 {successMessage ? (
                   <div className="flex items-start gap-3 rounded-[10px] border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700">
                     <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
@@ -1205,7 +1205,7 @@ const AuthPage = () => {
               </form>
             ) : (
               <form
-                className="space-y-4"
+                className="space-y-3.5"
                 onSubmit={(event) => {
                   if (mode === "register" && registerStep === "profile") {
                     event.preventDefault();
@@ -1250,7 +1250,7 @@ const AuthPage = () => {
 
                 {mode === "register" && registerStep === "profile" ? (
                   <>
-                    <div className="space-y-2">
+                    <div className="space-y-1.5">
                       <label className="text-sm font-extrabold text-[#080B2F]" htmlFor="fullName">Full name</label>
                       <div className="relative">
                         <User className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-[#8B94B8]" />
@@ -1259,7 +1259,7 @@ const AuthPage = () => {
                       {fieldErrors.fullName ? <p className="text-sm font-semibold text-rose-500">{fieldErrors.fullName}</p> : null}
                     </div>
 
-                    <div className="space-y-2">
+                    <div className="space-y-1.5">
                       <label className="text-sm font-extrabold text-[#080B2F]" htmlFor="email">Email</label>
                       <div className="relative">
                         <Mail className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-[#8B94B8]" />
@@ -1268,7 +1268,7 @@ const AuthPage = () => {
                       {fieldErrors.email ? <p className="text-sm font-semibold text-rose-500">{fieldErrors.email}</p> : null}
                     </div>
 
-                    <div className="space-y-2">
+                    <div className="space-y-1.5">
                       <label className="text-sm font-extrabold text-[#080B2F]" htmlFor="role">Role</label>
                       <select
                         className="h-12 w-full rounded-[10px] border border-[#DFE4F2] bg-white px-4 text-[15px] font-semibold text-[#080B2F] shadow-[0_8px_22px_-18px_rgba(8,11,47,0.38)] transition focus:border-[#6D28D9] focus:outline-none focus:ring-4 focus:ring-violet-500/10"
@@ -1293,7 +1293,7 @@ const AuthPage = () => {
 
                 {(mode === "login" || registerStep === "security") ? (
                   <>
-                    <div className="space-y-2">
+                    <div className="space-y-1.5">
                       <label className="text-sm font-extrabold text-[#080B2F]" htmlFor="email">Email</label>
                       <div className="relative">
                         <Mail className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-[#8B94B8]" />
@@ -1302,7 +1302,7 @@ const AuthPage = () => {
                       {fieldErrors.email ? <p className="text-sm font-semibold text-rose-500">{fieldErrors.email}</p> : null}
                     </div>
 
-                    <div className="space-y-2">
+                    <div className="space-y-1.5">
                       <label className="text-sm font-extrabold text-[#080B2F]" htmlFor="password">Password</label>
                       <div className="relative">
                         <LockKeyhole className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-[#8B94B8]" />
@@ -1356,17 +1356,17 @@ const AuthPage = () => {
 
                 {mode === "login" ? (
                   <>
-                    <div className="flex items-center gap-4 py-1">
+                    <div className="flex items-center gap-4 py-0.5">
                       <span className="h-px flex-1 bg-[#E7EBF7]" />
                       <span className="text-xs font-extrabold uppercase tracking-[0.14em] text-[#8B94B8]">or continue with</span>
                       <span className="h-px flex-1 bg-[#E7EBF7]" />
                     </div>
-                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                      <button className="flex h-12 items-center justify-center gap-3 rounded-[8px] border border-[#DFE4F2] bg-white text-sm font-extrabold text-[#080B2F] shadow-sm transition hover:-translate-y-0.5 hover:border-violet-100 hover:shadow-md" type="button">
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                      <button className="flex h-10 items-center justify-center gap-3 rounded-[8px] border border-[#DFE4F2] bg-white text-sm font-extrabold text-[#080B2F] shadow-sm transition hover:-translate-y-0.5 hover:border-violet-100 hover:shadow-md" type="button">
                         <span className="grid h-5 w-5 place-items-center rounded-full border border-[#DFE4F2] text-sm font-extrabold text-[#1178F2]">G</span>
                         Google
                       </button>
-                      <button className="flex h-12 items-center justify-center gap-3 rounded-[8px] border border-[#DFE4F2] bg-white text-sm font-extrabold text-[#080B2F] shadow-sm transition hover:-translate-y-0.5 hover:border-violet-100 hover:shadow-md" type="button">
+                      <button className="flex h-10 items-center justify-center gap-3 rounded-[8px] border border-[#DFE4F2] bg-white text-sm font-extrabold text-[#080B2F] shadow-sm transition hover:-translate-y-0.5 hover:border-violet-100 hover:shadow-md" type="button">
                         <span className="grid h-5 w-5 grid-cols-2 gap-0.5">
                           <span className="bg-[#F25022]" />
                           <span className="bg-[#7FBA00]" />
@@ -1375,11 +1375,11 @@ const AuthPage = () => {
                         </span>
                         Microsoft
                       </button>
-                      <button className="flex h-12 items-center justify-center gap-3 rounded-[8px] border border-[#DFE4F2] bg-white text-sm font-extrabold text-[#080B2F] shadow-sm transition hover:-translate-y-0.5 hover:border-violet-100 hover:shadow-md" type="button">
+                      <button className="flex h-10 items-center justify-center gap-3 rounded-[8px] border border-[#DFE4F2] bg-white text-sm font-extrabold text-[#080B2F] shadow-sm transition hover:-translate-y-0.5 hover:border-violet-100 hover:shadow-md" type="button">
                         <Code2 className="h-5 w-5" />
                         GitHub
                       </button>
-                      <button className="flex h-12 items-center justify-center gap-3 rounded-[8px] border border-[#DFE4F2] bg-white text-sm font-extrabold text-[#080B2F] shadow-sm transition hover:-translate-y-0.5 hover:border-violet-100 hover:shadow-md" type="button">
+                      <button className="flex h-10 items-center justify-center gap-3 rounded-[8px] border border-[#DFE4F2] bg-white text-sm font-extrabold text-[#080B2F] shadow-sm transition hover:-translate-y-0.5 hover:border-violet-100 hover:shadow-md" type="button">
                         <ShieldCheck className="h-5 w-5 text-[#6D28D9]" />
                         SSO / SAML
                       </button>
