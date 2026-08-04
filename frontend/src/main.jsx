@@ -15,6 +15,17 @@ const queryClient = new QueryClient({
   },
 });
 
+const updateViewportHeight = () => {
+  const height = window.visualViewport?.height || window.innerHeight;
+  document.documentElement.style.setProperty("--app-viewport-height", `${height}px`);
+};
+
+if (typeof window !== "undefined") {
+  updateViewportHeight();
+  window.addEventListener("resize", updateViewportHeight);
+  window.addEventListener("orientationchange", updateViewportHeight);
+}
+
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>
     <BrowserRouter>
