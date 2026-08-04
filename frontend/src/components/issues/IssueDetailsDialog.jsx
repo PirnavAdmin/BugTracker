@@ -972,50 +972,6 @@ const IssueDetailsDialog = ({
         </Button>
       </div>
 
-      {previewAttachment ? (
-        <div className="rounded-[20px] border border-blue-100 bg-blue-50/50 p-3 shadow-sm">
-          <div className="mb-3 flex min-w-0 items-center justify-between gap-3">
-            <div className="min-w-0">
-              <p className="truncate text-sm font-semibold text-gray-900">
-                {previewAttachment.fileName || "Image preview"}
-              </p>
-              <p className="text-xs text-gray-500">Preview</p>
-            </div>
-            <Button
-              className="h-8 rounded-lg px-3 text-xs"
-              type="button"
-              variant="outline"
-              onClick={() => {
-                setPreviewAttachment(null);
-                setPreviewError("");
-                setPreviewImageUrl("");
-              }}
-            >
-              Close
-            </Button>
-          </div>
-
-          {previewLoadingId === previewAttachment._id ? (
-            <div className="flex min-h-[220px] items-center justify-center rounded-2xl border border-blue-100 bg-white text-sm text-gray-500">
-              <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />
-              Loading preview
-            </div>
-          ) : previewError ? (
-            <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-6 text-sm text-rose-700">
-              {previewError}
-            </div>
-          ) : previewImageUrl ? (
-            <div className="max-h-[62vh] overflow-auto rounded-2xl border border-blue-100 bg-white p-2">
-              <img
-                alt={previewAttachment.fileName || "Attachment preview"}
-                className="mx-auto max-h-[58vh] max-w-full rounded-xl object-contain"
-                src={previewImageUrl}
-              />
-            </div>
-          ) : null}
-        </div>
-      ) : null}
-
       <div className="space-y-3">
         {isAttachmentsLoading ? (
           <Skeleton className="h-16 w-full" />
@@ -1317,6 +1273,13 @@ const IssueDetailsDialog = ({
 
             {isMoreDetailsOpen ? (
               <>
+                <div className="rounded-[28px] border border-slate-200 bg-slate-50/80 p-5 shadow-[0_18px_50px_-42px_rgba(15,23,42,0.5)]">
+                  <div className="mb-4 flex items-center gap-2">
+                    <FileText className="h-4 w-4 text-blue-600" />
+                    <p className="font-semibold text-gray-900">Attachments</p>
+                  </div>
+                  {attachmentsPanel}
+                </div>
 
             {canEditCoreDetails ? (
               <form
@@ -2450,7 +2413,9 @@ const IssueDetailsDialog = ({
                       <FileText className="h-4 w-4 text-blue-600" />
                       <p className="font-semibold text-gray-900">Attachments</p>
                     </div>
-                    {attachmentsPanel}
+                    <p className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm leading-6 text-slate-600">
+                      Open Show Details on the left to review attached screenshots and files.
+                    </p>
                   </div>
                 ) : null}
 
@@ -2478,13 +2443,6 @@ const IssueDetailsDialog = ({
                   {commentComposer}
                   {commentsList}
                   <div className="rounded-[28px] border border-slate-200 bg-white/70 p-4 shadow-sm">
-                    <div className="mb-4 flex items-center gap-2">
-                      <FileText className="h-4 w-4 text-blue-600" />
-                      <p className="font-semibold text-gray-900">Attachments</p>
-                    </div>
-                    {attachmentsPanel}
-                  </div>
-                  <div className="rounded-[28px] border border-slate-200 bg-white/70 p-4 shadow-sm">
                     <p className="mb-4 font-semibold text-gray-900">Activity</p>
                     {historyPanel}
                   </div>
@@ -2493,6 +2451,50 @@ const IssueDetailsDialog = ({
             )}
           </section>
         </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+    <Dialog
+      open={Boolean(previewAttachment)}
+      onOpenChange={(open) => {
+        if (!open) {
+          setPreviewAttachment(null);
+          setPreviewError("");
+          setPreviewImageUrl("");
+        }
+      }}
+    >
+      <DialogContent
+        className="z-[90] h-[92vh] w-[94vw] max-w-[1440px] overflow-hidden rounded-3xl border-white/20 bg-slate-950 p-0 text-white shadow-2xl"
+        overlayClassName="z-[85] bg-black/80 backdrop-blur-sm"
+      >
+        <DialogHeader className="flex-row items-center justify-between border-b border-white/10 px-5 py-4 text-left">
+          <div className="min-w-0">
+            <DialogTitle className="truncate text-base text-white">
+              {previewAttachment?.fileName || "Attachment preview"}
+            </DialogTitle>
+            <DialogDescription className="text-slate-300">
+              Click outside or press Esc to close.
+            </DialogDescription>
+          </div>
+        </DialogHeader>
+        <div className="flex min-h-0 flex-1 items-center justify-center overflow-auto p-4">
+          {previewLoadingId === previewAttachment?._id ? (
+            <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/10 px-4 py-2 text-sm text-slate-200">
+              <LoaderCircle className="h-4 w-4 animate-spin" />
+              Loading preview
+            </div>
+          ) : previewError ? (
+            <div className="max-w-md rounded-2xl border border-rose-300/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-100">
+              {previewError}
+            </div>
+          ) : previewImageUrl ? (
+            <img
+              alt={previewAttachment?.fileName || "Attachment preview"}
+              className="max-h-full max-w-full object-contain"
+              src={previewImageUrl}
+            />
+          ) : null}
         </div>
       </DialogContent>
     </Dialog>
