@@ -839,11 +839,11 @@ const AuthPage = () => {
                   </p>
                 </div>
 
-                <div className="mt-8 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-6">
+                <div className="mt-8 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
                   {features.map((feature) => {
                     const Icon = feature.icon;
                     return (
-                      <div key={feature.title} className="min-h-[150px] rounded-[10px] border border-white bg-white/88 p-4 shadow-[0_16px_44px_-32px_rgba(8,11,47,0.42)]">
+                      <div key={feature.title} className="min-h-[150px] rounded-[10px] border border-white bg-white/88 p-4 shadow-[0_16px_44px_-32px_rgba(8,11,47,0.42)] xl:min-h-[142px]">
                         <div className={cn("mb-3 grid h-10 w-10 place-items-center rounded-[9px]", getFeatureTone(feature.tone))}>
                           <Icon className="h-5 w-5" />
                         </div>
@@ -1078,7 +1078,7 @@ const AuthPage = () => {
             </div>
 
             {mode === "forgot" ? (
-              <form className="space-y-3.5" onSubmit={handlePasswordResetSubmit}>
+              <form className="auth-form space-y-3.5" onSubmit={handlePasswordResetSubmit}>
                 {successMessage ? (
                   <div className="flex items-start gap-3 rounded-[10px] border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700">
                     <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
@@ -1205,7 +1205,7 @@ const AuthPage = () => {
               </form>
             ) : (
               <form
-                className="space-y-3.5"
+                className="auth-form space-y-3.5"
                 onSubmit={(event) => {
                   if (mode === "register" && registerStep === "profile") {
                     event.preventDefault();
