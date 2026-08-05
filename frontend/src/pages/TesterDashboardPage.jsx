@@ -616,6 +616,7 @@ const TesterDashboardPage = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [projectFilter, setProjectFilter] = useState("all");
   const [selectedQaProjectId, setSelectedQaProjectId] = useState("");
+  const [isQaProjectDropdownOpen, setIsQaProjectDropdownOpen] = useState(false);
   const [lastRefreshedAt, setLastRefreshedAt] = useState(() => new Date());
 
   const {
@@ -847,14 +848,14 @@ const TesterDashboardPage = () => {
   );
   const bugSummaryStats = useMemo(
     () => [
-      { label: "Total Reported", value: myReportedBugs.length, tone: "bg-blue-50 text-blue-700" },
+      { label: "Total Bugs", value: reportedIssues.length, tone: "bg-blue-50 text-blue-700" },
       { label: "In Progress", value: dashboardMetrics.inProgress, tone: "bg-indigo-50 text-indigo-700" },
       { label: "Critical", value: criticalBugsFound, tone: "bg-rose-50 text-rose-700" },
       { label: "Rejected", value: rejectedBugsCount, tone: "bg-orange-50 text-orange-700" },
       { label: "Ready For Q/A", value: readyForQaCount, tone: "bg-emerald-50 text-emerald-700" },
       { label: "Closed", value: dashboardMetrics.closed, tone: "bg-slate-100 text-slate-700" },
     ],
-    [criticalBugsFound, dashboardMetrics.closed, dashboardMetrics.inProgress, myReportedBugs.length, readyForQaCount, rejectedBugsCount]
+    [criticalBugsFound, dashboardMetrics.closed, dashboardMetrics.inProgress, readyForQaCount, rejectedBugsCount, reportedIssues.length]
   );
 
   const testingModules = ["Login", "Dashboard", "Reports", "Payment", "Attendance"];
@@ -1061,23 +1062,80 @@ const TesterDashboardPage = () => {
             {qaProjects.length ? (
               <div className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,0.78fr)_minmax(320px,0.42fr)]">
                 <section className="rounded-[18px] border border-blue-100 bg-white/78 p-4 shadow-sm">
-                  <label className="block">
+                  <div className="relative">
                     <span className="text-xs font-bold uppercase tracking-[0.12em] text-slate-500">
                       QA Project
                     </span>
-                    <select
-                      className="mt-2 h-11 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-800 outline-none transition focus:border-blue-300 focus:ring-2 focus:ring-blue-500/20"
-                      onChange={(event) => setSelectedQaProjectId(event.target.value)}
-                      value={selectedQaProjectId}
+                    <button
+                      aria-expanded={isQaProjectDropdownOpen}
+                      aria-haspopup="listbox"
+                      className="mt-2 flex h-11 w-full items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-3 text-left text-sm font-semibold text-slate-800 shadow-sm outline-none transition hover:border-blue-200 focus:border-blue-300 focus:ring-2 focus:ring-blue-500/20"
+                      onClick={() => setIsQaProjectDropdownOpen((open) => !open)}
+                      type="button"
                     >
-                      <option value="">Select a QA project</option>
-                      {qaProjects.map((project) => (
-                        <option key={project.id} value={project.id}>
-                          {project.name} - {project.status.label}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
+                      <span className={cn("min-w-0 truncate", !selectedQaProject && "text-slate-400")}>
+                        {selectedQaProject
+                          ? `${selectedQaProject.name} - ${selectedQaProject.status.label}`
+                          : "Select a QA project"}
+                      </span>
+                      <ChevronRight
+                        className={cn(
+                          "h-4 w-4 shrink-0 text-slate-400 transition",
+                          isQaProjectDropdownOpen && "rotate-90 text-blue-600"
+                        )}
+                      />
+                    </button>
+
+                    {isQaProjectDropdownOpen && (
+                      <div
+                        className="absolute left-0 right-0 top-[calc(100%+8px)] z-50 overflow-hidden rounded-2xl border border-blue-100 bg-white shadow-[0_24px_54px_-28px_rgba(15,23,42,0.34)]"
+                        role="listbox"
+                      >
+                        <button
+                          className="flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left text-sm font-semibold text-slate-500 transition hover:bg-blue-50"
+                          onClick={() => {
+                            setSelectedQaProjectId("");
+                            setIsQaProjectDropdownOpen(false);
+                          }}
+                          role="option"
+                          type="button"
+                        >
+                          Select a QA project
+                        </button>
+                        <div className="max-h-[292px] overflow-y-auto p-1">
+                          {qaProjects.map((project) => (
+                            <button
+                              className={cn(
+                                "flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2.5 text-left transition hover:bg-blue-50",
+                                selectedQaProjectId === project.id && "bg-blue-50"
+                              )}
+                              key={project.id}
+                              onClick={() => {
+                                setSelectedQaProjectId(project.id);
+                                setIsQaProjectDropdownOpen(false);
+                              }}
+                              role="option"
+                              type="button"
+                            >
+                              <span className="min-w-0">
+                                <span className="block truncate text-sm font-semibold text-slate-900">
+                                  {project.name}
+                                </span>
+                                <span className="mt-0.5 flex items-center gap-2 text-xs text-slate-500">
+                                  <span>{project.buildVersion}</span>
+                                  <span className="h-1 w-1 rounded-full bg-slate-300" />
+                                  <span>{project.environment}</span>
+                                </span>
+                              </span>
+                              <span className={cn("shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-bold", project.status.tone)}>
+                                {project.status.label}
+                              </span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
 
                   {selectedQaProject ? (
                     <div className="mt-4 rounded-[18px] border border-slate-200/80 bg-slate-50/72 p-4">
@@ -1297,7 +1355,7 @@ const TesterDashboardPage = () => {
             </WorkspaceCard>
           </section>
 
-          <section className="grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
+          <section className="grid items-start gap-4 xl:grid-cols-[0.9fr_1.1fr]">
             <WorkspaceCard>
               <h2 className="text-base font-semibold tracking-tight text-slate-950">Recent Testing Activity</h2>
               <div className="mt-3 space-y-2">
@@ -1334,11 +1392,11 @@ const TesterDashboardPage = () => {
               </div>
               <div className="mt-3 grid gap-2 sm:grid-cols-3">
                 {bugSummaryStats.map((item) => (
-                  <div className="rounded-2xl border border-slate-200/80 bg-white/82 p-3" key={item.label}>
+                  <div className="min-h-[88px] rounded-2xl border border-slate-200/80 bg-white/82 p-3" key={item.label}>
                     <div className={cn("inline-flex rounded-xl px-2 py-1 text-[11px] font-bold", item.tone)}>
                       {item.label}
                     </div>
-                    <p className="mt-2 text-2xl font-semibold tracking-tight text-slate-950">{item.value}</p>
+                    <p className="mt-1.5 text-2xl font-semibold tracking-tight text-slate-950">{item.value}</p>
                   </div>
                 ))}
               </div>
