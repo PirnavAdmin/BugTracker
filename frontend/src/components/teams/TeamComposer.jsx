@@ -172,17 +172,31 @@ const TeamComposer = ({
                 />
               </label>
 
-              <div className="rounded-2xl border border-emerald-100 bg-emerald-50/70 p-4">
-                <p className="text-sm font-semibold text-slate-950">
-                  {formData.name || "New team"}
-                </p>
-                <p className="mt-1 text-sm leading-6 text-slate-500">
-                  {formData.description ||
-                    "Add a short description so project owners know when to attach this team."}
-                </p>
-                <Badge className="mt-3 border border-emerald-100 bg-white text-emerald-700 hover:bg-white">
-                  {selectedMemberOptions.length} selected
-                </Badge>
+              {error ? (
+                <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+                  {error}
+                </div>
+              ) : null}
+
+              <div className="flex flex-col-reverse gap-2 pt-1 sm:flex-row sm:items-center sm:justify-end">
+                {onCancel ? (
+                  <Button
+                    className="h-11 min-w-[104px] rounded-xl"
+                    disabled={isPending}
+                    type="button"
+                    variant="outline"
+                    onClick={onCancel}
+                  >
+                    Cancel
+                  </Button>
+                ) : null}
+                <Button
+                  className="h-11 min-w-[150px] rounded-xl bg-[linear-gradient(90deg,#059669_0%,#0891B2_100%)] text-white shadow-[0_16px_30px_-20px_rgba(5,150,105,0.75)] hover:brightness-105"
+                  disabled={isPending || !users.length}
+                  type="submit"
+                >
+                  {isPending ? "Creating team..." : "Create Team"}
+                </Button>
               </div>
             </section>
 
@@ -261,32 +275,6 @@ const TeamComposer = ({
           </div>
           </div>
 
-          {error ? (
-            <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
-              {error}
-            </div>
-          ) : null}
-
-          <div className="flex flex-col-reverse gap-2 border-t border-slate-200/80 bg-white pt-4 sm:flex-row sm:items-center sm:justify-end">
-            {onCancel ? (
-              <Button
-                className="h-11 min-w-[104px] rounded-xl"
-                disabled={isPending}
-                type="button"
-                variant="outline"
-                onClick={onCancel}
-              >
-                Cancel
-              </Button>
-            ) : null}
-            <Button
-              className="h-11 min-w-[150px] rounded-xl bg-[linear-gradient(90deg,#059669_0%,#0891B2_100%)] text-white shadow-[0_16px_30px_-20px_rgba(5,150,105,0.75)] hover:brightness-105"
-              disabled={isPending || !users.length}
-              type="submit"
-            >
-              {isPending ? "Creating team..." : "Create Team"}
-            </Button>
-          </div>
         </form>
       </CardContent>
     </Card>

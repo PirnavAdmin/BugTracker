@@ -1,5 +1,14 @@
 import { useMemo, useState } from "react";
-import { AlertTriangle, CheckCircle2, Palette, ShieldCheck, Sparkles } from "lucide-react";
+import {
+  AlertTriangle,
+  Layers3,
+  Palette,
+  Plus,
+  ShieldCheck,
+  Sparkles,
+  Trash2,
+  Users2,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -32,7 +41,9 @@ const ProjectComposer = ({
   isPending,
   onCancel,
   users = [],
+  teams = [],
   usersErrorMessage = "",
+  teamsErrorMessage = "",
 }) => {
   const [formData, setFormData] = useState({
     name: "",
@@ -43,6 +54,9 @@ const ProjectComposer = ({
     priority: "Medium",
     themeColor: "#2563EB",
   });
+  const [selectedTeamIds, setSelectedTeamIds] = useState([]);
+  const [epicDraft, setEpicDraft] = useState("");
+  const [epics, setEpics] = useState([]);
   const [error, setError] = useState("");
 
   const generatedProjectKey = deriveProjectKey(formData.name);
@@ -71,12 +85,55 @@ const ProjectComposer = ({
     [users]
   );
 
+  const sortedTeams = useMemo(
+    () => [...teams].sort((left, right) => (left.name || "").localeCompare(right.name || "")),
+    [teams]
+  );
+
   const handleChange = (event) => {
     const { name, value } = event.target;
     setFormData((current) => ({
       ...current,
       [name]: value,
     }));
+  };
+
+  const handleTeamToggle = (teamId) => {
+    setSelectedTeamIds((current) =>
+      current.includes(teamId)
+        ? current.filter((selectedTeamId) => selectedTeamId !== teamId)
+        : [...current, teamId]
+    );
+  };
+
+  const handleAddEpic = () => {
+    const nextEpic = epicDraft.trim();
+
+    if (!nextEpic) {
+      return;
+    }
+
+    setEpics((current) => {
+      const existing = new Set(current.map((epic) => epic.toLowerCase()));
+
+      if (existing.has(nextEpic.toLowerCase())) {
+        return current;
+      }
+
+      return [...current, nextEpic];
+    });
+    setEpicDraft("");
+  };
+
+  const handleEpicKeyDown = (event) => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      handleAddEpic();
+    }
+  };
+
+  const handleRemoveEpic = (epicName) => {
+    setEpics((current) => current.filter((epic) => epic !== epicName));
   };
 
   const handleSubmit = async (event) => {
@@ -92,7 +149,8 @@ const ProjectComposer = ({
       await onSubmit({
         name: formData.name.trim(),
         description: formData.description.trim(),
-        epics: [],
+        epics,
+        teamIds: selectedTeamIds,
         manager: formData.manager || null,
         teamLead: formData.teamLead || null,
         status: formData.status,
@@ -108,6 +166,9 @@ const ProjectComposer = ({
         priority: "Medium",
         themeColor: "#2563EB",
       });
+      setSelectedTeamIds([]);
+      setEpicDraft("");
+      setEpics([]);
     } catch (submitError) {
       setError(
         submitError.response?.data?.message || "Unable to create the project."
@@ -117,7 +178,7 @@ const ProjectComposer = ({
 
   return (
     <form className="space-y-5" onSubmit={handleSubmit}>
-      <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_340px]">
+      <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_420px]">
         <div className="space-y-5">
           <div className="rounded-2xl border border-slate-200 bg-white p-4">
             <div className="mb-4 flex items-center gap-2">
@@ -309,53 +370,151 @@ const ProjectComposer = ({
         </div>
 
         <aside className="space-y-4">
-          <div className="rounded-[24px] border border-slate-200 bg-slate-50 p-4">
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
-              Live Preview
-            </p>
-            <div className="mt-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-              <div
-                className="flex h-14 w-14 items-center justify-center rounded-2xl text-sm font-bold"
-                style={{
-                  backgroundColor: `${formData.themeColor}18`,
-                  color: formData.themeColor,
-                }}
+          <div className="rounded-2xl border border-slate-200 bg-white p-4">
+            <div className="mb-4 flex items-center gap-2">
+              <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-cyan-50 text-cyan-700">
+                <Users2 className="h-4 w-4" />
+              </span>
+              <div>
+                <h3 className="text-sm font-semibold text-slate-950">Attach Teams</h3>
+                <p className={hintClassName}>Connect workspace teams at creation.</p>
+              </div>
+            </div>
+
+            {teamsErrorMessage ? (
+              <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700">
+                {teamsErrorMessage}
+              </div>
+            ) : sortedTeams.length ? (
+              <div className="max-h-[210px] space-y-2 overflow-y-auto pr-1">
+                {sortedTeams.map((team) => {
+                  const isSelected = selectedTeamIds.includes(team._id);
+
+                  return (
+                    <button
+                      key={team._id}
+                      type="button"
+                      onClick={() => handleTeamToggle(team._id)}
+                      className={`flex w-full items-center gap-3 rounded-xl border px-3 py-2.5 text-left transition ${
+                        isSelected
+                          ? "border-blue-300 bg-blue-50 text-blue-950 shadow-sm"
+                          : "border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50"
+                      }`}
+                    >
+                      <span
+                        className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-xs font-semibold ${
+                          isSelected ? "bg-white text-blue-700" : "bg-slate-100 text-slate-600"
+                        }`}
+                      >
+                        {(team.name || "Team")
+                          .split(/\s+/)
+                          .map((part) => part[0])
+                          .join("")
+                          .slice(0, 2)
+                          .toUpperCase()}
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-sm font-semibold">
+                          {team.name}
+                        </span>
+                        <span className="block truncate text-xs text-slate-500">
+                          {team.memberCount || team.members?.length || 0} members
+                        </span>
+                      </span>
+                      <span
+                        className={`h-4 w-4 rounded-full border ${
+                          isSelected ? "border-blue-600 bg-blue-600" : "border-slate-300"
+                        }`}
+                      />
+                    </button>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-3 py-3 text-sm text-slate-500">
+                No workspace teams available yet.
+              </div>
+            )}
+          </div>
+
+          <div className="rounded-2xl border border-slate-200 bg-white p-4">
+            <div className="mb-4 flex items-center gap-2">
+              <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-violet-50 text-violet-700">
+                <Layers3 className="h-4 w-4" />
+              </span>
+              <div>
+                <h3 className="text-sm font-semibold text-slate-950">Create Epics</h3>
+                <p className={hintClassName}>Add the first planning workstreams.</p>
+              </div>
+            </div>
+
+            <div className="flex gap-2">
+              <Input
+                className={inputClassName}
+                value={epicDraft}
+                onChange={(event) => setEpicDraft(event.target.value)}
+                onKeyDown={handleEpicKeyDown}
+                placeholder="Epic name"
+              />
+              <Button
+                type="button"
+                variant="outline"
+                className="h-12 w-12 shrink-0 rounded-xl px-0"
+                onClick={handleAddEpic}
+                disabled={!epicDraft.trim()}
+                title="Add epic"
               >
-                {generatedProjectKey || "PR"}
-              </div>
-              <h3 className="mt-4 text-lg font-semibold text-slate-950">
-                {formData.name || "New project"}
-              </h3>
-              <p className="mt-2 line-clamp-3 text-sm leading-6 text-slate-500">
-                {formData.description ||
-                  "Add a clear scope so teammates understand what this project owns."}
-              </p>
-              <div className="mt-4 flex flex-wrap gap-2 text-xs text-slate-600">
-                <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1">
-                  {formData.status}
-                </span>
-                <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1">
-                  {formData.priority}
-                </span>
-              </div>
+                <Plus className="h-4 w-4" />
+              </Button>
+            </div>
+
+            <div className="mt-3 space-y-2">
+              {epics.length ? (
+                epics.map((epic) => (
+                  <div
+                    key={epic}
+                    className="flex items-center justify-between gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2"
+                  >
+                    <span className="truncate text-sm font-medium text-slate-700">
+                      {epic}
+                    </span>
+                    <button
+                      type="button"
+                      className="rounded-lg p-1.5 text-slate-400 transition hover:bg-rose-50 hover:text-rose-600"
+                      onClick={() => handleRemoveEpic(epic)}
+                      title="Remove epic"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </div>
+                ))
+              ) : (
+                <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-3 py-3 text-sm text-slate-500">
+                  No epics added.
+                </div>
+              )}
             </div>
           </div>
 
-          <div className="rounded-[24px] border border-blue-100 bg-blue-50/70 p-4">
-            <p className="text-sm font-semibold text-slate-950">Setup flow</p>
-            <div className="mt-3 space-y-2">
-              {[
-                "Create project shell",
-                "Assign ownership",
-                "Pick priority and status",
-                "Attach teams after creation",
-              ].map((item) => (
-                <div key={item} className="flex items-center gap-2 text-sm text-slate-600">
-                  <CheckCircle2 className="h-4 w-4 text-blue-600" />
-                  {item}
-                </div>
-              ))}
-            </div>
+          <div className="flex flex-col-reverse gap-2 rounded-2xl border border-slate-200 bg-white p-4 sm:flex-row sm:items-center sm:justify-end">
+            {onCancel ? (
+              <Button
+                type="button"
+                variant="outline"
+                onClick={onCancel}
+                disabled={isPending}
+                className="h-11 min-w-[104px] rounded-xl px-5"
+              >
+                Cancel
+              </Button>
+            ) : null}
+            <Button
+              className="h-11 min-w-[164px] rounded-xl border border-blue-500/20 bg-[linear-gradient(90deg,#2563EB_0%,#4F46E5_100%)] px-5 text-white shadow-[0_16px_30px_-20px_rgba(37,99,235,0.82)] transition hover:-translate-y-0.5 hover:brightness-105"
+              disabled={isPending}
+              type="submit"
+            >
+              {isPending ? "Creating project..." : "Create Project"}
+            </Button>
           </div>
         </aside>
       </div>
@@ -377,26 +536,6 @@ const ProjectComposer = ({
         </div>
       ) : null}
 
-      <div className="flex flex-col-reverse gap-2 border-t border-slate-200/80 bg-white pt-4 sm:flex-row sm:items-center sm:justify-end">
-        {onCancel ? (
-          <Button
-            type="button"
-            variant="outline"
-            onClick={onCancel}
-            disabled={isPending}
-            className="h-11 min-w-[104px] rounded-xl px-5"
-          >
-            Cancel
-          </Button>
-        ) : null}
-        <Button
-          className="h-11 min-w-[164px] rounded-xl border border-blue-500/20 bg-[linear-gradient(90deg,#2563EB_0%,#4F46E5_100%)] px-5 text-white shadow-[0_16px_30px_-20px_rgba(37,99,235,0.82)] transition hover:-translate-y-0.5 hover:brightness-105"
-          disabled={isPending}
-          type="submit"
-        >
-          {isPending ? "Creating project..." : "Create Project"}
-        </Button>
-      </div>
     </form>
   );
 };

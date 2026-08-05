@@ -1774,7 +1774,9 @@ const ProjectsPage = () => {
               isPending={createProjectMutation.isPending}
               onCancel={() => setIsCreateDialogOpen(false)}
               users={users}
+              teams={teams}
               usersErrorMessage={isUsersLoading ? "" : usersErrorMessage}
+              teamsErrorMessage={isTeamsLoading ? "" : teamsErrorMessage}
             />
           </div>
         </DialogContent>

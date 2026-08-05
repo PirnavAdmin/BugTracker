@@ -435,6 +435,8 @@ const createProject = asyncHandler(async (req, res) => {
     status = "Active",
     priority = "Medium",
     themeColor = "#2563EB",
+    teamIds = [],
+    attachedTeams = [],
   } = req.body;
 
   if (!userId) {
@@ -507,6 +509,33 @@ const createProject = asyncHandler(async (req, res) => {
     name,
     workspaceId,
   });
+  const requestedTeamIds = Array.from(
+    new Set(
+      [...(Array.isArray(teamIds) ? teamIds : []), ...(Array.isArray(attachedTeams) ? attachedTeams : [])]
+        .map((teamId) => String(teamId || "").trim())
+        .filter(Boolean)
+    )
+  );
+
+  if (requestedTeamIds.some((teamId) => !mongoose.isValidObjectId(teamId))) {
+    res.status(400);
+    throw new Error("Invalid team id");
+  }
+
+  const selectedTeams = requestedTeamIds.length
+    ? await Team.find({
+        _id: { $in: requestedTeamIds },
+        workspaceId,
+      })
+        .select("_id name")
+        .lean()
+    : [];
+  const selectedTeamIds = selectedTeams.map((team) => team._id);
+
+  if (selectedTeams.length !== requestedTeamIds.length) {
+    res.status(404);
+    throw new Error("One or more selected teams could not be found in this workspace");
+  }
 
   const project = await Project.create({
     name: name.trim(),
@@ -520,6 +549,8 @@ const createProject = asyncHandler(async (req, res) => {
     projectManager: managerResult.value,
     teamLead: teamLeadResult.value,
     qaLead: qaLeadResult.value,
+    attachedTeams: selectedTeamIds,
+    teamIds: selectedTeamIds,
     workspaceId,
     createdBy: userId,
     isCompleted: statusResult.value === "Completed",
@@ -538,6 +569,16 @@ const createProject = asyncHandler(async (req, res) => {
         status: "ACTIVE",
         createdBy: userId,
       }))
+    );
+  }
+
+  if (selectedTeamIds.length) {
+    await ProjectTeam.insertMany(
+      selectedTeamIds.map((teamId) => ({
+        projectId: project._id,
+        teamId,
+      })),
+      { ordered: false }
     );
   }
 
