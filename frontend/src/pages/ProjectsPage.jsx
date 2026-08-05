@@ -7,6 +7,7 @@ import {
   BarChart3,
   Bug,
   CalendarClock,
+  ChevronDown,
   CheckCircle2,
   ClipboardList,
   FolderKanban,
@@ -326,6 +327,20 @@ const formatBudget = (project = {}) => {
 const getBudgetTone = (project = {}) =>
   project.budget || project.projectBudget || project.estimatedBudget ? "violet" : "slate";
 
+const getProjectListProgress = (project = {}) => {
+  const progress = Number(project?.metrics?.progress ?? project?.progress);
+
+  if (Number.isFinite(progress)) {
+    return Math.max(0, Math.min(100, Math.round(progress)));
+  }
+
+  const status = getProjectStatus(project);
+
+  if (status === "Completed") return 100;
+  if (status === "On Hold") return 35;
+  return project?.issueCount ? 68 : 0;
+};
+
 const getStatusChipClassName = (status = "Active") => {
   const normalizedStatus = String(status || "Active").toLowerCase();
 
@@ -415,6 +430,7 @@ const ProjectsPage = () => {
   const [projectMode, setProjectMode] = useState("overview");
   const [projectDetailView, setProjectDetailView] = useState("overview");
   const [projectPanelView, setProjectPanelView] = useState("details");
+  const [isQuickAddOpen, setIsQuickAddOpen] = useState(false);
   const [selectedProjectId, setSelectedProjectId] = useState("");
   const [isSelectedProjectManageOpen, setIsSelectedProjectManageOpen] = useState(false);
   const [toast, setToast] = useState(null);
@@ -726,7 +742,18 @@ const ProjectsPage = () => {
       .filter((project) => {
         const projectTeams = getProjectTeams(project);
 
-        if (projectStatusFilter !== "all" && getProjectStatus(project) !== projectStatusFilter) {
+        if (
+          projectStatusFilter === "favorites" &&
+          !(project.isFavorite || project.isStarred || project.favorite)
+        ) {
+          return false;
+        }
+
+        if (
+          projectStatusFilter !== "all" &&
+          projectStatusFilter !== "favorites" &&
+          getProjectStatus(project) !== projectStatusFilter
+        ) {
           return false;
         }
 
@@ -1319,10 +1346,37 @@ const ProjectsPage = () => {
                   />
                 </div>
 
+                <div className="flex gap-1 overflow-x-auto pb-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                  {[
+                    { label: "All", value: "all" },
+                    { label: "Active", value: "Active" },
+                    { label: "On Hold", value: "On Hold" },
+                    { label: "Completed", value: "Completed" },
+                    { label: "Favorites", value: "favorites" },
+                  ].map((filter) => {
+                    const isActive = projectStatusFilter === filter.value;
+
+                    return (
+                      <button
+                        key={filter.value}
+                        className={`h-7 shrink-0 rounded-full border px-2.5 text-[11px] font-semibold transition ${
+                          isActive
+                            ? "border-[#B6D4FE] bg-[#E9F2FF] text-[#0C66E4]"
+                            : "border-[#EEF2F7] bg-white text-slate-500 hover:text-slate-950"
+                        }`}
+                        type="button"
+                        onClick={() => setProjectStatusFilter(filter.value)}
+                      >
+                        {filter.label}
+                      </button>
+                    );
+                  })}
+                </div>
+
               </CardContent>
             </Card>
 
-            <div className="min-h-0 flex-1 space-y-1 overflow-y-auto overscroll-contain pr-1">
+            <div className="min-h-0 flex-1 space-y-1 overflow-y-auto overscroll-contain pr-1 [scrollbar-color:rgba(148,163,184,.28)_transparent] [scrollbar-width:thin]">
               {isProjectsLoading ? (
                 Array.from({ length: 6 }).map((_, index) => (
                   <Skeleton
@@ -1334,11 +1388,12 @@ const ProjectsPage = () => {
                 filteredProjects.map((project) => {
                   const isSelected = selectedProject?._id === project._id;
                   const themeColor = getProjectThemeColor(project);
+                  const listProgress = getProjectListProgress(project);
 
                   return (
                     <button
                       key={project._id}
-                      className={`group relative flex h-[54px] w-full items-center gap-2 rounded-xl border px-2.5 text-left transition ${
+                      className={`group relative flex h-[60px] w-full items-center gap-2 rounded-xl border px-2.5 text-left transition ${
                         isSelected
                           ? "border-[#B6D4FE] bg-[#E9F2FF]"
                           : "border-transparent bg-white hover:border-[#EEF2F7] hover:bg-white"
@@ -1363,8 +1418,19 @@ const ProjectsPage = () => {
                         {getProjectInitials(project)}
                       </span>
                       <span className="min-w-0 flex-1">
-                        <span className="block truncate text-sm font-semibold text-slate-950">
-                          {project.name}
+                        <span className="flex min-w-0 items-center justify-between gap-2">
+                          <span className="block truncate text-sm font-semibold text-slate-950">
+                            {project.name}
+                          </span>
+                          <span className="shrink-0 text-[11px] font-semibold text-slate-500">
+                            {listProgress}%
+                          </span>
+                        </span>
+                        <span className="mt-1 block h-1 overflow-hidden rounded-full bg-slate-100">
+                          <span
+                            className="block h-full rounded-full bg-[#0C66E4]"
+                            style={{ width: `${listProgress}%` }}
+                          />
                         </span>
                         <span className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[11px] text-slate-500">
                           <span>{project.issueCount || 0} issues</span>
@@ -1395,18 +1461,12 @@ const ProjectsPage = () => {
                       className="h-1.5"
                       style={{ backgroundColor: getProjectThemeColor(selectedProject) }}
                     />
-                    <div className="flex flex-col gap-5 p-5 lg:flex-row lg:items-start lg:justify-between">
+                    <div className="flex flex-col gap-3 px-5 py-4 lg:flex-row lg:items-start lg:justify-between">
                       <div className="flex min-w-0 items-start gap-4">
-                        <div
-                          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-xs font-bold"
-                          style={{
-                            backgroundColor: `${getProjectThemeColor(selectedProject)}18`,
-                            color: getProjectThemeColor(selectedProject),
-                          }}
-                        >
-                          {getProjectInitials(selectedProject)}
-                        </div>
                         <div className="min-w-0">
+                          <p className="mb-1 text-xs font-medium text-slate-500">
+                            Projects / {selectedProject.name}
+                          </p>
                           <div className="flex min-w-0 flex-wrap items-center gap-2">
                             <h2 className="truncate text-2xl font-semibold tracking-tight text-slate-950">
                               {selectedProject.name}
@@ -1422,23 +1482,26 @@ const ProjectsPage = () => {
                           <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-600">
                             {selectedProject.description || "No description added yet."}
                           </p>
-                          <div className="mt-3 flex flex-wrap gap-2 text-xs text-slate-500">
-                            <span className="rounded-full border border-[#EEF2F7] bg-slate-50 px-2.5 py-1">
+                          <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-slate-500">
+                            <span>
                               Owner: {getProjectOwnerName(selectedProject)}
                             </span>
-                            <span className="rounded-full border border-[#EEF2F7] bg-slate-50 px-2.5 py-1">
-                              Deadline: {formatShortDate(selectedProject.targetDate)}
-                            </span>
-                            <span className="rounded-full border border-[#EEF2F7] bg-slate-50 px-2.5 py-1">
+                            <span className="text-slate-300">/</span>
+                            <span>
                               Members: {selectedProjectMembers.length || getProjectMemberCount(selectedProject)}
                             </span>
+                            <span className="text-slate-300">/</span>
                             <span className={`rounded-full border px-2.5 py-1 ${getStatusChipClassName(getProjectStatus(selectedProject))}`}>
                               {getProjectStatus(selectedProject)}
+                            </span>
+                            <span className="text-slate-300">/</span>
+                            <span>
+                              Deadline: {selectedProject.targetDate ? formatShortDate(selectedProject.targetDate) : "No deadline set"}
                             </span>
                           </div>
                         </div>
                       </div>
-                      <div className="flex flex-wrap gap-2">
+                      <div className="flex flex-wrap items-start gap-2">
                         <Button
                           className="h-10 w-10 rounded-xl px-0"
                           variant="outline"
@@ -1449,14 +1512,41 @@ const ProjectsPage = () => {
                         >
                           <Settings2 className="h-4 w-4" />
                         </Button>
-                        <Button
-                          className="h-10 rounded-xl"
-                          type="button"
-                          onClick={() => navigate(`/issues?projectId=${selectedProject._id}`)}
-                        >
-                          <Plus className="h-4 w-4" />
-                          Issue
-                        </Button>
+                        <div className="relative">
+                          <Button
+                            className="h-10 rounded-xl"
+                            type="button"
+                            onClick={() => setIsQuickAddOpen((current) => !current)}
+                          >
+                            <Plus className="h-4 w-4" />
+                            Create
+                            <ChevronDown className="h-3.5 w-3.5" />
+                          </Button>
+                          {isQuickAddOpen ? (
+                            <div className="absolute right-0 top-11 z-20 w-44 overflow-hidden rounded-xl border border-[#EEF2F7] bg-white p-1 shadow-[0_18px_46px_-28px_rgba(15,23,42,0.35)]">
+                              {[
+                                { label: "Story", path: `/stories?projectId=${selectedProject._id}` },
+                                { label: "Task", path: `/tasks?projectId=${selectedProject._id}` },
+                                { label: "Bug", path: `/issues?projectId=${selectedProject._id}` },
+                                { label: "Epic", action: () => setProjectMode("planning") },
+                                { label: "Sprint", path: `/backlog?projectId=${selectedProject._id}` },
+                              ].map((item) => (
+                                <button
+                                  key={item.label}
+                                  className="flex h-9 w-full items-center gap-2 rounded-lg px-3 text-sm font-medium text-slate-700 hover:bg-[#E9F2FF] hover:text-[#0C66E4]"
+                                  type="button"
+                                  onClick={() => {
+                                    setIsQuickAddOpen(false);
+                                    item.path ? navigate(item.path) : item.action?.();
+                                  }}
+                                >
+                                  <Plus className="h-3.5 w-3.5" />
+                                  {item.label}
+                                </button>
+                              ))}
+                            </div>
+                          ) : null}
+                        </div>
                         <Button
                           className="h-10 rounded-xl"
                           variant="outline"
@@ -1502,14 +1592,16 @@ const ProjectsPage = () => {
                         label: "Deadline",
                         value: selectedProject.targetDate
                           ? formatShortDate(selectedProject.targetDate)
-                          : "-",
-                        helper: selectedProjectDaysRemainingMeta.label,
+                          : "No deadline set",
+                        helper: selectedProject.targetDate
+                          ? selectedProjectDaysRemainingMeta.label
+                          : "Set project deadline",
                       },
                       {
                         label: "Health",
                         value:
                           selectedProjectTimelineStatus.label === "No deadline"
-                            ? "-"
+                            ? "Awaiting milestones"
                             : selectedProjectTimelineStatus.label,
                         helper: "Delivery signal",
                       },
@@ -1531,7 +1623,10 @@ const ProjectsPage = () => {
                       },
                       {
                         label: "Budget",
-                        value: formatBudget(selectedProject),
+                        value:
+                          formatBudget(selectedProject) === "-"
+                            ? "Not configured"
+                            : formatBudget(selectedProject),
                         helper: "Planned spend",
                       },
                     ].map((metric) => (
@@ -1553,31 +1648,8 @@ const ProjectsPage = () => {
                   </div>
                 </section>
 
-                <div className="flex flex-wrap gap-2">
-                  {[
-                    { label: "Story", path: `/stories?projectId=${selectedProject._id}` },
-                    { label: "Task", path: `/tasks?projectId=${selectedProject._id}` },
-                    { label: "Bug", path: `/issues?projectId=${selectedProject._id}` },
-                    { label: "Sprint", path: `/backlog?projectId=${selectedProject._id}` },
-                    { label: "Epic", action: () => setProjectMode("planning") },
-                  ].map((action) => (
-                    <Button
-                      key={action.label}
-                      className="h-8 rounded-lg border-[#EEF2F7] bg-white px-3 text-xs text-slate-700 hover:bg-[#E9F2FF] hover:text-[#0C66E4]"
-                      type="button"
-                      variant="outline"
-                      onClick={() =>
-                        action.path ? navigate(action.path) : action.action?.()
-                      }
-                    >
-                      <Plus className="h-3.5 w-3.5" />
-                      {action.label}
-                    </Button>
-                  ))}
-                </div>
-
                 <div className="border-b border-slate-200">
-                  <nav className="-mb-px flex gap-7 overflow-x-auto" aria-label="Project sections">
+                  <nav className="-mb-px flex gap-8 overflow-x-auto" aria-label="Project sections">
                   {[
                     { id: "details", label: "Overview", detail: "overview" },
                     { id: "roadmap", label: "Roadmap" },
@@ -1597,7 +1669,7 @@ const ProjectsPage = () => {
                         key={id}
                         className={`relative h-11 whitespace-nowrap px-0 text-sm font-semibold transition ${
                           isActive
-                            ? "text-[#0C66E4] after:absolute after:inset-x-0 after:-bottom-px after:h-0.5 after:rounded-full after:bg-[#0C66E4]"
+                            ? "text-[#0C66E4] after:absolute after:inset-x-0 after:-bottom-px after:h-[3px] after:rounded-full after:bg-[#0C66E4]"
                             : "text-slate-500 hover:text-slate-950"
                         }`}
                         type="button"
@@ -1734,7 +1806,7 @@ const ProjectsPage = () => {
                       {taskStatusRows.map((row) => (
                         <div
                           key={row.key}
-                          className="rounded-2xl border border-slate-200 bg-white p-4"
+                          className={`rounded-2xl border p-4 ${row.borderClassName || "border-[#EEF2F7]"} ${row.surfaceClassName || "bg-white"}`}
                         >
                           <div className="flex items-center justify-between gap-3">
                             <span className={`h-2.5 w-2.5 rounded-full ${row.accentClassName}`} />
@@ -1756,7 +1828,7 @@ const ProjectsPage = () => {
                       {bugStatusRows.map((row) => (
                         <div
                           key={row.key}
-                          className="rounded-2xl border border-slate-200 bg-white p-4"
+                          className={`rounded-2xl border p-4 ${row.borderClassName || "border-[#EEF2F7]"} ${row.surfaceClassName || "bg-white"}`}
                         >
                           <div className="flex items-center justify-between gap-3">
                             <span className={`h-2.5 w-2.5 rounded-full ${row.accentClassName}`} />
