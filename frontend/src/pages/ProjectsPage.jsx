@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowUpDown,
+  Archive,
+  BarChart3,
   Bug,
   CheckCircle2,
   Filter,
@@ -11,7 +13,9 @@ import {
   List,
   MoreHorizontal,
   Plus,
+  Route,
   Search,
+  ShieldCheck,
   SlidersHorizontal,
   Star,
   UserRoundPlus,
@@ -562,9 +566,172 @@ const ProjectsPage = () => {
   }
 
   return (
-    <div className="w-full space-y-4">
+    <div className="w-full">
       <ToastNotice toast={toast} onDismiss={() => setToast(null)} />
 
+      <div className="grid w-full gap-4 lg:grid-cols-[240px_minmax(0,1fr)]">
+        <aside className="min-w-0">
+          <div className="sticky top-4 space-y-4 rounded-[24px] border border-slate-200/80 bg-white/90 p-3 shadow-[0_18px_48px_-40px_rgba(15,23,42,0.55)] backdrop-blur-xl">
+            <div className="px-2 py-2">
+              <p className="text-[11px] font-semibold uppercase text-slate-400">
+                Project Center
+              </p>
+              <p className="mt-1 text-sm font-semibold text-slate-950">
+                {projects.length} projects
+              </p>
+            </div>
+
+            <nav className="space-y-4" aria-label="Project page sidebar">
+              <div className="space-y-1">
+                <p className="px-2 text-[11px] font-semibold uppercase text-slate-400">
+                  Projects
+                </p>
+                {[
+                  {
+                    label: "All Projects",
+                    Icon: FolderKanban,
+                    active: activeTab === "projects" && projectStatusFilter === "all",
+                    action: () => {
+                      updateActiveTab("projects");
+                      setProjectSearch("");
+                      setProjectStatusFilter("all");
+                      setProjectTeamFilter("all");
+                    },
+                  },
+                  {
+                    label: "Active",
+                    Icon: CheckCircle2,
+                    active: activeTab === "projects" && projectStatusFilter === "Active",
+                    action: () => {
+                      updateActiveTab("projects");
+                      setProjectStatusFilter("Active");
+                    },
+                  },
+                  {
+                    label: "On Hold",
+                    Icon: Archive,
+                    active: activeTab === "projects" && projectStatusFilter === "On Hold",
+                    action: () => {
+                      updateActiveTab("projects");
+                      setProjectStatusFilter("On Hold");
+                    },
+                  },
+                  {
+                    label: "Completed",
+                    Icon: ShieldCheck,
+                    active: activeTab === "projects" && projectStatusFilter === "Completed",
+                    action: () => {
+                      updateActiveTab("projects");
+                      setProjectStatusFilter("Completed");
+                    },
+                  },
+                ].map(({ label, Icon, active, action }) => (
+                  <button
+                    key={label}
+                    className={`flex h-10 w-full items-center gap-2 rounded-xl px-3 text-sm font-semibold transition ${
+                      active
+                        ? "bg-slate-950 text-white shadow-[0_14px_28px_-22px_rgba(15,23,42,0.9)]"
+                        : "text-slate-600 hover:bg-slate-50 hover:text-slate-950"
+                    }`}
+                    type="button"
+                    onClick={action}
+                  >
+                    <Icon className="h-4 w-4" />
+                    {label}
+                  </button>
+                ))}
+              </div>
+
+              <div className="space-y-1">
+                <p className="px-2 text-[11px] font-semibold uppercase text-slate-400">
+                  Planning
+                </p>
+                <button
+                  className="flex h-10 w-full items-center gap-2 rounded-xl px-3 text-sm font-semibold text-slate-600 transition hover:bg-slate-50 hover:text-slate-950"
+                  type="button"
+                  onClick={() =>
+                    navigate(
+                      selectedProject
+                        ? `/backlog?projectId=${selectedProject._id}`
+                        : "/backlog"
+                    )
+                  }
+                >
+                  <Route className="h-4 w-4" />
+                  Backlog
+                </button>
+                <button
+                  className="flex h-10 w-full items-center gap-2 rounded-xl px-3 text-sm font-semibold text-slate-600 transition hover:bg-slate-50 hover:text-slate-950"
+                  type="button"
+                  onClick={() =>
+                    navigate(
+                      selectedProject
+                        ? `/issues?projectId=${selectedProject._id}`
+                        : "/issues"
+                    )
+                  }
+                >
+                  <Bug className="h-4 w-4" />
+                  Issues
+                </button>
+              </div>
+
+              <div className="space-y-1">
+                <p className="px-2 text-[11px] font-semibold uppercase text-slate-400">
+                  Workspace
+                </p>
+                <button
+                  className={`flex h-10 w-full items-center gap-2 rounded-xl px-3 text-sm font-semibold transition ${
+                    activeTab === "teams"
+                      ? "bg-slate-950 text-white shadow-[0_14px_28px_-22px_rgba(15,23,42,0.9)]"
+                      : "text-slate-600 hover:bg-slate-50 hover:text-slate-950"
+                  }`}
+                  type="button"
+                  onClick={() => updateActiveTab("teams")}
+                >
+                  <Users2 className="h-4 w-4" />
+                  Teams
+                </button>
+                <button
+                  className="flex h-10 w-full items-center gap-2 rounded-xl px-3 text-sm font-semibold text-slate-600 transition hover:bg-slate-50 hover:text-slate-950"
+                  type="button"
+                  onClick={() => navigate("/reports")}
+                >
+                  <BarChart3 className="h-4 w-4" />
+                  Reports
+                </button>
+              </div>
+            </nav>
+
+            <div className="rounded-2xl border border-blue-100 bg-blue-50/70 p-3">
+              <p className="text-sm font-semibold text-slate-950">Need a new lane?</p>
+              <p className="mt-1 text-xs leading-5 text-slate-500">
+                Create projects or teams without leaving this workspace.
+              </p>
+              <div className="mt-3 grid gap-2">
+                <Button
+                  className="h-9 rounded-xl"
+                  type="button"
+                  onClick={() => setIsCreateDialogOpen(true)}
+                >
+                  <Plus className="h-4 w-4" />
+                  Project
+                </Button>
+                <Button
+                  className="h-9 rounded-xl bg-white text-slate-700 hover:bg-slate-50"
+                  type="button"
+                  variant="outline"
+                  onClick={() => setIsCreateTeamDialogOpen(true)}
+                >
+                  <Users2 className="h-4 w-4" />
+                  Team
+                </Button>
+              </div>
+            </div>
+          </div>
+        </aside>
+
+        <main className="min-w-0 space-y-4">
       <section className="w-full">
         <Card className="overflow-hidden border-white/70 bg-white/82 shadow-[0_16px_44px_-34px_rgba(15,23,42,0.32)] backdrop-blur-xl">
           <CardContent className="flex flex-col gap-2 p-1 sm:flex-row sm:items-center sm:justify-between">
@@ -1077,6 +1244,8 @@ const ProjectsPage = () => {
           </div>
         </section>
       ) : null}
+        </main>
+      </div>
 
       <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
         <DialogContent
