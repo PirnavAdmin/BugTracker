@@ -29,6 +29,7 @@ import {
   deleteEpic,
   deleteProject,
   deleteTeam,
+  fetchEpics,
   fetchProjects,
   fetchIssues,
   fetchTeams,
@@ -101,6 +102,106 @@ const getProjectInitials = (project) =>
 const getProjectOwnerName = (project) => {
   const owner = project?.projectManager || project?.manager;
   return owner?.name || owner?.email || "Unassigned";
+};
+
+const formatShortDate = (value) => {
+  if (!value) {
+    return "Not set";
+  }
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return "Not set";
+  }
+
+  return date.toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+};
+
+const getTimelineStatus = (item = {}) => {
+  const targetDate = item.targetDate ? new Date(item.targetDate) : null;
+
+  if (String(item.status || "").toUpperCase() === "DONE") {
+    return { label: "Done", className: "bg-emerald-50 text-emerald-700" };
+  }
+
+  if (!targetDate || Number.isNaN(targetDate.getTime())) {
+    return { label: "No deadline", className: "bg-slate-100 text-slate-600" };
+  }
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  targetDate.setHours(0, 0, 0, 0);
+
+  if (targetDate < today) {
+    return { label: "Off track", className: "bg-rose-50 text-rose-700" };
+  }
+
+  const daysLeft = Math.ceil((targetDate.getTime() - today.getTime()) / 86400000);
+
+  return daysLeft <= 7
+    ? { label: "Due soon", className: "bg-amber-50 text-amber-700" }
+    : { label: "On track", className: "bg-emerald-50 text-emerald-700" };
+};
+
+const getPeriodLabel = (startDate, targetDate) => {
+  if (!startDate || !targetDate) {
+    return "Period not set";
+  }
+
+  const start = new Date(startDate);
+  const end = new Date(targetDate);
+  const days = Math.ceil((end.getTime() - start.getTime()) / 86400000) + 1;
+
+  return Number.isFinite(days) && days > 0 ? `${days} days` : "Period not set";
+};
+
+const getDaysRemainingLabel = (targetDate) => {
+  if (!targetDate) {
+    return "Not set";
+  }
+
+  const end = new Date(targetDate);
+
+  if (Number.isNaN(end.getTime())) {
+    return "Not set";
+  }
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  end.setHours(0, 0, 0, 0);
+
+  const days = Math.ceil((end.getTime() - today.getTime()) / 86400000);
+
+  if (days < 0) {
+    return `${Math.abs(days)} overdue`;
+  }
+
+  return days === 1 ? "1 day" : `${days} days`;
+};
+
+const formatBudget = (project = {}) => {
+  const budget = project.budget ?? project.projectBudget ?? project.estimatedBudget;
+
+  if (budget === null || typeof budget === "undefined" || budget === "") {
+    return "Not set";
+  }
+
+  const numericBudget = Number(budget);
+
+  if (!Number.isFinite(numericBudget)) {
+    return String(budget);
+  }
+
+  return new Intl.NumberFormat(undefined, {
+    style: "currency",
+    currency: "USD",
+    maximumFractionDigits: 0,
+  }).format(numericBudget);
 };
 
 const ProjectsPage = () => {
@@ -502,7 +603,17 @@ const ProjectsPage = () => {
     );
   }, [selectedProject, selectedProjectTeams]);
 
+  const { data: selectedProjectEpicData = [] } = useQuery({
+    queryKey: ["project-epics", selectedProject?._id],
+    queryFn: () => fetchEpics({ projectId: selectedProject._id }),
+    enabled: Boolean(selectedProject?._id),
+  });
+
   const selectedProjectEpics = useMemo(() => {
+    if (Array.isArray(selectedProjectEpicData) && selectedProjectEpicData.length) {
+      return selectedProjectEpicData.filter((epic) => epic?.name);
+    }
+
     if (!Array.isArray(selectedProject?.epics)) {
       return [];
     }
@@ -519,7 +630,12 @@ const ProjectsPage = () => {
           : epic
       )
       .filter((epic) => epic?.name);
-  }, [selectedProject]);
+  }, [selectedProject, selectedProjectEpicData]);
+
+  const selectedProjectTimelineStatus = useMemo(
+    () => getTimelineStatus(selectedProject || {}),
+    [selectedProject]
+  );
 
   const {
     data: selectedProjectIssuesData = [],
@@ -534,6 +650,28 @@ const ProjectsPage = () => {
     () => (Array.isArray(selectedProjectIssuesData) ? selectedProjectIssuesData : []),
     [selectedProjectIssuesData]
   );
+
+  const selectedProjectProgress = useMemo(() => {
+    if (!selectedProjectIssues.length) {
+      return 0;
+    }
+
+    const completedIssues = selectedProjectIssues.filter((issue) => {
+      const issueType = normalizeIssueType(issue?.type, ISSUE_TYPES.TASK);
+
+      if ([ISSUE_TYPES.TASK, ISSUE_TYPES.SUB_TASK].includes(issueType)) {
+        return getTaskBoardStatus(issue) === "DONE";
+      }
+
+      if (issueType === ISSUE_TYPES.BUG) {
+        return getBugColumnKey(issue, DEVELOPER_BUG_COLUMNS) === "closed";
+      }
+
+      return ["DONE", "CLOSED"].includes(String(issue?.status || "").toUpperCase());
+    }).length;
+
+    return Math.round((completedIssues / selectedProjectIssues.length) * 100);
+  }, [selectedProjectIssues]);
 
   const selectedProjectTasks = useMemo(
     () =>
@@ -972,6 +1110,56 @@ const ProjectsPage = () => {
                   </CardContent>
                 </Card>
 
+                <div className="grid gap-3 md:grid-cols-5">
+                  {[
+                    {
+                      label: "Timeline",
+                      value: getPeriodLabel(
+                        selectedProject.startDate,
+                        selectedProject.targetDate
+                      ),
+                      helper: `${formatShortDate(selectedProject.startDate)} - ${formatShortDate(
+                        selectedProject.targetDate
+                      )}`,
+                    },
+                    {
+                      label: "Progress",
+                      value: `${selectedProjectProgress}%`,
+                      helper: `${selectedProjectIssues.length} total work items`,
+                    },
+                    {
+                      label: "Days Remaining",
+                      value: getDaysRemainingLabel(selectedProject.targetDate),
+                      helper: "Until project deadline",
+                    },
+                    {
+                      label: "Health",
+                      value: selectedProjectTimelineStatus.label,
+                      helper: "Based on deadline status",
+                    },
+                    {
+                      label: "Budget",
+                      value: formatBudget(selectedProject),
+                      helper: "Planned project budget",
+                    },
+                  ].map((metric) => (
+                    <div
+                      key={metric.label}
+                      className="rounded-2xl border border-blue-200 bg-[linear-gradient(135deg,#ffffff_0%,#eff6ff_100%)] p-4 shadow-[0_18px_44px_-34px_rgba(37,99,235,0.6)]"
+                    >
+                      <p className="text-xs font-semibold uppercase text-blue-700">
+                        {metric.label}
+                      </p>
+                      <p className="mt-2 truncate text-xl font-semibold text-slate-950">
+                        {metric.value}
+                      </p>
+                      <p className="mt-2 min-h-8 text-xs leading-4 text-slate-500">
+                        {metric.helper}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+
                 <div className="grid gap-3 md:grid-cols-4">
                   {[
                     {
@@ -1037,6 +1225,63 @@ const ProjectsPage = () => {
                     );
                   })}
                 </div>
+
+                <section className="rounded-2xl border border-slate-200 bg-white p-4">
+                  <div className="flex flex-col gap-3 border-b border-slate-200 pb-3 sm:flex-row sm:items-start sm:justify-between">
+                    <div>
+                      <h3 className="text-base font-semibold text-slate-950">
+                        Roadmap
+                      </h3>
+                      <p className="mt-1 text-sm text-slate-500">
+                        {formatShortDate(selectedProject.startDate)} to{" "}
+                        {formatShortDate(selectedProject.targetDate)} /{" "}
+                        {getPeriodLabel(
+                          selectedProject.startDate,
+                          selectedProject.targetDate
+                        )}
+                      </p>
+                    </div>
+                    <span
+                      className={`w-fit rounded-full px-3 py-1 text-xs font-semibold ${selectedProjectTimelineStatus.className}`}
+                    >
+                      {selectedProjectTimelineStatus.label}
+                    </span>
+                  </div>
+
+                  <div className="mt-3 space-y-2">
+                    {selectedProjectEpics.length ? (
+                      selectedProjectEpics.map((epic) => {
+                        const epicStatus = getTimelineStatus(epic);
+
+                        return (
+                          <div
+                            key={epic._id || epic.name}
+                            className="grid gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 sm:grid-cols-[minmax(0,1fr)_auto]"
+                          >
+                            <div className="min-w-0">
+                              <p className="truncate text-sm font-semibold text-slate-950">
+                                {epic.name}
+                              </p>
+                              <p className="mt-1 text-xs text-slate-500">
+                                {formatShortDate(epic.startDate)} to{" "}
+                                {formatShortDate(epic.targetDate)}
+                              </p>
+                            </div>
+                            <span
+                              className={`h-fit w-fit rounded-full px-3 py-1 text-xs font-semibold ${epicStatus.className}`}
+                            >
+                              {epicStatus.label}
+                            </span>
+                          </div>
+                        );
+                      })
+                    ) : (
+                      <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-5 text-sm text-slate-500">
+                        No epic roadmap yet.
+                      </div>
+                    )}
+                  </div>
+                </section>
 
                 <section className="space-y-3">
                   <div>

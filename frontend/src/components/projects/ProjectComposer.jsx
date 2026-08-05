@@ -53,9 +53,15 @@ const ProjectComposer = ({
     status: "Active",
     priority: "Medium",
     themeColor: "#2563EB",
+    startDate: "",
+    targetDate: "",
   });
   const [selectedTeamIds, setSelectedTeamIds] = useState([]);
-  const [epicDraft, setEpicDraft] = useState("");
+  const [epicDraft, setEpicDraft] = useState({
+    name: "",
+    startDate: "",
+    targetDate: "",
+  });
   const [epics, setEpics] = useState([]);
   const [error, setError] = useState("");
 
@@ -93,6 +99,17 @@ const ProjectComposer = ({
     () => sortedTeams.filter((team) => selectedTeamIds.includes(team._id)),
     [selectedTeamIds, sortedTeams]
   );
+  const projectPeriodDays = useMemo(() => {
+    if (!formData.startDate || !formData.targetDate) {
+      return "";
+    }
+
+    const start = new Date(formData.startDate);
+    const end = new Date(formData.targetDate);
+    const diff = Math.ceil((end.getTime() - start.getTime()) / 86400000) + 1;
+
+    return Number.isFinite(diff) && diff > 0 ? `${diff} days` : "";
+  }, [formData.startDate, formData.targetDate]);
 
   const handleChange = (event) => {
     const { name, value } = event.target;
@@ -122,22 +139,29 @@ const ProjectComposer = ({
   };
 
   const handleAddEpic = () => {
-    const nextEpic = epicDraft.trim();
+    const nextEpic = epicDraft.name.trim();
 
     if (!nextEpic) {
       return;
     }
 
     setEpics((current) => {
-      const existing = new Set(current.map((epic) => epic.toLowerCase()));
+      const existing = new Set(current.map((epic) => epic.name.toLowerCase()));
 
       if (existing.has(nextEpic.toLowerCase())) {
         return current;
       }
 
-      return [...current, nextEpic];
+      return [
+        ...current,
+        {
+          name: nextEpic,
+          startDate: epicDraft.startDate,
+          targetDate: epicDraft.targetDate,
+        },
+      ];
     });
-    setEpicDraft("");
+    setEpicDraft({ name: "", startDate: "", targetDate: "" });
   };
 
   const handleEpicKeyDown = (event) => {
@@ -148,7 +172,7 @@ const ProjectComposer = ({
   };
 
   const handleRemoveEpic = (epicName) => {
-    setEpics((current) => current.filter((epic) => epic !== epicName));
+    setEpics((current) => current.filter((epic) => epic.name !== epicName));
   };
 
   const handleSubmit = async (event) => {
@@ -171,6 +195,8 @@ const ProjectComposer = ({
         status: formData.status,
         priority: formData.priority,
         themeColor: formData.themeColor,
+        startDate: formData.startDate || null,
+        targetDate: formData.targetDate || null,
       });
       setFormData({
         name: "",
@@ -180,9 +206,11 @@ const ProjectComposer = ({
         status: "Active",
         priority: "Medium",
         themeColor: "#2563EB",
+        startDate: "",
+        targetDate: "",
       });
       setSelectedTeamIds([]);
-      setEpicDraft("");
+      setEpicDraft({ name: "", startDate: "", targetDate: "" });
       setEpics([]);
     } catch (submitError) {
       setError(
@@ -475,8 +503,10 @@ const ProjectComposer = ({
             <div className="flex gap-2">
               <Input
                 className={inputClassName}
-                value={epicDraft}
-                onChange={(event) => setEpicDraft(event.target.value)}
+                value={epicDraft.name}
+                onChange={(event) =>
+                  setEpicDraft((current) => ({ ...current, name: event.target.value }))
+                }
                 onKeyDown={handleEpicKeyDown}
                 placeholder="Epic name"
               />
@@ -485,27 +515,58 @@ const ProjectComposer = ({
                 variant="outline"
                 className="h-12 w-12 shrink-0 rounded-xl px-0"
                 onClick={handleAddEpic}
-                disabled={!epicDraft.trim()}
+                disabled={!epicDraft.name.trim()}
                 title="Add epic"
               >
                 <Plus className="h-4 w-4" />
               </Button>
+            </div>
+            <div className="mt-3 grid gap-2 sm:grid-cols-2">
+              <Input
+                className={inputClassName}
+                type="date"
+                value={epicDraft.startDate}
+                onChange={(event) =>
+                  setEpicDraft((current) => ({
+                    ...current,
+                    startDate: event.target.value,
+                  }))
+                }
+              />
+              <Input
+                className={inputClassName}
+                type="date"
+                value={epicDraft.targetDate}
+                onChange={(event) =>
+                  setEpicDraft((current) => ({
+                    ...current,
+                    targetDate: event.target.value,
+                  }))
+                }
+              />
             </div>
 
             <div className="mt-3 space-y-2">
               {epics.length ? (
                 epics.map((epic) => (
                   <div
-                    key={epic}
+                    key={epic.name}
                     className="flex items-center justify-between gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2"
                   >
-                    <span className="truncate text-sm font-medium text-slate-700">
-                      {epic}
+                    <span className="min-w-0">
+                      <span className="block truncate text-sm font-medium text-slate-700">
+                        {epic.name}
+                      </span>
+                      <span className="block text-xs text-slate-500">
+                        {epic.targetDate
+                          ? `Deadline ${epic.targetDate}`
+                          : "No deadline set"}
+                      </span>
                     </span>
                     <button
                       type="button"
                       className="rounded-lg p-1.5 text-slate-400 transition hover:bg-rose-50 hover:text-rose-600"
-                      onClick={() => handleRemoveEpic(epic)}
+                      onClick={() => handleRemoveEpic(epic.name)}
                       title="Remove epic"
                     >
                       <Trash2 className="h-4 w-4" />
@@ -517,6 +578,49 @@ const ProjectComposer = ({
                   No epics added.
                 </div>
               )}
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-slate-200 bg-white p-4">
+            <div className="mb-4 flex items-center gap-2">
+              <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-amber-50 text-amber-700">
+                <Palette className="h-4 w-4" />
+              </span>
+              <div>
+                <h3 className="text-sm font-semibold text-slate-950">Project Timeline</h3>
+                <p className={hintClassName}>Set period and final deadline.</p>
+              </div>
+            </div>
+            <div className="grid gap-2 sm:grid-cols-2">
+              <div className="space-y-1.5">
+                <label className={labelClassName} htmlFor="projectStartDate">
+                  Start date
+                </label>
+                <Input
+                  id="projectStartDate"
+                  name="startDate"
+                  type="date"
+                  className={inputClassName}
+                  value={formData.startDate}
+                  onChange={handleChange}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label className={labelClassName} htmlFor="projectTargetDate">
+                  Deadline
+                </label>
+                <Input
+                  id="projectTargetDate"
+                  name="targetDate"
+                  type="date"
+                  className={inputClassName}
+                  value={formData.targetDate}
+                  onChange={handleChange}
+                />
+              </div>
+            </div>
+            <div className="mt-3 rounded-xl border border-dashed border-slate-200 bg-slate-50 px-3 py-3 text-sm text-slate-500">
+              Period: {projectPeriodDays || "Select start and deadline"}
             </div>
           </div>
 

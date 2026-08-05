@@ -150,11 +150,13 @@ const normalizeProjectEpics = (value) => {
   const uniqueEpics = new Map();
 
   value.forEach((epic) => {
-    if (typeof epic !== "string") {
+    const epicName = typeof epic === "string" ? epic : epic?.name;
+
+    if (typeof epicName !== "string") {
       return;
     }
 
-    const normalizedEpic = epic.trim();
+    const normalizedEpic = epicName.trim();
 
     if (!normalizedEpic) {
       return;
@@ -164,6 +166,50 @@ const normalizeProjectEpics = (value) => {
 
     if (!uniqueEpics.has(dedupeKey)) {
       uniqueEpics.set(dedupeKey, normalizedEpic);
+    }
+  });
+
+  return Array.from(uniqueEpics.values());
+};
+
+const normalizeOptionalDate = (value) => {
+  if (!value) {
+    return null;
+  }
+
+  const parsedDate = new Date(value);
+
+  return Number.isNaN(parsedDate.getTime()) ? null : parsedDate;
+};
+
+const normalizeProjectEpicInputs = (value) => {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  const uniqueEpics = new Map();
+
+  value.forEach((epic) => {
+    const epicName = typeof epic === "string" ? epic : epic?.name;
+
+    if (typeof epicName !== "string") {
+      return;
+    }
+
+    const name = epicName.trim();
+
+    if (!name) {
+      return;
+    }
+
+    const dedupeKey = name.toLowerCase();
+
+    if (!uniqueEpics.has(dedupeKey)) {
+      uniqueEpics.set(dedupeKey, {
+        name,
+        startDate: typeof epic === "object" ? normalizeOptionalDate(epic.startDate) : null,
+        targetDate: typeof epic === "object" ? normalizeOptionalDate(epic.targetDate) : null,
+      });
     }
   });
 
@@ -435,6 +481,8 @@ const createProject = asyncHandler(async (req, res) => {
     status = "Active",
     priority = "Medium",
     themeColor = "#2563EB",
+    startDate = null,
+    targetDate = null,
     teamIds = [],
     attachedTeams = [],
   } = req.body;
@@ -537,6 +585,8 @@ const createProject = asyncHandler(async (req, res) => {
     throw new Error("One or more selected teams could not be found in this workspace");
   }
 
+  const normalizedEpicInputs = normalizeProjectEpicInputs(epics);
+
   const project = await Project.create({
     name: name.trim(),
     description: typeof description === "string" ? description.trim() : "",
@@ -544,7 +594,9 @@ const createProject = asyncHandler(async (req, res) => {
     status: statusResult.value,
     priority: priorityResult.value,
     themeColor: normalizeThemeColor(themeColor),
-    epics: normalizeProjectEpics(epics),
+    startDate: normalizeOptionalDate(startDate),
+    targetDate: normalizeOptionalDate(targetDate),
+    epics: normalizedEpicInputs.map((epic) => epic.name),
     manager: managerResult.value,
     projectManager: managerResult.value,
     teamLead: teamLeadResult.value,
@@ -555,16 +607,17 @@ const createProject = asyncHandler(async (req, res) => {
     createdBy: userId,
     isCompleted: statusResult.value === "Completed",
   });
-  const normalizedEpics = normalizeProjectEpics(epics);
 
-  if (normalizedEpics.length) {
+  if (normalizedEpicInputs.length) {
     await Epic.insertMany(
-      normalizedEpics.map((epicName, index) => ({
+      normalizedEpicInputs.map((epic, index) => ({
         projectId: project._id,
         workspaceId,
-        name: epicName,
+        name: epic.name,
         description: "",
         color: "#3B82F6",
+        startDate: epic.startDate,
+        targetDate: epic.targetDate,
         planningOrder: (index + 1) * PLANNING_ORDER_INCREMENT,
         status: "ACTIVE",
         createdBy: userId,

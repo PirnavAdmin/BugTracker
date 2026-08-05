@@ -50,6 +50,14 @@ const projectSchema = new Schema(
       trim: true,
       default: "#2563EB",
     },
+    startDate: {
+      type: Date,
+      default: null,
+    },
+    targetDate: {
+      type: Date,
+      default: null,
+    },
     epics: {
       type: [
         {
