@@ -1158,172 +1158,96 @@ const ProjectsPage = () => {
       <div className="grid h-full min-h-0 w-full gap-4 lg:grid-cols-[200px_minmax(0,1fr)]">
         <aside className="min-h-0 min-w-0 border-r border-[#EEF2F7] bg-white/72 pr-3">
           <div className="sticky top-0 flex h-full min-h-0 flex-col gap-4 py-3">
-            <nav className="space-y-4" aria-label="Project page sidebar">
-              <div className="space-y-1">
-                <p className="px-2 text-[11px] font-semibold uppercase text-slate-400">
-                  Projects
-                </p>
-                {[
-                  {
-                    label: "All Projects",
-                    Icon: FolderKanban,
-                    active: activeTab === "projects" && projectStatusFilter === "all",
-                    action: () => {
-                      updateActiveTab("projects");
-                      setProjectMode("overview");
-                      setProjectSearch("");
-                      setProjectStatusFilter("all");
-                    },
+            <nav className="space-y-1" aria-label="Project page sidebar">
+              {[
+                {
+                  label: "All Projects",
+                  Icon: FolderKanban,
+                  active: activeTab === "projects" && projectStatusFilter === "all",
+                  action: () => {
+                    updateActiveTab("projects");
+                    setProjectMode("overview");
+                    setProjectSearch("");
+                    setProjectStatusFilter("all");
                   },
-                  {
-                    label: "Active",
-                    Icon: CheckCircle2,
-                    active: activeTab === "projects" && projectStatusFilter === "Active",
-                    action: () => {
-                      updateActiveTab("projects");
-                      setProjectMode("overview");
-                      setProjectStatusFilter("Active");
-                    },
+                },
+                {
+                  label: "Active",
+                  Icon: CheckCircle2,
+                  active: activeTab === "projects" && projectStatusFilter === "Active",
+                  action: () => {
+                    updateActiveTab("projects");
+                    setProjectMode("overview");
+                    setProjectStatusFilter("Active");
                   },
-                  {
-                    label: "On Hold",
-                    Icon: Archive,
-                    active: activeTab === "projects" && projectStatusFilter === "On Hold",
-                    action: () => {
-                      updateActiveTab("projects");
-                      setProjectMode("overview");
-                      setProjectStatusFilter("On Hold");
-                    },
+                },
+                {
+                  label: "On Hold",
+                  Icon: Archive,
+                  active: activeTab === "projects" && projectStatusFilter === "On Hold",
+                  action: () => {
+                    updateActiveTab("projects");
+                    setProjectMode("overview");
+                    setProjectStatusFilter("On Hold");
                   },
-                  {
-                    label: "Completed",
-                    Icon: ShieldCheck,
-                    active: activeTab === "projects" && projectStatusFilter === "Completed",
-                    action: () => {
-                      updateActiveTab("projects");
-                      setProjectMode("overview");
-                      setProjectStatusFilter("Completed");
-                    },
+                },
+                {
+                  label: "Completed",
+                  Icon: ShieldCheck,
+                  active: activeTab === "projects" && projectStatusFilter === "Completed",
+                  action: () => {
+                    updateActiveTab("projects");
+                    setProjectMode("overview");
+                    setProjectStatusFilter("Completed");
                   },
-                ].map(({ label, Icon, active, action }) => (
-                  <button
-                    key={label}
-                    className={`flex h-9 w-full items-center gap-2 rounded-lg border px-3 text-sm font-semibold transition ${
-                      active
-                        ? "border-[#B6D4FE] bg-[#E9F2FF] text-[#0C66E4]"
-                        : "border-transparent text-slate-600 hover:bg-slate-50 hover:text-slate-950"
-                    }`}
-                    type="button"
-                    onClick={action}
-                  >
-                    <Icon className="h-4 w-4" />
-                    {label}
-                  </button>
-                ))}
-              </div>
-
-              <div className="space-y-1">
-                <p className="px-2 text-[11px] font-semibold uppercase text-slate-400">
-                  Planning
-                </p>
-                <button
-                  className={`flex h-9 w-full items-center gap-2 rounded-lg border px-3 text-sm font-semibold transition ${
-                    activeTab === "projects" && projectMode === "planning"
-                      ? "border-[#B6D4FE] bg-[#E9F2FF] text-[#0C66E4]"
-                      : "border-transparent text-slate-600 hover:bg-slate-50 hover:text-slate-950"
-                  }`}
-                  type="button"
-                  onClick={() => {
+                },
+                {
+                  label: "Project Planning",
+                  Icon: ClipboardList,
+                  active: activeTab === "projects" && projectMode === "planning",
+                  action: () => {
                     updateActiveTab("projects");
                     setProjectMode("planning");
-                  }}
-                >
-                  <ClipboardList className="h-4 w-4" />
-                  Project Planning
-                </button>
-                <button
-                  className="flex h-9 w-full items-center gap-2 rounded-lg px-3 text-sm font-semibold text-slate-600 transition hover:bg-slate-50 hover:text-slate-950"
-                  type="button"
-                  onClick={() =>
+                  },
+                },
+                {
+                  label: "Backlog",
+                  Icon: Route,
+                  active: false,
+                  action: () =>
                     navigate(
                       selectedProject
                         ? `/backlog?projectId=${selectedProject._id}`
                         : "/backlog"
-                    )
-                  }
-                >
-                  <Route className="h-4 w-4" />
-                  Backlog
-                </button>
+                    ),
+                },
+                {
+                  label: "Reports",
+                  Icon: BarChart3,
+                  active: false,
+                  action: () => navigate("/reports"),
+                },
+                {
+                  label: "Teams",
+                  Icon: Users2,
+                  active: activeTab === "teams",
+                  action: () => updateActiveTab("teams"),
+                },
+              ].map(({ label, Icon, active, action }) => (
                 <button
-                  className="flex h-9 w-full items-center gap-2 rounded-lg px-3 text-sm font-semibold text-slate-600 transition hover:bg-slate-50 hover:text-slate-950"
-                  type="button"
-                  onClick={() =>
-                    navigate(
-                      selectedProject
-                        ? `/issues?projectId=${selectedProject._id}`
-                        : "/issues"
-                    )
-                  }
-                >
-                  <Bug className="h-4 w-4" />
-                  Issues
-                </button>
-              </div>
-
-              <div className="space-y-1">
-                <p className="px-2 text-[11px] font-semibold uppercase text-slate-400">
-                  Development
-                </p>
-                <button
-                  className="flex h-9 w-full items-center gap-2 rounded-lg px-3 text-sm font-semibold text-slate-600 transition hover:bg-slate-50 hover:text-slate-950"
-                  type="button"
-                  onClick={() => navigate("/tasks")}
-                >
-                  <ClipboardList className="h-4 w-4" />
-                  Tasks
-                </button>
-                <button
-                  className="flex h-9 w-full items-center gap-2 rounded-lg px-3 text-sm font-semibold text-slate-600 transition hover:bg-slate-50 hover:text-slate-950"
-                  type="button"
-                  onClick={() => navigate("/dev/bugs")}
-                >
-                  <Bug className="h-4 w-4" />
-                  Bugs
-                </button>
-              </div>
-
-              <div className="space-y-1">
-                <p className="px-2 text-[11px] font-semibold uppercase text-slate-400">
-                  Analytics
-                </p>
-                <button
-                  className="flex h-9 w-full items-center gap-2 rounded-lg px-3 text-sm font-semibold text-slate-600 transition hover:bg-slate-50 hover:text-slate-950"
-                  type="button"
-                  onClick={() => navigate("/reports")}
-                >
-                  <BarChart3 className="h-4 w-4" />
-                  Reports
-                </button>
-              </div>
-
-              <div className="space-y-1">
-                <p className="px-2 text-[11px] font-semibold uppercase text-slate-400">
-                  Administration
-                </p>
-                <button
+                  key={label}
                   className={`flex h-9 w-full items-center gap-2 rounded-lg border px-3 text-sm font-semibold transition ${
-                    activeTab === "teams"
+                    active
                       ? "border-[#B6D4FE] bg-[#E9F2FF] text-[#0C66E4]"
                       : "border-transparent text-slate-600 hover:bg-slate-50 hover:text-slate-950"
                   }`}
                   type="button"
-                  onClick={() => updateActiveTab("teams")}
+                  onClick={action}
                 >
-                  <Users2 className="h-4 w-4" />
-                  Teams
+                  <Icon className="h-4 w-4" />
+                  {label}
                 </button>
-              </div>
+              ))}
             </nav>
 
             <div className="mx-2 rounded-xl border border-[#EEF2F7] bg-blue-50/55 p-3 shadow-[0_2px_12px_rgba(0,0,0,.04)]">
