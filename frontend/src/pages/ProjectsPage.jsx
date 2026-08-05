@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  Activity,
+  AlertTriangle,
   Archive,
   BarChart3,
   Bug,
@@ -10,9 +12,11 @@ import {
   FolderKanban,
   HeartPulse,
   Layers3,
+  Link2,
   MoreHorizontal,
   Plus,
   Route,
+  Rocket,
   Search,
   Settings2,
   ShieldCheck,
@@ -846,6 +850,194 @@ const ProjectsPage = () => {
     [selectedProjectBugs]
   );
 
+  const selectedProjectWidgetStats = useMemo(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const twoWeeksFromNow = new Date(today);
+    twoWeeksFromNow.setDate(today.getDate() + 14);
+
+    const parseDate = (value) => {
+      if (!value) return null;
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) return null;
+      date.setHours(0, 0, 0, 0);
+      return date;
+    };
+
+    const activeEpics = selectedProjectEpics.filter(
+      (epic) => String(epic?.status || "").toUpperCase() !== "DONE"
+    );
+    const upcomingEpics = activeEpics.filter((epic) => {
+      const deadline = parseDate(epic?.targetDate);
+      return deadline && deadline >= today && deadline <= twoWeeksFromNow;
+    });
+    const overdueEpics = activeEpics.filter((epic) => {
+      const deadline = parseDate(epic?.targetDate);
+      return deadline && deadline < today;
+    });
+    const projectDeadline = parseDate(selectedProject?.targetDate);
+    const hasUpcomingProjectDeadline =
+      projectDeadline && projectDeadline >= today && projectDeadline <= twoWeeksFromNow;
+
+    const completedIssues = selectedProjectIssues.filter((issue) => {
+      const issueType = normalizeIssueType(issue?.type, ISSUE_TYPES.TASK);
+
+      if ([ISSUE_TYPES.TASK, ISSUE_TYPES.SUB_TASK].includes(issueType)) {
+        return getTaskBoardStatus(issue) === "DONE";
+      }
+
+      if (issueType === ISSUE_TYPES.BUG) {
+        return getBugColumnKey(issue, DEVELOPER_BUG_COLUMNS) === "closed";
+      }
+
+      return ["DONE", "CLOSED"].includes(String(issue?.status || "").toUpperCase());
+    }).length;
+
+    const blockedIssues = selectedProjectIssues.filter((issue) => {
+      const status = String(issue?.status || issue?.workflowStatus || "").toUpperCase();
+      return (
+        status.includes("BLOCK") ||
+        Boolean(issue?.isBlocked || issue?.blockedBy || issue?.blocker)
+      );
+    }).length;
+
+    const criticalBugs = selectedProjectBugs.filter((bugIssue) => {
+      const severity = String(
+        bugIssue?.severity || bugIssue?.priority || bugIssue?.bugDetails?.severity || ""
+      ).toUpperCase();
+      return severity.includes("CRITICAL") || severity.includes("BLOCKER");
+    }).length;
+
+    const completedTasks = selectedProjectTasks.filter(
+      (issue) => getTaskBoardStatus(issue) === "DONE"
+    ).length;
+    const closedBugs = selectedProjectBugs.filter(
+      (issue) => getBugColumnKey(issue, DEVELOPER_BUG_COLUMNS) === "closed"
+    ).length;
+    const releaseReady =
+      selectedProjectProgress >= 80 && !blockedIssues && !criticalBugs && !overdueEpics.length;
+
+    return {
+      blockedIssues,
+      closedBugs,
+      completedIssues,
+      completedTasks,
+      criticalBugs,
+      overdueEpics: overdueEpics.length,
+      releaseReadiness: releaseReady ? "Ready" : "Needs work",
+      upcomingDeadlines: upcomingEpics.length + (hasUpcomingProjectDeadline ? 1 : 0),
+      velocityLabel: selectedProjectIssues.length
+        ? `${completedIssues} closed`
+        : "No issues",
+    };
+  }, [
+    selectedProject?.targetDate,
+    selectedProjectBugs,
+    selectedProjectEpics,
+    selectedProjectIssues,
+    selectedProjectProgress,
+    selectedProjectTasks,
+  ]);
+
+  const selectedProjectWidgets = useMemo(
+    () => [
+      {
+        label: "Upcoming Deadlines",
+        value: selectedProjectWidgetStats.upcomingDeadlines,
+        helper: "Due in the next 14 days",
+        Icon: CalendarClock,
+        tone: selectedProjectWidgetStats.upcomingDeadlines ? "amber" : "emerald",
+      },
+      {
+        label: "Overdue Epics",
+        value: selectedProjectWidgetStats.overdueEpics,
+        helper: "Epic deadlines already missed",
+        Icon: AlertTriangle,
+        tone: selectedProjectWidgetStats.overdueEpics ? "rose" : "emerald",
+      },
+      {
+        label: "Project Health",
+        value: selectedProjectTimelineStatus.label,
+        helper: `${selectedProjectProgress}% complete`,
+        Icon: HeartPulse,
+        tone: getHealthTone(selectedProjectTimelineStatus.label, selectedProjectProgress),
+      },
+      {
+        label: "Roadmap Progress",
+        value: `${selectedProjectProgress}%`,
+        helper: `${selectedProjectEpics.length} epics tracked`,
+        Icon: Route,
+        tone: getProgressTone(selectedProjectProgress),
+      },
+      {
+        label: "Milestones",
+        value: selectedProjectEpics.length,
+        helper: "Planning workstreams",
+        Icon: Target,
+        tone: selectedProjectEpics.length ? "violet" : "slate",
+      },
+      {
+        label: "Sprint Burndown",
+        value: `${selectedProjectWidgetStats.completedTasks}/${selectedProjectTasks.length}`,
+        helper: "Tasks completed",
+        Icon: TrendingUp,
+        tone: getProgressTone(
+          selectedProjectTasks.length
+            ? Math.round(
+                (selectedProjectWidgetStats.completedTasks / selectedProjectTasks.length) *
+                  100
+              )
+            : 0
+        ),
+      },
+      {
+        label: "Team Workload",
+        value: selectedProjectMembers.length,
+        helper: `${selectedProjectTeams.length} attached teams`,
+        Icon: Users2,
+        tone: selectedProjectMembers.length ? "blue" : "slate",
+      },
+      {
+        label: "Blocked Issues",
+        value: selectedProjectWidgetStats.blockedIssues,
+        helper: "Needs attention",
+        Icon: Link2,
+        tone: selectedProjectWidgetStats.blockedIssues ? "rose" : "emerald",
+      },
+      {
+        label: "Critical Bugs",
+        value: selectedProjectWidgetStats.criticalBugs,
+        helper: "Highest severity bugs",
+        Icon: Bug,
+        tone: selectedProjectWidgetStats.criticalBugs ? "rose" : "emerald",
+      },
+      {
+        label: "Velocity",
+        value: selectedProjectWidgetStats.velocityLabel,
+        helper: "Closed work items",
+        Icon: Activity,
+        tone: selectedProjectWidgetStats.completedIssues ? "blue" : "slate",
+      },
+      {
+        label: "Release Readiness",
+        value: selectedProjectWidgetStats.releaseReadiness,
+        helper: "Progress, blockers, and bugs",
+        Icon: Rocket,
+        tone:
+          selectedProjectWidgetStats.releaseReadiness === "Ready" ? "emerald" : "amber",
+      },
+    ],
+    [
+      selectedProjectEpics.length,
+      selectedProjectMembers.length,
+      selectedProjectProgress,
+      selectedProjectTasks.length,
+      selectedProjectTeams.length,
+      selectedProjectTimelineStatus.label,
+      selectedProjectWidgetStats,
+    ]
+  );
+
   useEffect(() => {
     if (!filteredProjects.length) {
       setSelectedProjectId("");
@@ -1163,7 +1355,8 @@ const ProjectsPage = () => {
 
           <div className="min-h-0 min-w-0 space-y-4 overflow-y-auto pr-1">
             {selectedProject ? (
-              <>
+              <div className="grid min-w-0 gap-4 2xl:grid-cols-[minmax(0,1fr)_340px]">
+                <div className="min-w-0 space-y-4">
                 <Card className="overflow-hidden border-slate-200 bg-white shadow-[0_18px_52px_-40px_rgba(15,23,42,0.5)]">
                   <CardContent className="p-0">
                     <div
@@ -1639,7 +1832,67 @@ const ProjectsPage = () => {
                     </div>
                   ) : null}
                 </section>
-              </>
+                </div>
+
+                <aside className="min-w-0 space-y-3 2xl:sticky 2xl:top-0 2xl:self-start">
+                  <div className="rounded-2xl border border-slate-200 bg-white/92 p-4 shadow-[0_18px_46px_-36px_rgba(15,23,42,0.55)]">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <h3 className="text-base font-semibold text-slate-950">
+                          Project Widgets
+                        </h3>
+                        <p className="mt-1 text-xs text-slate-500">
+                          Live planning signals for this project.
+                        </p>
+                      </div>
+                      <span className="flex h-9 w-9 items-center justify-center rounded-2xl bg-blue-50 text-blue-700">
+                        <BarChart3 className="h-4 w-4" />
+                      </span>
+                    </div>
+
+                    <div className="mt-4 grid gap-3 sm:grid-cols-2 2xl:grid-cols-1">
+                      {selectedProjectWidgets.map((widget) => {
+                        const tone = getMetricTone(widget.tone);
+                        const Icon = widget.Icon;
+
+                        return (
+                          <div
+                            key={widget.label}
+                            className={`group relative overflow-hidden rounded-2xl border bg-gradient-to-br p-3.5 shadow-[0_14px_34px_-30px_rgba(15,23,42,0.65)] ring-0 transition duration-200 hover:-translate-y-1 hover:scale-[1.015] hover:shadow-[0_22px_46px_-30px_rgba(15,23,42,0.7)] hover:ring-4 ${tone.card} ${tone.ring}`}
+                          >
+                            <div className="pointer-events-none absolute -right-7 -top-8 h-20 w-20 rounded-full bg-white/45" />
+                            <div className="relative flex items-start justify-between gap-3">
+                              <div className="min-w-0">
+                                <p
+                                  className={`truncate text-[11px] font-bold uppercase ${tone.label}`}
+                                >
+                                  {widget.label}
+                                </p>
+                                <p className="mt-1 truncate text-xl font-semibold text-slate-950">
+                                  {isSelectedProjectIssuesLoading &&
+                                  ["Critical Bugs", "Blocked Issues", "Velocity"].includes(
+                                    widget.label
+                                  )
+                                    ? "..."
+                                    : widget.value}
+                                </p>
+                              </div>
+                              <span
+                                className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl shadow-lg transition group-hover:rotate-3 group-hover:scale-110 ${tone.icon}`}
+                              >
+                                <Icon className="h-4 w-4" />
+                              </span>
+                            </div>
+                            <p className="relative mt-2 text-xs leading-4 text-slate-600">
+                              {widget.helper}
+                            </p>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </aside>
+              </div>
             ) : !isProjectsLoading ? (
               <EmptyState
                 title="No projects yet"
