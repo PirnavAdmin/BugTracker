@@ -339,6 +339,7 @@ const ProjectsPage = () => {
   const [projectStatusFilter, setProjectStatusFilter] = useState("all");
   const [projectMode, setProjectMode] = useState("overview");
   const [projectDetailView, setProjectDetailView] = useState("overview");
+  const [projectPanelView, setProjectPanelView] = useState("details");
   const [selectedProjectId, setSelectedProjectId] = useState("");
   const [isSelectedProjectManageOpen, setIsSelectedProjectManageOpen] = useState(false);
   const [toast, setToast] = useState(null);
@@ -1051,6 +1052,7 @@ const ProjectsPage = () => {
 
   useEffect(() => {
     setProjectDetailView("overview");
+    setProjectPanelView("details");
   }, [selectedProject?._id]);
 
   const handleCreateProject = async (payload) => {
@@ -1355,8 +1357,7 @@ const ProjectsPage = () => {
 
           <div className="min-h-0 min-w-0 space-y-4 overflow-y-auto pr-1">
             {selectedProject ? (
-              <div className="grid min-w-0 gap-4 2xl:grid-cols-[minmax(0,1fr)_340px]">
-                <div className="min-w-0 space-y-4">
+              <>
                 <Card className="overflow-hidden border-slate-200 bg-white shadow-[0_18px_52px_-40px_rgba(15,23,42,0.5)]">
                   <CardContent className="p-0">
                     <div
@@ -1603,6 +1604,33 @@ const ProjectsPage = () => {
                   })}
                 </div>
 
+                <div className="inline-flex rounded-2xl border border-slate-200 bg-white/90 p-1 shadow-[0_12px_34px_-32px_rgba(15,23,42,0.6)]">
+                  {[
+                    { id: "details", label: "Project Overview", Icon: FolderKanban },
+                    { id: "widgets", label: "Project Widgets", Icon: BarChart3 },
+                  ].map(({ id, label, Icon }) => {
+                    const isActive = projectPanelView === id;
+
+                    return (
+                      <button
+                        key={id}
+                        className={`inline-flex h-10 items-center gap-2 rounded-xl px-4 text-sm font-semibold transition ${
+                          isActive
+                            ? "bg-slate-950 text-white shadow-sm"
+                            : "text-slate-600 hover:bg-slate-50 hover:text-slate-950"
+                        }`}
+                        type="button"
+                        onClick={() => setProjectPanelView(id)}
+                      >
+                        <Icon className="h-4 w-4" />
+                        {label}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {projectPanelView === "details" ? (
+                  <>
                 <section className="rounded-2xl border border-slate-200 bg-white p-4">
                   <div className="flex flex-col gap-3 border-b border-slate-200 pb-3 sm:flex-row sm:items-start sm:justify-between">
                     <div>
@@ -1832,10 +1860,9 @@ const ProjectsPage = () => {
                     </div>
                   ) : null}
                 </section>
-                </div>
-
-                <aside className="min-w-0 space-y-3 2xl:sticky 2xl:top-0 2xl:self-start">
-                  <div className="rounded-2xl border border-slate-200 bg-white/92 p-4 shadow-[0_18px_46px_-36px_rgba(15,23,42,0.55)]">
+                  </>
+                ) : (
+                  <section className="rounded-2xl border border-slate-200 bg-white/92 p-4 shadow-[0_18px_46px_-36px_rgba(15,23,42,0.55)]">
                     <div className="flex items-start justify-between gap-3">
                       <div>
                         <h3 className="text-base font-semibold text-slate-950">
@@ -1850,7 +1877,7 @@ const ProjectsPage = () => {
                       </span>
                     </div>
 
-                    <div className="mt-4 grid gap-3 sm:grid-cols-2 2xl:grid-cols-1">
+                    <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
                       {selectedProjectWidgets.map((widget) => {
                         const tone = getMetricTone(widget.tone);
                         const Icon = widget.Icon;
@@ -1890,9 +1917,9 @@ const ProjectsPage = () => {
                         );
                       })}
                     </div>
-                  </div>
-                </aside>
-              </div>
+                  </section>
+                )}
+              </>
             ) : !isProjectsLoading ? (
               <EmptyState
                 title="No projects yet"
