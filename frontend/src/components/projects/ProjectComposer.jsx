@@ -39,11 +39,11 @@ const deriveProjectKey = (name = "") => {
 const ProjectComposer = ({
   onSubmit,
   isPending,
-  onCancel,
   users = [],
   teams = [],
   usersErrorMessage = "",
   teamsErrorMessage = "",
+  formId = "create-project-form",
 }) => {
   const [formData, setFormData] = useState({
     name: "",
@@ -89,6 +89,10 @@ const ProjectComposer = ({
     () => [...teams].sort((left, right) => (left.name || "").localeCompare(right.name || "")),
     [teams]
   );
+  const selectedTeams = useMemo(
+    () => sortedTeams.filter((team) => selectedTeamIds.includes(team._id)),
+    [selectedTeamIds, sortedTeams]
+  );
 
   const handleChange = (event) => {
     const { name, value } = event.target;
@@ -98,11 +102,22 @@ const ProjectComposer = ({
     }));
   };
 
-  const handleTeamToggle = (teamId) => {
+  const handleTeamSelect = (event) => {
+    const teamId = event.target.value;
+
+    if (!teamId) {
+      return;
+    }
+
     setSelectedTeamIds((current) =>
-      current.includes(teamId)
-        ? current.filter((selectedTeamId) => selectedTeamId !== teamId)
-        : [...current, teamId]
+      current.includes(teamId) ? current : [...current, teamId]
+    );
+    event.target.value = "";
+  };
+
+  const handleRemoveTeam = (teamId) => {
+    setSelectedTeamIds((current) =>
+      current.filter((selectedTeamId) => selectedTeamId !== teamId)
     );
   };
 
@@ -177,7 +192,7 @@ const ProjectComposer = ({
   };
 
   return (
-    <form className="space-y-5" onSubmit={handleSubmit}>
+    <form className="space-y-5" id={formId} onSubmit={handleSubmit}>
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_420px]">
         <div className="space-y-5">
           <div className="rounded-2xl border border-slate-200 bg-white p-4">
@@ -386,49 +401,58 @@ const ProjectComposer = ({
                 {teamsErrorMessage}
               </div>
             ) : sortedTeams.length ? (
-              <div className="max-h-[210px] space-y-2 overflow-y-auto pr-1">
-                {sortedTeams.map((team) => {
-                  const isSelected = selectedTeamIds.includes(team._id);
+              <div className="space-y-3">
+                <select
+                  className={selectClassName}
+                  defaultValue=""
+                  onChange={handleTeamSelect}
+                  disabled={selectedTeamIds.length === sortedTeams.length}
+                >
+                  <option value="">
+                    {selectedTeamIds.length === sortedTeams.length
+                      ? "All teams selected"
+                      : "Select team to attach"}
+                  </option>
+                  {sortedTeams
+                    .filter((team) => !selectedTeamIds.includes(team._id))
+                    .map((team) => (
+                      <option key={team._id} value={team._id}>
+                        {team.name} - {team.memberCount || team.members?.length || 0} members
+                      </option>
+                    ))}
+                </select>
 
-                  return (
-                    <button
-                      key={team._id}
-                      type="button"
-                      onClick={() => handleTeamToggle(team._id)}
-                      className={`flex w-full items-center gap-3 rounded-xl border px-3 py-2.5 text-left transition ${
-                        isSelected
-                          ? "border-blue-300 bg-blue-50 text-blue-950 shadow-sm"
-                          : "border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50"
-                      }`}
-                    >
-                      <span
-                        className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-xs font-semibold ${
-                          isSelected ? "bg-white text-blue-700" : "bg-slate-100 text-slate-600"
-                        }`}
+                <div className="space-y-2">
+                  {selectedTeams.length ? (
+                    selectedTeams.map((team) => (
+                      <div
+                        key={team._id}
+                        className="flex items-center justify-between gap-2 rounded-xl border border-blue-100 bg-blue-50 px-3 py-2"
                       >
-                        {(team.name || "Team")
-                          .split(/\s+/)
-                          .map((part) => part[0])
-                          .join("")
-                          .slice(0, 2)
-                          .toUpperCase()}
-                      </span>
-                      <span className="min-w-0 flex-1">
-                        <span className="block truncate text-sm font-semibold">
-                          {team.name}
+                        <span className="min-w-0">
+                          <span className="block truncate text-sm font-semibold text-blue-950">
+                            {team.name}
+                          </span>
+                          <span className="block text-xs text-blue-700/80">
+                            {team.memberCount || team.members?.length || 0} members
+                          </span>
                         </span>
-                        <span className="block truncate text-xs text-slate-500">
-                          {team.memberCount || team.members?.length || 0} members
-                        </span>
-                      </span>
-                      <span
-                        className={`h-4 w-4 rounded-full border ${
-                          isSelected ? "border-blue-600 bg-blue-600" : "border-slate-300"
-                        }`}
-                      />
-                    </button>
-                  );
-                })}
+                        <button
+                          type="button"
+                          className="rounded-lg p-1.5 text-blue-500 transition hover:bg-white hover:text-rose-600"
+                          onClick={() => handleRemoveTeam(team._id)}
+                          title="Remove team"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-3 py-3 text-sm text-slate-500">
+                      No teams selected.
+                    </div>
+                  )}
+                </div>
               </div>
             ) : (
               <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-3 py-3 text-sm text-slate-500">
@@ -496,26 +520,6 @@ const ProjectComposer = ({
             </div>
           </div>
 
-          <div className="flex flex-col-reverse gap-2 rounded-2xl border border-slate-200 bg-white p-4 sm:flex-row sm:items-center sm:justify-end">
-            {onCancel ? (
-              <Button
-                type="button"
-                variant="outline"
-                onClick={onCancel}
-                disabled={isPending}
-                className="h-11 min-w-[104px] rounded-xl px-5"
-              >
-                Cancel
-              </Button>
-            ) : null}
-            <Button
-              className="h-11 min-w-[164px] rounded-xl border border-blue-500/20 bg-[linear-gradient(90deg,#2563EB_0%,#4F46E5_100%)] px-5 text-white shadow-[0_16px_30px_-20px_rgba(37,99,235,0.82)] transition hover:-translate-y-0.5 hover:brightness-105"
-              disabled={isPending}
-              type="submit"
-            >
-              {isPending ? "Creating project..." : "Create Project"}
-            </Button>
-          </div>
         </aside>
       </div>
 

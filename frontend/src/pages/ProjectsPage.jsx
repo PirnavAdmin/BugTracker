@@ -7,13 +7,12 @@ import {
   CheckCircle2,
   ClipboardList,
   FolderKanban,
-  LayoutGrid,
   Layers3,
-  List,
   MoreHorizontal,
   Plus,
   Route,
   Search,
+  Settings2,
   ShieldCheck,
   Star,
   Target,
@@ -42,7 +41,7 @@ import {
   updateProjectStatus,
 } from "@/lib/api";
 import ProjectComposer from "@/components/projects/ProjectComposer";
-import ProjectCard from "@/components/projects/ProjectCard";
+import ProjectManageDialog from "@/components/projects/ProjectManageDialog";
 import {
   projectDialogBodyClass,
   projectDialogContentClass,
@@ -65,7 +64,8 @@ import ToastNotice from "@/components/shared/ToastNotice";
 import { useAuth } from "@/hooks/use-auth";
 import { hasAdminPanelAccess } from "@/lib/roles";
 import { getWorkspaceScope } from "@/lib/workspace";
-import { getProjectTeams } from "@/lib/project-teams";
+import { getProjectTeams, resolveUserId } from "@/lib/project-teams";
+import { getInitials } from "@/lib/utils";
 import { ISSUE_TYPES, normalizeIssueType } from "@/lib/issues";
 import {
   TASK_BOARD_COLUMNS,
@@ -76,7 +76,6 @@ import {
   getBugColumnKey,
 } from "@/components/bugs/bugBoardConfig";
 
-const PROJECT_GRID_SKELETON_COUNT = 4;
 const TEAM_PANEL_SKELETON_COUNT = 3;
 
 const getProjectStatus = (project) =>
@@ -115,10 +114,10 @@ const ProjectsPage = () => {
   const [isCreateTeamDialogOpen, setIsCreateTeamDialogOpen] = useState(false);
   const [projectSearch, setProjectSearch] = useState("");
   const [projectStatusFilter, setProjectStatusFilter] = useState("all");
-  const [projectView, setProjectView] = useState("grid");
   const [projectMode, setProjectMode] = useState("overview");
   const [projectDetailView, setProjectDetailView] = useState("overview");
   const [selectedProjectId, setSelectedProjectId] = useState("");
+  const [isSelectedProjectManageOpen, setIsSelectedProjectManageOpen] = useState(false);
   const [toast, setToast] = useState(null);
 
   const updateActiveTab = (tab) => {
@@ -464,6 +463,45 @@ const ProjectsPage = () => {
     [selectedProject]
   );
 
+  const selectedProjectMembers = useMemo(() => {
+    if (!selectedProject) {
+      return [];
+    }
+
+    const uniqueMembers = new Map();
+    const addMember = (member, source = "") => {
+      const user = member?.user || member?.userId || member;
+      const memberId = resolveUserId(user);
+
+      if (!memberId || uniqueMembers.has(memberId)) {
+        return;
+      }
+
+      uniqueMembers.set(memberId, {
+        ...user,
+        projectRole: member?.role || user?.projectRole || user?.role || "",
+        membershipSource: source,
+      });
+    };
+
+    (selectedProject.members || []).forEach((member) => addMember(member, "Project"));
+    (selectedProject.projectMembers || []).forEach((member) =>
+      addMember(member, "Project")
+    );
+    [
+      selectedProject.projectManager || selectedProject.manager,
+      selectedProject.teamLead,
+      selectedProject.qaLead,
+    ].forEach((member) => addMember(member, "Leadership"));
+    selectedProjectTeams.forEach((team) =>
+      (team?.members || []).forEach((member) => addMember(member, team.name || "Team"))
+    );
+
+    return Array.from(uniqueMembers.values()).sort((left, right) =>
+      (left.name || left.email || "").localeCompare(right.name || right.email || "")
+    );
+  }, [selectedProject, selectedProjectTeams]);
+
   const selectedProjectEpics = useMemo(() => {
     if (!Array.isArray(selectedProject?.epics)) {
       return [];
@@ -563,63 +601,6 @@ const ProjectsPage = () => {
     showToast("success", "Team created successfully.");
   };
 
-  const renderProjectCard = (project, index) => (
-    <ProjectCard
-      key={project._id}
-      canManageProject={canManageProjects}
-      index={index}
-      isAttachingTeam={
-        attachProjectTeamMutation.isPending &&
-        attachProjectTeamMutation.variables?.projectId === project._id
-      }
-      isUpdatingStatus={
-        updateProjectStatusMutation.isPending &&
-        updateProjectStatusMutation.variables?.projectId === project._id
-      }
-      isUpdatingProject={
-        updateProjectMutation.isPending &&
-        updateProjectMutation.variables?.projectId === project._id
-      }
-      detachingTeamId={
-        detachProjectTeamMutation.isPending &&
-        detachProjectTeamMutation.variables?.projectId === project._id
-          ? detachProjectTeamMutation.variables?.teamId
-          : ""
-      }
-      onAttachTeam={(payload) => attachProjectTeamMutation.mutateAsync(payload)}
-      onDetachTeam={(payload) => detachProjectTeamMutation.mutateAsync(payload)}
-      onUpdateProject={(payload) => updateProjectMutation.mutateAsync(payload)}
-      onUpdateStatus={(payload) => updateProjectStatusMutation.mutateAsync(payload)}
-      onDeleteProject={(projectId) => deleteProjectMutation.mutateAsync(projectId)}
-      onAddProjectMember={(payload) => addProjectMemberMutation.mutateAsync(payload)}
-      onRemoveProjectMember={(payload) => removeProjectMemberMutation.mutateAsync(payload)}
-      onCreateEpic={(payload) => createEpicMutation.mutateAsync(payload)}
-      onUpdateEpic={(payload) => updateEpicMutation.mutateAsync(payload)}
-      onDeleteEpic={(payload) => deleteEpicMutation.mutateAsync(payload)}
-      onOpenTeamsComposer={() => showToast("success", "Opening Microsoft Teams...")}
-      isDeletingProject={
-        deleteProjectMutation.isPending && deleteProjectMutation.variables === project._id
-      }
-      isAddingProjectMember={
-        addProjectMemberMutation.isPending &&
-        addProjectMemberMutation.variables?.projectId === project._id
-      }
-      removingProjectMemberUserId={
-        removeProjectMemberMutation.isPending &&
-        removeProjectMemberMutation.variables?.projectId === project._id
-          ? removeProjectMemberMutation.variables?.userId
-          : ""
-      }
-      isSavingEpic={createEpicMutation.isPending || updateEpicMutation.isPending}
-      deletingEpicId={deleteEpicMutation.isPending ? deleteEpicMutation.variables?.id : ""}
-      project={project}
-      users={users}
-      workspaceTeams={teams}
-      teamsErrorMessage={isTeamsLoading ? "" : teamsErrorMessage}
-      usersErrorMessage={isUsersLoading ? "" : usersErrorMessage}
-    />
-  );
-
   if (projectsError) {
     return (
       <Card>
@@ -652,15 +633,6 @@ const ProjectsPage = () => {
                       setProjectMode("overview");
                       setProjectSearch("");
                       setProjectStatusFilter("all");
-                    },
-                  },
-                  {
-                    label: "Project Workbench",
-                    Icon: LayoutGrid,
-                    active: activeTab === "projects" && projectMode === "workbench",
-                    action: () => {
-                      updateActiveTab("projects");
-                      setProjectMode("workbench");
                     },
                   },
                   {
@@ -855,26 +827,6 @@ const ProjectsPage = () => {
                   />
                 </div>
 
-                <div className="grid grid-cols-2 gap-1 rounded-xl border border-slate-200 bg-slate-50 p-1">
-                  {[
-                    { id: "grid", label: "Cards", Icon: LayoutGrid },
-                    { id: "compact", label: "Compact", Icon: List },
-                  ].map(({ id, label, Icon }) => (
-                    <button
-                      key={id}
-                      className={`inline-flex h-8 items-center justify-center gap-2 rounded-lg text-sm font-semibold transition ${
-                        projectView === id
-                          ? "bg-white text-blue-700 shadow-sm"
-                          : "text-slate-500 hover:text-slate-950"
-                      }`}
-                      type="button"
-                      onClick={() => setProjectView(id)}
-                    >
-                      <Icon className="h-4 w-4" />
-                      {label}
-                    </button>
-                  ))}
-                </div>
               </CardContent>
             </Card>
 
@@ -989,6 +941,16 @@ const ProjectsPage = () => {
                       </div>
                       <div className="flex flex-wrap gap-2">
                         <Button
+                          className="h-10 w-10 rounded-xl px-0"
+                          variant="outline"
+                          type="button"
+                          title="Project settings"
+                          onClick={() => setIsSelectedProjectManageOpen(true)}
+                          disabled={!canManageProjects}
+                        >
+                          <Settings2 className="h-4 w-4" />
+                        </Button>
+                        <Button
                           className="h-10 rounded-xl"
                           type="button"
                           onClick={() => navigate(`/issues?projectId=${selectedProject._id}`)}
@@ -1027,23 +989,21 @@ const ProjectsPage = () => {
                       Icon: Bug,
                     },
                     {
-                      id: "overview",
+                      id: "members",
                       label: "Members",
-                      value: getProjectMemberCount(selectedProject),
+                      value: selectedProjectMembers.length || getProjectMemberCount(selectedProject),
                       helper: "People on this project",
                       Icon: Users2,
                     },
                     {
-                      id: "overview",
+                      id: "teams",
                       label: "Teams",
-                      value: getProjectTeams(selectedProject).length,
+                      value: selectedProjectTeams.length,
                       helper: "Attached teams",
                       Icon: Layers3,
                     },
                   ].map(({ id, label, value, helper, Icon }) => {
-                    const isActive =
-                      projectDetailView === id ||
-                      (id === "overview" && projectDetailView === "overview");
+                    const isActive = projectDetailView === id;
 
                     return (
                       <button
@@ -1085,14 +1045,22 @@ const ProjectsPage = () => {
                         ? "Task Overview"
                         : projectDetailView === "bugs"
                           ? "Bug Overview"
-                          : "Project Details"}
+                          : projectDetailView === "members"
+                            ? "Project Members"
+                            : projectDetailView === "teams"
+                              ? "Attached Teams"
+                              : "Project Details"}
                     </h3>
                     <p className="mt-1 text-sm text-slate-500">
                       {projectDetailView === "tasks"
                         ? "Tasks are separated into To Do, In Progress, and Done."
                         : projectDetailView === "bugs"
                           ? "Bugs are separated by the bug workflow stages."
-                          : "Selected project summary without the workbench grid."}
+                          : projectDetailView === "members"
+                            ? "All people available through project ownership and attached teams."
+                            : projectDetailView === "teams"
+                              ? "Workspace teams attached to this project."
+                              : "Selected project summary, ownership, teams, and epics."}
                     </p>
                   </div>
 
@@ -1137,6 +1105,68 @@ const ProjectsPage = () => {
                           <p className="mt-1 text-sm text-slate-500">{row.helper}</p>
                         </div>
                       ))}
+                    </div>
+                  ) : null}
+
+                  {projectDetailView === "members" ? (
+                    <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                      {selectedProjectMembers.length ? (
+                        selectedProjectMembers.map((member) => (
+                          <div
+                            key={resolveUserId(member)}
+                            className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white p-4"
+                          >
+                            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-blue-50 text-sm font-semibold text-blue-700">
+                              {getInitials(member.name || member.email || "User")}
+                            </span>
+                            <span className="min-w-0 flex-1">
+                              <span className="block truncate text-sm font-semibold text-slate-950">
+                                {member.name || member.email || "Unnamed member"}
+                              </span>
+                              <span className="mt-1 block truncate text-xs text-slate-500">
+                                {[member.projectRole || member.role, member.membershipSource]
+                                  .filter(Boolean)
+                                  .join(" / ") || "Project member"}
+                              </span>
+                            </span>
+                          </div>
+                        ))
+                      ) : (
+                        <div className="rounded-2xl border border-dashed border-slate-200 bg-white p-5 text-sm text-slate-500 md:col-span-2 xl:col-span-3">
+                          No members are attached to this project yet.
+                        </div>
+                      )}
+                    </div>
+                  ) : null}
+
+                  {projectDetailView === "teams" ? (
+                    <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                      {selectedProjectTeams.length ? (
+                        selectedProjectTeams.map((team) => (
+                          <div
+                            key={team._id || team.name}
+                            className="rounded-2xl border border-slate-200 bg-white p-4"
+                          >
+                            <div className="flex items-center gap-3">
+                              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-indigo-50 text-sm font-semibold text-indigo-700">
+                                {getInitials(team.name || "Team")}
+                              </span>
+                              <div className="min-w-0">
+                                <p className="truncate text-sm font-semibold text-slate-950">
+                                  {team.name || "Untitled team"}
+                                </p>
+                                <p className="mt-1 text-xs text-slate-500">
+                                  {team.memberCount || team.members?.length || 0} members
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                        ))
+                      ) : (
+                        <div className="rounded-2xl border border-dashed border-slate-200 bg-white p-5 text-sm text-slate-500 md:col-span-2 xl:col-span-3">
+                          No teams are attached to this project yet.
+                        </div>
+                      )}
                     </div>
                   ) : null}
 
@@ -1189,80 +1219,6 @@ const ProjectsPage = () => {
               />
             ) : null}
           </div>
-        </section>
-      ) : null}
-
-      {activeTab === "projects" && projectMode === "workbench" ? (
-        <section className="min-w-0 space-y-4" aria-label="Project workbench">
-          <div className="flex flex-col gap-3 border-b border-slate-200 pb-4 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <h1 className="text-2xl font-semibold tracking-tight text-slate-950">
-                Project Workbench
-              </h1>
-              <p className="mt-1 text-sm text-slate-500">
-                Manage projects from the full card grid.
-              </p>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="grid grid-cols-2 gap-1 rounded-xl border border-slate-200 bg-slate-50 p-1">
-                {[
-                  { id: "grid", label: "Cards", Icon: LayoutGrid },
-                  { id: "compact", label: "Compact", Icon: List },
-                ].map(({ id, label, Icon }) => (
-                  <button
-                    key={id}
-                    className={`inline-flex h-8 items-center justify-center gap-2 rounded-lg px-3 text-sm font-semibold transition ${
-                      projectView === id
-                        ? "bg-white text-blue-700 shadow-sm"
-                        : "text-slate-500 hover:text-slate-950"
-                    }`}
-                    type="button"
-                    onClick={() => setProjectView(id)}
-                  >
-                    <Icon className="h-4 w-4" />
-                    {label}
-                  </button>
-                ))}
-              </div>
-              <Button
-                className="h-9 rounded-xl"
-                type="button"
-                onClick={() => setIsCreateDialogOpen(true)}
-              >
-                <Plus className="h-4 w-4" />
-                New
-              </Button>
-            </div>
-          </div>
-
-          {isProjectsLoading ? (
-            <div className="grid gap-3 md:grid-cols-2 2xl:grid-cols-3">
-              {Array.from({ length: PROJECT_GRID_SKELETON_COUNT }).map((_, index) => (
-                <Skeleton
-                  key={`project-skeleton-${index}`}
-                  className="h-[286px] w-full rounded-2xl"
-                />
-              ))}
-            </div>
-          ) : filteredProjects.length ? (
-            <div
-              className={
-                projectView === "grid"
-                  ? "grid min-w-0 grid-cols-1 gap-3 lg:grid-cols-2 2xl:grid-cols-3"
-                  : "grid min-w-0 grid-cols-1 gap-3 2xl:grid-cols-2"
-              }
-            >
-              {filteredProjects.map((project, index) =>
-                renderProjectCard(project, index)
-              )}
-            </div>
-          ) : (
-            <EmptyState
-              title="No projects match these controls"
-              description="Use the sidebar filters or search to widen the project list."
-              icon={<FolderKanban className="h-5 w-5" />}
-            />
-          )}
         </section>
       ) : null}
 
@@ -1746,6 +1702,49 @@ const ProjectsPage = () => {
         </main>
       </div>
 
+      {selectedProject ? (
+        <ProjectManageDialog
+          open={isSelectedProjectManageOpen}
+          onOpenChange={setIsSelectedProjectManageOpen}
+          project={selectedProject}
+          users={users}
+          workspaceTeams={teams}
+          epics={selectedProjectEpics}
+          canManageProject={canManageProjects}
+          onUpdateProject={(payload) => updateProjectMutation.mutateAsync(payload)}
+          onAttachTeam={(payload) => attachProjectTeamMutation.mutateAsync(payload)}
+          onDetachTeam={(payload) => detachProjectTeamMutation.mutateAsync(payload)}
+          onCreateEpic={(payload) => createEpicMutation.mutateAsync(payload)}
+          onUpdateEpic={(payload) => updateEpicMutation.mutateAsync(payload)}
+          onDeleteEpic={(payload) => deleteEpicMutation.mutateAsync(payload)}
+          onEpicClick={(epic) =>
+            navigate(
+              `/backlog?projectId=${selectedProject._id}${
+                epic?._id ? `&epicId=${epic._id}` : ""
+              }`
+            )
+          }
+          isUpdatingProject={
+            updateProjectMutation.isPending &&
+            updateProjectMutation.variables?.projectId === selectedProject._id
+          }
+          isAttachingTeam={
+            attachProjectTeamMutation.isPending &&
+            attachProjectTeamMutation.variables?.projectId === selectedProject._id
+          }
+          detachingTeamId={
+            detachProjectTeamMutation.isPending &&
+            detachProjectTeamMutation.variables?.projectId === selectedProject._id
+              ? detachProjectTeamMutation.variables?.teamId
+              : ""
+          }
+          isSavingEpic={createEpicMutation.isPending || updateEpicMutation.isPending}
+          deletingEpicId={deleteEpicMutation.isPending ? deleteEpicMutation.variables?.id : ""}
+          teamsErrorMessage={isTeamsLoading ? "" : teamsErrorMessage}
+          usersErrorMessage={isUsersLoading ? "" : usersErrorMessage}
+        />
+      ) : null}
+
       <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
         <DialogContent
           className={projectDialogContentClass(
@@ -1757,14 +1756,24 @@ const ProjectsPage = () => {
               "bg-[linear-gradient(135deg,rgba(239,246,255,0.98),rgba(255,255,255,0.98))] px-6 py-5 sm:px-7"
             )}
           >
-            <div className="max-w-3xl">
-              <DialogTitle className="pr-10 text-2xl font-semibold tracking-tight text-slate-950">
-                Create Project
-              </DialogTitle>
-              <DialogDescription className="mt-2 max-w-[46rem] pr-10 text-sm leading-6 text-slate-600">
-                Set ownership, planning defaults, theme, and launch context in one
-                clean setup flow.
-              </DialogDescription>
+            <div className="flex flex-col gap-4 pr-12 sm:flex-row sm:items-start sm:justify-between">
+              <div className="max-w-3xl">
+                <DialogTitle className="text-2xl font-semibold tracking-tight text-slate-950">
+                  Create Project
+                </DialogTitle>
+                <DialogDescription className="mt-2 max-w-[46rem] text-sm leading-6 text-slate-600">
+                  Set ownership, planning defaults, theme, and launch context in one
+                  clean setup flow.
+                </DialogDescription>
+              </div>
+              <Button
+                className="h-11 shrink-0 rounded-xl border border-blue-500/20 bg-[linear-gradient(90deg,#2563EB_0%,#4F46E5_100%)] px-5 text-white shadow-[0_16px_30px_-20px_rgba(37,99,235,0.82)] transition hover:-translate-y-0.5 hover:brightness-105"
+                disabled={createProjectMutation.isPending}
+                form="create-project-form"
+                type="submit"
+              >
+                {createProjectMutation.isPending ? "Creating..." : "Create Project"}
+              </Button>
             </div>
           </DialogHeader>
 
@@ -1772,9 +1781,9 @@ const ProjectsPage = () => {
             <ProjectComposer
               onSubmit={handleCreateProject}
               isPending={createProjectMutation.isPending}
-              onCancel={() => setIsCreateDialogOpen(false)}
               users={users}
               teams={teams}
+              formId="create-project-form"
               usersErrorMessage={isUsersLoading ? "" : usersErrorMessage}
               teamsErrorMessage={isTeamsLoading ? "" : teamsErrorMessage}
             />
