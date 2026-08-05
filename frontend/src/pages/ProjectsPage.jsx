@@ -789,7 +789,7 @@ const ProjectsPage = () => {
             <div className="mx-2 rounded-xl border border-blue-100 bg-blue-50/70 p-3">
               <p className="text-sm font-semibold text-slate-950">Need a new lane?</p>
               <p className="mt-1 text-xs leading-5 text-slate-500">
-                Create projects or teams without leaving this workspace.
+              
               </p>
               <div className="mt-3 grid gap-2">
                 <Button
