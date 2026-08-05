@@ -2088,7 +2088,7 @@ const ProjectsPage = () => {
                 ) : null}
 
                 {projectPanelView === "settings" ? (
-                  <section className="rounded-[18px] border border-[#EEF2F7] bg-white p-4 shadow-[0_2px_12px_rgba(0,0,0,.04)]">
+                  <section className="space-y-4">
                     <div className="flex flex-col gap-3 border-b border-[#EEF2F7] pb-4 sm:flex-row sm:items-start sm:justify-between">
                       <div>
                         <h3 className="text-base font-semibold text-slate-950">
@@ -2115,9 +2115,9 @@ const ProjectsPage = () => {
                       </div>
                     ) : null}
 
-                    <div className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
+                    <div className="mt-4 space-y-5">
                       <div className="space-y-4">
-                        <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_180px_180px_160px]">
+                        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-[minmax(280px,1fr)_180px_180px_160px]">
                           <label className="space-y-1.5">
                             <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
                               Name
@@ -2229,8 +2229,8 @@ const ProjectsPage = () => {
                         </div>
                       </div>
 
-                      <aside className="rounded-2xl border border-[#EEF2F7] bg-slate-50/70 p-3">
-                        <div className="flex items-start justify-between gap-3">
+                      <div className="border-t border-[#EEF2F7] pt-4">
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                           <div>
                             <h4 className="text-sm font-semibold text-slate-950">
                               Teams
@@ -2244,7 +2244,7 @@ const ProjectsPage = () => {
                           </span>
                         </div>
 
-                        <div className="mt-3 flex gap-2">
+                        <div className="mt-3 flex max-w-2xl gap-2">
                           <select
                             className="h-10 min-w-0 flex-1 rounded-xl border border-[#DDE5F0] bg-white px-3 text-sm text-slate-950 outline-none focus:border-blue-400 focus:ring-4 focus:ring-blue-500/10"
                             value={settingsTeamId}
@@ -2268,12 +2268,12 @@ const ProjectsPage = () => {
                           </Button>
                         </div>
 
-                        <div className="mt-3 space-y-2">
+                        <div className="mt-3 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
                           {selectedProjectTeams.length ? (
                             selectedProjectTeams.map((team) => (
                               <div
                                 key={team._id || team.name}
-                                className="flex items-center justify-between gap-3 rounded-xl border border-[#EEF2F7] bg-white px-3 py-2"
+                                className="flex items-center justify-between gap-3 rounded-xl border border-[#EEF2F7] bg-white/70 px-3 py-2"
                               >
                                 <span className="min-w-0 truncate text-sm font-semibold text-slate-800">
                                   {team.name || "Untitled team"}
@@ -2294,12 +2294,12 @@ const ProjectsPage = () => {
                               </div>
                             ))
                           ) : (
-                            <div className="rounded-xl border border-dashed border-[#DDE5F0] bg-white px-3 py-4 text-sm text-slate-500">
+                            <div className="rounded-xl border border-dashed border-[#DDE5F0] bg-white/70 px-3 py-4 text-sm text-slate-500 md:col-span-2 xl:col-span-3">
                               No teams attached.
                             </div>
                           )}
                         </div>
-                      </aside>
+                      </div>
                     </div>
                   </section>
                 ) : null}
