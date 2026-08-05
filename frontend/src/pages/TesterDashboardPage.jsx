@@ -408,11 +408,11 @@ const RecentTasksPanel = ({
 const WorkspaceCard = ({ children, className }) => (
   <Card
     className={cn(
-      "overflow-hidden rounded-[18px] border border-slate-200/80 bg-white/92 shadow-[0_18px_46px_-36px_rgba(15,23,42,0.36)] backdrop-blur-xl",
+      "overflow-hidden rounded-[18px] border border-slate-200/80 bg-white/92 shadow-[0_14px_34px_-30px_rgba(15,23,42,0.34)] backdrop-blur-xl",
       className
     )}
   >
-    <CardContent className="p-5">{children}</CardContent>
+    <CardContent className="p-4">{children}</CardContent>
   </Card>
 );
 
@@ -427,19 +427,19 @@ const WorkspaceKpiCard = ({ description, Icon, label, tone = "blue", value }) =>
   };
 
   return (
-    <div className="group min-h-[118px] rounded-[18px] border border-slate-200/80 bg-white/90 p-4 shadow-[0_16px_38px_-34px_rgba(15,23,42,0.32)] transition duration-200 hover:-translate-y-1 hover:border-blue-200 hover:bg-blue-50/35 hover:shadow-[0_22px_48px_-34px_rgba(37,99,235,0.42)]">
-      <div className="flex items-start justify-between gap-3">
-        <p className="text-xs font-bold uppercase tracking-[0.12em] text-slate-500">
+    <div className="group min-h-[88px] rounded-2xl border border-slate-200/80 bg-white/90 p-3 shadow-[0_12px_28px_-28px_rgba(15,23,42,0.3)] transition duration-200 hover:-translate-y-0.5 hover:border-blue-200 hover:bg-blue-50/35">
+      <div className="flex items-start justify-between gap-2">
+        <p className="text-[11px] font-bold uppercase tracking-[0.1em] text-slate-500">
           {label}
         </p>
-        <span className={cn("flex h-10 w-10 items-center justify-center rounded-2xl border", tones[tone])}>
-          <Icon className="h-5 w-5" />
+        <span className={cn("flex h-8 w-8 items-center justify-center rounded-xl border", tones[tone])}>
+          <Icon className="h-4 w-4" />
         </span>
       </div>
-      <p className="mt-3 text-3xl font-semibold tracking-tight text-slate-950">
+      <p className="mt-1.5 text-2xl font-semibold tracking-tight text-slate-950">
         {value}
       </p>
-      <p className="mt-1 text-sm leading-5 text-slate-600">{description}</p>
+      <p className="mt-0.5 line-clamp-1 text-xs leading-4 text-slate-600">{description}</p>
     </div>
   );
 };
@@ -518,50 +518,57 @@ const QaProjectCard = ({ onCreateBug, onOpen, onReleaseNotes, onStart, project }
   const Icon = project.status.key === "verification" ? ShieldCheck : project.status.key === "waiting" ? Clock3 : PlayCircle;
 
   return (
-    <article className="group rounded-[20px] border border-slate-200/80 bg-white/92 p-5 shadow-[0_18px_44px_-36px_rgba(15,23,42,0.36)] transition duration-200 hover:-translate-y-1 hover:border-blue-200 hover:bg-blue-50/35 hover:shadow-[0_24px_54px_-34px_rgba(37,99,235,0.42)]">
-      <div className="flex items-start gap-4">
-        <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-[18px] bg-gradient-to-br from-blue-50 to-violet-50 text-base font-bold text-blue-700">
+    <article className="group relative min-h-[208px] rounded-[18px] border border-slate-200/80 bg-white/92 p-4 shadow-[0_14px_34px_-30px_rgba(15,23,42,0.34)] transition duration-200 hover:-translate-y-0.5 hover:border-blue-200 hover:bg-blue-50/35">
+      <button
+        aria-label="More project actions"
+        className="absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-xl text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+        onClick={() => onReleaseNotes(project)}
+        type="button"
+      >
+        ...
+      </button>
+      <div className="flex items-start gap-3 pr-8">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-50 to-violet-50 text-sm font-bold text-blue-700">
           {project.key.slice(0, 2)}
         </div>
         <div className="min-w-0 flex-1">
-          <div className="flex items-start justify-between gap-3">
-            <h3 className="line-clamp-1 text-lg font-semibold tracking-tight text-slate-950">
+          <div className="flex items-start justify-between gap-2">
+            <h3 className="line-clamp-1 text-base font-semibold tracking-tight text-slate-950">
               {project.name}
             </h3>
-            <span className={cn("inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-bold", project.status.tone)}>
+            <span className={cn("inline-flex max-w-[136px] shrink-0 items-center gap-1.5 truncate rounded-full border px-2 py-0.5 text-[10px] font-bold", project.status.tone)}>
               <span className={cn("h-2 w-2 rounded-full", project.status.dot)} />
               {project.status.label}
             </span>
           </div>
-          <div className="mt-3 grid gap-2 text-sm text-slate-600 sm:grid-cols-2">
+          <div className="mt-2 grid gap-1 text-xs text-slate-600 sm:grid-cols-2">
             <span className="truncate">Build: <strong className="font-semibold text-slate-900">{project.buildVersion}</strong></span>
             <span className="truncate">Env: <strong className="font-semibold text-slate-900">{project.environment}</strong></span>
-            <span className="truncate sm:col-span-2">Uploaded: <strong className="font-semibold text-slate-900">{project.uploadedTime}</strong></span>
           </div>
         </div>
       </div>
 
-      <div className="mt-4 flex flex-wrap gap-2">
+      <div className="mt-3 flex flex-wrap gap-1.5">
         {project.modules.map((module) => (
-          <span className="rounded-full border border-blue-100 bg-blue-50/55 px-3 py-1 text-xs font-semibold text-slate-600" key={module}>
+          <span className="rounded-full border border-blue-100 bg-blue-50/55 px-2.5 py-1 text-[11px] font-semibold text-slate-600" key={module}>
             {module}
           </span>
         ))}
       </div>
 
-      <div className="mt-5">
+      <div className="mt-3">
         <div className="flex items-center justify-between text-xs font-semibold text-slate-500">
           <span>Progress</span>
           <span>{project.progress}%</span>
         </div>
-        <div className="mt-2 h-2 overflow-hidden rounded-full bg-slate-100">
+        <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-slate-100">
           <div className="h-full rounded-full bg-[linear-gradient(90deg,#2563EB,#8B5CF6)] transition-all" style={{ width: `${project.progress}%` }} />
         </div>
       </div>
 
-      <div className="mt-5 flex flex-wrap gap-2">
+      <div className="mt-4 flex items-center justify-between gap-2">
         <Button
-          className="h-10 rounded-2xl bg-blue-600 px-4 text-white hover:bg-blue-700 disabled:bg-slate-200 disabled:text-slate-500"
+          className="h-9 min-w-0 flex-1 rounded-xl bg-blue-600 px-3 text-sm text-white hover:bg-blue-700 disabled:bg-slate-200 disabled:text-slate-500"
           disabled={project.status.disabled}
           onClick={() => onStart(project)}
           type="button"
@@ -570,24 +577,13 @@ const QaProjectCard = ({ onCreateBug, onOpen, onReleaseNotes, onStart, project }
           {project.status.action}
         </Button>
         {project.status.key === "progress" ? (
-          <>
-            <Button className="h-10 rounded-2xl" variant="outline" onClick={() => onCreateBug(project)} type="button">
+          <Button className="h-9 rounded-xl px-3" variant="outline" onClick={() => onCreateBug(project)} type="button">
               <Bug className="h-4 w-4" />
-              Create Bug
-            </Button>
-            <Button className="h-10 rounded-2xl" variant="outline" onClick={() => onStart(project)} type="button">
-              Finish Testing
-            </Button>
-          </>
+          </Button>
         ) : (
-          <>
-            <Button className="h-10 rounded-2xl" variant="outline" onClick={() => onOpen(project)} type="button">
-              View Build
-            </Button>
-            <Button className="h-10 rounded-2xl" variant="ghost" onClick={() => onReleaseNotes(project)} type="button">
-              Release Notes
-            </Button>
-          </>
+          <Button className="h-9 rounded-xl px-3" variant="outline" onClick={() => onOpen(project)} type="button">
+            View
+          </Button>
         )}
       </div>
     </article>
@@ -597,7 +593,7 @@ const QaProjectCard = ({ onCreateBug, onOpen, onReleaseNotes, onStart, project }
 const QuickActionButton = ({ children, Icon, onClick, primary = false }) => (
   <Button
     className={cn(
-      "h-11 rounded-2xl px-4 shadow-sm transition hover:-translate-y-0.5",
+      "h-9 rounded-xl px-3 text-sm shadow-sm transition hover:-translate-y-0.5",
       primary
         ? "bg-[linear-gradient(90deg,#2563EB_0%,#6366F1_55%,#8B5CF6_100%)] text-white hover:brightness-105"
         : "border-slate-200 bg-white text-slate-700 hover:border-blue-200 hover:bg-blue-50"
@@ -986,7 +982,7 @@ const TesterDashboardPage = () => {
   }
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
       <section className="relative isolate flex flex-wrap items-center gap-3 overflow-hidden rounded-[28px] border border-blue-100/80 bg-white p-3 shadow-[0_24px_65px_-42px_rgba(37,99,235,0.65)] lg:flex-nowrap">
         <GreetingBeachScene timeOfDay={timeOfDay} />
         <div className="relative z-10 w-full min-w-0 shrink-0 sm:flex-1 lg:w-[420px] lg:flex-none xl:w-[460px]">
@@ -1022,40 +1018,40 @@ const TesterDashboardPage = () => {
         </div>
       </section>
 
-      <section className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
-        <div className="min-w-0 space-y-6">
+      <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_306px]">
+        <div className="min-w-0 space-y-4">
           <WorkspaceCard className="border-blue-100 bg-[linear-gradient(135deg,#ffffff_0%,#f7fbff_52%,#f4f0ff_100%)]">
-            <div className="flex flex-wrap items-start justify-between gap-4">
+            <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
                 <Badge className="border-blue-200 bg-blue-50 text-blue-700" variant="outline">
                   My QA Projects
                 </Badge>
-                <h2 className="mt-3 text-2xl font-semibold tracking-tight text-slate-950">
+                <h2 className="mt-2 text-xl font-semibold tracking-tight text-slate-950">
                   Choose a project to test
                 </h2>
-                <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
+                <p className="mt-1 max-w-3xl text-sm leading-5 text-slate-600">
                   Start a build session, continue active testing, or open the verification queue for developer fixes.
                 </p>
               </div>
-              <div className="rounded-2xl border border-blue-100 bg-white/72 px-4 py-3 text-right shadow-sm">
-                <p className="text-2xl font-semibold text-slate-950">{qaProjects.length}</p>
-                <p className="text-xs font-bold uppercase tracking-[0.12em] text-slate-400">Projects</p>
+              <div className="rounded-2xl border border-blue-100 bg-white/72 px-3 py-2 text-right shadow-sm">
+                <p className="text-xl font-semibold text-slate-950">{qaProjects.length}</p>
+                <p className="text-[11px] font-bold uppercase tracking-[0.1em] text-slate-400">Projects</p>
               </div>
             </div>
 
             {qaProjectGroups.length ? (
-              <div className="mt-6 space-y-7">
+              <div className="mt-4 space-y-5">
                 {qaProjectGroups.map((group) => (
                   <section key={group.key}>
-                    <div className="mb-3 flex items-center gap-3">
-                      <h3 className="text-sm font-bold uppercase tracking-[0.12em] text-slate-500">
+                    <div className="mb-2 flex items-center gap-2">
+                      <h3 className="text-xs font-bold uppercase tracking-[0.12em] text-slate-500">
                         {group.title}
                       </h3>
-                      <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-500">
+                      <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-500">
                         {group.projects.length}
                       </span>
                     </div>
-                    <div className="grid gap-4 lg:grid-cols-2 2xl:grid-cols-3">
+                    <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
                       {group.projects.map((project) => (
                         <QaProjectCard
                           key={project.id}
@@ -1079,7 +1075,7 @@ const TesterDashboardPage = () => {
             )}
           </WorkspaceCard>
 
-          <section className="grid gap-4 md:grid-cols-2 2xl:grid-cols-3">
+          <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-6">
             <WorkspaceKpiCard
               Icon={PlayCircle}
               description="Active tester sessions"
@@ -1124,87 +1120,87 @@ const TesterDashboardPage = () => {
             />
           </section>
 
-          <section className="grid gap-6 xl:grid-cols-[1.08fr_0.92fr]">
+          <section className="grid gap-4 xl:grid-cols-[1.08fr_0.92fr]">
             <WorkspaceCard>
-              <div className="flex items-start justify-between gap-4">
+              <div className="flex items-start justify-between gap-3">
                 <div>
-                  <h2 className="text-lg font-semibold tracking-tight text-slate-950">Ready For Verification</h2>
-                  <p className="mt-1 text-sm text-slate-600">Developer fixes waiting for QA sign-off.</p>
+                  <h2 className="text-base font-semibold tracking-tight text-slate-950">Ready For Verification</h2>
+                  <p className="mt-0.5 text-xs text-slate-600">Developer fixes waiting for QA sign-off.</p>
                 </div>
-                <Button className="rounded-2xl" size="sm" variant="outline" onClick={() => navigate("/bugs")}>
+                <Button className="h-8 rounded-xl" size="sm" variant="outline" onClick={() => navigate("/bugs")}>
                   View All
                   <ChevronRight className="h-4 w-4" />
                 </Button>
               </div>
 
-              <div className="mt-5 space-y-3">
+              <div className="mt-3 space-y-2">
                 {isReportedBugsLoading ? (
                   Array.from({ length: 3 }).map((_, index) => (
                     <Skeleton className="h-20 rounded-2xl" key={`verification-skeleton-${index}`} />
                   ))
                 ) : readyForVerificationBugs.length ? (
-                  readyForVerificationBugs.map((issue) => (
+                  readyForVerificationBugs.slice(0, 4).map((issue) => (
                     <div
-                      className="rounded-2xl border border-slate-200/80 bg-white/86 p-4 transition hover:border-blue-200 hover:bg-blue-50/45"
+                      className="rounded-2xl border border-slate-200/80 bg-white/86 p-3 transition hover:border-blue-200 hover:bg-blue-50/45"
                       key={issue._id}
                     >
-                      <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
                         <div className="min-w-0">
-                          <div className="flex flex-wrap items-center gap-2">
+                          <div className="flex flex-wrap items-center gap-1.5">
                             <span className="font-mono text-xs font-bold text-blue-700">{getIssueDisplayKey(issue)}</span>
                             <TableBadge variant={getIssuePriorityVariant(issue.priority)}>
                               {issue.priority || "Medium"}
                             </TableBadge>
                           </div>
-                          <h3 className="mt-2 line-clamp-1 text-sm font-semibold text-slate-950">
+                          <h3 className="mt-1 line-clamp-1 text-sm font-semibold text-slate-950">
                             {issue.title || "Untitled bug"}
                           </h3>
-                          <p className="mt-1 text-xs text-slate-500">
-                            {getProjectName(issue, assignedProjects)} - {getAssigneeName(issue)} - {getBugUpdatedAt(issue) ? formatDateTime(getBugUpdatedAt(issue)) : "Recently fixed"}
+                          <p className="mt-0.5 text-xs text-slate-500">
+                            {getAssigneeName(issue)}
                           </p>
                         </div>
-                        <div className="flex flex-wrap gap-2">
-                          <Button className="h-9 rounded-xl bg-emerald-600 text-white hover:bg-emerald-700" size="sm" onClick={() => handleOpenReportedBug(issue._id)}>
+                        <div className="flex flex-wrap gap-1.5">
+                          <Button className="h-8 rounded-xl bg-emerald-600 px-3 text-white hover:bg-emerald-700" size="sm" onClick={() => handleOpenReportedBug(issue._id)}>
                             Verify
                           </Button>
-                          <Button className="h-9 rounded-xl" size="sm" variant="outline" onClick={() => handleOpenReportedBug(issue._id)}>
-                            Reopen
-                          </Button>
-                          <Button className="h-9 rounded-xl" size="sm" variant="ghost" onClick={() => handleOpenReportedBug(issue._id)}>
+                          <Button className="h-8 rounded-xl px-3" size="sm" variant="outline" onClick={() => handleOpenReportedBug(issue._id)}>
                             View
+                          </Button>
+                          <Button className="h-8 w-8 rounded-xl p-0" size="icon" variant="ghost" onClick={() => handleOpenReportedBug(issue._id)}>
+                            ...
                           </Button>
                         </div>
                       </div>
                     </div>
                   ))
                 ) : (
-                  <div className="rounded-[18px] border border-dashed border-emerald-200 bg-emerald-50/60 p-8 text-center">
-                    <CheckCircle2 className="mx-auto h-9 w-9 text-emerald-500" />
-                    <p className="mt-3 text-sm font-semibold text-slate-800">Everything has been verified.</p>
+                  <div className="rounded-[18px] border border-dashed border-emerald-200 bg-emerald-50/60 p-5 text-center">
+                    <CheckCircle2 className="mx-auto h-7 w-7 text-emerald-500" />
+                    <p className="mt-2 text-sm font-semibold text-slate-800">Everything has been verified.</p>
                   </div>
                 )}
               </div>
             </WorkspaceCard>
           </section>
 
-          <section className="grid gap-6 xl:grid-cols-[0.9fr_1.1fr]">
+          <section className="grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
             <WorkspaceCard>
-              <h2 className="text-lg font-semibold tracking-tight text-slate-950">Recent Testing Activity</h2>
-              <div className="mt-5 space-y-4">
+              <h2 className="text-base font-semibold tracking-tight text-slate-950">Recent Testing Activity</h2>
+              <div className="mt-3 space-y-2">
                 {testingActivity.map((item, index) => {
                   const ItemIcon = item.Icon;
 
                   return (
-                    <div className="relative flex gap-3" key={`${item.label}-${index}`}>
+                    <div className="relative flex min-h-[50px] gap-3" key={`${item.label}-${index}`}>
                       {index < testingActivity.length - 1 && (
-                        <span className="absolute left-5 top-10 h-[calc(100%+8px)] w-px bg-blue-100" />
+                        <span className="absolute left-4 top-9 h-[calc(100%+4px)] w-px bg-blue-100" />
                       )}
-                      <span className="relative z-10 flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-blue-50 text-blue-700">
-                        <ItemIcon className="h-5 w-5" />
+                      <span className="relative z-10 flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-700">
+                        <ItemIcon className="h-4 w-4" />
                       </span>
                       <div className="min-w-0">
                         <p className="text-sm font-semibold text-slate-950">{item.label}</p>
-                        <p className="mt-1 line-clamp-1 text-sm text-slate-500">{item.meta}</p>
+                        <p className="mt-0.5 line-clamp-1 text-xs text-slate-500">{item.meta}</p>
                       </div>
                     </div>
                   );
@@ -1213,8 +1209,8 @@ const TesterDashboardPage = () => {
             </WorkspaceCard>
 
             <WorkspaceCard>
-              <h2 className="text-lg font-semibold tracking-tight text-slate-950">Quick Navigation</h2>
-              <div className="mt-5 grid gap-3 sm:grid-cols-2">
+              <h2 className="text-base font-semibold tracking-tight text-slate-950">Quick Navigation</h2>
+              <div className="mt-3 grid gap-2 sm:grid-cols-3 xl:grid-cols-5">
                 {[
                   ["Open Bug Board", Bug, "/bugs"],
                   ["Testing History", History, "/reports"],
@@ -1223,18 +1219,15 @@ const TesterDashboardPage = () => {
                   ["Recent Builds", Rocket, "/backlog"],
                 ].map(([label, Icon, path]) => (
                   <button
-                    className="group flex items-center justify-between rounded-2xl border border-slate-200/80 bg-white/82 p-4 text-left transition hover:-translate-y-0.5 hover:border-blue-200 hover:bg-blue-50/55"
+                    className="group flex min-h-[70px] flex-col items-center justify-center gap-1.5 rounded-2xl border border-slate-200/80 bg-white/82 p-2 text-center transition hover:-translate-y-0.5 hover:border-blue-200 hover:bg-blue-50/55"
                     key={label}
                     onClick={() => navigate(path)}
                     type="button"
                   >
-                    <span className="flex items-center gap-3">
-                      <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-indigo-50 text-indigo-700">
-                        <Icon className="h-5 w-5" />
-                      </span>
-                      <span className="font-semibold text-slate-800">{label}</span>
+                    <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-indigo-50 text-indigo-700">
+                      <Icon className="h-4 w-4" />
                     </span>
-                    <ChevronRight className="h-4 w-4 text-slate-400 transition group-hover:translate-x-0.5 group-hover:text-blue-600" />
+                    <span className="text-xs font-semibold leading-4 text-slate-800">{label}</span>
                   </button>
                 ))}
               </div>
@@ -1242,40 +1235,40 @@ const TesterDashboardPage = () => {
           </section>
         </div>
 
-        <aside className="space-y-6">
+        <aside className="space-y-4">
           <WorkspaceCard>
-            <div className="flex items-center gap-3">
-              <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-700">
-                <Server className="h-5 w-5" />
+            <div className="flex items-center gap-2.5">
+              <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700">
+                <Server className="h-4 w-4" />
               </span>
               <div>
-                <h2 className="text-lg font-semibold text-slate-950">QA Environment</h2>
-                <p className="text-sm text-slate-500">Live test lane health.</p>
+                <h2 className="text-base font-semibold text-slate-950">QA Environment</h2>
+                <p className="text-xs text-slate-500">Live test lane health.</p>
               </div>
             </div>
-            <div className="mt-5 space-y-3">
+            <div className="mt-3 space-y-2">
               {qaEnvironments.map((environment) => (
-                <div className="flex items-center justify-between rounded-2xl bg-slate-50/90 px-4 py-3" key={environment.name}>
-                  <span className="flex items-center gap-3 font-semibold text-slate-800">
-                    <span className={cn("h-2.5 w-2.5 rounded-full", environment.tone)} />
+                <div className="flex items-center justify-between rounded-xl bg-slate-50/90 px-3 py-2" key={environment.name}>
+                  <span className="flex items-center gap-2 text-sm font-semibold text-slate-800">
+                    <span className={cn("h-2 w-2 rounded-full", environment.tone)} />
                     {environment.name}
                   </span>
-                  <span className="text-sm text-slate-500">{environment.status}</span>
+                  <span className="text-xs text-slate-500">{environment.status}</span>
                 </div>
               ))}
             </div>
           </WorkspaceCard>
 
           <WorkspaceCard>
-            <div className="flex items-center gap-3">
-              <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-blue-50 text-blue-700">
-                <Megaphone className="h-5 w-5" />
+            <div className="flex items-center gap-2.5">
+              <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-50 text-blue-700">
+                <Megaphone className="h-4 w-4" />
               </span>
-              <h2 className="text-lg font-semibold text-slate-950">QA Lead Announcements</h2>
+              <h2 className="text-base font-semibold text-slate-950">QA Lead Announcements</h2>
             </div>
-            <div className="mt-5 space-y-3">
+            <div className="mt-3 space-y-2">
               {["Regression testing starts tomorrow", "Payment module ready", "Release scheduled Friday", "OTP verification mandatory"].map((announcement) => (
-                <div className="rounded-2xl border border-blue-100 bg-blue-50/55 px-4 py-3 text-sm font-medium text-slate-700" key={announcement}>
+                <div className="rounded-xl border border-blue-100 bg-blue-50/55 px-3 py-2 text-xs font-medium leading-5 text-slate-700" key={announcement}>
                   {announcement}
                 </div>
               ))}
@@ -1283,40 +1276,40 @@ const TesterDashboardPage = () => {
           </WorkspaceCard>
 
           <WorkspaceCard>
-            <div className="flex items-center gap-3">
-              <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-violet-50 text-violet-700">
-                <CalendarDays className="h-5 w-5" />
+            <div className="flex items-center gap-2.5">
+              <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-violet-50 text-violet-700">
+                <CalendarDays className="h-4 w-4" />
               </span>
-              <h2 className="text-lg font-semibold text-slate-950">Upcoming Releases</h2>
+              <h2 className="text-base font-semibold text-slate-950">Upcoming Releases</h2>
             </div>
-            <div className="mt-5 space-y-3">
+            <div className="mt-3 space-y-2">
               {[
                 ["Smoke Release", qaProjects[0]?.buildVersion || "QA-2026.08", "Friday", "Ready"],
                 ["Regression Pack", "REG-2026.08", "Next week", "Planned"],
               ].map(([name, version, date, status]) => (
-                <div className="rounded-2xl border border-slate-200/80 bg-white/84 p-4" key={name}>
-                  <div className="flex items-center justify-between gap-3">
-                    <p className="font-semibold text-slate-900">{name}</p>
+                <div className="rounded-xl border border-slate-200/80 bg-white/84 p-3" key={name}>
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-sm font-semibold text-slate-900">{name}</p>
                     <Badge className="border-blue-200 bg-blue-50 text-blue-700" variant="outline">{status}</Badge>
                   </div>
-                  <p className="mt-1 text-sm text-slate-500">{version} - {date}</p>
+                  <p className="mt-1 text-xs text-slate-500">{version} - {date}</p>
                 </div>
               ))}
             </div>
           </WorkspaceCard>
 
           <WorkspaceCard>
-            <div className="flex items-center gap-3">
-              <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-orange-50 text-orange-700">
-                <ClipboardCheck className="h-5 w-5" />
+            <div className="flex items-center gap-2.5">
+              <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-orange-50 text-orange-700">
+                <ClipboardCheck className="h-4 w-4" />
               </span>
-              <h2 className="text-lg font-semibold text-slate-950">My Week</h2>
+              <h2 className="text-base font-semibold text-slate-950">My Week</h2>
             </div>
-            <div className="mt-5 grid grid-cols-2 gap-3">
+            <div className="mt-3 grid grid-cols-2 gap-2">
               {weekStats.map((item) => (
-                <div className="rounded-2xl bg-slate-50/90 p-4" key={item.label}>
-                  <p className="text-2xl font-semibold text-slate-950">{item.value}</p>
-                  <p className="mt-1 text-xs font-semibold text-slate-500">{item.label}</p>
+                <div className="rounded-xl bg-slate-50/90 p-3" key={item.label}>
+                  <p className="text-xl font-semibold text-slate-950">{item.value}</p>
+                  <p className="mt-0.5 text-[11px] font-semibold leading-4 text-slate-500">{item.label}</p>
                 </div>
               ))}
             </div>
@@ -1324,13 +1317,11 @@ const TesterDashboardPage = () => {
         </aside>
       </section>
 
-      <div className="fixed bottom-5 right-5 z-30 flex flex-col items-end gap-2">
-        <div className="hidden flex-col gap-2 rounded-[18px] border border-blue-100 bg-white/92 p-2 shadow-[0_18px_48px_-24px_rgba(15,23,42,0.34)] backdrop-blur-xl md:flex">
+      <div className="fixed bottom-4 right-4 z-30 flex flex-col items-end gap-2">
+        <div className="hidden w-[178px] flex-col gap-1.5 rounded-2xl border border-blue-100 bg-white/92 p-2 shadow-[0_18px_42px_-26px_rgba(15,23,42,0.34)] backdrop-blur-xl md:flex">
           <QuickActionButton Icon={Bug} onClick={() => navigate("/bugs?view=report")}>Create Bug</QuickActionButton>
           <QuickActionButton Icon={PlayCircle} onClick={() => navigate("/bugs?view=report")}>Continue Testing</QuickActionButton>
           <QuickActionButton Icon={ShieldCheck} onClick={() => navigate("/bugs")}>Verification Queue</QuickActionButton>
-          <QuickActionButton Icon={ListChecks} onClick={() => navigate("/bugs")}>Bug Board</QuickActionButton>
-          <QuickActionButton Icon={History} onClick={() => navigate("/reports")}>Testing History</QuickActionButton>
         </div>
         <Button
           aria-label="Create bug"
