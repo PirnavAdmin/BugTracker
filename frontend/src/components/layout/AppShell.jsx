@@ -22,11 +22,13 @@ const RouteContentFallback = () => (
 const AppShell = () => {
   const location = useLocation();
   const isChatPage = location.pathname === "/chat";
+  const isProjectsPage = location.pathname === "/projects";
+  const usesInternalScroll = isChatPage || isProjectsPage;
   useBugWorkflowRealtime();
   useScrollRestoration();
 
   useEffect(() => {
-    if (isChatPage) {
+    if (usesInternalScroll) {
       document.documentElement.style.height = "100%";
       document.documentElement.style.overflow = "hidden";
       document.body.style.height = "100%";
@@ -39,7 +41,7 @@ const AppShell = () => {
       document.body.style.height = "";
       document.body.style.overflow = "";
     };
-  }, [isChatPage]);
+  }, [usesInternalScroll]);
 
   return (
     <div
@@ -53,7 +55,7 @@ const AppShell = () => {
         <main
           className={cn(
             "app-main-content",
-            isChatPage ? "overflow-hidden pb-0" : "overflow-y-auto pb-6"
+            usesInternalScroll ? "overflow-hidden pb-0" : "overflow-y-auto pb-6"
           )}
         >
           <Suspense fallback={<RouteContentFallback />}>
@@ -61,7 +63,7 @@ const AppShell = () => {
               key={`${location.pathname}${location.search}`}
               className={cn(
                 "page-shell-enter w-full",
-                isChatPage ? "h-full overflow-hidden" : "min-h-full"
+                usesInternalScroll ? "h-full overflow-hidden" : "min-h-full"
               )}
             >
               <Outlet />

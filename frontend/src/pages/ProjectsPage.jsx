@@ -1077,7 +1077,7 @@ const ProjectsPage = () => {
   }
 
   return (
-    <div className="h-[calc(100svh-4.5rem)] w-full overflow-hidden">
+    <div className="h-full min-h-0 w-full overflow-hidden">
       <ToastNotice toast={toast} onDismiss={() => setToast(null)} />
 
       <div className="grid h-full min-h-0 w-full gap-4 lg:grid-cols-[220px_minmax(0,1fr)]">
@@ -1295,7 +1295,7 @@ const ProjectsPage = () => {
               </CardContent>
             </Card>
 
-            <div className="min-h-0 flex-1 space-y-2 overflow-y-auto pr-1">
+            <div className="min-h-0 flex-1 space-y-2 overflow-y-auto overscroll-contain pr-1">
               {isProjectsLoading ? (
                 Array.from({ length: 6 }).map((_, index) => (
                   <Skeleton
@@ -1355,7 +1355,7 @@ const ProjectsPage = () => {
             </div>
           </aside>
 
-          <div className="min-h-0 min-w-0 space-y-4 overflow-y-auto pr-1">
+          <div className="min-h-0 min-w-0 space-y-4 overflow-y-auto overscroll-contain pr-1">
             {selectedProject ? (
               <>
                 <Card className="overflow-hidden border-slate-200 bg-white shadow-[0_18px_52px_-40px_rgba(15,23,42,0.5)]">
