@@ -1,13 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  ArrowUpDown,
   Archive,
   BarChart3,
   Bug,
   CheckCircle2,
   ClipboardList,
-  Filter,
   FolderKanban,
   LayoutGrid,
   Layers3,
@@ -34,6 +32,7 @@ import {
   deleteProject,
   deleteTeam,
   fetchProjects,
+  fetchIssues,
   fetchTeams,
   fetchWorkspaceUsers,
   fetchUsers,
@@ -68,16 +67,18 @@ import { useAuth } from "@/hooks/use-auth";
 import { hasAdminPanelAccess } from "@/lib/roles";
 import { getWorkspaceScope } from "@/lib/workspace";
 import { getProjectTeams } from "@/lib/project-teams";
+import { ISSUE_TYPES, normalizeIssueType } from "@/lib/issues";
+import {
+  TASK_BOARD_COLUMNS,
+  getTaskBoardStatus,
+} from "@/components/tasks/taskBoardStatus";
+import {
+  DEVELOPER_BUG_COLUMNS,
+  getBugColumnKey,
+} from "@/components/bugs/bugBoardConfig";
 
 const PROJECT_GRID_SKELETON_COUNT = 4;
 const TEAM_PANEL_SKELETON_COUNT = 3;
-const PROJECT_STATUS_FILTERS = ["all", "Active", "On Hold", "Completed"];
-const PROJECT_SORT_OPTIONS = [
-  { value: "name", label: "Name" },
-  { value: "issues", label: "Issues" },
-  { value: "members", label: "Members" },
-  { value: "teams", label: "Teams" },
-];
 
 const getProjectStatus = (project) =>
   project?.status || (project?.isCompleted ? "Completed" : "Active");
@@ -115,10 +116,9 @@ const ProjectsPage = () => {
   const [isCreateTeamDialogOpen, setIsCreateTeamDialogOpen] = useState(false);
   const [projectSearch, setProjectSearch] = useState("");
   const [projectStatusFilter, setProjectStatusFilter] = useState("all");
-  const [projectTeamFilter, setProjectTeamFilter] = useState("all");
-  const [projectSort, setProjectSort] = useState("name");
   const [projectView, setProjectView] = useState("grid");
   const [projectMode, setProjectMode] = useState("overview");
+  const [projectDetailView, setProjectDetailView] = useState("overview");
   const [selectedProjectId, setSelectedProjectId] = useState("");
   const [toast, setToast] = useState(null);
 
@@ -433,13 +433,6 @@ const ProjectsPage = () => {
           return false;
         }
 
-        if (
-          projectTeamFilter !== "all" &&
-          !projectTeams.some((team) => String(team?._id || team) === projectTeamFilter)
-        ) {
-          return false;
-        }
-
         if (!normalizedSearch) {
           return true;
         }
@@ -454,22 +447,10 @@ const ProjectsPage = () => {
           .filter(Boolean)
           .some((value) => String(value).toLowerCase().includes(normalizedSearch));
       })
-      .sort((left, right) => {
-        if (projectSort === "issues") {
-          return (right.issueCount || 0) - (left.issueCount || 0);
-        }
-
-        if (projectSort === "members") {
-          return getProjectMemberCount(right) - getProjectMemberCount(left);
-        }
-
-        if (projectSort === "teams") {
-          return getProjectTeams(right).length - getProjectTeams(left).length;
-        }
-
-        return String(left.name || "").localeCompare(String(right.name || ""));
-      });
-  }, [projectSearch, projectSort, projectStatusFilter, projectTeamFilter, projects]);
+      .sort((left, right) =>
+        String(left.name || "").localeCompare(String(right.name || ""))
+      );
+  }, [projectSearch, projectStatusFilter, projects]);
 
   const selectedProject = useMemo(
     () =>
@@ -503,6 +484,60 @@ const ProjectsPage = () => {
       .filter((epic) => epic?.name);
   }, [selectedProject]);
 
+  const {
+    data: selectedProjectIssuesData = [],
+    isLoading: isSelectedProjectIssuesLoading,
+  } = useQuery({
+    queryKey: ["issues", "project-overview", selectedProject?._id],
+    queryFn: () => fetchIssues({ projectId: selectedProject._id }),
+    enabled: Boolean(selectedProject?._id),
+  });
+
+  const selectedProjectIssues = useMemo(
+    () => (Array.isArray(selectedProjectIssuesData) ? selectedProjectIssuesData : []),
+    [selectedProjectIssuesData]
+  );
+
+  const selectedProjectTasks = useMemo(
+    () =>
+      selectedProjectIssues.filter((issue) =>
+        [ISSUE_TYPES.TASK, ISSUE_TYPES.SUB_TASK].includes(
+          normalizeIssueType(issue?.type, ISSUE_TYPES.TASK)
+        )
+      ),
+    [selectedProjectIssues]
+  );
+
+  const selectedProjectBugs = useMemo(
+    () =>
+      selectedProjectIssues.filter(
+        (issue) => normalizeIssueType(issue?.type, ISSUE_TYPES.TASK) === ISSUE_TYPES.BUG
+      ),
+    [selectedProjectIssues]
+  );
+
+  const taskStatusRows = useMemo(
+    () =>
+      TASK_BOARD_COLUMNS.map((column) => ({
+        ...column,
+        count: selectedProjectTasks.filter(
+          (issue) => getTaskBoardStatus(issue) === column.key
+        ).length,
+      })),
+    [selectedProjectTasks]
+  );
+
+  const bugStatusRows = useMemo(
+    () =>
+      DEVELOPER_BUG_COLUMNS.map((column) => ({
+        ...column,
+        count: selectedProjectBugs.filter(
+          (issue) => getBugColumnKey(issue, DEVELOPER_BUG_COLUMNS) === column.key
+        ).length,
+      })),
+    [selectedProjectBugs]
+  );
+
   useEffect(() => {
     if (!filteredProjects.length) {
       setSelectedProjectId("");
@@ -513,6 +548,10 @@ const ProjectsPage = () => {
       setSelectedProjectId(filteredProjects[0]._id);
     }
   }, [filteredProjects, selectedProjectId]);
+
+  useEffect(() => {
+    setProjectDetailView("overview");
+  }, [selectedProject?._id]);
 
   const handleCreateProject = async (payload) => {
     await createProjectMutation.mutateAsync(payload);
@@ -623,7 +662,6 @@ const ProjectsPage = () => {
                       setProjectMode("overview");
                       setProjectSearch("");
                       setProjectStatusFilter("all");
-                      setProjectTeamFilter("all");
                     },
                   },
                   {
@@ -778,67 +816,6 @@ const ProjectsPage = () => {
         </aside>
 
         <main className="min-w-0 space-y-4">
-      <section className="w-full">
-        <Card className="overflow-hidden border-white/70 bg-white/82 shadow-[0_16px_44px_-34px_rgba(15,23,42,0.32)] backdrop-blur-xl">
-          <CardContent className="flex flex-col gap-2 p-1 sm:flex-row sm:items-center sm:justify-between">
-            <div
-              aria-label="Projects and teams"
-              className="grid grid-cols-2 gap-1 rounded-2xl border border-slate-200/80 bg-slate-50/80 p-1 sm:inline-grid"
-              role="tablist"
-            >
-              {[
-                { id: "projects", label: "Projects", Icon: FolderKanban },
-                { id: "teams", label: "Teams", Icon: Users2 },
-              ].map(({ id, label, Icon }) => {
-                const isSelected = activeTab === id;
-
-                return (
-                  <button
-                    key={id}
-                    aria-controls={`${id}-panel`}
-                    aria-selected={isSelected}
-                    className={`interactive-button inline-flex h-8 items-center justify-center gap-1.5 rounded-xl px-3 text-xs font-semibold transition ${
-                      isSelected
-                        ? "bg-slate-950 text-white shadow-[0_10px_24px_-18px_rgba(15,23,42,0.8)]"
-                        : "border border-transparent bg-white/70 text-slate-600 hover:border-slate-200 hover:bg-white hover:text-slate-950"
-                    }`}
-                    id={`${id}-tab`}
-                    role="tab"
-                    type="button"
-                    onClick={() => {
-                      updateActiveTab(id);
-                      setProjectMode("overview");
-                    }}
-                  >
-                    <Icon className="h-3.5 w-3.5" />
-                    {label}
-                  </button>
-                );
-              })}
-            </div>
-
-            {activeTab === "projects" ? (
-              <Button
-                className="interactive-button h-8 w-full rounded-xl border border-indigo-300/30 bg-[linear-gradient(90deg,#2563EB_0%,#6366F1_55%,#8B5CF6_100%)] px-3 text-xs text-white shadow-[0_10px_24px_-18px_rgba(99,102,241,0.82)] hover:brightness-105 sm:w-auto"
-                onClick={() => setIsCreateDialogOpen(true)}
-                type="button"
-              >
-                <Plus className="h-3.5 w-3.5" />
-                Create Project
-              </Button>
-            ) : (
-              <Button
-                className="interactive-button h-8 w-full rounded-xl border border-emerald-300/40 bg-[linear-gradient(90deg,#059669_0%,#0891B2_100%)] px-3 text-xs text-white shadow-[0_10px_24px_-18px_rgba(16,185,129,0.72)] hover:brightness-105 sm:w-auto"
-                onClick={() => setIsCreateTeamDialogOpen(true)}
-                type="button"
-              >
-                <Plus className="h-3.5 w-3.5" />
-                Create Team
-              </Button>
-            )}
-          </CardContent>
-        </Card>
-      </section>
 
       {activeTab === "projects" && projectMode === "overview" ? (
         <section
@@ -878,62 +855,6 @@ const ProjectsPage = () => {
                     onChange={(event) => setProjectSearch(event.target.value)}
                   />
                 </div>
-
-                <div className="grid grid-cols-2 gap-2">
-                  <label className="space-y-1.5">
-                    <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold uppercase text-slate-500">
-                      <Filter className="h-3.5 w-3.5" />
-                      Status
-                    </span>
-                    <select
-                      className="h-9 w-full rounded-lg border border-slate-200 bg-white px-2 text-sm text-slate-700 outline-none focus:border-blue-400 focus:ring-4 focus:ring-blue-500/10"
-                      value={projectStatusFilter}
-                      onChange={(event) => setProjectStatusFilter(event.target.value)}
-                    >
-                      {PROJECT_STATUS_FILTERS.map((status) => (
-                        <option key={status} value={status}>
-                          {status === "all" ? "All status" : status}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <label className="space-y-1.5">
-                    <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold uppercase text-slate-500">
-                      <ArrowUpDown className="h-3.5 w-3.5" />
-                      Sort
-                    </span>
-                    <select
-                      className="h-9 w-full rounded-lg border border-slate-200 bg-white px-2 text-sm text-slate-700 outline-none focus:border-blue-400 focus:ring-4 focus:ring-blue-500/10"
-                      value={projectSort}
-                      onChange={(event) => setProjectSort(event.target.value)}
-                    >
-                      {PROJECT_SORT_OPTIONS.map((option) => (
-                        <option key={option.value} value={option.value}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                </div>
-
-                <label className="space-y-1.5">
-                  <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold uppercase text-slate-500">
-                    <Users2 className="h-3.5 w-3.5" />
-                    Team
-                  </span>
-                  <select
-                    className="h-9 w-full rounded-lg border border-slate-200 bg-white px-2 text-sm text-slate-700 outline-none focus:border-blue-400 focus:ring-4 focus:ring-blue-500/10"
-                    value={projectTeamFilter}
-                    onChange={(event) => setProjectTeamFilter(event.target.value)}
-                  >
-                    <option value="all">All teams</option>
-                    {teams.map((team) => (
-                      <option key={team._id} value={team._id}>
-                        {team.name}
-                      </option>
-                    ))}
-                  </select>
-                </label>
 
                 <div className="grid grid-cols-2 gap-1 rounded-xl border border-slate-200 bg-slate-50 p-1">
                   {[
@@ -1093,89 +1014,173 @@ const ProjectsPage = () => {
                 <div className="grid gap-3 md:grid-cols-4">
                   {[
                     {
-                      label: "Issues",
-                      value: selectedProject.issueCount || 0,
+                      id: "tasks",
+                      label: "Tasks",
+                      value: selectedProjectTasks.length,
+                      helper: "To do, in progress, done",
+                      Icon: ClipboardList,
+                    },
+                    {
+                      id: "bugs",
+                      label: "Bugs",
+                      value: selectedProjectBugs.length,
+                      helper: "Reported through closed",
                       Icon: Bug,
                     },
                     {
+                      id: "overview",
                       label: "Members",
                       value: getProjectMemberCount(selectedProject),
+                      helper: "People on this project",
                       Icon: Users2,
                     },
                     {
+                      id: "overview",
                       label: "Teams",
                       value: getProjectTeams(selectedProject).length,
+                      helper: "Attached teams",
                       Icon: Layers3,
                     },
-                    {
-                      label: "Active Projects",
-                      value: projectStats.active,
-                      Icon: CheckCircle2,
-                    },
-                  ].map(({ label, value, Icon }) => (
-                    <Card key={label} className="border-slate-200 bg-white">
-                      <CardContent className="flex items-center justify-between p-4">
-                        <div>
-                          <p className="text-xs font-semibold uppercase text-slate-500">
-                            {label}
-                          </p>
-                          <p className="mt-1 text-2xl font-semibold text-slate-950">
-                            {value}
-                          </p>
+                  ].map(({ id, label, value, helper, Icon }) => {
+                    const isActive =
+                      projectDetailView === id ||
+                      (id === "overview" && projectDetailView === "overview");
+
+                    return (
+                      <button
+                        key={label}
+                        className={`rounded-2xl border bg-white p-4 text-left transition hover:border-blue-200 hover:bg-blue-50/50 ${
+                          isActive
+                            ? "border-blue-300 ring-4 ring-blue-500/10"
+                            : "border-slate-200"
+                        }`}
+                        type="button"
+                        onClick={() => setProjectDetailView(id)}
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <p className="text-xs font-semibold uppercase text-slate-500">
+                              {label}
+                            </p>
+                            <p className="mt-1 text-2xl font-semibold text-slate-950">
+                              {isSelectedProjectIssuesLoading &&
+                              ["Tasks", "Bugs"].includes(label)
+                                ? "..."
+                                : value}
+                            </p>
+                          </div>
+                          <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-blue-50 text-blue-700">
+                            <Icon className="h-4 w-4" />
+                          </span>
                         </div>
-                        <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-blue-50 text-blue-700">
-                          <Icon className="h-4 w-4" />
-                        </span>
-                      </CardContent>
-                    </Card>
-                  ))}
+                        <p className="mt-3 text-sm text-slate-500">{helper}</p>
+                      </button>
+                    );
+                  })}
                 </div>
 
-                <div className="space-y-3">
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                    <div>
-                      <h3 className="text-base font-semibold text-slate-950">
-                        Project Workbench
-                      </h3>
-                      <p className="mt-1 text-sm text-slate-500">
-                        Control projects from the cards below.
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-2 text-sm text-slate-500 shadow-sm">
-                      <SlidersHorizontal className="h-4 w-4" />
-                      {projectStats.totalIssues} total issues
-                    </div>
+                <section className="space-y-3">
+                  <div>
+                    <h3 className="text-base font-semibold text-slate-950">
+                      {projectDetailView === "tasks"
+                        ? "Task Overview"
+                        : projectDetailView === "bugs"
+                          ? "Bug Overview"
+                          : "Project Details"}
+                    </h3>
+                    <p className="mt-1 text-sm text-slate-500">
+                      {projectDetailView === "tasks"
+                        ? "Tasks are separated into To Do, In Progress, and Done."
+                        : projectDetailView === "bugs"
+                          ? "Bugs are separated by the bug workflow stages."
+                          : "Selected project summary without the workbench grid."}
+                    </p>
                   </div>
 
-                  {isProjectsLoading ? (
-                    <div className="grid gap-3 md:grid-cols-2 2xl:grid-cols-3">
-                      {Array.from({ length: PROJECT_GRID_SKELETON_COUNT }).map((_, index) => (
-                        <Skeleton
-                          key={`project-skeleton-${index}`}
-                          className="h-[286px] w-full rounded-2xl"
-                        />
+                  {projectDetailView === "tasks" ? (
+                    <div className="grid gap-3 md:grid-cols-3">
+                      {taskStatusRows.map((row) => (
+                        <div
+                          key={row.key}
+                          className="rounded-2xl border border-slate-200 bg-white p-4"
+                        >
+                          <div className="flex items-center justify-between gap-3">
+                            <span className={`h-2.5 w-2.5 rounded-full ${row.accentClassName}`} />
+                            <span className="text-2xl font-semibold text-slate-950">
+                              {row.count}
+                            </span>
+                          </div>
+                          <h4 className="mt-3 text-sm font-semibold text-slate-950">
+                            {row.label === "Open" ? "To Do" : row.label}
+                          </h4>
+                          <p className="mt-1 text-sm text-slate-500">{row.helper}</p>
+                        </div>
                       ))}
                     </div>
-                  ) : filteredProjects.length ? (
-                    <div
-                      className={
-                        projectView === "grid"
-                          ? "grid min-w-0 grid-cols-1 gap-3 lg:grid-cols-2 2xl:grid-cols-3"
-                          : "grid min-w-0 grid-cols-1 gap-3 2xl:grid-cols-2"
-                      }
-                    >
-                      {filteredProjects.map((project, index) =>
-                        renderProjectCard(project, index)
-                      )}
+                  ) : null}
+
+                  {projectDetailView === "bugs" ? (
+                    <div className="grid gap-3 md:grid-cols-2 2xl:grid-cols-4">
+                      {bugStatusRows.map((row) => (
+                        <div
+                          key={row.key}
+                          className="rounded-2xl border border-slate-200 bg-white p-4"
+                        >
+                          <div className="flex items-center justify-between gap-3">
+                            <span className={`h-2.5 w-2.5 rounded-full ${row.accentClassName}`} />
+                            <span className="text-2xl font-semibold text-slate-950">
+                              {row.count}
+                            </span>
+                          </div>
+                          <h4 className="mt-3 text-sm font-semibold text-slate-950">
+                            {row.label}
+                          </h4>
+                          <p className="mt-1 text-sm text-slate-500">{row.helper}</p>
+                        </div>
+                      ))}
                     </div>
-                  ) : (
-                    <EmptyState
-                      title="No projects match these controls"
-                      description="Adjust search, status, or team filters to widen the project list."
-                      icon={<FolderKanban className="h-5 w-5" />}
-                    />
-                  )}
-                </div>
+                  ) : null}
+
+                  {projectDetailView === "overview" ? (
+                    <div className="grid gap-3 lg:grid-cols-3">
+                      <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                        <p className="text-xs font-semibold uppercase text-slate-500">
+                          Ownership
+                        </p>
+                        <p className="mt-2 text-base font-semibold text-slate-950">
+                          {getProjectOwnerName(selectedProject)}
+                        </p>
+                        <p className="mt-1 text-sm text-slate-500">
+                          Project manager responsible for planning and delivery.
+                        </p>
+                      </div>
+                      <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                        <p className="text-xs font-semibold uppercase text-slate-500">
+                          Team Coverage
+                        </p>
+                        <p className="mt-2 text-base font-semibold text-slate-950">
+                          {selectedProjectTeams.length
+                            ? selectedProjectTeams.map((team) => team.name).join(", ")
+                            : "No teams attached"}
+                        </p>
+                        <p className="mt-1 text-sm text-slate-500">
+                          Workspace teams connected to this project.
+                        </p>
+                      </div>
+                      <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                        <p className="text-xs font-semibold uppercase text-slate-500">
+                          Epics
+                        </p>
+                        <p className="mt-2 text-base font-semibold text-slate-950">
+                          {selectedProjectEpics.length} workstreams
+                        </p>
+                        <p className="mt-1 text-sm text-slate-500">
+                          Larger planning streams currently attached.
+                        </p>
+                      </div>
+                    </div>
+                  ) : null}
+                </section>
               </>
             ) : !isProjectsLoading ? (
               <EmptyState
