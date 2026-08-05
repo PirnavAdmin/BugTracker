@@ -10,14 +10,7 @@ import {
   ChevronRight,
   Clock3,
   ClipboardCheck,
-  Database,
-  Download,
-  ExternalLink,
-  FileText,
   FolderKanban,
-  GaugeCircle,
-  History,
-  ListChecks,
   Megaphone,
   PauseCircle,
   PlayCircle,
@@ -28,7 +21,6 @@ import {
   Search,
   Server,
   ShieldCheck,
-  Sparkles,
   TimerReset,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
@@ -842,6 +834,28 @@ const TesterDashboardPage = () => {
     () => visibleIssues.filter((issue) => String(issue?.priority || "").toLowerCase() === "critical").length,
     [visibleIssues]
   );
+  const rejectedBugsCount = useMemo(
+    () => visibleIssues.filter((issue) => getComparableStatus(issue) === ISSUE_STATUS.REJECTED).length,
+    [visibleIssues]
+  );
+  const readyForQaCount = useMemo(
+    () =>
+      visibleIssues.filter((issue) =>
+        [ISSUE_STATUS.READY_FOR_QA, ISSUE_STATUS.QA, ISSUE_STATUS.FIXED, ISSUE_STATUS.TESTING].includes(getComparableStatus(issue))
+      ).length,
+    [visibleIssues]
+  );
+  const bugSummaryStats = useMemo(
+    () => [
+      { label: "Total Reported", value: myReportedBugs.length, tone: "bg-blue-50 text-blue-700" },
+      { label: "In Progress", value: dashboardMetrics.inProgress, tone: "bg-indigo-50 text-indigo-700" },
+      { label: "Critical", value: criticalBugsFound, tone: "bg-rose-50 text-rose-700" },
+      { label: "Rejected", value: rejectedBugsCount, tone: "bg-orange-50 text-orange-700" },
+      { label: "Ready For Q/A", value: readyForQaCount, tone: "bg-emerald-50 text-emerald-700" },
+      { label: "Closed", value: dashboardMetrics.closed, tone: "bg-slate-100 text-slate-700" },
+    ],
+    [criticalBugsFound, dashboardMetrics.closed, dashboardMetrics.inProgress, myReportedBugs.length, readyForQaCount, rejectedBugsCount]
+  );
 
   const testingModules = ["Login", "Dashboard", "Reports", "Payment", "Attendance"];
   const testingActivity = useMemo(() => {
@@ -1220,11 +1234,11 @@ const TesterDashboardPage = () => {
             />
           </section>
 
-          <section className="grid gap-4 xl:grid-cols-[1.08fr_0.92fr]">
+          <section>
             <WorkspaceCard>
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <h2 className="text-base font-semibold tracking-tight text-slate-950">Ready For Verification</h2>
+                  <h2 className="text-base font-semibold tracking-tight text-slate-950">Ready For Q/A</h2>
                   <p className="mt-0.5 text-xs text-slate-600">Developer fixes waiting for QA sign-off.</p>
                 </div>
                 <Button className="h-8 rounded-xl" size="sm" variant="outline" onClick={() => navigate("/bugs")}>
@@ -1233,18 +1247,18 @@ const TesterDashboardPage = () => {
                 </Button>
               </div>
 
-              <div className="mt-3 space-y-2">
+              <div className="mt-3 grid gap-3 lg:grid-cols-2">
                 {isReportedBugsLoading ? (
-                  Array.from({ length: 3 }).map((_, index) => (
-                    <Skeleton className="h-20 rounded-2xl" key={`verification-skeleton-${index}`} />
+                  Array.from({ length: 4 }).map((_, index) => (
+                    <Skeleton className="h-32 rounded-2xl" key={`verification-skeleton-${index}`} />
                   ))
                 ) : readyForVerificationBugs.length ? (
                   readyForVerificationBugs.slice(0, 4).map((issue) => (
                     <div
-                      className="rounded-2xl border border-slate-200/80 bg-white/86 p-3 transition hover:border-blue-200 hover:bg-blue-50/45"
+                      className="min-h-[132px] rounded-2xl border border-slate-200/80 bg-white/86 p-4 transition hover:-translate-y-0.5 hover:border-blue-200 hover:bg-blue-50/45 hover:shadow-[0_16px_34px_-30px_rgba(37,99,235,0.38)]"
                       key={issue._id}
                     >
-                      <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="flex h-full flex-col justify-between gap-3">
                         <div className="min-w-0">
                           <div className="flex flex-wrap items-center gap-1.5">
                             <span className="font-mono text-xs font-bold text-blue-700">{getIssueDisplayKey(issue)}</span>
@@ -1309,26 +1323,23 @@ const TesterDashboardPage = () => {
             </WorkspaceCard>
 
             <WorkspaceCard>
-              <h2 className="text-base font-semibold tracking-tight text-slate-950">Quick Navigation</h2>
-              <div className="mt-3 grid gap-2 sm:grid-cols-3 xl:grid-cols-5">
-                {[
-                  ["Open Bug Board", Bug, "/bugs"],
-                  ["Testing History", History, "/reports"],
-                  ["Verification Queue", ShieldCheck, "/bugs"],
-                  ["Reports", GaugeCircle, "/reports"],
-                  ["Recent Builds", Rocket, "/backlog"],
-                ].map(([label, Icon, path]) => (
-                  <button
-                    className="group flex min-h-[70px] flex-col items-center justify-center gap-1.5 rounded-2xl border border-slate-200/80 bg-white/82 p-2 text-center transition hover:-translate-y-0.5 hover:border-blue-200 hover:bg-blue-50/55"
-                    key={label}
-                    onClick={() => navigate(path)}
-                    type="button"
-                  >
-                    <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-indigo-50 text-indigo-700">
-                      <Icon className="h-4 w-4" />
-                    </span>
-                    <span className="text-xs font-semibold leading-4 text-slate-800">{label}</span>
-                  </button>
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <h2 className="text-base font-semibold tracking-tight text-slate-950">Bug Summary</h2>
+                  <p className="mt-0.5 text-xs text-slate-500">Reported bug flow at a glance.</p>
+                </div>
+                <Button className="h-8 rounded-xl" size="sm" variant="outline" onClick={() => navigate("/bugs")}>
+                  Open Board
+                </Button>
+              </div>
+              <div className="mt-3 grid gap-2 sm:grid-cols-3">
+                {bugSummaryStats.map((item) => (
+                  <div className="rounded-2xl border border-slate-200/80 bg-white/82 p-3" key={item.label}>
+                    <div className={cn("inline-flex rounded-xl px-2 py-1 text-[11px] font-bold", item.tone)}>
+                      {item.label}
+                    </div>
+                    <p className="mt-2 text-2xl font-semibold tracking-tight text-slate-950">{item.value}</p>
+                  </div>
                 ))}
               </div>
             </WorkspaceCard>
@@ -1417,21 +1428,6 @@ const TesterDashboardPage = () => {
         </aside>
       </section>
 
-      <div className="fixed bottom-4 right-4 z-30 flex flex-col items-end gap-2">
-        <div className="hidden w-[178px] flex-col gap-1.5 rounded-2xl border border-blue-100 bg-white/92 p-2 shadow-[0_18px_42px_-26px_rgba(15,23,42,0.34)] backdrop-blur-xl md:flex">
-          <QuickActionButton Icon={Bug} onClick={() => navigate("/bugs?view=report")}>Create Bug</QuickActionButton>
-          <QuickActionButton Icon={PlayCircle} onClick={() => navigate("/bugs?view=report")}>Continue Testing</QuickActionButton>
-          <QuickActionButton Icon={ShieldCheck} onClick={() => navigate("/bugs")}>Verification Queue</QuickActionButton>
-        </div>
-        <Button
-          aria-label="Create bug"
-          className="h-14 w-14 rounded-full bg-[linear-gradient(135deg,#2563EB,#8B5CF6)] p-0 text-white shadow-[0_20px_42px_-18px_rgba(37,99,235,0.8)] hover:brightness-105 md:hidden"
-          onClick={() => navigate("/bugs?view=report")}
-          type="button"
-        >
-          <Plus className="h-6 w-6" />
-        </Button>
-      </div>
     </div>
   );
 };
