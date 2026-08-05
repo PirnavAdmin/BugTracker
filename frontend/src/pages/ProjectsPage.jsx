@@ -4,9 +4,11 @@ import {
   Archive,
   BarChart3,
   Bug,
+  CalendarClock,
   CheckCircle2,
   ClipboardList,
   FolderKanban,
+  HeartPulse,
   Layers3,
   MoreHorizontal,
   Plus,
@@ -16,8 +18,11 @@ import {
   ShieldCheck,
   Star,
   Target,
+  TimerReset,
+  TrendingUp,
   UserRoundPlus,
   Users2,
+  WalletCards,
 } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import {
@@ -148,6 +153,116 @@ const getTimelineStatus = (item = {}) => {
     : { label: "On track", className: "bg-emerald-50 text-emerald-700" };
 };
 
+const getMetricTone = (tone = "blue") => {
+  const tones = {
+    blue: {
+      card: "border-blue-200 from-white via-blue-50 to-sky-100",
+      label: "text-blue-700",
+      icon: "bg-blue-600 text-white shadow-blue-500/35",
+      bar: "bg-blue-600",
+      ring: "hover:ring-blue-300/60",
+    },
+    emerald: {
+      card: "border-emerald-200 from-white via-emerald-50 to-teal-100",
+      label: "text-emerald-700",
+      icon: "bg-emerald-600 text-white shadow-emerald-500/35",
+      bar: "bg-emerald-600",
+      ring: "hover:ring-emerald-300/60",
+    },
+    amber: {
+      card: "border-amber-200 from-white via-amber-50 to-orange-100",
+      label: "text-amber-700",
+      icon: "bg-amber-500 text-white shadow-amber-500/35",
+      bar: "bg-amber-500",
+      ring: "hover:ring-amber-300/60",
+    },
+    rose: {
+      card: "border-rose-200 from-white via-rose-50 to-red-100",
+      label: "text-rose-700",
+      icon: "bg-rose-600 text-white shadow-rose-500/35",
+      bar: "bg-rose-600",
+      ring: "hover:ring-rose-300/60",
+    },
+    violet: {
+      card: "border-violet-200 from-white via-violet-50 to-indigo-100",
+      label: "text-violet-700",
+      icon: "bg-violet-600 text-white shadow-violet-500/35",
+      bar: "bg-violet-600",
+      ring: "hover:ring-violet-300/60",
+    },
+    slate: {
+      card: "border-slate-200 from-white via-slate-50 to-slate-100",
+      label: "text-slate-600",
+      icon: "bg-slate-700 text-white shadow-slate-500/30",
+      bar: "bg-slate-500",
+      ring: "hover:ring-slate-300/60",
+    },
+  };
+
+  return tones[tone] || tones.blue;
+};
+
+const getProgressTone = (progress = 0) => {
+  if (progress >= 80) return "emerald";
+  if (progress >= 45) return "blue";
+  if (progress >= 20) return "amber";
+  return "rose";
+};
+
+const getTimelineTone = (project = {}) => {
+  if (!project.startDate || !project.targetDate) return "slate";
+  return getTimelineStatus(project).label === "Off track" ? "rose" : "blue";
+};
+
+const getDaysRemainingMeta = (targetDate) => {
+  if (!targetDate) {
+    return { label: "Not set", tone: "slate", helper: "No deadline selected" };
+  }
+
+  const end = new Date(targetDate);
+
+  if (Number.isNaN(end.getTime())) {
+    return { label: "Not set", tone: "slate", helper: "No deadline selected" };
+  }
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  end.setHours(0, 0, 0, 0);
+
+  const days = Math.ceil((end.getTime() - today.getTime()) / 86400000);
+
+  if (days < 0) {
+    return {
+      label: `${Math.abs(days)} overdue`,
+      tone: "rose",
+      helper: "Past project deadline",
+    };
+  }
+
+  if (days <= 7) {
+    return {
+      label: days === 1 ? "1 day" : `${days} days`,
+      tone: "amber",
+      helper: "Deadline is close",
+    };
+  }
+
+  return {
+    label: days === 1 ? "1 day" : `${days} days`,
+    tone: "emerald",
+    helper: "Time remaining",
+  };
+};
+
+const getHealthTone = (statusLabel = "", progress = 0) => {
+  if (statusLabel === "Off track") return "rose";
+  if (statusLabel === "Due soon") return progress >= 70 ? "amber" : "rose";
+  if (statusLabel === "No deadline") return "slate";
+  if (progress >= 80) return "emerald";
+  if (progress >= 45) return "blue";
+  return "amber";
+};
+
 const getPeriodLabel = (startDate, targetDate) => {
   if (!startDate || !targetDate) {
     return "Period not set";
@@ -203,6 +318,9 @@ const formatBudget = (project = {}) => {
     maximumFractionDigits: 0,
   }).format(numericBudget);
 };
+
+const getBudgetTone = (project = {}) =>
+  project.budget || project.projectBudget || project.estimatedBudget ? "violet" : "slate";
 
 const ProjectsPage = () => {
   const queryClient = useQueryClient();
@@ -636,6 +754,10 @@ const ProjectsPage = () => {
     () => getTimelineStatus(selectedProject || {}),
     [selectedProject]
   );
+  const selectedProjectDaysRemainingMeta = useMemo(
+    () => getDaysRemainingMeta(selectedProject?.targetDate),
+    [selectedProject?.targetDate]
+  );
 
   const {
     data: selectedProjectIssuesData = [],
@@ -652,6 +774,17 @@ const ProjectsPage = () => {
   );
 
   const selectedProjectProgress = useMemo(() => {
+    const epicProgressValues = selectedProjectEpics
+      .map((epic) => Number(epic?.metrics?.progress))
+      .filter((progress) => Number.isFinite(progress));
+
+    if (epicProgressValues.length) {
+      return Math.round(
+        epicProgressValues.reduce((total, progress) => total + progress, 0) /
+          epicProgressValues.length
+      );
+    }
+
     if (!selectedProjectIssues.length) {
       return 0;
     }
@@ -671,7 +804,7 @@ const ProjectsPage = () => {
     }).length;
 
     return Math.round((completedIssues / selectedProjectIssues.length) * 100);
-  }, [selectedProjectIssues]);
+  }, [selectedProjectEpics, selectedProjectIssues]);
 
   const selectedProjectTasks = useMemo(
     () =>
@@ -1121,43 +1254,93 @@ const ProjectsPage = () => {
                       helper: `${formatShortDate(selectedProject.startDate)} - ${formatShortDate(
                         selectedProject.targetDate
                       )}`,
+                      Icon: CalendarClock,
+                      tone: getTimelineTone(selectedProject),
+                      progress: selectedProject.startDate && selectedProject.targetDate ? 100 : 0,
                     },
                     {
                       label: "Progress",
                       value: `${selectedProjectProgress}%`,
-                      helper: `${selectedProjectIssues.length} total work items`,
+                      helper: selectedProjectEpics.length
+                        ? `${selectedProjectEpics.length} epics tracked`
+                        : `${selectedProjectIssues.length} total work items`,
+                      Icon: TrendingUp,
+                      tone: getProgressTone(selectedProjectProgress),
+                      progress: selectedProjectProgress,
                     },
                     {
                       label: "Days Remaining",
-                      value: getDaysRemainingLabel(selectedProject.targetDate),
-                      helper: "Until project deadline",
+                      value: selectedProjectDaysRemainingMeta.label,
+                      helper: selectedProjectDaysRemainingMeta.helper,
+                      Icon: TimerReset,
+                      tone: selectedProjectDaysRemainingMeta.tone,
+                      progress:
+                        selectedProjectDaysRemainingMeta.tone === "rose"
+                          ? 100
+                          : selectedProjectDaysRemainingMeta.tone === "amber"
+                            ? 62
+                            : selectedProjectDaysRemainingMeta.tone === "emerald"
+                              ? 34
+                              : 0,
                     },
                     {
                       label: "Health",
                       value: selectedProjectTimelineStatus.label,
                       helper: "Based on deadline status",
+                      Icon: HeartPulse,
+                      tone: getHealthTone(
+                        selectedProjectTimelineStatus.label,
+                        selectedProjectProgress
+                      ),
+                      progress: selectedProjectProgress,
                     },
                     {
                       label: "Budget",
                       value: formatBudget(selectedProject),
                       helper: "Planned project budget",
+                      Icon: WalletCards,
+                      tone: getBudgetTone(selectedProject),
+                      progress: getBudgetTone(selectedProject) === "violet" ? 100 : 0,
                     },
-                  ].map((metric) => (
-                    <div
-                      key={metric.label}
-                      className="rounded-2xl border border-blue-200 bg-[linear-gradient(135deg,#ffffff_0%,#eff6ff_100%)] p-4 shadow-[0_18px_44px_-34px_rgba(37,99,235,0.6)]"
-                    >
-                      <p className="text-xs font-semibold uppercase text-blue-700">
-                        {metric.label}
-                      </p>
-                      <p className="mt-2 truncate text-xl font-semibold text-slate-950">
-                        {metric.value}
-                      </p>
-                      <p className="mt-2 min-h-8 text-xs leading-4 text-slate-500">
-                        {metric.helper}
-                      </p>
-                    </div>
-                  ))}
+                  ].map((metric) => {
+                    const tone = getMetricTone(metric.tone);
+                    const Icon = metric.Icon;
+
+                    return (
+                      <div
+                        key={metric.label}
+                        className={`group relative overflow-hidden rounded-2xl border bg-gradient-to-br p-4 shadow-[0_18px_44px_-34px_rgba(15,23,42,0.65)] ring-0 transition duration-200 hover:-translate-y-1 hover:scale-[1.02] hover:shadow-[0_24px_56px_-32px_rgba(15,23,42,0.75)] hover:ring-4 ${tone.card} ${tone.ring}`}
+                      >
+                        <div className="pointer-events-none absolute -right-8 -top-8 h-20 w-20 rounded-full bg-white/50" />
+                        <div className="relative flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className={`text-xs font-bold uppercase ${tone.label}`}>
+                              {metric.label}
+                            </p>
+                            <p className="mt-2 truncate text-2xl font-semibold text-slate-950">
+                              {metric.value}
+                            </p>
+                          </div>
+                          <span
+                            className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl shadow-lg transition group-hover:rotate-3 group-hover:scale-110 ${tone.icon}`}
+                          >
+                            <Icon className="h-4 w-4" />
+                          </span>
+                        </div>
+                        <p className="relative mt-2 min-h-8 text-xs leading-4 text-slate-600">
+                          {metric.helper}
+                        </p>
+                        <div className="relative mt-3 h-1.5 overflow-hidden rounded-full bg-white/70">
+                          <div
+                            className={`h-full rounded-full transition-all ${tone.bar}`}
+                            style={{
+                              width: `${Math.max(8, Math.min(100, metric.progress || 0))}%`,
+                            }}
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
 
                 <div className="grid gap-3 md:grid-cols-4">
@@ -1196,13 +1379,14 @@ const ProjectsPage = () => {
                     return (
                       <button
                         key={label}
-                        className={`rounded-2xl border bg-white p-4 text-left transition hover:border-blue-200 hover:bg-blue-50/50 ${
+                        className={`rounded-2xl border bg-white p-4 text-left shadow-[0_14px_36px_-34px_rgba(15,23,42,0.6)] transition duration-200 hover:-translate-y-1 hover:scale-[1.015] hover:border-blue-300 hover:bg-blue-50/70 hover:shadow-[0_22px_48px_-34px_rgba(37,99,235,0.55)] ${
                           isActive
-                            ? "border-blue-300 ring-4 ring-blue-500/10"
+                            ? "border-blue-300 bg-blue-50/60 ring-4 ring-blue-500/10"
                             : "border-slate-200"
                         }`}
                         type="button"
-                        onClick={() => setProjectDetailView(id)}
+                        onFocus={() => setProjectDetailView(id)}
+                        onMouseEnter={() => setProjectDetailView(id)}
                       >
                         <div className="flex items-start justify-between gap-3">
                           <div>
