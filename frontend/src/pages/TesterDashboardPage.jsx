@@ -444,6 +444,156 @@ const WorkspaceKpiCard = ({ description, Icon, label, tone = "blue", value }) =>
   );
 };
 
+const getProjectKey = (project) =>
+  project?.key || project?.projectKey || project?.code || project?.name?.slice(0, 3)?.toUpperCase() || "QA";
+
+const getProjectModules = (project) => {
+  const rawModules = project?.modules || project?.testedModules || project?.moduleNames;
+
+  if (Array.isArray(rawModules) && rawModules.length) {
+    return rawModules.map((module) => String(module?.name || module)).filter(Boolean).slice(0, 4);
+  }
+
+  return ["Login", "Dashboard", "Reports", "API"];
+};
+
+const getQaProjectStatusMeta = (project, projectIssues = []) => {
+  const explicitStatus = String(project?.qaStatus || project?.testingStatus || project?.buildStatus || "").toLowerCase();
+  const readyForQaCount = projectIssues.filter((issue) =>
+    [ISSUE_STATUS.READY_FOR_QA, ISSUE_STATUS.QA, ISSUE_STATUS.FIXED, ISSUE_STATUS.TESTING].includes(getComparableStatus(issue))
+  ).length;
+  const hasBuild = Boolean(project?.currentBuild || project?.buildVersion || project?.version || project?.lastBuildVersion);
+
+  if (readyForQaCount || explicitStatus.includes("verification")) {
+    return {
+      key: "verification",
+      label: "Ready For Verification",
+      action: "Open Verification",
+      tone: "border-blue-200 bg-blue-50 text-blue-700",
+      dot: "bg-blue-500",
+    };
+  }
+
+  if (explicitStatus.includes("progress") || explicitStatus.includes("testing")) {
+    return {
+      key: "progress",
+      label: "Testing In Progress",
+      action: "Continue Testing",
+      tone: "border-amber-200 bg-amber-50 text-amber-700",
+      dot: "bg-amber-500",
+    };
+  }
+
+  if (explicitStatus.includes("complete") || explicitStatus.includes("done")) {
+    return {
+      key: "completed",
+      label: "Testing Completed",
+      action: "View Summary",
+      tone: "border-emerald-200 bg-emerald-50 text-emerald-700",
+      dot: "bg-emerald-500",
+    };
+  }
+
+  if (!hasBuild || explicitStatus.includes("waiting")) {
+    return {
+      key: "waiting",
+      label: "Waiting For Build",
+      action: "Waiting For Build",
+      tone: "border-slate-200 bg-slate-50 text-slate-500",
+      dot: "bg-slate-300",
+      disabled: true,
+    };
+  }
+
+  return {
+    key: "ready",
+    label: "Ready For Testing",
+    action: "Start Testing",
+    tone: "border-emerald-200 bg-emerald-50 text-emerald-700",
+    dot: "bg-emerald-500",
+  };
+};
+
+const QaProjectCard = ({ onCreateBug, onOpen, onReleaseNotes, onStart, project }) => {
+  const Icon = project.status.key === "verification" ? ShieldCheck : project.status.key === "waiting" ? Clock3 : PlayCircle;
+
+  return (
+    <article className="group rounded-[20px] border border-slate-200/80 bg-white/92 p-5 shadow-[0_18px_44px_-36px_rgba(15,23,42,0.36)] transition duration-200 hover:-translate-y-1 hover:border-blue-200 hover:bg-blue-50/35 hover:shadow-[0_24px_54px_-34px_rgba(37,99,235,0.42)]">
+      <div className="flex items-start gap-4">
+        <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-[18px] bg-gradient-to-br from-blue-50 to-violet-50 text-base font-bold text-blue-700">
+          {project.key.slice(0, 2)}
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-start justify-between gap-3">
+            <h3 className="line-clamp-1 text-lg font-semibold tracking-tight text-slate-950">
+              {project.name}
+            </h3>
+            <span className={cn("inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-bold", project.status.tone)}>
+              <span className={cn("h-2 w-2 rounded-full", project.status.dot)} />
+              {project.status.label}
+            </span>
+          </div>
+          <div className="mt-3 grid gap-2 text-sm text-slate-600 sm:grid-cols-2">
+            <span className="truncate">Build: <strong className="font-semibold text-slate-900">{project.buildVersion}</strong></span>
+            <span className="truncate">Env: <strong className="font-semibold text-slate-900">{project.environment}</strong></span>
+            <span className="truncate sm:col-span-2">Uploaded: <strong className="font-semibold text-slate-900">{project.uploadedTime}</strong></span>
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-4 flex flex-wrap gap-2">
+        {project.modules.map((module) => (
+          <span className="rounded-full border border-blue-100 bg-blue-50/55 px-3 py-1 text-xs font-semibold text-slate-600" key={module}>
+            {module}
+          </span>
+        ))}
+      </div>
+
+      <div className="mt-5">
+        <div className="flex items-center justify-between text-xs font-semibold text-slate-500">
+          <span>Progress</span>
+          <span>{project.progress}%</span>
+        </div>
+        <div className="mt-2 h-2 overflow-hidden rounded-full bg-slate-100">
+          <div className="h-full rounded-full bg-[linear-gradient(90deg,#2563EB,#8B5CF6)] transition-all" style={{ width: `${project.progress}%` }} />
+        </div>
+      </div>
+
+      <div className="mt-5 flex flex-wrap gap-2">
+        <Button
+          className="h-10 rounded-2xl bg-blue-600 px-4 text-white hover:bg-blue-700 disabled:bg-slate-200 disabled:text-slate-500"
+          disabled={project.status.disabled}
+          onClick={() => onStart(project)}
+          type="button"
+        >
+          <Icon className="h-4 w-4" />
+          {project.status.action}
+        </Button>
+        {project.status.key === "progress" ? (
+          <>
+            <Button className="h-10 rounded-2xl" variant="outline" onClick={() => onCreateBug(project)} type="button">
+              <Bug className="h-4 w-4" />
+              Create Bug
+            </Button>
+            <Button className="h-10 rounded-2xl" variant="outline" onClick={() => onStart(project)} type="button">
+              Finish Testing
+            </Button>
+          </>
+        ) : (
+          <>
+            <Button className="h-10 rounded-2xl" variant="outline" onClick={() => onOpen(project)} type="button">
+              View Build
+            </Button>
+            <Button className="h-10 rounded-2xl" variant="ghost" onClick={() => onReleaseNotes(project)} type="button">
+              Release Notes
+            </Button>
+          </>
+        )}
+      </div>
+    </article>
+  );
+};
+
 const QuickActionButton = ({ children, Icon, onClick, primary = false }) => (
   <Button
     className={cn(
@@ -612,25 +762,46 @@ const TesterDashboardPage = () => {
     return metrics;
   }, [visibleIssues]);
   const todayKey = useMemo(() => new Date().toDateString(), []);
-  const currentProject = assignedProjects[0] || null;
-  const currentBuild = useMemo(() => {
-    if (!currentProject) return null;
+  const qaProjects = useMemo(
+    () =>
+      assignedProjects.map((project) => {
+        const projectId = String(project._id);
+        const projectIssues = issues.filter((issue) => resolveIssueProjectId(issue) === projectId);
+        const totalWork = projectIssues.length;
+        const completedWork = projectIssues.filter((issue) =>
+          [ISSUE_STATUS.CLOSED, ISSUE_STATUS.DONE].includes(getComparableStatus(issue))
+        ).length;
+        const progress = totalWork ? Math.round((completedWork / totalWork) * 100) : 0;
+        const projectKey = getProjectKey(project);
+        const buildVersion = project.currentBuild || project.buildVersion || project.version || project.lastBuildVersion || "-";
+        const status = getQaProjectStatusMeta(project, projectIssues);
 
-    const projectKey = currentProject.key || currentProject.projectKey || currentProject.name?.slice(0, 3)?.toUpperCase() || "QA";
+        return {
+          id: projectId,
+          raw: project,
+          name: project.name || "Assigned project",
+          key: projectKey,
+          buildVersion,
+          environment: project.environment || project.qaEnvironment || "QA",
+          uploadedTime: project.updatedAt ? formatDateTime(project.updatedAt) : "Waiting for upload",
+          modules: getProjectModules(project),
+          progress,
+          status,
+        };
+      }),
+    [assignedProjects, issues]
+  );
 
-    return {
-      project: currentProject.name || "Assigned project",
-      version: currentProject.currentBuild || currentProject.buildVersion || `${projectKey}-2026.08`,
-      uploadedBy: currentProject.releaseOwner?.name || currentProject.owner?.name || "Release Engineering",
-      uploadedTime: currentProject.updatedAt ? formatDateTime(currentProject.updatedAt) : "Today, 9:30 AM",
-      environment: currentProject.environment || "QA",
-      branch: currentProject.branch || "release/qa",
-      commit: currentProject.commit || "latest",
-      releaseDate: currentProject.deadline ? formatDate(currentProject.deadline) : "This week",
-      assignedBy: currentProject.manager?.name || currentProject.owner?.name || "QA Lead",
-      health: "Healthy",
-    };
-  }, [currentProject]);
+  const qaProjectGroups = useMemo(
+    () => [
+      { key: "ready", title: "Ready For Testing", projects: qaProjects.filter((project) => project.status.key === "ready") },
+      { key: "progress", title: "Testing In Progress", projects: qaProjects.filter((project) => project.status.key === "progress") },
+      { key: "verification", title: "Ready For Verification", projects: qaProjects.filter((project) => project.status.key === "verification") },
+      { key: "waiting", title: "Waiting For Build", projects: qaProjects.filter((project) => project.status.key === "waiting") },
+      { key: "completed", title: "Testing Completed", projects: qaProjects.filter((project) => project.status.key === "completed") },
+    ].filter((group) => group.projects.length),
+    [qaProjects]
+  );
 
   const readyForVerificationBugs = useMemo(
     () =>
@@ -680,12 +851,12 @@ const TesterDashboardPage = () => {
     }));
 
     return [
-      { label: "Started Login testing", meta: currentBuild?.version || "Current build", Icon: PlayCircle },
+      { label: "Reviewed project testing queue", meta: `${qaProjects.length} QA projects available`, Icon: PlayCircle },
       ...recentBugItems,
       { label: readyForVerificationBugs[0] ? `Verified ${getIssueDisplayKey(readyForVerificationBugs[0])}` : "Verification queue reviewed", meta: "Ready for QA checked", Icon: ShieldCheck },
       { label: "Completed smoke testing", meta: "Core flows covered", Icon: CheckCircle2 },
     ];
-  }, [currentBuild?.version, myReportedBugs, readyForVerificationBugs]);
+  }, [myReportedBugs, qaProjects.length, readyForVerificationBugs]);
 
   const qaEnvironments = [
     { name: "QA", status: "Healthy", tone: "bg-emerald-500" },
@@ -701,6 +872,42 @@ const TesterDashboardPage = () => {
     { label: "Verified", value: verifiedToday },
     { label: "Avg Testing Time", value: "2h 15m" },
   ];
+
+  const handleStartTesting = (project) => {
+    const session = {
+      testerId,
+      testerName,
+      projectId: project.id,
+      projectName: project.name,
+      buildVersion: project.buildVersion,
+      environment: project.environment,
+      startedAt: new Date().toISOString(),
+      modules: project.modules,
+      status: "In Progress",
+    };
+
+    window.localStorage.setItem("curecode_active_testing_session", JSON.stringify(session));
+    navigate(`/tester/testing/${encodeURIComponent(project.id)}`, { state: { session } });
+  };
+
+  const handleOpenBuild = (project) => {
+    navigate(`/tester/testing/${encodeURIComponent(project.id)}`, {
+      state: {
+        session: {
+          projectId: project.id,
+          projectName: project.name,
+          buildVersion: project.buildVersion,
+          environment: project.environment,
+          modules: project.modules,
+          status: project.status.label,
+        },
+      },
+    });
+  };
+
+  const handleCreateBugForProject = (project) => {
+    navigate(`/bugs?view=report&projectId=${encodeURIComponent(project.id)}`);
+  };
 
   const handleRefresh = async () => {
     await Promise.all([
@@ -818,69 +1025,56 @@ const TesterDashboardPage = () => {
       <section className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
         <div className="min-w-0 space-y-6">
           <WorkspaceCard className="border-blue-100 bg-[linear-gradient(135deg,#ffffff_0%,#f7fbff_52%,#f4f0ff_100%)]">
-            {currentBuild ? (
-              <div className="grid gap-5 lg:grid-cols-[1fr_auto]">
-                <div className="min-w-0">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Badge className="border-blue-200 bg-blue-50 text-blue-700" variant="outline">
-                      Today&apos;s Testing
-                    </Badge>
-                    <Badge className="border-emerald-200 bg-emerald-50 text-emerald-700" variant="outline">
-                      Not Started
-                    </Badge>
-                  </div>
-                  <h2 className="mt-4 text-2xl font-semibold tracking-tight text-slate-950">
-                    {currentBuild.project}
-                  </h2>
-                  <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
-                    Test the latest build, create bugs while you test, and verify developer fixes from the Ready for QA queue.
-                  </p>
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div>
+                <Badge className="border-blue-200 bg-blue-50 text-blue-700" variant="outline">
+                  My QA Projects
+                </Badge>
+                <h2 className="mt-3 text-2xl font-semibold tracking-tight text-slate-950">
+                  Choose a project to test
+                </h2>
+                <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
+                  Start a build session, continue active testing, or open the verification queue for developer fixes.
+                </p>
+              </div>
+              <div className="rounded-2xl border border-blue-100 bg-white/72 px-4 py-3 text-right shadow-sm">
+                <p className="text-2xl font-semibold text-slate-950">{qaProjects.length}</p>
+                <p className="text-xs font-bold uppercase tracking-[0.12em] text-slate-400">Projects</p>
+              </div>
+            </div>
 
-                  <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-                    {[
-                      ["Build", currentBuild.version],
-                      ["Environment", currentBuild.environment],
-                      ["Release Date", currentBuild.releaseDate],
-                      ["Branch", currentBuild.branch],
-                      ["Assigned By", currentBuild.assignedBy],
-                      ["Build Health", currentBuild.health],
-                    ].map(([label, value]) => (
-                      <div key={label} className="rounded-2xl border border-white/80 bg-white/72 px-4 py-3 shadow-sm">
-                        <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-slate-400">{label}</p>
-                        <p className="mt-1 truncate text-sm font-semibold text-slate-900">{value}</p>
-                      </div>
-                    ))}
-                  </div>
-
-                  <div className="mt-5 flex flex-wrap gap-2">
-                    {testingModules.map((module) => (
-                      <span
-                        className="rounded-full border border-blue-100 bg-white/80 px-3 py-1 text-xs font-semibold text-slate-600"
-                        key={module}
-                      >
-                        {module}
+            {qaProjectGroups.length ? (
+              <div className="mt-6 space-y-7">
+                {qaProjectGroups.map((group) => (
+                  <section key={group.key}>
+                    <div className="mb-3 flex items-center gap-3">
+                      <h3 className="text-sm font-bold uppercase tracking-[0.12em] text-slate-500">
+                        {group.title}
+                      </h3>
+                      <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-500">
+                        {group.projects.length}
                       </span>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="flex min-w-[220px] flex-col justify-center gap-3">
-                  <QuickActionButton Icon={PlayCircle} onClick={() => navigate("/bugs?view=report")} primary>
-                    Start Testing Session
-                  </QuickActionButton>
-                  <div className="grid grid-cols-2 gap-2">
-                    <QuickActionButton Icon={PauseCircle} onClick={() => {}}>Pause</QuickActionButton>
-                    <QuickActionButton Icon={CheckCircle2} onClick={() => {}}>Finish</QuickActionButton>
-                    <QuickActionButton Icon={FileText} onClick={() => {}}>Release Notes</QuickActionButton>
-                    <QuickActionButton Icon={Bug} onClick={() => navigate("/bugs?view=report")}>Create Bug</QuickActionButton>
-                  </div>
-                </div>
+                    </div>
+                    <div className="grid gap-4 lg:grid-cols-2 2xl:grid-cols-3">
+                      {group.projects.map((project) => (
+                        <QaProjectCard
+                          key={project.id}
+                          onCreateBug={handleCreateBugForProject}
+                          onOpen={handleOpenBuild}
+                          onReleaseNotes={handleOpenBuild}
+                          onStart={handleStartTesting}
+                          project={project}
+                        />
+                      ))}
+                    </div>
+                  </section>
+                ))}
               </div>
             ) : (
-              <div className="flex min-h-[240px] flex-col items-center justify-center rounded-[18px] border border-dashed border-blue-200 bg-blue-50/50 px-6 text-center">
+              <div className="mt-6 flex min-h-[220px] flex-col items-center justify-center rounded-[18px] border border-dashed border-blue-200 bg-blue-50/50 px-6 text-center">
                 <Rocket className="h-10 w-10 text-blue-400" />
-                <h2 className="mt-4 text-xl font-semibold text-slate-950">No Build Available</h2>
-                <p className="mt-2 text-sm text-slate-600">No build is available for testing.</p>
+                <h2 className="mt-4 text-xl font-semibold text-slate-950">No Active Testing</h2>
+                <p className="mt-2 text-sm text-slate-600">Click Start Testing Session to begin.</p>
               </div>
             )}
           </WorkspaceCard>
@@ -930,51 +1124,7 @@ const TesterDashboardPage = () => {
             />
           </section>
 
-          <section className="grid gap-6 xl:grid-cols-[0.92fr_1.08fr]">
-            <WorkspaceCard>
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <h2 className="text-lg font-semibold tracking-tight text-slate-950">Current Build</h2>
-                  <p className="mt-1 text-sm text-slate-600">Build details for today&apos;s QA session.</p>
-                </div>
-                <span className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700">
-                  {currentBuild?.health || "No build"}
-                </span>
-              </div>
-
-              {currentBuild ? (
-                <>
-                  <div className="mt-5 grid gap-3 sm:grid-cols-2">
-                    {[
-                      ["Project", currentBuild.project],
-                      ["Version", currentBuild.version],
-                      ["Uploaded By", currentBuild.uploadedBy],
-                      ["Uploaded Time", currentBuild.uploadedTime],
-                      ["Environment", currentBuild.environment],
-                      ["Commit", currentBuild.commit],
-                    ].map(([label, value]) => (
-                      <div className="rounded-2xl bg-slate-50/90 px-4 py-3" key={label}>
-                        <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-slate-400">{label}</p>
-                        <p className="mt-1 truncate text-sm font-semibold text-slate-900">{value}</p>
-                      </div>
-                    ))}
-                  </div>
-                  <div className="mt-4 rounded-2xl border border-blue-100 bg-blue-50/60 p-4 text-sm leading-6 text-slate-700">
-                    Release notes: smoke coverage for login, dashboard, reports, payment, and attendance flows.
-                  </div>
-                  <div className="mt-4 flex flex-wrap gap-2">
-                    <QuickActionButton Icon={FileText} onClick={() => {}}>View Release Notes</QuickActionButton>
-                    <QuickActionButton Icon={Download} onClick={() => {}}>Download APK</QuickActionButton>
-                    <QuickActionButton Icon={ExternalLink} onClick={() => {}}>Open URL</QuickActionButton>
-                  </div>
-                </>
-              ) : (
-                <div className="mt-5 rounded-[18px] border border-dashed border-slate-200 bg-slate-50/80 p-8 text-center text-sm text-slate-500">
-                  No build is available for testing.
-                </div>
-              )}
-            </WorkspaceCard>
-
+          <section className="grid gap-6 xl:grid-cols-[1.08fr_0.92fr]">
             <WorkspaceCard>
               <div className="flex items-start justify-between gap-4">
                 <div>
@@ -1141,7 +1291,7 @@ const TesterDashboardPage = () => {
             </div>
             <div className="mt-5 space-y-3">
               {[
-                ["Smoke Release", currentBuild?.version || "QA-2026.08", "Friday", "Ready"],
+                ["Smoke Release", qaProjects[0]?.buildVersion || "QA-2026.08", "Friday", "Ready"],
                 ["Regression Pack", "REG-2026.08", "Next week", "Planned"],
               ].map(([name, version, date, status]) => (
                 <div className="rounded-2xl border border-slate-200/80 bg-white/84 p-4" key={name}>
