@@ -82,23 +82,73 @@ const formatTeamOptionLabel = (option, { context }) => {
   }
 
   return (
-    <div className="flex min-w-0 items-start gap-3">
-      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-white/70 bg-gradient-to-br from-indigo-100 to-pink-100 text-xs font-semibold text-slate-700 shadow-sm">
+    <div className="flex min-w-0 items-center gap-3">
+      <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-slate-200 bg-white text-xs font-semibold text-slate-700 shadow-sm">
         {getInitials(option.label)}
       </div>
       <div className="min-w-0">
         <p className="truncate text-sm font-semibold text-slate-900">{option.label}</p>
-        <div className="mt-1 flex min-w-0 items-center gap-2 text-xs text-slate-500">
-          <span className="rounded-full bg-slate-100 px-2 py-0.5 font-medium text-slate-700">
+        <div className="mt-1 flex min-w-0 flex-wrap items-center gap-2 text-xs text-slate-500">
+          <span className="shrink-0 rounded-full bg-blue-50 px-2 py-0.5 font-medium text-blue-700">
             {option.memberCount} members
           </span>
-          <span className="truncate">
+          <span className="min-w-0 truncate">
             {option.description || "No team description provided."}
           </span>
         </div>
       </div>
     </div>
   );
+};
+
+const attachTeamSelectStyles = {
+  ...memberSelectStyles,
+  control: (base, state) => ({
+    ...memberSelectStyles.control(base, state),
+    minHeight: 62,
+    borderRadius: 18,
+    borderColor: state.isFocused ? "rgba(37, 99, 235, 0.5)" : "rgba(203, 213, 225, 0.95)",
+    background: "#ffffff",
+    boxShadow: state.isFocused
+      ? "0 0 0 4px rgba(37, 99, 235, 0.12)"
+      : "0 12px 28px -24px rgba(15, 23, 42, 0.45)",
+  }),
+  valueContainer: (base) => ({
+    ...memberSelectStyles.valueContainer(base),
+    paddingLeft: 8,
+    paddingRight: 8,
+  }),
+  placeholder: (base) => ({
+    ...memberSelectStyles.placeholder(base),
+    color: "#94a3b8",
+    fontWeight: 500,
+  }),
+  menuPortal: (base) => ({
+    ...base,
+    zIndex: 120,
+  }),
+  menu: (base) => ({
+    ...memberSelectStyles.menu(base),
+    borderRadius: 18,
+    border: "1px solid rgba(203, 213, 225, 0.95)",
+    background: "#ffffff",
+    boxShadow: "0 24px 60px -28px rgba(15, 23, 42, 0.45)",
+  }),
+  menuList: (base) => ({
+    ...memberSelectStyles.menuList(base),
+    maxHeight: 320,
+    padding: 8,
+  }),
+  option: (base, state) => ({
+    ...memberSelectStyles.option(base, state),
+    borderRadius: 14,
+    padding: "12px 14px",
+    background: state.isSelected
+      ? "rgba(219, 234, 254, 0.9)"
+      : state.isFocused
+        ? "rgba(248, 250, 252, 1)"
+        : "#ffffff",
+  }),
 };
 
 const getProjectStatus = (project) =>
@@ -311,13 +361,11 @@ const ProjectCard = ({
       return;
     }
 
-    if (!availableTeams.length) {
+    if (
+      selectedTeamId &&
+      !availableTeams.some((team) => team._id === selectedTeamId)
+    ) {
       setSelectedTeamId("");
-      return;
-    }
-
-    if (!selectedTeamId || !availableTeams.some((team) => team._id === selectedTeamId)) {
-      setSelectedTeamId(availableTeams[0]._id);
     }
   }, [availableTeams, isTeamDialogOpen, selectedTeamId]);
 
@@ -940,8 +988,13 @@ const ProjectCard = ({
       <Dialog open={isTeamDialogOpen} onOpenChange={handleTeamDialogChange}>
         <DialogContent
           className={projectDialogContentClass(
-            "grid max-h-[calc(100svh-6.25rem)] w-[calc(100%-2rem)] max-w-xl grid-rows-[auto_minmax(0,1fr)_auto] rounded-[26px] sm:max-h-[calc(100vh-7.5rem)]"
+            "grid max-h-[calc(100svh-4.5rem)] w-[calc(100%-2rem)] max-w-2xl grid-rows-[auto_minmax(0,1fr)_auto] rounded-[26px] sm:max-h-[calc(100vh-6rem)]"
           )}
+          onInteractOutside={(event) => {
+            if (event.target?.closest?.(".attach-team-select__menu")) {
+              event.preventDefault();
+            }
+          }}
         >
           <DialogHeader className={projectDialogHeaderClass()}>
             <DialogTitle>Attach Team</DialogTitle>
@@ -965,12 +1018,18 @@ const ProjectCard = ({
                 <div className="space-y-2">
                   <span className="text-sm font-medium text-gray-700">Select team</span>
                   <Select
+                    classNamePrefix="attach-team-select"
                     options={availableTeamOptions}
                     value={selectedTeamOption}
-                    styles={memberSelectStyles}
+                    styles={attachTeamSelectStyles}
                     formatOptionLabel={formatTeamOptionLabel}
-                    placeholder="Search workspace teams"
+                    placeholder="Select a workspace team"
                     noOptionsMessage={() => "No available teams to attach."}
+                    menuPortalTarget={
+                      typeof document !== "undefined" ? document.body : null
+                    }
+                    menuPosition="fixed"
+                    menuShouldScrollIntoView={false}
                     onChange={(option) => setSelectedTeamId(option?.value || "")}
                   />
                 </div>

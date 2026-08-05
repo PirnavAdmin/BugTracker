@@ -158,13 +158,11 @@ const ProjectManageDialog = ({
   }, [open, project]);
 
   useEffect(() => {
-    if (!availableTeams.length) {
+    if (
+      selectedTeamId &&
+      !availableTeams.some((team) => team._id === selectedTeamId)
+    ) {
       setSelectedTeamId("");
-      return;
-    }
-
-    if (!selectedTeamId || !availableTeams.some((team) => team._id === selectedTeamId)) {
-      setSelectedTeamId(availableTeams[0]._id);
     }
   }, [availableTeams, selectedTeamId]);
 
@@ -544,15 +542,16 @@ const ProjectManageDialog = ({
                     }
                     onChange={(event) => setSelectedTeamId(event.target.value)}
                   >
+                    <option value="">
+                      {availableTeams.length ? "Select team" : "No available teams"}
+                    </option>
                     {availableTeams.length ? (
                       availableTeams.map((team) => (
                         <option key={team._id} value={team._id}>
                           {team.name}
                         </option>
                       ))
-                    ) : (
-                      <option value="">No available teams</option>
-                    )}
+                    ) : null}
                   </select>
                   <Button
                     type="button"
