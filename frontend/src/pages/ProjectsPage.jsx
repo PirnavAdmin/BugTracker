@@ -617,7 +617,7 @@ const ProjectsPage = () => {
 
       <div className="grid h-full min-h-0 w-full gap-4 lg:grid-cols-[220px_minmax(0,1fr)]">
         <aside className="min-h-0 min-w-0 border-r border-slate-200/80 bg-white/72 pr-3">
-          <div className="sticky top-0 flex h-full min-h-0 flex-col justify-between gap-4 py-3">
+          <div className="sticky top-0 flex h-full min-h-0 flex-col gap-4 py-3">
             <nav className="space-y-4" aria-label="Project page sidebar">
               <div className="space-y-1">
                 <p className="px-2 text-[11px] font-semibold uppercase text-slate-400">
