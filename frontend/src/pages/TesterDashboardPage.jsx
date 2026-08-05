@@ -24,6 +24,7 @@ import {
   Plus,
   RefreshCcw,
   RotateCcw,
+  Rocket,
   Search,
   Server,
   ShieldCheck,
