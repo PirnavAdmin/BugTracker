@@ -46,6 +46,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 const ATTACHMENT_ACCEPT =
   "image/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.log,.csv,.json,.xml,.zip";
 const TESTER_BUG_SELECTION_KEY = "curecode_tester_bug_saved_selection";
+const ACTIVE_TESTING_SESSION_KEY = "curecode_active_testing_session";
 
 const getReporterId = (issue) => resolveUserId(issue?.reporter);
 const getTesterOwnerId = (issue) =>
@@ -71,6 +72,19 @@ const readSavedBugSelection = () => {
   } catch (error) {
     window.localStorage.removeItem(TESTER_BUG_SELECTION_KEY);
     return { enabled: false, projectId: "", teamId: "" };
+  }
+};
+
+const readActiveTestingSession = () => {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  try {
+    return JSON.parse(window.localStorage.getItem(ACTIVE_TESTING_SESSION_KEY) || "null");
+  } catch {
+    window.localStorage.removeItem(ACTIVE_TESTING_SESSION_KEY);
+    return null;
   }
 };
 
@@ -488,13 +502,34 @@ const TesterBugsPage = () => {
         (project) => String(project._id) === String(savedBugSelection.projectId)
       )
     : null;
+  const requestedProjectId = searchParams.get("projectId") || "";
+  const requestedProjectExists =
+    requestedProjectId &&
+    assignedProjects.some((project) => String(project._id) === String(requestedProjectId));
+  const activeTestingSession = readActiveTestingSession();
+  const activeSessionProjectExists =
+    activeTestingSession?.status === "In Progress" &&
+    activeTestingSession?.projectId &&
+    assignedProjects.some(
+      (project) => String(project._id) === String(activeTestingSession.projectId)
+    );
+  const sessionProjectId = activeSessionProjectExists ? String(activeTestingSession.projectId) : "";
+  const defaultProjectId = requestedProjectExists
+    ? String(requestedProjectId)
+    : sessionProjectId || (savedProjectExists ? savedBugSelection.projectId : "");
+  const defaultProject = assignedProjects.find(
+    (project) => String(project._id) === String(defaultProjectId)
+  );
   const savedTeamExists =
-    savedProject &&
-    getProjectTeams(savedProject).some(
+    defaultProject &&
+    getProjectTeams(defaultProject).some(
       (team) => String(team._id) === String(savedBugSelection.teamId)
     );
-  const defaultSavedProjectId = savedProjectExists ? savedBugSelection.projectId : "";
-  const defaultSavedTeamId = savedTeamExists ? savedBugSelection.teamId : "";
+  const defaultProjectTeams = defaultProject ? getProjectTeams(defaultProject) : [];
+  const defaultSavedProjectId = defaultProjectId;
+  const defaultSavedTeamId = savedTeamExists
+    ? savedBugSelection.teamId
+    : String(defaultProjectTeams[0]?._id || "");
 
   return (
     <ErrorBoundary>

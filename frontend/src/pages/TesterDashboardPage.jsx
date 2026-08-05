@@ -19,7 +19,6 @@ import {
   RotateCcw,
   Rocket,
   Search,
-  Server,
   ShieldCheck,
   TimerReset,
 } from "lucide-react";
@@ -449,6 +448,19 @@ const getProjectModules = (project) => {
   return ["Login", "Dashboard", "Reports", "API"];
 };
 
+const formatSessionDuration = (milliseconds = 0) => {
+  const totalSeconds = Math.max(0, Math.floor(milliseconds / 1000));
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+
+  if (hours) {
+    return `${hours}h ${String(minutes).padStart(2, "0")}m`;
+  }
+
+  return `${minutes}m ${String(seconds).padStart(2, "0")}s`;
+};
+
 const getQaProjectStatusMeta = (project, projectIssues = []) => {
   const explicitStatus = String(project?.qaStatus || project?.testingStatus || project?.buildStatus || "").toLowerCase();
   const readyForQaCount = projectIssues.filter((issue) =>
@@ -615,8 +627,23 @@ const TesterDashboardPage = () => {
   const isTester = hasTesterPanelAccess(user?.role);
   const [searchTerm, setSearchTerm] = useState("");
   const [projectFilter, setProjectFilter] = useState("all");
-  const [selectedQaProjectId, setSelectedQaProjectId] = useState("");
+  const [selectedQaProjectId, setSelectedQaProjectId] = useState(() => {
+    try {
+      return window.localStorage.getItem("curecode_selected_qa_project") || "";
+    } catch {
+      return "";
+    }
+  });
   const [isQaProjectDropdownOpen, setIsQaProjectDropdownOpen] = useState(false);
+  const [testingSession, setTestingSession] = useState(() => {
+    try {
+      const rawSession = window.localStorage.getItem("curecode_active_testing_session");
+      return rawSession ? JSON.parse(rawSession) : null;
+    } catch {
+      return null;
+    }
+  });
+  const [sessionNow, setSessionNow] = useState(() => Date.now());
   const [lastRefreshedAt, setLastRefreshedAt] = useState(() => new Date());
 
   const {
@@ -709,6 +736,16 @@ const TesterDashboardPage = () => {
     };
   }, [testerId, queryClient]);
 
+  useEffect(() => {
+    if (testingSession?.status !== "In Progress") {
+      return undefined;
+    }
+
+    const intervalId = window.setInterval(() => setSessionNow(Date.now()), 1000);
+
+    return () => window.clearInterval(intervalId);
+  }, [testingSession?.status]);
+
   const assignedProjects = useMemo(
     () =>
       projects
@@ -797,6 +834,44 @@ const TesterDashboardPage = () => {
     [qaProjects, selectedQaProjectId]
   );
 
+  useEffect(() => {
+    if (
+      !selectedQaProjectId &&
+      testingSession?.projectId &&
+      qaProjects.some((project) => project.id === testingSession.projectId)
+    ) {
+      setSelectedQaProjectId(testingSession.projectId);
+      window.localStorage.setItem("curecode_selected_qa_project", testingSession.projectId);
+    }
+  }, [qaProjects, selectedQaProjectId, testingSession?.projectId]);
+
+  const activeSelectedSession = selectedQaProject && testingSession?.projectId === selectedQaProject.id
+    ? testingSession
+    : null;
+  const sessionStartedAtMs = activeSelectedSession?.startedAt
+    ? new Date(activeSelectedSession.startedAt).getTime()
+    : 0;
+  const sessionStoppedAtMs = activeSelectedSession?.stoppedAt
+    ? new Date(activeSelectedSession.stoppedAt).getTime()
+    : 0;
+  const sessionElapsedMs = activeSelectedSession
+    ? (activeSelectedSession.totalMs || ((sessionStoppedAtMs || sessionNow) - sessionStartedAtMs))
+    : 0;
+  const sessionReportedBugsCount = useMemo(
+    () =>
+      activeSelectedSession && sessionStartedAtMs
+        ? reportedIssues.filter((issue) => {
+            const createdAt = issue?.createdAt ? new Date(issue.createdAt).getTime() : 0;
+            return (
+              resolveIssueProjectId(issue) === activeSelectedSession.projectId &&
+              createdAt >= sessionStartedAtMs &&
+              (!sessionStoppedAtMs || createdAt <= sessionStoppedAtMs)
+            );
+          }).length
+        : 0,
+    [activeSelectedSession, reportedIssues, sessionStartedAtMs, sessionStoppedAtMs]
+  );
+
   const readyForVerificationBugs = useMemo(
     () =>
       visibleIssues
@@ -874,14 +949,6 @@ const TesterDashboardPage = () => {
     ];
   }, [myReportedBugs, qaProjects.length, readyForVerificationBugs]);
 
-  const qaEnvironments = [
-    { name: "QA", status: "Healthy", tone: "bg-emerald-500" },
-    { name: "UAT", status: "Maintenance", tone: "bg-amber-500" },
-    { name: "Staging", status: "Healthy", tone: "bg-emerald-500" },
-    { name: "API", status: issuesError ? "Offline" : "Healthy", tone: issuesError ? "bg-rose-500" : "bg-emerald-500" },
-    { name: "Database", status: "Healthy", tone: "bg-emerald-500" },
-  ];
-
   const weekStats = [
     { label: "Testing Sessions", value: Math.max(1, assignedProjects.length) },
     { label: "Bugs Created", value: myReportedBugs.length },
@@ -903,26 +970,43 @@ const TesterDashboardPage = () => {
     };
 
     window.localStorage.setItem("curecode_active_testing_session", JSON.stringify(session));
-    navigate(`/tester/testing/${encodeURIComponent(project.id)}`, { state: { session } });
+    window.localStorage.setItem("curecode_selected_qa_project", project.id);
+    setSelectedQaProjectId(project.id);
+    setTestingSession(session);
+    setSessionNow(Date.now());
   };
 
-  const handleOpenBuild = (project) => {
-    navigate(`/tester/testing/${encodeURIComponent(project.id)}`, {
-      state: {
-        session: {
-          projectId: project.id,
-          projectName: project.name,
-          buildVersion: project.buildVersion,
-          environment: project.environment,
-          modules: project.modules,
-          status: project.status.label,
-        },
-      },
-    });
+  const handleSelectQaProject = (projectId) => {
+    setSelectedQaProjectId(projectId);
+
+    if (projectId) {
+      window.localStorage.setItem("curecode_selected_qa_project", projectId);
+    } else {
+      window.localStorage.removeItem("curecode_selected_qa_project");
+    }
   };
 
   const handleCreateBugForProject = (project) => {
-    navigate(`/bugs?view=report&projectId=${encodeURIComponent(project.id)}`);
+    const projectId = activeSelectedSession?.status === "In Progress"
+      ? activeSelectedSession.projectId
+      : project.id;
+    navigate(`/bugs?view=report&projectId=${encodeURIComponent(projectId)}`);
+  };
+
+  const handleStopTesting = () => {
+    if (!activeSelectedSession || !sessionStartedAtMs) return;
+
+    const stoppedAt = new Date().toISOString();
+    const stoppedSession = {
+      ...activeSelectedSession,
+      stoppedAt,
+      status: "Stopped",
+      totalMs: Date.now() - sessionStartedAtMs,
+    };
+
+    window.localStorage.setItem("curecode_active_testing_session", JSON.stringify(stoppedSession));
+    setTestingSession(stoppedSession);
+    setSessionNow(Date.now());
   };
 
   const handleRefresh = async () => {
@@ -1018,7 +1102,11 @@ const TesterDashboardPage = () => {
 
         <Button
           className="interactive-button relative z-10 h-11 w-full shrink-0 rounded-2xl border border-indigo-300/30 bg-[linear-gradient(90deg,#2563EB_0%,#6366F1_55%,#8B5CF6_100%)] px-4 text-white shadow-[0_14px_28px_-18px_rgba(99,102,241,0.82)] hover:brightness-105 sm:w-auto sm:px-5"
-          onClick={() => navigate("/bugs?view=report")}
+          onClick={() =>
+            selectedQaProject
+              ? handleCreateBugForProject(selectedQaProject)
+              : navigate("/bugs?view=report")
+          }
           type="button"
         >
           <Plus className="h-4 w-4" />
@@ -1094,7 +1182,7 @@ const TesterDashboardPage = () => {
                         <button
                           className="flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left text-sm font-semibold text-slate-500 transition hover:bg-blue-50"
                           onClick={() => {
-                            setSelectedQaProjectId("");
+                            handleSelectQaProject("");
                             setIsQaProjectDropdownOpen(false);
                           }}
                           role="option"
@@ -1111,7 +1199,7 @@ const TesterDashboardPage = () => {
                               )}
                               key={project.id}
                               onClick={() => {
-                                setSelectedQaProjectId(project.id);
+                                handleSelectQaProject(project.id);
                                 setIsQaProjectDropdownOpen(false);
                               }}
                               role="option"
@@ -1182,15 +1270,12 @@ const TesterDashboardPage = () => {
                       <div className="mt-4 flex flex-wrap gap-2">
                         <Button
                           className="h-9 rounded-xl bg-blue-600 px-4 text-white hover:bg-blue-700 disabled:bg-slate-200 disabled:text-slate-500"
-                          disabled={selectedQaProject.status.disabled}
+                          disabled={selectedQaProject.status.disabled && activeSelectedSession?.status !== "In Progress"}
                           onClick={() => handleStartTesting(selectedQaProject)}
                           type="button"
                         >
                           <PlayCircle className="h-4 w-4" />
-                          {selectedQaProject.status.action}
-                        </Button>
-                        <Button className="h-9 rounded-xl px-3" variant="outline" onClick={() => handleOpenBuild(selectedQaProject)} type="button">
-                          View Build
+                          {activeSelectedSession?.status === "In Progress" ? "Continue Testing" : selectedQaProject.status.action}
                         </Button>
                         <Button className="h-9 rounded-xl px-3" variant="ghost" onClick={() => handleCreateBugForProject(selectedQaProject)} type="button">
                           Create Bug
@@ -1221,7 +1306,7 @@ const TesterDashboardPage = () => {
                           selectedQaProjectId === project.id && "bg-blue-50 ring-1 ring-blue-200"
                         )}
                         key={project.id}
-                        onClick={() => setSelectedQaProjectId(project.id)}
+                        onClick={() => handleSelectQaProject(project.id)}
                         type="button"
                       >
                         <span className="min-w-0">
@@ -1408,24 +1493,79 @@ const TesterDashboardPage = () => {
           <WorkspaceCard>
             <div className="flex items-center gap-2.5">
               <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700">
-                <Server className="h-4 w-4" />
+                <TimerReset className="h-4 w-4" />
               </span>
               <div>
-                <h2 className="text-base font-semibold text-slate-950">QA Environment</h2>
-                <p className="text-xs text-slate-500">Live test lane health.</p>
+                <h2 className="text-base font-semibold text-slate-950">Today&apos;s Q/A Metric</h2>
+                <p className="text-xs text-slate-500">
+                  {selectedQaProject ? selectedQaProject.name : "Select a project to start tracking."}
+                </p>
               </div>
             </div>
-            <div className="mt-3 space-y-2">
-              {qaEnvironments.map((environment) => (
-                <div className="flex items-center justify-between rounded-xl bg-slate-50/90 px-3 py-2" key={environment.name}>
-                  <span className="flex items-center gap-2 text-sm font-semibold text-slate-800">
-                    <span className={cn("h-2 w-2 rounded-full", environment.tone)} />
-                    {environment.name}
-                  </span>
-                  <span className="text-xs text-slate-500">{environment.status}</span>
+
+            {selectedQaProject ? (
+              <div className="mt-3 space-y-2">
+                <div className="flex items-center justify-between rounded-xl bg-slate-50/90 px-3 py-2">
+                  <span className="text-xs font-bold uppercase tracking-[0.1em] text-slate-500">Environment</span>
+                  <span className="text-sm font-semibold text-slate-900">{selectedQaProject.environment}</span>
                 </div>
-              ))}
-            </div>
+                <div className="flex items-center justify-between rounded-xl bg-slate-50/90 px-3 py-2">
+                  <span className="text-xs font-bold uppercase tracking-[0.1em] text-slate-500">Session</span>
+                  <span className={cn(
+                    "rounded-full px-2 py-0.5 text-xs font-bold",
+                    activeSelectedSession?.status === "In Progress"
+                      ? "bg-emerald-50 text-emerald-700"
+                      : activeSelectedSession?.status === "Stopped"
+                        ? "bg-slate-100 text-slate-700"
+                        : "bg-amber-50 text-amber-700"
+                  )}>
+                    {activeSelectedSession?.status || "Not Started"}
+                  </span>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="rounded-xl bg-blue-50/70 p-3">
+                    <p className="text-[11px] font-bold uppercase tracking-[0.1em] text-blue-700">Start Time</p>
+                    <p className="mt-1 text-sm font-semibold text-slate-950">
+                      {activeSelectedSession?.startedAt ? formatDateTime(activeSelectedSession.startedAt) : "-"}
+                    </p>
+                  </div>
+                  <div className="rounded-xl bg-violet-50/70 p-3">
+                    <p className="text-[11px] font-bold uppercase tracking-[0.1em] text-violet-700">
+                      {activeSelectedSession?.status === "Stopped" ? "Total Time" : "Live Time"}
+                    </p>
+                    <p className="mt-1 text-lg font-semibold text-slate-950">
+                      {activeSelectedSession ? formatSessionDuration(sessionElapsedMs) : "-"}
+                    </p>
+                  </div>
+                </div>
+                <div className="rounded-xl bg-rose-50/70 p-3">
+                  <p className="text-[11px] font-bold uppercase tracking-[0.1em] text-rose-700">Reported Bugs In Session</p>
+                  <p className="mt-1 text-2xl font-semibold text-slate-950">{sessionReportedBugsCount}</p>
+                </div>
+                {activeSelectedSession?.status === "In Progress" ? (
+                  <Button
+                    className="mt-1 h-9 w-full rounded-xl bg-rose-600 text-white hover:bg-rose-700"
+                    onClick={handleStopTesting}
+                    type="button"
+                  >
+                    Stop Testing
+                  </Button>
+                ) : (
+                  <Button
+                    className="mt-1 h-9 w-full rounded-xl bg-blue-600 text-white hover:bg-blue-700 disabled:bg-slate-200 disabled:text-slate-500"
+                    disabled={selectedQaProject.status.disabled}
+                    onClick={() => handleStartTesting(selectedQaProject)}
+                    type="button"
+                  >
+                    Start Testing
+                  </Button>
+                )}
+              </div>
+            ) : (
+              <div className="mt-3 rounded-xl border border-dashed border-blue-200 bg-blue-50/50 px-3 py-5 text-center text-sm font-medium text-slate-500">
+                Select a QA project to see live metrics.
+              </div>
+            )}
           </WorkspaceCard>
 
           <WorkspaceCard>
