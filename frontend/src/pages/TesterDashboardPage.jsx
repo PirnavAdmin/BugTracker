@@ -9,12 +9,25 @@ import {
   CheckCircle2,
   ChevronRight,
   Clock3,
+  ClipboardCheck,
+  Database,
+  Download,
+  ExternalLink,
+  FileText,
   FolderKanban,
+  GaugeCircle,
+  History,
+  ListChecks,
+  Megaphone,
   PauseCircle,
+  PlayCircle,
   Plus,
   RefreshCcw,
   RotateCcw,
   Search,
+  Server,
+  ShieldCheck,
+  Sparkles,
   TimerReset,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
@@ -391,6 +404,62 @@ const RecentTasksPanel = ({
   </ChartCard>
 );
 
+const WorkspaceCard = ({ children, className }) => (
+  <Card
+    className={cn(
+      "overflow-hidden rounded-[18px] border border-slate-200/80 bg-white/92 shadow-[0_18px_46px_-36px_rgba(15,23,42,0.36)] backdrop-blur-xl",
+      className
+    )}
+  >
+    <CardContent className="p-5">{children}</CardContent>
+  </Card>
+);
+
+const WorkspaceKpiCard = ({ description, Icon, label, tone = "blue", value }) => {
+  const tones = {
+    blue: "border-blue-100 bg-blue-50/70 text-blue-700",
+    green: "border-emerald-100 bg-emerald-50/70 text-emerald-700",
+    orange: "border-orange-100 bg-orange-50/70 text-orange-700",
+    red: "border-rose-100 bg-rose-50/70 text-rose-700",
+    purple: "border-violet-100 bg-violet-50/70 text-violet-700",
+    indigo: "border-indigo-100 bg-indigo-50/70 text-indigo-700",
+  };
+
+  return (
+    <div className="group min-h-[118px] rounded-[18px] border border-slate-200/80 bg-white/90 p-4 shadow-[0_16px_38px_-34px_rgba(15,23,42,0.32)] transition duration-200 hover:-translate-y-1 hover:border-blue-200 hover:bg-blue-50/35 hover:shadow-[0_22px_48px_-34px_rgba(37,99,235,0.42)]">
+      <div className="flex items-start justify-between gap-3">
+        <p className="text-xs font-bold uppercase tracking-[0.12em] text-slate-500">
+          {label}
+        </p>
+        <span className={cn("flex h-10 w-10 items-center justify-center rounded-2xl border", tones[tone])}>
+          <Icon className="h-5 w-5" />
+        </span>
+      </div>
+      <p className="mt-3 text-3xl font-semibold tracking-tight text-slate-950">
+        {value}
+      </p>
+      <p className="mt-1 text-sm leading-5 text-slate-600">{description}</p>
+    </div>
+  );
+};
+
+const QuickActionButton = ({ children, Icon, onClick, primary = false }) => (
+  <Button
+    className={cn(
+      "h-11 rounded-2xl px-4 shadow-sm transition hover:-translate-y-0.5",
+      primary
+        ? "bg-[linear-gradient(90deg,#2563EB_0%,#6366F1_55%,#8B5CF6_100%)] text-white hover:brightness-105"
+        : "border-slate-200 bg-white text-slate-700 hover:border-blue-200 hover:bg-blue-50"
+    )}
+    onClick={onClick}
+    type="button"
+    variant={primary ? "default" : "outline"}
+  >
+    <Icon className="h-4 w-4" />
+    {children}
+  </Button>
+);
+
 const TesterDashboardPage = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -541,25 +610,96 @@ const TesterDashboardPage = () => {
 
     return metrics;
   }, [visibleIssues]);
-  const overdueTasksCount = useMemo(
-    () => (Array.isArray(recentTasks) ? recentTasks : []).filter((issue) => isIssueOverdue(issue)).length,
-    [recentTasks]
-  );
-  const statusChartData = useMemo(
+  const todayKey = useMemo(() => new Date().toDateString(), []);
+  const currentProject = assignedProjects[0] || null;
+  const currentBuild = useMemo(() => {
+    if (!currentProject) return null;
+
+    const projectKey = currentProject.key || currentProject.projectKey || currentProject.name?.slice(0, 3)?.toUpperCase() || "QA";
+
+    return {
+      project: currentProject.name || "Assigned project",
+      version: currentProject.currentBuild || currentProject.buildVersion || `${projectKey}-2026.08`,
+      uploadedBy: currentProject.releaseOwner?.name || currentProject.owner?.name || "Release Engineering",
+      uploadedTime: currentProject.updatedAt ? formatDateTime(currentProject.updatedAt) : "Today, 9:30 AM",
+      environment: currentProject.environment || "QA",
+      branch: currentProject.branch || "release/qa",
+      commit: currentProject.commit || "latest",
+      releaseDate: currentProject.deadline ? formatDate(currentProject.deadline) : "This week",
+      assignedBy: currentProject.manager?.name || currentProject.owner?.name || "QA Lead",
+      health: "Healthy",
+    };
+  }, [currentProject]);
+
+  const readyForVerificationBugs = useMemo(
     () =>
-      STATUS_CHART_META.map((item) => ({
-        ...item,
-        value: dashboardMetrics[item.key],
-        percentage: dashboardMetrics.total
-          ? Math.round((dashboardMetrics[item.key] / dashboardMetrics.total) * 100)
-          : 0,
-      })),
-    [dashboardMetrics]
+      visibleIssues
+        .filter((issue) => {
+          const status = getComparableStatus(issue);
+          return [ISSUE_STATUS.READY_FOR_QA, ISSUE_STATUS.QA, ISSUE_STATUS.FIXED, ISSUE_STATUS.TESTING].includes(status);
+        })
+        .slice(0, 5),
+    [visibleIssues]
   );
-  const visibleStatusChartData = useMemo(
-    () => statusChartData.filter((item) => item.value > 0),
-    [statusChartData]
+
+  const bugsCreatedToday = useMemo(
+    () =>
+      myReportedBugs.filter((issue) => {
+        const createdAt = issue?.createdAt ? new Date(issue.createdAt) : null;
+        return createdAt && createdAt.toDateString() === todayKey;
+      }).length,
+    [myReportedBugs, todayKey]
   );
+
+  const verifiedToday = useMemo(
+    () =>
+      visibleIssues.filter((issue) => {
+        const status = getComparableStatus(issue);
+        const updatedAt = issue?.updatedAt ? new Date(issue.updatedAt) : null;
+        return (
+          updatedAt &&
+          updatedAt.toDateString() === todayKey &&
+          [ISSUE_STATUS.CLOSED, ISSUE_STATUS.DONE].includes(status)
+        );
+      }).length,
+    [todayKey, visibleIssues]
+  );
+
+  const criticalBugsFound = useMemo(
+    () => visibleIssues.filter((issue) => String(issue?.priority || "").toLowerCase() === "critical").length,
+    [visibleIssues]
+  );
+
+  const testingModules = ["Login", "Dashboard", "Reports", "Payment", "Attendance"];
+  const testingActivity = useMemo(() => {
+    const recentBugItems = myReportedBugs.slice(0, 2).map((issue) => ({
+      label: `Created ${getIssueDisplayKey(issue)}`,
+      meta: issue.title || "Bug reported during testing",
+      Icon: Bug,
+    }));
+
+    return [
+      { label: "Started Login testing", meta: currentBuild?.version || "Current build", Icon: PlayCircle },
+      ...recentBugItems,
+      { label: readyForVerificationBugs[0] ? `Verified ${getIssueDisplayKey(readyForVerificationBugs[0])}` : "Verification queue reviewed", meta: "Ready for QA checked", Icon: ShieldCheck },
+      { label: "Completed smoke testing", meta: "Core flows covered", Icon: CheckCircle2 },
+    ];
+  }, [currentBuild?.version, myReportedBugs, readyForVerificationBugs]);
+
+  const qaEnvironments = [
+    { name: "QA", status: "Healthy", tone: "bg-emerald-500" },
+    { name: "UAT", status: "Maintenance", tone: "bg-amber-500" },
+    { name: "Staging", status: "Healthy", tone: "bg-emerald-500" },
+    { name: "API", status: issuesError ? "Offline" : "Healthy", tone: issuesError ? "bg-rose-500" : "bg-emerald-500" },
+    { name: "Database", status: "Healthy", tone: "bg-emerald-500" },
+  ];
+
+  const weekStats = [
+    { label: "Testing Sessions", value: Math.max(1, assignedProjects.length) },
+    { label: "Bugs Created", value: myReportedBugs.length },
+    { label: "Verified", value: verifiedToday },
+    { label: "Avg Testing Time", value: "2h 15m" },
+  ];
 
   const handleRefresh = async () => {
     await Promise.all([
@@ -674,340 +814,382 @@ const TesterDashboardPage = () => {
         </div>
       </section>
 
-      <section className="flex snap-x gap-3 overflow-x-auto pb-2 md:grid md:grid-cols-2 md:gap-4 md:overflow-visible md:pb-0 xl:grid-cols-5 [&>*]:min-w-[220px] [&>*]:snap-start md:[&>*]:min-w-0">
-        {SUMMARY_CARDS.map((item) => (
-          <SummaryCard
-            key={item.key}
-            Icon={item.Icon}
-            className={item.className}
-            label={item.label}
-            value={dashboardMetrics[item.key]}
-          />
-        ))}
-        <SummaryCard
-          Icon={AlertTriangle}
-          className="from-rose-500 to-orange-500"
-          label="My Overdue Tasks"
-          value={overdueTasksCount}
-        />
-      </section>
+      <section className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
+        <div className="min-w-0 space-y-6">
+          <WorkspaceCard className="border-blue-100 bg-[linear-gradient(135deg,#ffffff_0%,#f7fbff_52%,#f4f0ff_100%)]">
+            {currentBuild ? (
+              <div className="grid gap-5 lg:grid-cols-[1fr_auto]">
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Badge className="border-blue-200 bg-blue-50 text-blue-700" variant="outline">
+                      Today&apos;s Testing
+                    </Badge>
+                    <Badge className="border-emerald-200 bg-emerald-50 text-emerald-700" variant="outline">
+                      Not Started
+                    </Badge>
+                  </div>
+                  <h2 className="mt-4 text-2xl font-semibold tracking-tight text-slate-950">
+                    {currentBuild.project}
+                  </h2>
+                  <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
+                    Test the latest build, create bugs while you test, and verify developer fixes from the Ready for QA queue.
+                  </p>
 
-      <section className="grid gap-5 xl:grid-cols-[0.86fr_1.14fr]">
-        <ChartCard title="Bug Status">
-          {dashboardMetrics.total ? (
-            <div className="space-y-6">
-              {/* Large Horizontal Segmented Bar */}
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Status Distribution</p>
-                  <span className="text-xs font-medium text-slate-400">{dashboardMetrics.total} Total</span>
+                  <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                    {[
+                      ["Build", currentBuild.version],
+                      ["Environment", currentBuild.environment],
+                      ["Release Date", currentBuild.releaseDate],
+                      ["Branch", currentBuild.branch],
+                      ["Assigned By", currentBuild.assignedBy],
+                      ["Build Health", currentBuild.health],
+                    ].map(([label, value]) => (
+                      <div key={label} className="rounded-2xl border border-white/80 bg-white/72 px-4 py-3 shadow-sm">
+                        <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-slate-400">{label}</p>
+                        <p className="mt-1 truncate text-sm font-semibold text-slate-900">{value}</p>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="mt-5 flex flex-wrap gap-2">
+                    {testingModules.map((module) => (
+                      <span
+                        className="rounded-full border border-blue-100 bg-white/80 px-3 py-1 text-xs font-semibold text-slate-600"
+                        key={module}
+                      >
+                        {module}
+                      </span>
+                    ))}
+                  </div>
                 </div>
-                <div className="flex h-3 gap-0.5 overflow-hidden rounded-full bg-slate-100 p-0.5">
-                  {visibleStatusChartData.map((item, idx) => (
-                    <div
-                      key={item.key}
-                      className={cn(
-                        "transition-all duration-500 ease-out",
-                        idx === 0 ? "rounded-l-full" : "",
-                        idx === visibleStatusChartData.length - 1 ? "rounded-r-full" : ""
-                      )}
-                      style={{
-                        flex: item.percentage,
-                        backgroundColor: item.color,
-                        minWidth: item.percentage > 3 ? "auto" : "2px",
-                      }}
-                      title={`${item.label}: ${item.value} (${item.percentage}%)`}
-                    />
-                  ))}
+
+                <div className="flex min-w-[220px] flex-col justify-center gap-3">
+                  <QuickActionButton Icon={PlayCircle} onClick={() => navigate("/bugs?view=report")} primary>
+                    Start Testing Session
+                  </QuickActionButton>
+                  <div className="grid grid-cols-2 gap-2">
+                    <QuickActionButton Icon={PauseCircle} onClick={() => {}}>Pause</QuickActionButton>
+                    <QuickActionButton Icon={CheckCircle2} onClick={() => {}}>Finish</QuickActionButton>
+                    <QuickActionButton Icon={FileText} onClick={() => {}}>Release Notes</QuickActionButton>
+                    <QuickActionButton Icon={Bug} onClick={() => navigate("/bugs?view=report")}>Create Bug</QuickActionButton>
+                  </div>
                 </div>
               </div>
+            ) : (
+              <div className="flex min-h-[240px] flex-col items-center justify-center rounded-[18px] border border-dashed border-blue-200 bg-blue-50/50 px-6 text-center">
+                <Rocket className="h-10 w-10 text-blue-400" />
+                <h2 className="mt-4 text-xl font-semibold text-slate-950">No Build Available</h2>
+                <p className="mt-2 text-sm text-slate-600">No build is available for testing.</p>
+              </div>
+            )}
+          </WorkspaceCard>
 
-              {/* Status Cards Grid */}
-              <div className="grid gap-2 sm:grid-cols-2">
-                {visibleStatusChartData.map((item) => {
-                  const StatusIcon = item.Icon;
+          <section className="grid gap-4 md:grid-cols-2 2xl:grid-cols-3">
+            <WorkspaceKpiCard
+              Icon={PlayCircle}
+              description="Active tester sessions"
+              label="Testing Sessions"
+              tone="blue"
+              value={Math.max(1, assignedProjects.length)}
+            />
+            <WorkspaceKpiCard
+              Icon={Clock3}
+              description="Focused testing time"
+              label="Testing Duration"
+              tone="purple"
+              value="2h 15m"
+            />
+            <WorkspaceKpiCard
+              Icon={Bug}
+              description="Created during today's testing"
+              label="Bugs Created Today"
+              tone="red"
+              value={bugsCreatedToday}
+            />
+            <WorkspaceKpiCard
+              Icon={ShieldCheck}
+              description="Waiting for QA verification"
+              label="Ready For Verification"
+              tone="orange"
+              value={readyForVerificationBugs.length}
+            />
+            <WorkspaceKpiCard
+              Icon={CheckCircle2}
+              description="Closed or done today"
+              label="Verified Today"
+              tone="green"
+              value={verifiedToday}
+            />
+            <WorkspaceKpiCard
+              Icon={AlertTriangle}
+              description="Critical issues found"
+              label="Critical Bugs Found"
+              tone="red"
+              value={criticalBugsFound}
+            />
+          </section>
 
-                  return (
+          <section className="grid gap-6 xl:grid-cols-[0.92fr_1.08fr]">
+            <WorkspaceCard>
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <h2 className="text-lg font-semibold tracking-tight text-slate-950">Current Build</h2>
+                  <p className="mt-1 text-sm text-slate-600">Build details for today&apos;s QA session.</p>
+                </div>
+                <span className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700">
+                  {currentBuild?.health || "No build"}
+                </span>
+              </div>
+
+              {currentBuild ? (
+                <>
+                  <div className="mt-5 grid gap-3 sm:grid-cols-2">
+                    {[
+                      ["Project", currentBuild.project],
+                      ["Version", currentBuild.version],
+                      ["Uploaded By", currentBuild.uploadedBy],
+                      ["Uploaded Time", currentBuild.uploadedTime],
+                      ["Environment", currentBuild.environment],
+                      ["Commit", currentBuild.commit],
+                    ].map(([label, value]) => (
+                      <div className="rounded-2xl bg-slate-50/90 px-4 py-3" key={label}>
+                        <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-slate-400">{label}</p>
+                        <p className="mt-1 truncate text-sm font-semibold text-slate-900">{value}</p>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="mt-4 rounded-2xl border border-blue-100 bg-blue-50/60 p-4 text-sm leading-6 text-slate-700">
+                    Release notes: smoke coverage for login, dashboard, reports, payment, and attendance flows.
+                  </div>
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    <QuickActionButton Icon={FileText} onClick={() => {}}>View Release Notes</QuickActionButton>
+                    <QuickActionButton Icon={Download} onClick={() => {}}>Download APK</QuickActionButton>
+                    <QuickActionButton Icon={ExternalLink} onClick={() => {}}>Open URL</QuickActionButton>
+                  </div>
+                </>
+              ) : (
+                <div className="mt-5 rounded-[18px] border border-dashed border-slate-200 bg-slate-50/80 p-8 text-center text-sm text-slate-500">
+                  No build is available for testing.
+                </div>
+              )}
+            </WorkspaceCard>
+
+            <WorkspaceCard>
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <h2 className="text-lg font-semibold tracking-tight text-slate-950">Ready For Verification</h2>
+                  <p className="mt-1 text-sm text-slate-600">Developer fixes waiting for QA sign-off.</p>
+                </div>
+                <Button className="rounded-2xl" size="sm" variant="outline" onClick={() => navigate("/bugs")}>
+                  View All
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
+
+              <div className="mt-5 space-y-3">
+                {isReportedBugsLoading ? (
+                  Array.from({ length: 3 }).map((_, index) => (
+                    <Skeleton className="h-20 rounded-2xl" key={`verification-skeleton-${index}`} />
+                  ))
+                ) : readyForVerificationBugs.length ? (
+                  readyForVerificationBugs.map((issue) => (
                     <div
-                      key={item.key}
-                      className="group rounded-xl border border-slate-200/60 bg-gradient-to-br from-white/95 to-slate-50/70 p-3 shadow-sm transition duration-200 hover:border-blue-200/80 hover:shadow-md"
+                      className="rounded-2xl border border-slate-200/80 bg-white/86 p-4 transition hover:border-blue-200 hover:bg-blue-50/45"
+                      key={issue._id}
                     >
-                      <div className="flex items-start justify-between gap-2 mb-2">
-                        <div className="flex items-center gap-2 min-w-0">
-                          <div
-                            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-white shadow-sm"
-                            style={{ backgroundColor: item.color }}
-                          >
-                            <StatusIcon className="h-3.5 w-3.5" />
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="font-mono text-xs font-bold text-blue-700">{getIssueDisplayKey(issue)}</span>
+                            <TableBadge variant={getIssuePriorityVariant(issue.priority)}>
+                              {issue.priority || "Medium"}
+                            </TableBadge>
                           </div>
-                          <p className="text-xs font-semibold text-slate-600 truncate">{item.label}</p>
+                          <h3 className="mt-2 line-clamp-1 text-sm font-semibold text-slate-950">
+                            {issue.title || "Untitled bug"}
+                          </h3>
+                          <p className="mt-1 text-xs text-slate-500">
+                            {getProjectName(issue, assignedProjects)} - {getAssigneeName(issue)} - {getBugUpdatedAt(issue) ? formatDateTime(getBugUpdatedAt(issue)) : "Recently fixed"}
+                          </p>
                         </div>
-                        <div className="flex items-baseline gap-1 shrink-0">
-                          <span className="text-base font-bold text-slate-950">{item.value}</span>
-                          <span className="text-[10px] font-semibold text-slate-400">{item.percentage}%</span>
+                        <div className="flex flex-wrap gap-2">
+                          <Button className="h-9 rounded-xl bg-emerald-600 text-white hover:bg-emerald-700" size="sm" onClick={() => handleOpenReportedBug(issue._id)}>
+                            Verify
+                          </Button>
+                          <Button className="h-9 rounded-xl" size="sm" variant="outline" onClick={() => handleOpenReportedBug(issue._id)}>
+                            Reopen
+                          </Button>
+                          <Button className="h-9 rounded-xl" size="sm" variant="ghost" onClick={() => handleOpenReportedBug(issue._id)}>
+                            View
+                          </Button>
                         </div>
                       </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="rounded-[18px] border border-dashed border-emerald-200 bg-emerald-50/60 p-8 text-center">
+                    <CheckCircle2 className="mx-auto h-9 w-9 text-emerald-500" />
+                    <p className="mt-3 text-sm font-semibold text-slate-800">Everything has been verified.</p>
+                  </div>
+                )}
+              </div>
+            </WorkspaceCard>
+          </section>
 
-                      {/* Mini Progress Bar */}
-                      <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-100">
-                        <div
-                          className="h-full rounded-full transition-all duration-700 ease-out"
-                          style={{
-                            width: `${item.percentage}%`,
-                            backgroundColor: item.color,
-                          }}
-                        />
+          <section className="grid gap-6 xl:grid-cols-[0.9fr_1.1fr]">
+            <WorkspaceCard>
+              <h2 className="text-lg font-semibold tracking-tight text-slate-950">Recent Testing Activity</h2>
+              <div className="mt-5 space-y-4">
+                {testingActivity.map((item, index) => {
+                  const ItemIcon = item.Icon;
+
+                  return (
+                    <div className="relative flex gap-3" key={`${item.label}-${index}`}>
+                      {index < testingActivity.length - 1 && (
+                        <span className="absolute left-5 top-10 h-[calc(100%+8px)] w-px bg-blue-100" />
+                      )}
+                      <span className="relative z-10 flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-blue-50 text-blue-700">
+                        <ItemIcon className="h-5 w-5" />
+                      </span>
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold text-slate-950">{item.label}</p>
+                        <p className="mt-1 line-clamp-1 text-sm text-slate-500">{item.meta}</p>
                       </div>
                     </div>
                   );
                 })}
               </div>
+            </WorkspaceCard>
 
-              {/* Legend for statuses with 0 bugs */}
-              {statusChartData.length > visibleStatusChartData.length && (
-                <div className="pt-2 border-t border-slate-100">
-                  <p className="text-[10px] font-medium text-slate-400 mb-2">Other statuses</p>
-                  <div className="flex flex-wrap gap-1.5">
-                    {statusChartData
-                      .filter((item) => item.value === 0)
-                      .map((item) => (
-                        <div
-                          key={item.key}
-                          className="flex items-center gap-1.5 rounded-lg bg-slate-50 px-2 py-1 text-[10px] font-medium text-slate-600"
-                        >
-                          <div
-                            className="h-2 w-2 rounded-full"
-                            style={{ backgroundColor: item.color }}
-                          />
-                          {item.label}
-                        </div>
-                      ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          ) : (
-            <EmptyChartState>No bug status data yet.</EmptyChartState>
-          )}
-        </ChartCard>
-
-        <RecentTasksPanel
-          error={recentTasksError}
-          isLoading={isRecentTasksLoading}
-          onOpenTask={(taskId) => navigate(`/issues/${taskId}`)}
-          tasks={recentTasks}
-        />
-      </section>
-
-      <Card className="overflow-hidden border-white/70 bg-white/90 shadow-[0_20px_56px_-36px_rgba(15,23,42,0.38)] backdrop-blur-xl">
-        <CardContent className="p-0">
-          <div className="flex items-center justify-between gap-3 border-b border-slate-200/80 px-4 py-4 sm:px-5">
-            <h2 className="text-base font-semibold tracking-tight text-slate-950">
-              My Reported Bugs
-            </h2>
-            <Button type="button" size="sm" variant="outline" onClick={() => navigate("/bugs")}>
-              View All Bugs
-              <ChevronRight className="h-4 w-4" />
-            </Button>
-          </div>
-
-          <div className="space-y-3 p-4 md:hidden">
-            {isReportedBugsLoading ? (
-              Array.from({ length: 3 }).map((_, index) => (
-                <Skeleton key={`reported-mobile-skeleton-${index}`} className="h-44 rounded-[20px]" />
-              ))
-            ) : myReportedBugs.length ? (
-              myReportedBugs.map((issue) => {
-                const updatedAt = getBugUpdatedAt(issue);
-
-                return (
-                  <article
-                    className="cursor-pointer rounded-[20px] border border-slate-200/80 bg-white/78 p-4 shadow-sm transition hover:border-blue-200 hover:bg-blue-50/42 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
-                    key={issue._id}
-                    onClick={() => handleOpenReportedBug(issue._id)}
-                    onKeyDown={(event) => {
-                      if (event.key === "Enter" || event.key === " ") {
-                        handleOpenReportedBug(issue._id);
-                      }
-                    }}
-                    role="button"
-                    tabIndex={0}
+            <WorkspaceCard>
+              <h2 className="text-lg font-semibold tracking-tight text-slate-950">Quick Navigation</h2>
+              <div className="mt-5 grid gap-3 sm:grid-cols-2">
+                {[
+                  ["Open Bug Board", Bug, "/bugs"],
+                  ["Testing History", History, "/reports"],
+                  ["Verification Queue", ShieldCheck, "/bugs"],
+                  ["Reports", GaugeCircle, "/reports"],
+                  ["Recent Builds", Rocket, "/backlog"],
+                ].map(([label, Icon, path]) => (
+                  <button
+                    className="group flex items-center justify-between rounded-2xl border border-slate-200/80 bg-white/82 p-4 text-left transition hover:-translate-y-0.5 hover:border-blue-200 hover:bg-blue-50/55"
+                    key={label}
+                    onClick={() => navigate(path)}
+                    type="button"
                   >
-                    <div className="min-w-0">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <span className="font-mono text-xs font-semibold text-slate-500">
-                            {getIssueDisplayKey(issue)}
-                          </span>
-                          <TableBadge variant={getIssueStatusVariant(issue.status)}>
-                            {getIssueStatusLabel(issue.status)}
-                          </TableBadge>
-                        </div>
-                        <h3 className="mt-2 break-words text-sm font-semibold text-slate-950">
-                          {issue.title || "Untitled bug"}
-                        </h3>
-                    </div>
-
-                    <div className="mt-4 grid gap-2 text-sm text-slate-600">
-                      <div className="flex items-center justify-between gap-3">
-                        <span className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">
-                          Project
-                        </span>
-                        <span className="min-w-0 truncate text-right font-medium">
-                          {getProjectName(issue, assignedProjects)}
-                        </span>
-                      </div>
-                      <div className="flex items-center justify-between gap-3">
-                        <span className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">
-                          Priority
-                        </span>
-                        <TableBadge variant={getIssuePriorityVariant(issue.priority)}>
-                          {issue.priority || "Not set"}
-                        </TableBadge>
-                      </div>
-                      <div className="flex items-center justify-between gap-3">
-                        <span className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">
-                          Assignee
-                        </span>
-                        <span className="min-w-0 truncate text-right font-medium">
-                          {getAssigneeName(issue)}
-                        </span>
-                      </div>
-                      <div className="flex items-center justify-between gap-3">
-                        <span className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">
-                          Updated
-                        </span>
-                        <span className="text-right font-medium">
-                          {updatedAt ? formatDateTime(updatedAt) : "Unknown"}
-                        </span>
-                      </div>
-                    </div>
-                  </article>
-                );
-              })
-            ) : (
-              <p className="rounded-[20px] border border-dashed border-slate-200 bg-slate-50/80 px-4 py-8 text-center text-sm text-slate-500">
-                No reported bugs yet
-              </p>
-            )}
-          </div>
-
-          <div className="hidden overflow-x-auto md:block">
-            <table className="w-full min-w-[880px] table-fixed text-left text-sm">
-              <thead className="bg-slate-50/90 text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
-                <tr>
-                  <th className="w-[10%] px-5 py-3">ID</th>
-                  <th className="w-[28%] px-4 py-3">Title</th>
-                  <th className="w-[16%] px-4 py-3">Project</th>
-                  <th className="w-[12%] px-4 py-3">Status</th>
-                  <th className="w-[11%] px-4 py-3">Priority</th>
-                  <th className="w-[13%] px-4 py-3">Assignee</th>
-                  <th className="w-[10%] px-4 py-3">Updated</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-200/80">
-                {isReportedBugsLoading ? (
-                  Array.from({ length: 5 }).map((_, index) => (
-                    <tr key={`reported-row-skeleton-${index}`}>
-                      <td className="px-5 py-4" colSpan={7}>
-                        <Skeleton className="h-8 w-full rounded-xl" />
-                      </td>
-                    </tr>
-                  ))
-                ) : myReportedBugs.length ? (
-                  myReportedBugs.map((issue) => {
-                    const updatedAt = getBugUpdatedAt(issue);
-
-                    return (
-                      <tr
-                        className="cursor-pointer bg-white/64 transition hover:bg-blue-50/60"
-                        key={issue._id}
-                        onClick={() => handleOpenReportedBug(issue._id)}
-                      >
-                        <td className="whitespace-nowrap px-5 py-4 align-middle font-mono text-xs font-semibold text-slate-500">
-                          {getIssueDisplayKey(issue)}
-                        </td>
-                        <td className="px-4 py-4 align-middle">
-                          <p className="truncate font-semibold text-slate-950">
-                            {issue.title || "Untitled bug"}
-                          </p>
-                        </td>
-                        <td className="px-4 py-4 align-middle">
-                          <p className="truncate text-slate-600">
-                            {getProjectName(issue, assignedProjects)}
-                          </p>
-                        </td>
-                        <td className="px-4 py-4 align-middle">
-                          <TableBadge variant={getIssueStatusVariant(issue.status)}>
-                            {getIssueStatusLabel(issue.status)}
-                          </TableBadge>
-                        </td>
-                        <td className="px-4 py-4 align-middle">
-                          <TableBadge variant={getIssuePriorityVariant(issue.priority)}>
-                            {issue.priority || "Not set"}
-                          </TableBadge>
-                        </td>
-                        <td className="px-4 py-4 align-middle">
-                          <p className="truncate text-slate-600">
-                            {getAssigneeName(issue)}
-                          </p>
-                        </td>
-                        <td className="whitespace-nowrap px-4 py-4 align-middle text-slate-500">
-                          {updatedAt ? formatDateTime(updatedAt) : "Unknown"}
-                        </td>
-                      </tr>
-                    );
-                  })
-                ) : (
-                  <tr>
-                    <td
-                      className="px-5 py-12 text-center text-sm text-slate-500"
-                      colSpan={7}
-                    >
-                      No reported bugs yet
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        </CardContent>
-      </Card>
-
-      <section className="flex flex-col gap-3 rounded-[24px] border border-white/70 bg-white/78 p-3 shadow-[0_16px_42px_-34px_rgba(15,23,42,0.32)] backdrop-blur-xl sm:flex-row sm:items-center sm:justify-between">
-        <label className="flex w-full items-center gap-3 sm:w-auto">
-          <span className="sr-only">Project filter</span>
-          <select
-            className="h-11 w-full rounded-2xl border border-slate-200/90 bg-white/86 px-4 text-sm font-semibold text-slate-700 shadow-sm outline-none transition focus:border-blue-300 focus:ring-2 focus:ring-blue-500/25 sm:w-auto"
-            onChange={(event) => setProjectFilter(event.target.value)}
-            value={projectFilter}
-          >
-            <option value="all">All projects</option>
-            {assignedProjects.map((project) => (
-              <option key={project._id} value={String(project._id)}>
-                {project.name}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-end">
-          <p className="text-sm text-slate-500">
-            Last refreshed {formatDateTime(lastRefreshedAt)}
-          </p>
-          <DashboardIconButton
-            aria-label="Refresh dashboard"
-            className={isIssuesFetching || isReportedBugsFetching || isRecentTasksFetching ? "animate-pulse" : ""}
-            onClick={handleRefresh}
-          >
-            <RefreshCcw
-              className={cn(
-                "h-4 w-4",
-                (isIssuesFetching || isReportedBugsFetching || isRecentTasksFetching) && "animate-spin"
-              )}
-            />
-          </DashboardIconButton>
+                    <span className="flex items-center gap-3">
+                      <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-indigo-50 text-indigo-700">
+                        <Icon className="h-5 w-5" />
+                      </span>
+                      <span className="font-semibold text-slate-800">{label}</span>
+                    </span>
+                    <ChevronRight className="h-4 w-4 text-slate-400 transition group-hover:translate-x-0.5 group-hover:text-blue-600" />
+                  </button>
+                ))}
+              </div>
+            </WorkspaceCard>
+          </section>
         </div>
+
+        <aside className="space-y-6">
+          <WorkspaceCard>
+            <div className="flex items-center gap-3">
+              <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-700">
+                <Server className="h-5 w-5" />
+              </span>
+              <div>
+                <h2 className="text-lg font-semibold text-slate-950">QA Environment</h2>
+                <p className="text-sm text-slate-500">Live test lane health.</p>
+              </div>
+            </div>
+            <div className="mt-5 space-y-3">
+              {qaEnvironments.map((environment) => (
+                <div className="flex items-center justify-between rounded-2xl bg-slate-50/90 px-4 py-3" key={environment.name}>
+                  <span className="flex items-center gap-3 font-semibold text-slate-800">
+                    <span className={cn("h-2.5 w-2.5 rounded-full", environment.tone)} />
+                    {environment.name}
+                  </span>
+                  <span className="text-sm text-slate-500">{environment.status}</span>
+                </div>
+              ))}
+            </div>
+          </WorkspaceCard>
+
+          <WorkspaceCard>
+            <div className="flex items-center gap-3">
+              <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-blue-50 text-blue-700">
+                <Megaphone className="h-5 w-5" />
+              </span>
+              <h2 className="text-lg font-semibold text-slate-950">QA Lead Announcements</h2>
+            </div>
+            <div className="mt-5 space-y-3">
+              {["Regression testing starts tomorrow", "Payment module ready", "Release scheduled Friday", "OTP verification mandatory"].map((announcement) => (
+                <div className="rounded-2xl border border-blue-100 bg-blue-50/55 px-4 py-3 text-sm font-medium text-slate-700" key={announcement}>
+                  {announcement}
+                </div>
+              ))}
+            </div>
+          </WorkspaceCard>
+
+          <WorkspaceCard>
+            <div className="flex items-center gap-3">
+              <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-violet-50 text-violet-700">
+                <CalendarDays className="h-5 w-5" />
+              </span>
+              <h2 className="text-lg font-semibold text-slate-950">Upcoming Releases</h2>
+            </div>
+            <div className="mt-5 space-y-3">
+              {[
+                ["Smoke Release", currentBuild?.version || "QA-2026.08", "Friday", "Ready"],
+                ["Regression Pack", "REG-2026.08", "Next week", "Planned"],
+              ].map(([name, version, date, status]) => (
+                <div className="rounded-2xl border border-slate-200/80 bg-white/84 p-4" key={name}>
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="font-semibold text-slate-900">{name}</p>
+                    <Badge className="border-blue-200 bg-blue-50 text-blue-700" variant="outline">{status}</Badge>
+                  </div>
+                  <p className="mt-1 text-sm text-slate-500">{version} - {date}</p>
+                </div>
+              ))}
+            </div>
+          </WorkspaceCard>
+
+          <WorkspaceCard>
+            <div className="flex items-center gap-3">
+              <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-orange-50 text-orange-700">
+                <ClipboardCheck className="h-5 w-5" />
+              </span>
+              <h2 className="text-lg font-semibold text-slate-950">My Week</h2>
+            </div>
+            <div className="mt-5 grid grid-cols-2 gap-3">
+              {weekStats.map((item) => (
+                <div className="rounded-2xl bg-slate-50/90 p-4" key={item.label}>
+                  <p className="text-2xl font-semibold text-slate-950">{item.value}</p>
+                  <p className="mt-1 text-xs font-semibold text-slate-500">{item.label}</p>
+                </div>
+              ))}
+            </div>
+          </WorkspaceCard>
+        </aside>
       </section>
+
+      <div className="fixed bottom-5 right-5 z-30 flex flex-col items-end gap-2">
+        <div className="hidden flex-col gap-2 rounded-[18px] border border-blue-100 bg-white/92 p-2 shadow-[0_18px_48px_-24px_rgba(15,23,42,0.34)] backdrop-blur-xl md:flex">
+          <QuickActionButton Icon={Bug} onClick={() => navigate("/bugs?view=report")}>Create Bug</QuickActionButton>
+          <QuickActionButton Icon={PlayCircle} onClick={() => navigate("/bugs?view=report")}>Continue Testing</QuickActionButton>
+          <QuickActionButton Icon={ShieldCheck} onClick={() => navigate("/bugs")}>Verification Queue</QuickActionButton>
+          <QuickActionButton Icon={ListChecks} onClick={() => navigate("/bugs")}>Bug Board</QuickActionButton>
+          <QuickActionButton Icon={History} onClick={() => navigate("/reports")}>Testing History</QuickActionButton>
+        </div>
+        <Button
+          aria-label="Create bug"
+          className="h-14 w-14 rounded-full bg-[linear-gradient(135deg,#2563EB,#8B5CF6)] p-0 text-white shadow-[0_20px_42px_-18px_rgba(37,99,235,0.8)] hover:brightness-105 md:hidden"
+          onClick={() => navigate("/bugs?view=report")}
+          type="button"
+        >
+          <Plus className="h-6 w-6" />
+        </Button>
+      </div>
     </div>
   );
 };
