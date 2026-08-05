@@ -612,12 +612,12 @@ const ProjectsPage = () => {
   }
 
   return (
-    <div className="w-full">
+    <div className="h-[calc(100svh-4.5rem)] w-full overflow-hidden">
       <ToastNotice toast={toast} onDismiss={() => setToast(null)} />
 
-      <div className="grid w-full gap-4 lg:grid-cols-[220px_minmax(0,1fr)]">
-        <aside className="min-w-0 border-r border-slate-200/80 bg-white/72 pr-3">
-          <div className="sticky top-0 space-y-4 py-3">
+      <div className="grid h-full min-h-0 w-full gap-4 lg:grid-cols-[220px_minmax(0,1fr)]">
+        <aside className="min-h-0 min-w-0 border-r border-slate-200/80 bg-white/72 pr-3">
+          <div className="sticky top-0 flex h-full min-h-0 flex-col justify-between gap-4 py-3">
             <nav className="space-y-4" aria-label="Project page sidebar">
               <div className="space-y-1">
                 <p className="px-2 text-[11px] font-semibold uppercase text-slate-400">
@@ -786,17 +786,17 @@ const ProjectsPage = () => {
           </div>
         </aside>
 
-        <main className="min-w-0 space-y-4">
+        <main className="min-h-0 min-w-0 overflow-hidden">
 
       {activeTab === "projects" && projectMode === "overview" ? (
         <section
           aria-labelledby="projects-tab"
-          className="grid min-w-0 w-full gap-4 xl:grid-cols-[360px_minmax(0,1fr)]"
+          className="grid h-full min-h-0 min-w-0 w-full gap-4 xl:grid-cols-[360px_minmax(0,1fr)]"
           id="projects-panel"
           role="tabpanel"
         >
-          <aside className="min-w-0 space-y-2">
-            <Card className="overflow-hidden rounded-[20px] border-slate-200/80 bg-white shadow-[0_12px_34px_-30px_rgba(15,23,42,0.45)]">
+          <aside className="flex min-h-0 min-w-0 flex-col gap-2">
+            <Card className="shrink-0 overflow-hidden rounded-[20px] border-slate-200/80 bg-white shadow-[0_12px_34px_-30px_rgba(15,23,42,0.45)]">
               <CardContent className="space-y-3 p-3">
                 <div className="flex items-start justify-between gap-3">
                   <div>
@@ -830,7 +830,7 @@ const ProjectsPage = () => {
               </CardContent>
             </Card>
 
-            <div className="max-h-[calc(100svh-19rem)] min-h-[280px] space-y-2 overflow-y-auto pr-1">
+            <div className="min-h-0 flex-1 space-y-2 overflow-y-auto pr-1">
               {isProjectsLoading ? (
                 Array.from({ length: 6 }).map((_, index) => (
                   <Skeleton
@@ -890,7 +890,7 @@ const ProjectsPage = () => {
             </div>
           </aside>
 
-          <div className="min-w-0 space-y-4">
+          <div className="min-h-0 min-w-0 space-y-4 overflow-y-auto pr-1">
             {selectedProject ? (
               <>
                 <Card className="overflow-hidden border-slate-200 bg-white shadow-[0_18px_52px_-40px_rgba(15,23,42,0.5)]">
@@ -1225,7 +1225,7 @@ const ProjectsPage = () => {
       {activeTab === "projects" && projectMode === "planning" ? (
         <section
           aria-label="Project planning"
-          className="min-w-0 space-y-5"
+          className="h-full min-h-0 min-w-0 space-y-5 overflow-y-auto pr-1"
         >
           <div className="flex flex-col gap-4 border-b border-slate-200 pb-4 lg:flex-row lg:items-start lg:justify-between">
             <div className="min-w-0">
@@ -1597,7 +1597,7 @@ const ProjectsPage = () => {
       {activeTab === "teams" ? (
         <section
           aria-labelledby="teams-tab"
-          className="min-w-0 w-full space-y-3"
+          className="h-full min-h-0 min-w-0 w-full space-y-3 overflow-y-auto pr-1"
           id="teams-panel"
           role="tabpanel"
         >
