@@ -326,6 +326,81 @@ const formatBudget = (project = {}) => {
 const getBudgetTone = (project = {}) =>
   project.budget || project.projectBudget || project.estimatedBudget ? "violet" : "slate";
 
+const getStatusChipClassName = (status = "Active") => {
+  const normalizedStatus = String(status || "Active").toLowerCase();
+
+  if (normalizedStatus.includes("hold")) {
+    return "border-amber-200 bg-amber-50 text-amber-700";
+  }
+
+  if (normalizedStatus.includes("complete")) {
+    return "border-emerald-200 bg-emerald-50 text-emerald-700";
+  }
+
+  if (normalizedStatus.includes("delay")) {
+    return "border-rose-200 bg-rose-50 text-rose-700";
+  }
+
+  if (normalizedStatus.includes("archive")) {
+    return "border-slate-200 bg-slate-100 text-slate-600";
+  }
+
+  if (normalizedStatus.includes("plan")) {
+    return "border-blue-200 bg-blue-50 text-blue-700";
+  }
+
+  return "border-emerald-200 bg-emerald-50 text-emerald-700";
+};
+
+const getKpiIconClassName = (label = "") => {
+  const iconClasses = {
+    Timeline: "bg-[#EFF6FF] text-blue-600",
+    Progress: "bg-[#ECFDF5] text-emerald-600",
+    "Days Remaining": "bg-[#FFF7ED] text-orange-600",
+    Health: "bg-[#FEF2F2] text-red-600",
+    Budget: "bg-[#F5F3FF] text-violet-600",
+    Tasks: "bg-[#EFF6FF] text-blue-600",
+    Bugs: "bg-[#FEF2F2] text-red-600",
+    Members: "bg-[#EFF6FF] text-blue-600",
+    Teams: "bg-[#F5F3FF] text-indigo-600",
+  };
+
+  return iconClasses[label] || "bg-slate-100 text-slate-600";
+};
+
+const CompletionRing = ({ value = 0 }) => {
+  const progress = Math.max(0, Math.min(100, Number(value) || 0));
+  const circumference = 2 * Math.PI * 17;
+  const offset = circumference - (progress / 100) * circumference;
+
+  return (
+    <span className="relative inline-flex h-11 w-11 shrink-0 items-center justify-center">
+      <svg className="h-11 w-11 -rotate-90" viewBox="0 0 44 44" aria-hidden="true">
+        <circle
+          cx="22"
+          cy="22"
+          fill="none"
+          r="17"
+          stroke="#E5E7EB"
+          strokeWidth="5"
+        />
+        <circle
+          cx="22"
+          cy="22"
+          fill="none"
+          r="17"
+          stroke="#22C55E"
+          strokeDasharray={circumference}
+          strokeDashoffset={offset}
+          strokeLinecap="round"
+          strokeWidth="5"
+        />
+      </svg>
+      <span className="absolute text-[10px] font-bold text-slate-950">{progress}%</span>
+    </span>
+  );
+};
+
 const ProjectsPage = () => {
   const queryClient = useQueryClient();
   const location = useLocation();
@@ -1080,8 +1155,8 @@ const ProjectsPage = () => {
     <div className="h-full min-h-0 w-full overflow-hidden">
       <ToastNotice toast={toast} onDismiss={() => setToast(null)} />
 
-      <div className="grid h-full min-h-0 w-full gap-4 lg:grid-cols-[220px_minmax(0,1fr)]">
-        <aside className="min-h-0 min-w-0 border-r border-slate-200/80 bg-white/72 pr-3">
+      <div className="grid h-full min-h-0 w-full gap-4 lg:grid-cols-[200px_minmax(0,1fr)]">
+        <aside className="min-h-0 min-w-0 border-r border-[#EEF2F7] bg-white/72 pr-3">
           <div className="sticky top-0 flex h-full min-h-0 flex-col gap-4 py-3">
             <nav className="space-y-4" aria-label="Project page sidebar">
               <div className="space-y-1">
@@ -1133,10 +1208,10 @@ const ProjectsPage = () => {
                 ].map(({ label, Icon, active, action }) => (
                   <button
                     key={label}
-                    className={`flex h-9 w-full items-center gap-2 rounded-lg px-3 text-sm font-semibold transition ${
+                    className={`flex h-9 w-full items-center gap-2 rounded-lg border px-3 text-sm font-semibold transition ${
                       active
-                        ? "bg-slate-950 text-white shadow-[0_14px_28px_-22px_rgba(15,23,42,0.9)]"
-                        : "text-slate-600 hover:bg-slate-50 hover:text-slate-950"
+                        ? "border-[#B6D4FE] bg-[#E9F2FF] text-[#0C66E4]"
+                        : "border-transparent text-slate-600 hover:bg-slate-50 hover:text-slate-950"
                     }`}
                     type="button"
                     onClick={action}
@@ -1152,10 +1227,10 @@ const ProjectsPage = () => {
                   Planning
                 </p>
                 <button
-                  className={`flex h-9 w-full items-center gap-2 rounded-lg px-3 text-sm font-semibold transition ${
+                  className={`flex h-9 w-full items-center gap-2 rounded-lg border px-3 text-sm font-semibold transition ${
                     activeTab === "projects" && projectMode === "planning"
-                      ? "bg-slate-950 text-white shadow-[0_14px_28px_-22px_rgba(15,23,42,0.9)]"
-                      : "text-slate-600 hover:bg-slate-50 hover:text-slate-950"
+                      ? "border-[#B6D4FE] bg-[#E9F2FF] text-[#0C66E4]"
+                      : "border-transparent text-slate-600 hover:bg-slate-50 hover:text-slate-950"
                   }`}
                   type="button"
                   onClick={() => {
@@ -1198,20 +1273,30 @@ const ProjectsPage = () => {
 
               <div className="space-y-1">
                 <p className="px-2 text-[11px] font-semibold uppercase text-slate-400">
-                  Workspace
+                  Development
                 </p>
                 <button
-                  className={`flex h-9 w-full items-center gap-2 rounded-lg px-3 text-sm font-semibold transition ${
-                    activeTab === "teams"
-                      ? "bg-slate-950 text-white shadow-[0_14px_28px_-22px_rgba(15,23,42,0.9)]"
-                      : "text-slate-600 hover:bg-slate-50 hover:text-slate-950"
-                  }`}
+                  className="flex h-9 w-full items-center gap-2 rounded-lg px-3 text-sm font-semibold text-slate-600 transition hover:bg-slate-50 hover:text-slate-950"
                   type="button"
-                  onClick={() => updateActiveTab("teams")}
+                  onClick={() => navigate("/tasks")}
                 >
-                  <Users2 className="h-4 w-4" />
-                  Teams
+                  <ClipboardList className="h-4 w-4" />
+                  Tasks
                 </button>
+                <button
+                  className="flex h-9 w-full items-center gap-2 rounded-lg px-3 text-sm font-semibold text-slate-600 transition hover:bg-slate-50 hover:text-slate-950"
+                  type="button"
+                  onClick={() => navigate("/dev/bugs")}
+                >
+                  <Bug className="h-4 w-4" />
+                  Bugs
+                </button>
+              </div>
+
+              <div className="space-y-1">
+                <p className="px-2 text-[11px] font-semibold uppercase text-slate-400">
+                  Analytics
+                </p>
                 <button
                   className="flex h-9 w-full items-center gap-2 rounded-lg px-3 text-sm font-semibold text-slate-600 transition hover:bg-slate-50 hover:text-slate-950"
                   type="button"
@@ -1221,9 +1306,27 @@ const ProjectsPage = () => {
                   Reports
                 </button>
               </div>
+
+              <div className="space-y-1">
+                <p className="px-2 text-[11px] font-semibold uppercase text-slate-400">
+                  Administration
+                </p>
+                <button
+                  className={`flex h-9 w-full items-center gap-2 rounded-lg border px-3 text-sm font-semibold transition ${
+                    activeTab === "teams"
+                      ? "border-[#B6D4FE] bg-[#E9F2FF] text-[#0C66E4]"
+                      : "border-transparent text-slate-600 hover:bg-slate-50 hover:text-slate-950"
+                  }`}
+                  type="button"
+                  onClick={() => updateActiveTab("teams")}
+                >
+                  <Users2 className="h-4 w-4" />
+                  Teams
+                </button>
+              </div>
             </nav>
 
-            <div className="mx-2 rounded-xl border border-blue-100 bg-blue-50/70 p-3">
+            <div className="mx-2 rounded-xl border border-[#EEF2F7] bg-blue-50/55 p-3 shadow-[0_2px_12px_rgba(0,0,0,.04)]">
               <p className="text-sm font-semibold text-slate-950">Need a new lane?</p>
               <p className="mt-1 text-xs leading-5 text-slate-500">
               
@@ -1256,12 +1359,12 @@ const ProjectsPage = () => {
       {activeTab === "projects" && projectMode === "overview" ? (
         <section
           aria-labelledby="projects-tab"
-          className="grid h-full min-h-0 min-w-0 w-full gap-4 xl:grid-cols-[360px_minmax(0,1fr)]"
+          className="grid h-full min-h-0 min-w-0 w-full gap-4 xl:grid-cols-[320px_minmax(0,1fr)]"
           id="projects-panel"
           role="tabpanel"
         >
           <aside className="flex min-h-0 min-w-0 flex-col gap-2">
-            <Card className="shrink-0 overflow-hidden rounded-[20px] border-slate-200/80 bg-white shadow-[0_12px_34px_-30px_rgba(15,23,42,0.45)]">
+            <Card className="shrink-0 overflow-hidden rounded-[18px] border-[#EEF2F7] bg-white shadow-[0_2px_12px_rgba(0,0,0,.04)]">
               <CardContent className="space-y-3 p-3">
                 <div className="flex items-start justify-between gap-3">
                   <div>
@@ -1295,12 +1398,12 @@ const ProjectsPage = () => {
               </CardContent>
             </Card>
 
-            <div className="min-h-0 flex-1 space-y-2 overflow-y-auto overscroll-contain pr-1">
+            <div className="min-h-0 flex-1 space-y-1 overflow-y-auto overscroll-contain pr-1">
               {isProjectsLoading ? (
                 Array.from({ length: 6 }).map((_, index) => (
                   <Skeleton
                     key={`project-list-skeleton-${index}`}
-                    className="h-[74px] w-full rounded-2xl"
+                    className="h-[50px] w-full rounded-xl"
                   />
                 ))
               ) : filteredProjects.length ? (
@@ -1311,16 +1414,23 @@ const ProjectsPage = () => {
                   return (
                     <button
                       key={project._id}
-                      className={`group flex w-full items-center gap-3 rounded-2xl border bg-white p-3 text-left shadow-[0_12px_30px_-28px_rgba(15,23,42,0.5)] transition hover:-translate-y-0.5 hover:shadow-[0_20px_42px_-32px_rgba(15,23,42,0.58)] ${
+                      className={`group relative flex h-[54px] w-full items-center gap-2 rounded-xl border px-2.5 text-left transition ${
                         isSelected
-                          ? "border-blue-300 ring-4 ring-blue-500/10"
-                          : "border-slate-200 hover:border-slate-300"
+                          ? "border-[#B6D4FE] bg-[#E9F2FF]"
+                          : "border-transparent bg-white hover:border-[#EEF2F7] hover:bg-white"
                       }`}
                       type="button"
                       onClick={() => setSelectedProjectId(project._id)}
                     >
                       <span
-                        className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl text-xs font-bold"
+                        className="absolute inset-y-2 left-0 w-1 rounded-full opacity-0 transition group-hover:opacity-100"
+                        style={{
+                          backgroundColor: themeColor,
+                          opacity: isSelected ? 1 : undefined,
+                        }}
+                      />
+                      <span
+                        className="ml-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-[11px] font-bold"
                         style={{
                           backgroundColor: `${themeColor}18`,
                           color: themeColor,
@@ -1332,13 +1442,10 @@ const ProjectsPage = () => {
                         <span className="block truncate text-sm font-semibold text-slate-950">
                           {project.name}
                         </span>
-                        <span className="mt-1 flex flex-wrap items-center gap-2 text-xs text-slate-500">
+                        <span className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[11px] text-slate-500">
                           <span>{project.issueCount || 0} issues</span>
+                          <span>/</span>
                           <span>{getProjectMemberCount(project)} members</span>
-                          <span className="inline-flex items-center gap-1 text-emerald-600">
-                            <span className="h-1.5 w-1.5 rounded-full bg-current" />
-                            {getProjectStatus(project)}
-                          </span>
                         </span>
                       </span>
                       <MoreHorizontal className="h-4 w-4 text-slate-400 opacity-0 transition group-hover:opacity-100" />
@@ -1358,16 +1465,16 @@ const ProjectsPage = () => {
           <div className="min-h-0 min-w-0 space-y-4 overflow-y-auto overscroll-contain pr-1">
             {selectedProject ? (
               <>
-                <Card className="overflow-hidden border-slate-200 bg-white shadow-[0_18px_52px_-40px_rgba(15,23,42,0.5)]">
+                <Card className="overflow-hidden rounded-[18px] border-[#EEF2F7] bg-white shadow-[0_2px_12px_rgba(0,0,0,.04)]">
                   <CardContent className="p-0">
                     <div
                       className="h-1.5"
                       style={{ backgroundColor: getProjectThemeColor(selectedProject) }}
                     />
-                    <div className="flex flex-col gap-4 p-5 lg:flex-row lg:items-start lg:justify-between">
+                    <div className="flex flex-col gap-5 p-5 lg:flex-row lg:items-start lg:justify-between">
                       <div className="flex min-w-0 items-start gap-4">
                         <div
-                          className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl text-sm font-bold"
+                          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-xs font-bold"
                           style={{
                             backgroundColor: `${getProjectThemeColor(selectedProject)}18`,
                             color: getProjectThemeColor(selectedProject),
@@ -1392,13 +1499,16 @@ const ProjectsPage = () => {
                             {selectedProject.description || "No description added yet."}
                           </p>
                           <div className="mt-3 flex flex-wrap gap-2 text-xs text-slate-500">
-                            <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1">
+                            <span className="rounded-full border border-[#EEF2F7] bg-slate-50 px-2.5 py-1">
                               Owner: {getProjectOwnerName(selectedProject)}
                             </span>
-                            <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1">
-                              {getProjectTeams(selectedProject).length} teams
+                            <span className="rounded-full border border-[#EEF2F7] bg-slate-50 px-2.5 py-1">
+                              Deadline: {formatShortDate(selectedProject.targetDate)}
                             </span>
-                            <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1">
+                            <span className="rounded-full border border-[#EEF2F7] bg-slate-50 px-2.5 py-1">
+                              Members: {selectedProjectMembers.length || getProjectMemberCount(selectedProject)}
+                            </span>
+                            <span className={`rounded-full border px-2.5 py-1 ${getStatusChipClassName(getProjectStatus(selectedProject))}`}>
                               {getProjectStatus(selectedProject)}
                             </span>
                           </div>
@@ -1420,8 +1530,17 @@ const ProjectsPage = () => {
                           type="button"
                           onClick={() => navigate(`/issues?projectId=${selectedProject._id}`)}
                         >
-                          <Bug className="h-4 w-4" />
-                          View Issues
+                          <Plus className="h-4 w-4" />
+                          Issue
+                        </Button>
+                        <Button
+                          className="h-10 rounded-xl"
+                          variant="outline"
+                          type="button"
+                          onClick={() => navigate(`/tasks?projectId=${selectedProject._id}`)}
+                        >
+                          <ClipboardList className="h-4 w-4" />
+                          Board
                         </Button>
                         <Button
                           className="h-10 rounded-xl"
@@ -1432,216 +1551,159 @@ const ProjectsPage = () => {
                           <Layers3 className="h-4 w-4" />
                           Backlog
                         </Button>
+                        <Button
+                          className="h-10 rounded-xl"
+                          variant="outline"
+                          type="button"
+                          onClick={() => setProjectMode("planning")}
+                        >
+                          <Route className="h-4 w-4" />
+                          Planning
+                        </Button>
                       </div>
                     </div>
                   </CardContent>
                 </Card>
 
-                <div className="grid gap-3 md:grid-cols-5">
-                  {[
-                    {
-                      label: "Timeline",
-                      value: getPeriodLabel(
-                        selectedProject.startDate,
-                        selectedProject.targetDate
-                      ),
-                      helper:
-                        selectedProject.startDate && selectedProject.targetDate
-                          ? `${formatShortDate(selectedProject.startDate)} - ${formatShortDate(
-                              selectedProject.targetDate
-                            )}`
+                <section className="rounded-[18px] border border-[#EEF2F7] bg-white px-4 py-3 shadow-[0_2px_12px_rgba(0,0,0,.04)]">
+                  <div className="grid gap-0 divide-y divide-[#EEF2F7] md:grid-cols-4 md:divide-x md:divide-y-0 xl:grid-cols-7">
+                    {[
+                      {
+                        label: "Progress",
+                        value: `${selectedProjectProgress}%`,
+                        helper: `${selectedProjectIssues.length} work items`,
+                        content: <CompletionRing value={selectedProjectProgress} />,
+                      },
+                      {
+                        label: "Deadline",
+                        value: selectedProject.targetDate
+                          ? formatShortDate(selectedProject.targetDate)
                           : "-",
-                      Icon: CalendarClock,
-                      tone: getTimelineTone(selectedProject),
-                      progress: selectedProject.startDate && selectedProject.targetDate ? 100 : 0,
-                    },
-                    {
-                      label: "Progress",
-                      value: `${selectedProjectProgress}%`,
-                      helper: selectedProjectEpics.length
-                        ? `${selectedProjectEpics.length} epics tracked`
-                        : `${selectedProjectIssues.length} total work items`,
-                      Icon: TrendingUp,
-                      tone: getProgressTone(selectedProjectProgress),
-                      progress: selectedProjectProgress,
-                    },
-                    {
-                      label: "Days Remaining",
-                      value: selectedProjectDaysRemainingMeta.label,
-                      helper: selectedProjectDaysRemainingMeta.helper,
-                      Icon: TimerReset,
-                      tone: selectedProjectDaysRemainingMeta.tone,
-                      progress:
-                        selectedProjectDaysRemainingMeta.tone === "rose"
-                          ? 100
-                          : selectedProjectDaysRemainingMeta.tone === "amber"
-                            ? 62
-                            : selectedProjectDaysRemainingMeta.tone === "emerald"
-                              ? 34
-                              : 0,
-                    },
-                    {
-                      label: "Health",
-                      value:
-                        selectedProjectTimelineStatus.label === "No deadline"
-                          ? "-"
-                          : selectedProjectTimelineStatus.label,
-                      helper:
-                        selectedProjectTimelineStatus.label === "No deadline"
-                          ? "-"
-                          : "Based on deadline status",
-                      Icon: HeartPulse,
-                      tone: getHealthTone(
-                        selectedProjectTimelineStatus.label,
-                        selectedProjectProgress
-                      ),
-                      progress: selectedProjectProgress,
-                    },
-                    {
-                      label: "Budget",
-                      value: formatBudget(selectedProject),
-                      helper: "Planned project budget",
-                      Icon: WalletCards,
-                      tone: getBudgetTone(selectedProject),
-                      progress: getBudgetTone(selectedProject) === "violet" ? 100 : 0,
-                    },
-                  ].map((metric) => {
-                    const tone = getMetricTone(metric.tone);
-                    const Icon = metric.Icon;
-
-                    return (
-                      <div
-                        key={metric.label}
-                        className={`group relative overflow-hidden rounded-2xl border bg-gradient-to-br p-4 shadow-[0_18px_44px_-34px_rgba(15,23,42,0.65)] ring-0 transition duration-200 hover:-translate-y-1 hover:scale-[1.02] hover:shadow-[0_24px_56px_-32px_rgba(15,23,42,0.75)] hover:ring-4 ${tone.card} ${tone.ring}`}
-                      >
-                        <div className="pointer-events-none absolute -right-8 -top-8 h-20 w-20 rounded-full bg-white/50" />
-                        <div className="relative flex items-start justify-between gap-3">
-                          <div className="min-w-0">
-                            <p className={`text-xs font-bold uppercase ${tone.label}`}>
-                              {metric.label}
-                            </p>
-                            <p className="mt-2 truncate text-2xl font-semibold text-slate-950">
-                              {metric.value}
-                            </p>
-                          </div>
-                          <span
-                            className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl shadow-lg transition group-hover:rotate-3 group-hover:scale-110 ${tone.icon}`}
-                          >
-                            <Icon className="h-4 w-4" />
-                          </span>
+                        helper: selectedProjectDaysRemainingMeta.label,
+                      },
+                      {
+                        label: "Health",
+                        value:
+                          selectedProjectTimelineStatus.label === "No deadline"
+                            ? "-"
+                            : selectedProjectTimelineStatus.label,
+                        helper: "Delivery signal",
+                      },
+                      {
+                        label: "Issues",
+                        value: selectedProjectIssues.length || selectedProject.issueCount || 0,
+                        helper: `${selectedProjectTasks.length} tasks / ${selectedProjectBugs.length} bugs`,
+                      },
+                      {
+                        label: "Members",
+                        value:
+                          selectedProjectMembers.length || getProjectMemberCount(selectedProject),
+                        helper: "Assigned people",
+                      },
+                      {
+                        label: "Teams",
+                        value: selectedProjectTeams.length,
+                        helper: "Attached teams",
+                      },
+                      {
+                        label: "Budget",
+                        value: formatBudget(selectedProject),
+                        helper: "Planned spend",
+                      },
+                    ].map((metric) => (
+                      <div key={metric.label} className="flex min-h-[76px] items-center justify-between gap-3 px-3 py-2 first:pl-0 last:pr-0">
+                        <div className="min-w-0">
+                          <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                            {metric.label}
+                          </p>
+                          <p className="mt-1 truncate text-lg font-semibold text-slate-950">
+                            {metric.value}
+                          </p>
+                          <p className="mt-0.5 truncate text-xs text-slate-500">
+                            {metric.helper}
+                          </p>
                         </div>
-                        <p className="relative mt-2 min-h-8 text-xs leading-4 text-slate-600">
-                          {metric.helper}
-                        </p>
-                        <div className="relative mt-3 h-1.5 overflow-hidden rounded-full bg-white/70">
-                          <div
-                            className={`h-full rounded-full transition-all ${tone.bar}`}
-                            style={{
-                              width: `${Math.max(8, Math.min(100, metric.progress || 0))}%`,
-                            }}
-                          />
-                        </div>
+                        {metric.content || null}
                       </div>
-                    );
-                  })}
+                    ))}
+                  </div>
+                </section>
+
+                <div className="flex flex-wrap gap-2">
+                  {[
+                    { label: "Story", path: `/stories?projectId=${selectedProject._id}` },
+                    { label: "Task", path: `/tasks?projectId=${selectedProject._id}` },
+                    { label: "Bug", path: `/issues?projectId=${selectedProject._id}` },
+                    { label: "Sprint", path: `/backlog?projectId=${selectedProject._id}` },
+                    { label: "Epic", action: () => setProjectMode("planning") },
+                  ].map((action) => (
+                    <Button
+                      key={action.label}
+                      className="h-8 rounded-lg border-[#EEF2F7] bg-white px-3 text-xs text-slate-700 hover:bg-[#E9F2FF] hover:text-[#0C66E4]"
+                      type="button"
+                      variant="outline"
+                      onClick={() =>
+                        action.path ? navigate(action.path) : action.action?.()
+                      }
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                      {action.label}
+                    </Button>
+                  ))}
                 </div>
 
-                <div className="grid gap-3 md:grid-cols-4">
+                <div className="border-b border-slate-200">
+                  <nav className="-mb-px flex gap-7 overflow-x-auto" aria-label="Project sections">
                   {[
-                    {
-                      id: "tasks",
-                      label: "Tasks",
-                      value: selectedProjectTasks.length,
-                      helper: "To do, in progress, done",
-                      Icon: ClipboardList,
-                    },
-                    {
-                      id: "bugs",
-                      label: "Bugs",
-                      value: selectedProjectBugs.length,
-                      helper: "Reported through closed",
-                      Icon: Bug,
-                    },
-                    {
-                      id: "members",
-                      label: "Members",
-                      value: selectedProjectMembers.length || getProjectMemberCount(selectedProject),
-                      helper: "People on this project",
-                      Icon: Users2,
-                    },
-                    {
-                      id: "teams",
-                      label: "Teams",
-                      value: selectedProjectTeams.length,
-                      helper: "Attached teams",
-                      Icon: Layers3,
-                    },
-                  ].map(({ id, label, value, helper, Icon }) => {
-                    const isActive = projectDetailView === id;
-
-                    return (
-                      <button
-                        key={label}
-                        className={`rounded-2xl border bg-white p-4 text-left shadow-[0_14px_36px_-34px_rgba(15,23,42,0.6)] transition duration-200 hover:-translate-y-1 hover:scale-[1.015] hover:border-blue-300 hover:bg-blue-50/70 hover:shadow-[0_22px_48px_-34px_rgba(37,99,235,0.55)] ${
-                          isActive
-                            ? "border-blue-300 bg-blue-50/60 ring-4 ring-blue-500/10"
-                            : "border-slate-200"
-                        }`}
-                        type="button"
-                        onFocus={() => setProjectDetailView(id)}
-                        onMouseEnter={() => setProjectDetailView(id)}
-                      >
-                        <div className="flex items-start justify-between gap-3">
-                          <div>
-                            <p className="text-xs font-semibold uppercase text-slate-500">
-                              {label}
-                            </p>
-                            <p className="mt-1 text-2xl font-semibold text-slate-950">
-                              {isSelectedProjectIssuesLoading &&
-                              ["Tasks", "Bugs"].includes(label)
-                                ? "..."
-                                : value}
-                            </p>
-                          </div>
-                          <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-blue-50 text-blue-700">
-                            <Icon className="h-4 w-4" />
-                          </span>
-                        </div>
-                        <p className="mt-3 text-sm text-slate-500">{helper}</p>
-                      </button>
-                    );
-                  })}
-                </div>
-
-                <div className="inline-flex rounded-2xl border border-slate-200 bg-white/90 p-1 shadow-[0_12px_34px_-32px_rgba(15,23,42,0.6)]">
-                  {[
-                    { id: "details", label: "Project Overview", Icon: FolderKanban },
-                    { id: "widgets", label: "Project Widgets", Icon: BarChart3 },
-                  ].map(({ id, label, Icon }) => {
+                    { id: "details", label: "Overview", detail: "overview" },
+                    { id: "roadmap", label: "Roadmap" },
+                    { id: "backlog", label: "Backlog", path: `/backlog?projectId=${selectedProject._id}` },
+                    { id: "board", label: "Board", path: `/tasks?projectId=${selectedProject._id}` },
+                    { id: "epics", label: "Epics", action: () => setProjectMode("planning") },
+                    { id: "stories", label: "Stories", path: `/stories?projectId=${selectedProject._id}` },
+                    { id: "tasks", label: "Tasks", detail: "tasks" },
+                    { id: "bugs", label: "Bugs", detail: "bugs" },
+                    { id: "reports", label: "Reports", path: "/reports" },
+                    { id: "settings", label: "Settings", action: () => setIsSelectedProjectManageOpen(true) },
+                  ].map(({ id, label, detail, path, action }) => {
                     const isActive = projectPanelView === id;
 
                     return (
                       <button
                         key={id}
-                        className={`inline-flex h-10 items-center gap-2 rounded-xl px-4 text-sm font-semibold transition ${
+                        className={`relative h-11 whitespace-nowrap px-0 text-sm font-semibold transition ${
                           isActive
-                            ? "bg-slate-950 text-white shadow-sm"
-                            : "text-slate-600 hover:bg-slate-50 hover:text-slate-950"
+                            ? "text-[#0C66E4] after:absolute after:inset-x-0 after:-bottom-px after:h-0.5 after:rounded-full after:bg-[#0C66E4]"
+                            : "text-slate-500 hover:text-slate-950"
                         }`}
                         type="button"
-                        onClick={() => setProjectPanelView(id)}
+                        onClick={() => {
+                          if (path) {
+                            navigate(path);
+                            return;
+                          }
+
+                          if (action) {
+                            action();
+                            return;
+                          }
+
+                          setProjectPanelView(id);
+                          if (detail) {
+                            setProjectDetailView(detail);
+                          }
+                        }}
                       >
-                        <Icon className="h-4 w-4" />
                         {label}
                       </button>
                     );
                   })}
+                  </nav>
                 </div>
 
-                {projectPanelView === "details" ? (
-                  <>
-                <section className="rounded-2xl border border-slate-200 bg-white p-4">
-                  <div className="flex flex-col gap-3 border-b border-slate-200 pb-3 sm:flex-row sm:items-start sm:justify-between">
+                {projectPanelView === "roadmap" ? (
+                <section className="rounded-[18px] border border-[#EEF2F7] bg-white p-4 shadow-[0_2px_12px_rgba(0,0,0,.04)]">
+                  <div className="flex flex-col gap-3 border-b border-[#EEF2F7] pb-3 sm:flex-row sm:items-start sm:justify-between">
                     <div>
                       <h3 className="text-base font-semibold text-slate-950">
                         Roadmap
@@ -1670,7 +1732,7 @@ const ProjectsPage = () => {
                         return (
                           <div
                             key={epic._id || epic.name}
-                            className="grid gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 sm:grid-cols-[minmax(0,1fr)_auto]"
+                            className="grid gap-3 rounded-xl border border-[#EEF2F7] bg-slate-50 px-3 py-3 sm:grid-cols-[minmax(0,1fr)_auto]"
                           >
                             <div className="min-w-0">
                               <p className="truncate text-sm font-semibold text-slate-950">
@@ -1691,12 +1753,32 @@ const ProjectsPage = () => {
                       })
                     ) : (
                       <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-5 text-sm text-slate-500">
-                        No epic roadmap yet.
+                        <div className="mx-auto flex max-w-sm flex-col items-center text-center">
+                          <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#F5F3FF] text-indigo-600">
+                            <Layers3 className="h-5 w-5" />
+                          </span>
+                          <p className="mt-3 text-sm font-semibold text-slate-950">
+                            No roadmap yet
+                          </p>
+                          <p className="mt-1 text-xs leading-5 text-slate-500">
+                            Create your first epic to start tracking delivery phases.
+                          </p>
+                          <Button
+                            className="mt-3 h-8 rounded-lg px-3 text-xs"
+                            type="button"
+                            onClick={() => setProjectMode("planning")}
+                          >
+                            <Plus className="h-3.5 w-3.5" />
+                            Create Epic
+                          </Button>
+                        </div>
                       </div>
                     )}
                   </div>
                 </section>
+                ) : null}
 
+                {["details", "tasks", "bugs"].includes(projectPanelView) ? (
                 <section className="space-y-3">
                   <div>
                     <h3 className="text-base font-semibold text-slate-950">
@@ -1869,8 +1951,54 @@ const ProjectsPage = () => {
                     </div>
                   ) : null}
                 </section>
-                  </>
-                ) : (
+                ) : null}
+
+                {projectPanelView === "activity" ? (
+                  <section className="rounded-2xl border border-slate-200 bg-white p-4">
+                    <div className="flex items-start justify-between gap-3 border-b border-slate-200 pb-3">
+                      <div>
+                        <h3 className="text-base font-semibold text-slate-950">
+                          Activity
+                        </h3>
+                        <p className="mt-1 text-sm text-slate-500">
+                          Recent project movement and status signals.
+                        </p>
+                      </div>
+                      <span className="flex h-9 w-9 items-center justify-center rounded-2xl bg-blue-50 text-blue-700">
+                        <Activity className="h-4 w-4" />
+                      </span>
+                    </div>
+                    <div className="mt-3 space-y-2">
+                      {selectedProjectIssues.length ? (
+                        selectedProjectIssues.slice(0, 6).map((issue) => (
+                          <div
+                            key={issue._id}
+                            className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3"
+                          >
+                            <div className="min-w-0">
+                              <p className="truncate text-sm font-semibold text-slate-950">
+                                {issue.title || issue.summary || "Untitled work item"}
+                              </p>
+                              <p className="mt-1 text-xs text-slate-500">
+                                {normalizeIssueType(issue?.type, ISSUE_TYPES.TASK)} /{" "}
+                                {issue.status || "Open"}
+                              </p>
+                            </div>
+                            <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-500">
+                              {issue.priority || "Normal"}
+                            </span>
+                          </div>
+                        ))
+                      ) : (
+                        <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-5 text-sm text-slate-500">
+                          No activity yet.
+                        </div>
+                      )}
+                    </div>
+                  </section>
+                ) : null}
+
+                {projectPanelView === "widgets" ? (
                   <section className="rounded-2xl border border-slate-200 bg-white/92 p-4 shadow-[0_18px_46px_-36px_rgba(15,23,42,0.55)]">
                     <div className="flex items-start justify-between gap-3">
                       <div>
@@ -1927,7 +2055,7 @@ const ProjectsPage = () => {
                       })}
                     </div>
                   </section>
-                )}
+                ) : null}
               </>
             ) : !isProjectsLoading ? (
               <EmptyState
