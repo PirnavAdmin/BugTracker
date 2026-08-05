@@ -324,7 +324,7 @@ const ProjectManageDialog = ({
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent
           className={projectDialogContentClass(
-            "grid h-[100svh] w-[calc(100vw-2rem)] max-w-[1500px] grid-rows-[auto_minmax(0,1fr)] rounded-t-none rounded-b-[24px] !top-0 max-sm:h-[100svh] max-sm:w-[calc(100vw-1rem)]"
+            "grid max-h-[calc(100svh-3rem)] w-[calc(100vw-2rem)] max-w-[1500px] grid-rows-[auto_minmax(0,1fr)] rounded-[28px] !top-6 max-sm:max-h-[calc(100svh-1rem)] max-sm:w-[calc(100vw-1rem)] max-sm:!top-2"
           )}
         >
           <DialogHeader className={projectDialogHeaderClass("pr-16")}>

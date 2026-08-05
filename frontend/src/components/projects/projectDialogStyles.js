@@ -1,7 +1,7 @@
 import { cn } from "@/lib/utils";
 
 export const PROJECT_DIALOG_CLOSE_CLASS =
-  "[&>button]:right-4 [&>button]:top-4 [&>button]:z-[80] [&>button]:h-9 [&>button]:w-9 [&>button]:rounded-xl [&>button]:border-slate-200/90 [&>button]:bg-white/92 [&>button]:p-0 [&>button]:text-slate-400 [&>button]:shadow-sm [&>button]:backdrop-blur [&>button]:transition [&>button:hover]:bg-slate-50 [&>button:hover]:text-slate-800";
+  "[&>button]:right-4 [&>button]:top-4 [&>button]:z-[80] [&>button]:flex [&>button]:h-10 [&>button]:w-10 [&>button]:items-center [&>button]:justify-center [&>button]:rounded-2xl [&>button]:border-slate-200 [&>button]:bg-white [&>button]:p-0 [&>button]:text-slate-400 [&>button]:shadow-[0_10px_26px_-18px_rgba(15,23,42,0.65)] [&>button]:ring-1 [&>button]:ring-slate-900/5 [&>button]:backdrop-blur [&>button]:transition [&>button:hover]:border-slate-300 [&>button:hover]:bg-slate-50 [&>button:hover]:text-slate-800";
 
 export const projectDialogContentClass = (className = "") =>
   cn(

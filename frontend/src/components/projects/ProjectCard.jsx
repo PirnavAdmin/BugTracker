@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
-import Select from "react-select";
+import Select, { components as selectComponents } from "react-select";
 import {
   AlertTriangle,
   Bug,
@@ -101,6 +101,27 @@ const formatTeamOptionLabel = (option, { context }) => {
   );
 };
 
+const AttachTeamMenuList = (props) => {
+  const { innerProps } = props;
+
+  return (
+    <selectComponents.MenuList
+      {...props}
+      innerProps={{
+        ...innerProps,
+        onWheel: (event) => {
+          event.stopPropagation();
+          innerProps?.onWheel?.(event);
+        },
+        onWheelCapture: (event) => {
+          event.stopPropagation();
+          innerProps?.onWheelCapture?.(event);
+        },
+      }}
+    />
+  );
+};
+
 const attachTeamSelectStyles = {
   ...memberSelectStyles,
   control: (base, state) => ({
@@ -126,6 +147,7 @@ const attachTeamSelectStyles = {
   menuPortal: (base) => ({
     ...base,
     zIndex: 120,
+    pointerEvents: "auto",
   }),
   menu: (base) => ({
     ...memberSelectStyles.menu(base),
@@ -153,6 +175,12 @@ const attachTeamSelectStyles = {
 
 const getProjectStatus = (project) =>
   project?.status || (project?.isCompleted ? "Completed" : "Active");
+
+const getProjectThemeColor = (value) => {
+  const color = String(value || "").trim();
+
+  return /^#[0-9a-f]{6}$/i.test(color) ? color : "#2563EB";
+};
 
 const StatusBadge = ({ status = "Active" }) => (
   <span
@@ -240,6 +268,8 @@ const ProjectCard = ({
   const managerName = getProjectAssignmentName(project?.projectManager || project?.manager);
   const teamLeadName = getProjectAssignmentName(project?.teamLead);
   const projectStatus = getProjectStatus(project);
+  const projectThemeColor = getProjectThemeColor(project?.themeColor);
+  const projectThemeBorder = `${projectThemeColor}66`;
   const projectTitle = String(project?.name || "").trim() || "Untitled project";
   const projectShortCode = String(project?.shortCode || "").trim().toUpperCase();
 
@@ -559,8 +589,13 @@ const ProjectCard = ({
   return (
     <>
       <Card
-        className="page-shell-enter interactive-card flex h-[286px] min-w-0 flex-col justify-between overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-[0_16px_38px_-32px_rgba(15,23,42,0.42)] transition duration-300 hover:-translate-y-0.5 hover:shadow-[0_22px_48px_-36px_rgba(15,23,42,0.5)]"
-        style={{ animationDelay: `${index * 45}ms` }}
+        className="page-shell-enter interactive-card relative flex h-[286px] min-w-0 flex-col justify-between overflow-hidden rounded-2xl border bg-white shadow-[0_16px_38px_-32px_rgba(15,23,42,0.42)] transition duration-300 before:absolute before:inset-x-0 before:top-0 before:h-1 before:bg-[var(--project-theme-color)] hover:z-10 hover:-translate-y-1 hover:scale-[1.012] hover:border-[color:var(--project-theme-color)] hover:shadow-[0_24px_58px_-34px_var(--project-theme-color)]"
+        style={{
+          "--project-theme-border": projectThemeBorder,
+          "--project-theme-color": projectThemeColor,
+          animationDelay: `${index * 45}ms`,
+          borderColor: "var(--project-theme-border)",
+        }}
       >
         <CardContent className="flex h-full flex-col justify-between gap-3 p-4">
           <div className="min-w-0 space-y-2.5">
@@ -1019,6 +1054,7 @@ const ProjectCard = ({
                   <span className="text-sm font-medium text-gray-700">Select team</span>
                   <Select
                     classNamePrefix="attach-team-select"
+                    components={{ MenuList: AttachTeamMenuList }}
                     options={availableTeamOptions}
                     value={selectedTeamOption}
                     styles={attachTeamSelectStyles}
@@ -1028,7 +1064,10 @@ const ProjectCard = ({
                     menuPortalTarget={
                       typeof document !== "undefined" ? document.body : null
                     }
+                    captureMenuScroll
+                    closeMenuOnScroll={false}
                     menuPosition="fixed"
+                    menuShouldBlockScroll={false}
                     menuShouldScrollIntoView={false}
                     onChange={(option) => setSelectedTeamId(option?.value || "")}
                   />
