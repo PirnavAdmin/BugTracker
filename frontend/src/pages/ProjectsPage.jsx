@@ -431,6 +431,18 @@ const ProjectsPage = () => {
   const [projectDetailView, setProjectDetailView] = useState("overview");
   const [projectPanelView, setProjectPanelView] = useState("details");
   const [isQuickAddOpen, setIsQuickAddOpen] = useState(false);
+  const [projectSettings, setProjectSettings] = useState({
+    name: "",
+    description: "",
+    status: "Active",
+    priority: "Medium",
+    themeColor: "#2563EB",
+    projectManager: "",
+    teamLead: "",
+    qaLead: "",
+  });
+  const [settingsTeamId, setSettingsTeamId] = useState("");
+  const [settingsError, setSettingsError] = useState("");
   const [selectedProjectId, setSelectedProjectId] = useState("");
   const [isSelectedProjectManageOpen, setIsSelectedProjectManageOpen] = useState(false);
   const [toast, setToast] = useState(null);
@@ -788,6 +800,16 @@ const ProjectsPage = () => {
     () => (selectedProject ? getProjectTeams(selectedProject) : []),
     [selectedProject]
   );
+
+  const settingsAvailableTeams = useMemo(() => {
+    const attachedTeamIds = new Set(
+      selectedProjectTeams.map((team) => String(team?._id || team))
+    );
+
+    return [...teams]
+      .filter((team) => !attachedTeamIds.has(String(team._id)))
+      .sort((left, right) => (left.name || "").localeCompare(right.name || ""));
+  }, [selectedProjectTeams, teams]);
 
   const selectedProjectMembers = useMemo(() => {
     if (!selectedProject) {
@@ -1155,7 +1177,26 @@ const ProjectsPage = () => {
   useEffect(() => {
     setProjectDetailView("overview");
     setProjectPanelView("details");
+    setSettingsTeamId("");
+    setSettingsError("");
   }, [selectedProject?._id]);
+
+  useEffect(() => {
+    if (!selectedProject) {
+      return;
+    }
+
+    setProjectSettings({
+      name: selectedProject.name || "",
+      description: selectedProject.description || "",
+      status: getProjectStatus(selectedProject),
+      priority: selectedProject.priority || "Medium",
+      themeColor: getProjectThemeColor(selectedProject),
+      projectManager: resolveUserId(selectedProject.projectManager || selectedProject.manager),
+      teamLead: resolveUserId(selectedProject.teamLead),
+      qaLead: resolveUserId(selectedProject.qaLead),
+    });
+  }, [selectedProject]);
 
   const handleCreateProject = async (payload) => {
     await createProjectMutation.mutateAsync(payload);
@@ -1166,6 +1207,61 @@ const ProjectsPage = () => {
     await createTeamMutation.mutateAsync(payload);
     setIsCreateTeamDialogOpen(false);
     showToast("success", "Team created successfully.");
+  };
+
+  const handleSettingsChange = (field, value) => {
+    setProjectSettings((current) => ({
+      ...current,
+      [field]: value,
+    }));
+  };
+
+  const handleSaveProjectSettings = async () => {
+    if (!selectedProject) {
+      return;
+    }
+
+    if (!projectSettings.name.trim()) {
+      setSettingsError("Project name is required.");
+      return;
+    }
+
+    try {
+      setSettingsError("");
+      await updateProjectMutation.mutateAsync({
+        projectId: selectedProject._id,
+        payload: {
+          name: projectSettings.name.trim(),
+          description: projectSettings.description.trim(),
+          status: projectSettings.status,
+          priority: projectSettings.priority,
+          themeColor: projectSettings.themeColor,
+          projectManager: projectSettings.projectManager || null,
+          teamLead: projectSettings.teamLead || null,
+          qaLead: projectSettings.qaLead || null,
+        },
+      });
+    } catch (error) {
+      setSettingsError(error.response?.data?.message || "Unable to update project.");
+    }
+  };
+
+  const handleAttachSettingsTeam = async () => {
+    if (!selectedProject || !settingsTeamId) {
+      setSettingsError("Select a team to attach.");
+      return;
+    }
+
+    try {
+      setSettingsError("");
+      await attachProjectTeamMutation.mutateAsync({
+        projectId: selectedProject._id,
+        teamId: settingsTeamId,
+      });
+      setSettingsTeamId("");
+    } catch (error) {
+      setSettingsError(error.response?.data?.message || "Unable to attach team.");
+    }
   };
 
   if (projectsError) {
@@ -1507,7 +1603,7 @@ const ProjectsPage = () => {
                           variant="outline"
                           type="button"
                           title="Project settings"
-                          onClick={() => setIsSelectedProjectManageOpen(true)}
+                          onClick={() => setProjectPanelView("settings")}
                           disabled={!canManageProjects}
                         >
                           <Settings2 className="h-4 w-4" />
@@ -1653,14 +1749,11 @@ const ProjectsPage = () => {
                   {[
                     { id: "details", label: "Overview", detail: "overview" },
                     { id: "roadmap", label: "Roadmap" },
-                    { id: "backlog", label: "Backlog", path: `/backlog?projectId=${selectedProject._id}` },
-                    { id: "board", label: "Board", path: `/tasks?projectId=${selectedProject._id}` },
                     { id: "epics", label: "Epics", action: () => setProjectMode("planning") },
-                    { id: "stories", label: "Stories", path: `/stories?projectId=${selectedProject._id}` },
                     { id: "tasks", label: "Tasks", detail: "tasks" },
                     { id: "bugs", label: "Bugs", detail: "bugs" },
                     { id: "reports", label: "Reports", path: "/reports" },
-                    { id: "settings", label: "Settings", action: () => setIsSelectedProjectManageOpen(true) },
+                    { id: "settings", label: "Settings" },
                   ].map(({ id, label, detail, path, action }) => {
                     const isActive = projectPanelView === id;
 
@@ -1990,6 +2083,223 @@ const ProjectsPage = () => {
                           No activity yet.
                         </div>
                       )}
+                    </div>
+                  </section>
+                ) : null}
+
+                {projectPanelView === "settings" ? (
+                  <section className="rounded-[18px] border border-[#EEF2F7] bg-white p-4 shadow-[0_2px_12px_rgba(0,0,0,.04)]">
+                    <div className="flex flex-col gap-3 border-b border-[#EEF2F7] pb-4 sm:flex-row sm:items-start sm:justify-between">
+                      <div>
+                        <h3 className="text-base font-semibold text-slate-950">
+                          Project Settings
+                        </h3>
+                        <p className="mt-1 text-sm text-slate-500">
+                          Edit project details, ownership, theme, and attached teams.
+                        </p>
+                      </div>
+                      <Button
+                        className="h-9 rounded-lg"
+                        type="button"
+                        disabled={!canManageProjects || updateProjectMutation.isPending}
+                        onClick={handleSaveProjectSettings}
+                      >
+                        <CheckCircle2 className="h-4 w-4" />
+                        Save Changes
+                      </Button>
+                    </div>
+
+                    {settingsError ? (
+                      <div className="mt-4 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
+                        {settingsError}
+                      </div>
+                    ) : null}
+
+                    <div className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
+                      <div className="space-y-4">
+                        <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_180px_180px_160px]">
+                          <label className="space-y-1.5">
+                            <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                              Name
+                            </span>
+                            <input
+                              className="h-10 w-full rounded-xl border border-[#DDE5F0] bg-white px-3 text-sm text-slate-950 outline-none focus:border-blue-400 focus:ring-4 focus:ring-blue-500/10"
+                              value={projectSettings.name}
+                              disabled={!canManageProjects}
+                              onChange={(event) =>
+                                handleSettingsChange("name", event.target.value)
+                              }
+                            />
+                          </label>
+                          <label className="space-y-1.5">
+                            <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                              Status
+                            </span>
+                            <select
+                              className="h-10 w-full rounded-xl border border-[#DDE5F0] bg-white px-3 text-sm text-slate-950 outline-none focus:border-blue-400 focus:ring-4 focus:ring-blue-500/10"
+                              value={projectSettings.status}
+                              disabled={!canManageProjects}
+                              onChange={(event) =>
+                                handleSettingsChange("status", event.target.value)
+                              }
+                            >
+                              {["Active", "Planning", "On Hold", "Completed", "Delayed", "Archived"].map((status) => (
+                                <option key={status} value={status}>
+                                  {status}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
+                          <label className="space-y-1.5">
+                            <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                              Priority
+                            </span>
+                            <select
+                              className="h-10 w-full rounded-xl border border-[#DDE5F0] bg-white px-3 text-sm text-slate-950 outline-none focus:border-blue-400 focus:ring-4 focus:ring-blue-500/10"
+                              value={projectSettings.priority}
+                              disabled={!canManageProjects}
+                              onChange={(event) =>
+                                handleSettingsChange("priority", event.target.value)
+                              }
+                            >
+                              {["Low", "Medium", "High", "Critical"].map((priority) => (
+                                <option key={priority} value={priority}>
+                                  {priority}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
+                          <label className="space-y-1.5">
+                            <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                              Theme
+                            </span>
+                            <input
+                              className="h-10 w-full rounded-xl border border-[#DDE5F0] bg-white px-3"
+                              type="color"
+                              value={projectSettings.themeColor}
+                              disabled={!canManageProjects}
+                              onChange={(event) =>
+                                handleSettingsChange("themeColor", event.target.value)
+                              }
+                            />
+                          </label>
+                        </div>
+
+                        <label className="block space-y-1.5">
+                          <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                            Description
+                          </span>
+                          <textarea
+                            className="min-h-[112px] w-full resize-y rounded-xl border border-[#DDE5F0] bg-white px-3 py-2 text-sm text-slate-950 outline-none focus:border-blue-400 focus:ring-4 focus:ring-blue-500/10"
+                            value={projectSettings.description}
+                            disabled={!canManageProjects}
+                            onChange={(event) =>
+                              handleSettingsChange("description", event.target.value)
+                            }
+                          />
+                        </label>
+
+                        <div className="grid gap-3 md:grid-cols-3">
+                          {[
+                            ["projectManager", "Project Manager"],
+                            ["teamLead", "Team Lead"],
+                            ["qaLead", "QA Lead"],
+                          ].map(([field, label]) => (
+                            <label key={field} className="space-y-1.5">
+                              <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                                {label}
+                              </span>
+                              <select
+                                className="h-10 w-full rounded-xl border border-[#DDE5F0] bg-white px-3 text-sm text-slate-950 outline-none focus:border-blue-400 focus:ring-4 focus:ring-blue-500/10"
+                                value={projectSettings[field]}
+                                disabled={!canManageProjects || isUsersLoading}
+                                onChange={(event) =>
+                                  handleSettingsChange(field, event.target.value)
+                                }
+                              >
+                                <option value="">Unassigned</option>
+                                {users.map((workspaceUser) => (
+                                  <option key={workspaceUser._id} value={workspaceUser._id}>
+                                    {workspaceUser.name || workspaceUser.email}
+                                  </option>
+                                ))}
+                              </select>
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+
+                      <aside className="rounded-2xl border border-[#EEF2F7] bg-slate-50/70 p-3">
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <h4 className="text-sm font-semibold text-slate-950">
+                              Teams
+                            </h4>
+                            <p className="mt-1 text-xs text-slate-500">
+                              Attach or remove teams from this project.
+                            </p>
+                          </div>
+                          <span className="rounded-full border border-[#B6D4FE] bg-[#E9F2FF] px-2.5 py-1 text-xs font-semibold text-[#0C66E4]">
+                            {selectedProjectTeams.length}
+                          </span>
+                        </div>
+
+                        <div className="mt-3 flex gap-2">
+                          <select
+                            className="h-10 min-w-0 flex-1 rounded-xl border border-[#DDE5F0] bg-white px-3 text-sm text-slate-950 outline-none focus:border-blue-400 focus:ring-4 focus:ring-blue-500/10"
+                            value={settingsTeamId}
+                            disabled={!canManageProjects || isTeamsLoading}
+                            onChange={(event) => setSettingsTeamId(event.target.value)}
+                          >
+                            <option value="">Select team</option>
+                            {settingsAvailableTeams.map((team) => (
+                              <option key={team._id} value={team._id}>
+                                {team.name}
+                              </option>
+                            ))}
+                          </select>
+                          <Button
+                            className="h-10 rounded-xl"
+                            type="button"
+                            disabled={!canManageProjects || !settingsTeamId || attachProjectTeamMutation.isPending}
+                            onClick={handleAttachSettingsTeam}
+                          >
+                            Attach
+                          </Button>
+                        </div>
+
+                        <div className="mt-3 space-y-2">
+                          {selectedProjectTeams.length ? (
+                            selectedProjectTeams.map((team) => (
+                              <div
+                                key={team._id || team.name}
+                                className="flex items-center justify-between gap-3 rounded-xl border border-[#EEF2F7] bg-white px-3 py-2"
+                              >
+                                <span className="min-w-0 truncate text-sm font-semibold text-slate-800">
+                                  {team.name || "Untitled team"}
+                                </span>
+                                <button
+                                  className="text-xs font-semibold text-rose-600 hover:text-rose-700 disabled:text-slate-400"
+                                  type="button"
+                                  disabled={!canManageProjects || detachProjectTeamMutation.isPending}
+                                  onClick={() =>
+                                    detachProjectTeamMutation.mutateAsync({
+                                      projectId: selectedProject._id,
+                                      teamId: team._id,
+                                    })
+                                  }
+                                >
+                                  Remove
+                                </button>
+                              </div>
+                            ))
+                          ) : (
+                            <div className="rounded-xl border border-dashed border-[#DDE5F0] bg-white px-3 py-4 text-sm text-slate-500">
+                              No teams attached.
+                            </div>
+                          )}
+                        </div>
+                      </aside>
                     </div>
                   </section>
                 ) : null}
