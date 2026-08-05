@@ -197,7 +197,7 @@ const getMetricTone = (tone = "blue") => {
     slate: {
       card: "border-slate-200 from-white via-slate-50 to-slate-100",
       label: "text-slate-600",
-      icon: "bg-slate-700 text-white shadow-slate-500/30",
+      icon: "bg-slate-100 text-slate-600 shadow-slate-300/30",
       bar: "bg-slate-500",
       ring: "hover:ring-slate-300/60",
     },
@@ -220,13 +220,13 @@ const getTimelineTone = (project = {}) => {
 
 const getDaysRemainingMeta = (targetDate) => {
   if (!targetDate) {
-    return { label: "Not set", tone: "slate", helper: "No deadline selected" };
+    return { label: "-", tone: "slate", helper: "-" };
   }
 
   const end = new Date(targetDate);
 
   if (Number.isNaN(end.getTime())) {
-    return { label: "Not set", tone: "slate", helper: "No deadline selected" };
+    return { label: "-", tone: "slate", helper: "-" };
   }
 
   const today = new Date();
@@ -269,14 +269,14 @@ const getHealthTone = (statusLabel = "", progress = 0) => {
 
 const getPeriodLabel = (startDate, targetDate) => {
   if (!startDate || !targetDate) {
-    return "Period not set";
+    return "-";
   }
 
   const start = new Date(startDate);
   const end = new Date(targetDate);
   const days = Math.ceil((end.getTime() - start.getTime()) / 86400000) + 1;
 
-  return Number.isFinite(days) && days > 0 ? `${days} days` : "Period not set";
+  return Number.isFinite(days) && days > 0 ? `${days} days` : "-";
 };
 
 const getDaysRemainingLabel = (targetDate) => {
@@ -307,7 +307,7 @@ const formatBudget = (project = {}) => {
   const budget = project.budget ?? project.projectBudget ?? project.estimatedBudget;
 
   if (budget === null || typeof budget === "undefined" || budget === "") {
-    return "Not set";
+    return "-";
   }
 
   const numericBudget = Number(budget);
@@ -1445,9 +1445,12 @@ const ProjectsPage = () => {
                         selectedProject.startDate,
                         selectedProject.targetDate
                       ),
-                      helper: `${formatShortDate(selectedProject.startDate)} - ${formatShortDate(
-                        selectedProject.targetDate
-                      )}`,
+                      helper:
+                        selectedProject.startDate && selectedProject.targetDate
+                          ? `${formatShortDate(selectedProject.startDate)} - ${formatShortDate(
+                              selectedProject.targetDate
+                            )}`
+                          : "-",
                       Icon: CalendarClock,
                       tone: getTimelineTone(selectedProject),
                       progress: selectedProject.startDate && selectedProject.targetDate ? 100 : 0,
@@ -1479,8 +1482,14 @@ const ProjectsPage = () => {
                     },
                     {
                       label: "Health",
-                      value: selectedProjectTimelineStatus.label,
-                      helper: "Based on deadline status",
+                      value:
+                        selectedProjectTimelineStatus.label === "No deadline"
+                          ? "-"
+                          : selectedProjectTimelineStatus.label,
+                      helper:
+                        selectedProjectTimelineStatus.label === "No deadline"
+                          ? "-"
+                          : "Based on deadline status",
                       Icon: HeartPulse,
                       tone: getHealthTone(
                         selectedProjectTimelineStatus.label,
