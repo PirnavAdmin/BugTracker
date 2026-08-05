@@ -15,7 +15,6 @@ import {
   Route,
   Search,
   ShieldCheck,
-  SlidersHorizontal,
   Star,
   Target,
   UserRoundPlus,
@@ -638,15 +637,6 @@ const ProjectsPage = () => {
       <div className="grid w-full gap-4 lg:grid-cols-[220px_minmax(0,1fr)]">
         <aside className="min-w-0 border-r border-slate-200/80 bg-white/72 pr-3">
           <div className="sticky top-0 space-y-4 py-3">
-            <div className="px-3 py-2">
-              <p className="text-[11px] font-semibold uppercase text-slate-400">
-                Project Center
-              </p>
-              <p className="mt-1 text-sm font-semibold text-slate-950">
-                {projects.length} projects
-              </p>
-            </div>
-
             <nav className="space-y-4" aria-label="Project page sidebar">
               <div className="space-y-1">
                 <p className="px-2 text-[11px] font-semibold uppercase text-slate-400">
@@ -662,6 +652,15 @@ const ProjectsPage = () => {
                       setProjectMode("overview");
                       setProjectSearch("");
                       setProjectStatusFilter("all");
+                    },
+                  },
+                  {
+                    label: "Project Workbench",
+                    Icon: LayoutGrid,
+                    active: activeTab === "projects" && projectMode === "workbench",
+                    action: () => {
+                      updateActiveTab("projects");
+                      setProjectMode("workbench");
                     },
                   },
                   {
@@ -1193,6 +1192,80 @@ const ProjectsPage = () => {
         </section>
       ) : null}
 
+      {activeTab === "projects" && projectMode === "workbench" ? (
+        <section className="min-w-0 space-y-4" aria-label="Project workbench">
+          <div className="flex flex-col gap-3 border-b border-slate-200 pb-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h1 className="text-2xl font-semibold tracking-tight text-slate-950">
+                Project Workbench
+              </h1>
+              <p className="mt-1 text-sm text-slate-500">
+                Manage projects from the full card grid.
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="grid grid-cols-2 gap-1 rounded-xl border border-slate-200 bg-slate-50 p-1">
+                {[
+                  { id: "grid", label: "Cards", Icon: LayoutGrid },
+                  { id: "compact", label: "Compact", Icon: List },
+                ].map(({ id, label, Icon }) => (
+                  <button
+                    key={id}
+                    className={`inline-flex h-8 items-center justify-center gap-2 rounded-lg px-3 text-sm font-semibold transition ${
+                      projectView === id
+                        ? "bg-white text-blue-700 shadow-sm"
+                        : "text-slate-500 hover:text-slate-950"
+                    }`}
+                    type="button"
+                    onClick={() => setProjectView(id)}
+                  >
+                    <Icon className="h-4 w-4" />
+                    {label}
+                  </button>
+                ))}
+              </div>
+              <Button
+                className="h-9 rounded-xl"
+                type="button"
+                onClick={() => setIsCreateDialogOpen(true)}
+              >
+                <Plus className="h-4 w-4" />
+                New
+              </Button>
+            </div>
+          </div>
+
+          {isProjectsLoading ? (
+            <div className="grid gap-3 md:grid-cols-2 2xl:grid-cols-3">
+              {Array.from({ length: PROJECT_GRID_SKELETON_COUNT }).map((_, index) => (
+                <Skeleton
+                  key={`project-skeleton-${index}`}
+                  className="h-[286px] w-full rounded-2xl"
+                />
+              ))}
+            </div>
+          ) : filteredProjects.length ? (
+            <div
+              className={
+                projectView === "grid"
+                  ? "grid min-w-0 grid-cols-1 gap-3 lg:grid-cols-2 2xl:grid-cols-3"
+                  : "grid min-w-0 grid-cols-1 gap-3 2xl:grid-cols-2"
+              }
+            >
+              {filteredProjects.map((project, index) =>
+                renderProjectCard(project, index)
+              )}
+            </div>
+          ) : (
+            <EmptyState
+              title="No projects match these controls"
+              description="Use the sidebar filters or search to widen the project list."
+              icon={<FolderKanban className="h-5 w-5" />}
+            />
+          )}
+        </section>
+      ) : null}
+
       {activeTab === "projects" && projectMode === "planning" ? (
         <section
           aria-label="Project planning"
@@ -1676,20 +1749,26 @@ const ProjectsPage = () => {
       <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
         <DialogContent
           className={projectDialogContentClass(
-            "grid max-h-[calc(100svh-6.5rem)] w-[92vw] max-w-[1100px] grid-rows-[auto_minmax(0,1fr)] rounded-[24px] sm:max-h-[calc(100vh-120px)]"
+            "grid max-h-[calc(100svh-2rem)] w-[96vw] max-w-[1280px] grid-rows-[auto_minmax(0,1fr)] rounded-[30px] !top-4 sm:!top-4 sm:max-h-[calc(100vh-2rem)]"
           )}
         >
-          <DialogHeader className={projectDialogHeaderClass()}>
-            <DialogTitle className="pr-10 text-xl font-semibold tracking-tight text-slate-950">
-              Create Project
-            </DialogTitle>
-            <DialogDescription className="max-w-[42rem] pr-10 text-sm leading-6 text-slate-600">
-              Capture ownership, scope, and the first workstreams for the new
-              project.
-            </DialogDescription>
+          <DialogHeader
+            className={projectDialogHeaderClass(
+              "bg-[linear-gradient(135deg,rgba(239,246,255,0.98),rgba(255,255,255,0.98))] px-6 py-5 sm:px-7"
+            )}
+          >
+            <div className="max-w-3xl">
+              <DialogTitle className="pr-10 text-2xl font-semibold tracking-tight text-slate-950">
+                Create Project
+              </DialogTitle>
+              <DialogDescription className="mt-2 max-w-[46rem] pr-10 text-sm leading-6 text-slate-600">
+                Set ownership, planning defaults, theme, and launch context in one
+                clean setup flow.
+              </DialogDescription>
+            </div>
           </DialogHeader>
 
-          <div className={projectDialogBodyClass("py-3.5 sm:py-4")}>
+          <div className={projectDialogBodyClass("px-6 py-5 sm:px-7")}>
             <ProjectComposer
               onSubmit={handleCreateProject}
               isPending={createProjectMutation.isPending}
@@ -1704,16 +1783,24 @@ const ProjectsPage = () => {
       <Dialog open={isCreateTeamDialogOpen} onOpenChange={setIsCreateTeamDialogOpen}>
         <DialogContent
           className={projectDialogContentClass(
-            "!top-[1rem] max-h-[calc(100svh-2rem)] grid w-[96vw] max-w-[1280px] grid-rows-[auto_minmax(0,1fr)] rounded-[24px] sm:!top-[1.5rem] sm:max-h-[calc(100vh-3rem)]"
+            "grid max-h-[calc(100svh-2rem)] w-[96vw] max-w-[1280px] grid-rows-[auto_minmax(0,1fr)] rounded-[30px] !top-4 sm:!top-4 sm:max-h-[calc(100vh-2rem)]"
           )}
         >
-          <DialogHeader className={projectDialogHeaderClass()}>
-            <DialogTitle className="pr-10 text-xl font-semibold tracking-tight text-slate-950">
+          <DialogHeader
+            className={projectDialogHeaderClass(
+              "bg-[linear-gradient(135deg,rgba(236,253,245,0.98),rgba(255,255,255,0.98))] px-6 py-5 sm:px-7"
+            )}
+          >
+            <DialogTitle className="pr-10 text-2xl font-semibold tracking-tight text-slate-950">
               Create Team
             </DialogTitle>
+            <DialogDescription className="mt-2 max-w-[46rem] pr-10 text-sm leading-6 text-slate-600">
+              Build a workspace squad, select members, and prepare it for project
+              ownership.
+            </DialogDescription>
           </DialogHeader>
 
-          <div className={projectDialogBodyClass("overflow-visible py-3.5 sm:py-4")}>
+          <div className={projectDialogBodyClass("overflow-visible px-6 py-5 sm:px-7")}>
             {workspaceUsersErrorMessage && !isWorkspaceUsersLoading ? (
               <div className="mb-4 rounded-[20px] border border-rose-200 bg-rose-50/80 px-4 py-3 text-sm text-rose-700">
                 {workspaceUsersErrorMessage}
@@ -1728,6 +1815,7 @@ const ProjectsPage = () => {
                 workspaceId={workspaceScope}
                 isPending={createTeamMutation.isPending}
                 onSubmit={handleCreateTeam}
+                onCancel={() => setIsCreateTeamDialogOpen(false)}
                 variant="modal"
               />
             )}

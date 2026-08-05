@@ -23,6 +23,7 @@ const TeamComposer = ({
   users = [],
   workspaceId,
   onSubmit,
+  onCancel,
   isPending = false,
   variant = "card",
 }) => {
@@ -47,9 +48,9 @@ const TeamComposer = ({
     [formData.members, memberOptions]
   );
   const inputClassName =
-    "h-11 rounded-xl border-slate-200 bg-white text-sm shadow-sm shadow-slate-950/[0.02] transition hover:border-slate-300 focus-visible:border-emerald-400 focus-visible:ring-4 focus-visible:ring-emerald-500/12";
+    "h-12 rounded-xl border-slate-200 bg-white text-sm shadow-sm shadow-slate-950/[0.02] transition hover:border-slate-300 focus-visible:border-emerald-400 focus-visible:ring-4 focus-visible:ring-emerald-500/12";
   const textAreaClassName =
-    "min-h-[96px] rounded-xl border-slate-200 bg-white text-sm shadow-sm shadow-slate-950/[0.02] transition hover:border-slate-300 focus-visible:border-emerald-400 focus-visible:ring-4 focus-visible:ring-emerald-500/12";
+    "min-h-[156px] rounded-xl border-slate-200 bg-white text-sm shadow-sm shadow-slate-950/[0.02] transition hover:border-slate-300 focus-visible:border-emerald-400 focus-visible:ring-4 focus-visible:ring-emerald-500/12";
 
   const handleFieldChange = (event) => {
     const { name, value } = event.target;
@@ -135,33 +136,64 @@ const TeamComposer = ({
             </div>
           ) : null}
 
-          <label className="space-y-2">
-            <span className="text-sm font-medium text-gray-700">Team name</span>
-            <Input
-              id="name"
-              name="name"
-              className={inputClassName}
-              placeholder="Platform Squad"
-              value={formData.name}
-              onChange={handleFieldChange}
-            />
-          </label>
+          <div className="grid gap-5 xl:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)]">
+            <section className="space-y-4 rounded-2xl border border-slate-200 bg-white p-4">
+              <div className="flex items-center gap-3">
+                <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-700">
+                  <Users2 className="h-5 w-5" />
+                </span>
+                <div>
+                  <h3 className="text-sm font-semibold text-slate-950">Team Identity</h3>
+                  <p className="text-xs text-slate-500">Name and operating context.</p>
+                </div>
+              </div>
 
-          <label className="space-y-2">
-            <span className="text-sm font-medium text-gray-700">Description</span>
-            <Textarea
-              id="description"
-              name="description"
-              className={textAreaClassName}
-              placeholder="Short team description"
-              value={formData.description}
-              onChange={handleFieldChange}
-            />
-          </label>
+              <label className="space-y-2">
+                <span className="text-sm font-medium text-gray-700">Team name</span>
+                <Input
+                  id="name"
+                  name="name"
+                  className={inputClassName}
+                  placeholder="Platform Squad"
+                  value={formData.name}
+                  onChange={handleFieldChange}
+                />
+              </label>
 
-          <div className="space-y-4 rounded-2xl border border-slate-200 bg-white/86 p-4 shadow-sm backdrop-blur-xl">
+              <label className="space-y-2">
+                <span className="text-sm font-medium text-gray-700">Description</span>
+                <Textarea
+                  id="description"
+                  name="description"
+                  className={textAreaClassName}
+                  placeholder="What does this team own?"
+                  value={formData.description}
+                  onChange={handleFieldChange}
+                />
+              </label>
+
+              <div className="rounded-2xl border border-emerald-100 bg-emerald-50/70 p-4">
+                <p className="text-sm font-semibold text-slate-950">
+                  {formData.name || "New team"}
+                </p>
+                <p className="mt-1 text-sm leading-6 text-slate-500">
+                  {formData.description ||
+                    "Add a short description so project owners know when to attach this team."}
+                </p>
+                <Badge className="mt-3 border border-emerald-100 bg-white text-emerald-700 hover:bg-white">
+                  {selectedMemberOptions.length} selected
+                </Badge>
+              </div>
+            </section>
+
+          <div className="space-y-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm backdrop-blur-xl">
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <label className="text-sm font-medium text-gray-700">Members</label>
+              <div>
+                <label className="text-sm font-semibold text-gray-700">Members</label>
+                <p className="mt-1 text-xs text-slate-500">
+                  Search and select users for this workspace team.
+                </p>
+              </div>
               <Badge className="border border-emerald-100 bg-emerald-50 text-emerald-700 hover:bg-emerald-50">
                 {selectedMemberOptions.length} selected
               </Badge>
@@ -227,6 +259,7 @@ const TeamComposer = ({
               </div>
             </div>
           </div>
+          </div>
 
           {error ? (
             <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
@@ -234,15 +267,24 @@ const TeamComposer = ({
             </div>
           ) : null}
 
-          <div
-            className={
-              isModal
-                ? "mt-2 border-t border-slate-200/80 bg-white/94 px-4 py-3 sm:px-5"
-                : "sticky bottom-0 -mx-6 border-t border-slate-200/80 bg-white/94 px-6 py-3 backdrop-blur"
-            }
-          >
-            <Button className="w-full" disabled={isPending || !users.length} type="submit">
-            {isPending ? "Creating team..." : "Create Team"}
+          <div className="flex flex-col-reverse gap-2 border-t border-slate-200/80 bg-white pt-4 sm:flex-row sm:items-center sm:justify-end">
+            {onCancel ? (
+              <Button
+                className="h-11 min-w-[104px] rounded-xl"
+                disabled={isPending}
+                type="button"
+                variant="outline"
+                onClick={onCancel}
+              >
+                Cancel
+              </Button>
+            ) : null}
+            <Button
+              className="h-11 min-w-[150px] rounded-xl bg-[linear-gradient(90deg,#059669_0%,#0891B2_100%)] text-white shadow-[0_16px_30px_-20px_rgba(5,150,105,0.75)] hover:brightness-105"
+              disabled={isPending || !users.length}
+              type="submit"
+            >
+              {isPending ? "Creating team..." : "Create Team"}
             </Button>
           </div>
         </form>
