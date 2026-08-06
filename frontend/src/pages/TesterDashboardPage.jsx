@@ -10,6 +10,7 @@ import {
   ChevronRight,
   Clock3,
   ClipboardCheck,
+  Eye,
   FolderKanban,
   PauseCircle,
   PlayCircle,
@@ -1150,63 +1151,114 @@ const TesterDashboardPage = () => {
   const readyForQaPanel = (
     <section>
       <WorkspaceCard>
-        <div className="flex items-start justify-between gap-3">
+        <div className="flex items-start justify-between gap-3 px-1">
           <div>
-            <h2 className="text-base font-semibold tracking-tight text-slate-950">Ready For Q/A</h2>
+            <h2 className="text-lg font-semibold tracking-tight text-slate-950">Ready For QA</h2>
             <p className="mt-0.5 text-xs text-slate-600">Developer fixes waiting for QA sign-off.</p>
           </div>
-          <Button className="h-8 rounded-xl" size="sm" variant="outline" onClick={() => navigate("/bugs")}>
+          <Button className="h-8 rounded-xl border-0 bg-transparent px-2 text-blue-600 shadow-none hover:bg-blue-50 hover:text-blue-700" size="sm" variant="ghost" onClick={() => navigate("/bugs")}>
             View All
             <ChevronRight className="h-4 w-4" />
           </Button>
         </div>
 
-        <div className="mt-3 grid gap-3 lg:grid-cols-2">
-          {isReportedBugsLoading ? (
-            Array.from({ length: 4 }).map((_, index) => (
-              <Skeleton className="h-32 rounded-2xl" key={`verification-skeleton-${index}`} />
-            ))
-          ) : readyForVerificationBugs.length ? (
-            readyForVerificationBugs.slice(0, 4).map((issue) => (
-              <div
-                className="min-h-[132px] rounded-2xl border border-slate-200/80 bg-white/86 p-4 transition hover:-translate-y-0.5 hover:border-blue-200 hover:bg-blue-50/45 hover:shadow-[0_16px_34px_-30px_rgba(37,99,235,0.38)]"
-                key={issue._id}
-              >
-                <div className="flex h-full flex-col justify-between gap-3">
-                  <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-1.5">
-                      <span className="font-mono text-xs font-bold text-blue-700">{getIssueDisplayKey(issue)}</span>
-                      <TableBadge variant={getIssuePriorityVariant(issue.priority)}>
-                        {issue.priority || "Medium"}
-                      </TableBadge>
-                    </div>
-                    <h3 className="mt-1 line-clamp-1 text-sm font-semibold text-slate-950">
-                      {issue.title || "Untitled bug"}
-                    </h3>
-                    <p className="mt-0.5 text-xs text-slate-500">
-                      {getAssigneeName(issue)}
-                    </p>
-                  </div>
-                  <div className="flex flex-wrap gap-1.5">
-                    <Button className="h-8 rounded-xl bg-emerald-600 px-3 text-white hover:bg-emerald-700" size="sm" onClick={() => handleOpenReportedBug(issue._id)}>
-                      Verify
-                    </Button>
-                    <Button className="h-8 rounded-xl px-3" size="sm" variant="outline" onClick={() => handleOpenReportedBug(issue._id)}>
-                      View
-                    </Button>
-                    <Button className="h-8 w-8 rounded-xl p-0" size="icon" variant="ghost" onClick={() => handleOpenReportedBug(issue._id)}>
-                      ...
-                    </Button>
-                  </div>
-                </div>
-              </div>
-            ))
-          ) : (
-            <div className="rounded-[18px] border border-dashed border-emerald-200 bg-emerald-50/60 p-5 text-center">
-              <CheckCircle2 className="mx-auto h-7 w-7 text-emerald-500" />
-              <p className="mt-2 text-sm font-semibold text-slate-800">Everything has been verified.</p>
-            </div>
-          )}
+        <div className="mt-3 overflow-hidden rounded-2xl border border-slate-200/80 bg-white/90">
+          <div className="overflow-x-auto">
+            <table className="min-w-[860px] w-full border-collapse text-left">
+              <thead>
+                <tr className="border-b border-slate-100 text-[11px] font-bold text-slate-500">
+                  <th className="w-[116px] px-4 py-3">Bug ID</th>
+                  <th className="px-4 py-3">Title</th>
+                  <th className="w-[160px] px-4 py-3">Developer</th>
+                  <th className="w-[180px] px-4 py-3">Fixed Time</th>
+                  <th className="w-[116px] px-4 py-3">Priority</th>
+                  <th className="w-[134px] px-4 py-3 text-center">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {isReportedBugsLoading ? (
+                  Array.from({ length: 4 }).map((_, index) => (
+                    <tr key={`verification-row-skeleton-${index}`}>
+                      <td className="px-4 py-3"><Skeleton className="h-4 w-20 rounded-full" /></td>
+                      <td className="px-4 py-3"><Skeleton className="h-4 w-full max-w-[320px] rounded-full" /></td>
+                      <td className="px-4 py-3"><Skeleton className="h-4 w-24 rounded-full" /></td>
+                      <td className="px-4 py-3"><Skeleton className="h-4 w-32 rounded-full" /></td>
+                      <td className="px-4 py-3"><Skeleton className="h-6 w-16 rounded-full" /></td>
+                      <td className="px-4 py-3"><Skeleton className="mx-auto h-8 w-24 rounded-full" /></td>
+                    </tr>
+                  ))
+                ) : readyForVerificationBugs.length ? (
+                  readyForVerificationBugs.slice(0, 4).map((issue) => (
+                    <tr className="text-xs transition hover:bg-blue-50/35" key={issue._id}>
+                      <td className="px-4 py-3 align-middle">
+                        <button
+                          className="font-mono font-bold text-blue-700 hover:text-blue-800"
+                          onClick={() => handleOpenReportedBug(issue._id)}
+                          type="button"
+                        >
+                          {getIssueDisplayKey(issue)}
+                        </button>
+                      </td>
+                      <td className="px-4 py-3 align-middle">
+                        <p className="line-clamp-2 max-w-[360px] font-semibold leading-5 text-slate-950">
+                          {issue.title || "Untitled bug"}
+                        </p>
+                      </td>
+                      <td className="px-4 py-3 align-middle font-medium leading-5 text-slate-700">
+                        {getAssigneeName(issue)}
+                      </td>
+                      <td className="px-4 py-3 align-middle font-medium text-slate-700">
+                        {formatDateTime(getBugUpdatedAt(issue))}
+                      </td>
+                      <td className="px-4 py-3 align-middle">
+                        <TableBadge variant={getIssuePriorityVariant(issue.priority)}>
+                          {issue.priority || "Medium"}
+                        </TableBadge>
+                      </td>
+                      <td className="px-4 py-3 align-middle">
+                        <div className="flex items-center justify-center gap-2">
+                          <Button
+                            aria-label="Verify bug"
+                            className="h-8 w-8 rounded-full border-emerald-100 bg-emerald-50 p-0 text-emerald-600 hover:bg-emerald-100"
+                            size="icon"
+                            variant="outline"
+                            onClick={() => handleOpenReportedBug(issue._id)}
+                          >
+                            <CheckCircle2 className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            aria-label="Reopen bug"
+                            className="h-8 w-8 rounded-full border-rose-100 bg-rose-50 p-0 text-rose-600 hover:bg-rose-100"
+                            size="icon"
+                            variant="outline"
+                            onClick={() => handleOpenReportedBug(issue._id)}
+                          >
+                            <RotateCcw className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            aria-label="View bug"
+                            className="h-8 w-8 rounded-full border-slate-200 bg-white p-0 text-slate-500 hover:bg-slate-50 hover:text-slate-700"
+                            size="icon"
+                            variant="outline"
+                            onClick={() => handleOpenReportedBug(issue._id)}
+                          >
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td className="px-4 py-8 text-center" colSpan={6}>
+                      <CheckCircle2 className="mx-auto h-7 w-7 text-emerald-500" />
+                      <p className="mt-2 text-sm font-semibold text-slate-800">Everything has been verified.</p>
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
       </WorkspaceCard>
     </section>
@@ -1214,8 +1266,6 @@ const TesterDashboardPage = () => {
 
   return (
     <div className="space-y-4">
-      {readyForQaPanel}
-
       <section className="relative isolate flex flex-wrap items-center gap-3 overflow-hidden rounded-[28px] border border-blue-100/80 bg-white p-3 shadow-[0_24px_65px_-42px_rgba(37,99,235,0.65)] lg:flex-nowrap">
         <GreetingBeachScene timeOfDay={timeOfDay} />
         <div className="relative z-10 w-full min-w-0 shrink-0 sm:flex-1 lg:w-[420px] lg:flex-none xl:w-[460px]">
@@ -1505,6 +1555,8 @@ const TesterDashboardPage = () => {
               value={criticalBugsFound}
             />
           </section>
+
+          {readyForQaPanel}
 
           <section className="grid items-start gap-4 xl:grid-cols-[0.9fr_1.1fr]">
             <WorkspaceCard>
