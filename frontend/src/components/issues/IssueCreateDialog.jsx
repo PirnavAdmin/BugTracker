@@ -251,14 +251,12 @@ const issueSelectStyles = {
   }),
   menu: (base) => ({
     ...base,
-    maxHeight: SELECT_MENU_MAX_HEIGHT,
-    overflow: "auto",
+    overflow: "hidden",
     borderRadius: 18,
     border: "1px solid #e2e8f0",
     boxShadow: "0 20px 40px -24px rgba(15, 23, 42, 0.28)",
     zIndex: 9999,
     marginTop: 8,
-    scrollBehavior: "smooth",
   }),
   menuList: (base) => ({
     ...base,
@@ -287,6 +285,35 @@ const issueSelectStyles = {
     ...base,
     color: "#0f172a",
   }),
+  multiValue: (base) => ({
+    ...base,
+    alignItems: "center",
+    maxWidth: "100%",
+    borderRadius: 12,
+    backgroundColor: "#eff6ff",
+    margin: "2px 4px 2px 0",
+  }),
+  multiValueLabel: (base) => ({
+    ...base,
+    maxWidth: 150,
+    overflow: "hidden",
+    padding: "4px 7px 4px 8px",
+    color: "#1e3a8a",
+    fontSize: 13,
+    fontWeight: 600,
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
+  }),
+  multiValueRemove: (base) => ({
+    ...base,
+    alignSelf: "stretch",
+    borderRadius: "0 12px 12px 0",
+    color: "#64748b",
+    ":hover": {
+      backgroundColor: "#dbeafe",
+      color: "#1d4ed8",
+    },
+  }),
   noOptionsMessage: (base) => ({
     ...base,
     color: "#64748b",
@@ -314,7 +341,12 @@ const formatTeamOptionLabel = (option) => (
   </div>
 );
 
-const formatAssigneeOptionLabel = (option) => (
+const formatAssigneeOptionLabel = (option, meta = {}) => {
+  if (meta.context === "value") {
+    return <span className="truncate">{option.label}</span>;
+  }
+
+  return (
   <div className="flex min-w-0 items-center gap-3">
     <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-slate-100 text-[11px] font-semibold text-slate-700">
       {getInitials(option.label)}
@@ -326,7 +358,8 @@ const formatAssigneeOptionLabel = (option) => (
       </p>
     </div>
   </div>
-);
+  );
+};
 
 const formatDependencyLabel = (option) => (
   <div className="min-w-0">
@@ -388,8 +421,9 @@ const baseSelectProps = {
   menuPlacement: "bottom",
   menuPosition: "fixed",
   menuShouldScrollIntoView: false,
+  menuShouldBlockScroll: false,
   closeMenuOnScroll: false,
-  captureMenuScroll: true,
+  captureMenuScroll: false,
   maxMenuHeight: SELECT_MENU_MAX_HEIGHT,
 };
 
@@ -581,6 +615,7 @@ const IssueCreateDialog = ({
       ),
     [assigneeOptions, formData.assigneeIds]
   );
+  const hasSelectedAssignees = selectedAssigneeOptions.length > 0;
 
   const dependencyOptions = useMemo(
     () =>
@@ -1306,6 +1341,39 @@ const IssueCreateDialog = ({
                   </div>
                 ) : null}
 
+                {supportsParentStory ? (
+                  <div className="space-y-1.5">
+                    <span className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">
+                      Parent Story (Optional)
+                    </span>
+                    <Select
+                      options={storyOptions}
+                      value={selectedStoryOption}
+                      onChange={(option) => {
+                        const story = option?.issue;
+
+                        setFormData((current) => ({
+                          ...current,
+                          parentStoryId: option?.value || "",
+                          teamId: story?.teamId?._id || story?.teamId || current.teamId,
+                          epicId: story?.epicId?._id || story?.epicId || current.epicId,
+                          sprintId:
+                            story?.sprintId?._id || story?.sprintId || current.sprintId,
+                        }));
+                      }}
+                      styles={parentStorySelectStyles}
+                      formatOptionLabel={formatParentStoryOptionLabel}
+                      isSearchable
+                      isClearable
+                      isDisabled={!formData.projectId || isSubmitPending}
+                      menuPortalTarget={menuPortalTarget}
+                      {...baseSelectProps}
+                      placeholder="No parent Story"
+                      noOptionsMessage={() => "No Stories found in this project."}
+                    />
+                  </div>
+                ) : null}
+
               </div>
 
               <div className="space-y-3.5">
@@ -1393,7 +1461,8 @@ const IssueCreateDialog = ({
                         <Select
                           options={assigneeOptions}
                           value={selectedAssigneeOptions}
-                          onChange={(option) =>
+                          onChange={(option) => {
+                            setAssignEntireTeam(false);
                             setFormData((current) => ({
                               ...current,
                               assigneeId: Array.isArray(option)
@@ -1404,8 +1473,8 @@ const IssueCreateDialog = ({
                                 : option?.value
                                   ? [option.value]
                                   : [],
-                            }))
-                          }
+                            }));
+                          }}
                           styles={issueSelectStyles}
                           formatOptionLabel={formatAssigneeOptionLabel}
                           isMulti
@@ -1480,6 +1549,7 @@ const IssueCreateDialog = ({
                         </label>
                       ) : null}
 
+                      {!hasSelectedAssignees ? (
                       <label className="flex items-start gap-3 rounded-2xl border border-slate-200 bg-white/80 px-3 py-2.5 text-sm text-slate-600">
                         <input
                           type="checkbox"
@@ -1497,8 +1567,9 @@ const IssueCreateDialog = ({
                           </span>
                         </span>
                       </label>
+                      ) : null}
 
-                      {assignEntireTeam ? (
+                      {assignEntireTeam && !hasSelectedAssignees ? (
                         <div className="rounded-2xl border border-blue-100 bg-blue-50/80 px-3 py-2.5 text-sm text-blue-900">
                           {teamWideAssignableAssignees.length
                             ? `This work item will be created for ${teamWideAssignableAssignees.length} non-manager assignee${teamWideAssignableAssignees.length === 1 ? "" : "s"}.`
@@ -1698,40 +1769,6 @@ const IssueCreateDialog = ({
                     </label>
                   </div>
                 </div>
-              </div>
-            ) : null}
-
-            {supportsParentStory ? (
-              <div className="space-y-1.5">
-                <span className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">
-                  Parent Story (Optional)
-                </span>
-                <Select
-                  options={storyOptions}
-                  value={selectedStoryOption}
-                  onChange={(option) => {
-                    const story = option?.issue;
-
-                    setFormData((current) => ({
-                      ...current,
-                      parentStoryId: option?.value || "",
-                      teamId: story?.teamId?._id || story?.teamId || current.teamId,
-                      epicId: story?.epicId?._id || story?.epicId || current.epicId,
-                      sprintId:
-                        story?.sprintId?._id || story?.sprintId || current.sprintId,
-                    }));
-                  }}
-                  styles={parentStorySelectStyles}
-                  formatOptionLabel={formatParentStoryOptionLabel}
-                  isSearchable
-                  isClearable
-                  isDisabled={!formData.projectId || isSubmitPending}
-                  menuPortalTarget={menuPortalTarget}
-                  {...baseSelectProps}
-                  menuPosition="fixed"
-                  placeholder="No parent Story"
-                  noOptionsMessage={() => "No Stories found in this project."}
-                />
               </div>
             ) : null}
 
