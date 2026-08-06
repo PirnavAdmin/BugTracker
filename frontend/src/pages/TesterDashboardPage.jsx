@@ -674,6 +674,16 @@ const TesterDashboardPage = () => {
       return null;
     }
   });
+  const [testingGoal, setTestingGoal] = useState(() => {
+    try {
+      const rawGoal = window.localStorage.getItem("curecode_testing_goal");
+      return rawGoal
+        ? JSON.parse(rawGoal)
+        : { setupComplete: false, totalModules: 5, completedModules: 0 };
+    } catch {
+      return { setupComplete: false, totalModules: 5, completedModules: 0 };
+    }
+  });
   const [sessionNow, setSessionNow] = useState(() => Date.now());
   const [lastRefreshedAt, setLastRefreshedAt] = useState(() => new Date());
   const [dailyNote, setDailyNote] = useState(() => {
@@ -786,6 +796,14 @@ const TesterDashboardPage = () => {
       // Ignore storage failures.
     }
   }, [selectedTestingModule, testerId]);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem("curecode_testing_goal", JSON.stringify(testingGoal));
+    } catch {
+      // Ignore storage failures.
+    }
+  }, [testingGoal]);
 
   useEffect(() => {
     const session = readStoredSession();
@@ -978,6 +996,13 @@ const TesterDashboardPage = () => {
         : 0,
     [activeSelectedSession, reportedIssues, sessionStartedAtMs, sessionStoppedAtMs]
   );
+  const goalTotalModules = Math.max(1, Number(testingGoal.totalModules) || 1);
+  const goalCompletedModules = Math.min(
+    goalTotalModules,
+    Math.max(0, Number(testingGoal.completedModules) || 0)
+  );
+  const goalRemainingModules = Math.max(0, goalTotalModules - goalCompletedModules);
+  const goalProgress = Math.round((goalCompletedModules / goalTotalModules) * 100);
 
   const readyForVerificationBugs = useMemo(
     () =>
@@ -1080,6 +1105,11 @@ const TesterDashboardPage = () => {
     window.localStorage.setItem("curecode_selected_qa_project", project.id);
     setSelectedQaProjectId(project.id);
     setTestingSession(session);
+    setTestingGoal({
+      setupComplete: false,
+      totalModules: Math.max(1, project.modules.length || 5),
+      completedModules: 0,
+    });
     setSessionNow(Date.now());
   };
 
@@ -1114,6 +1144,34 @@ const TesterDashboardPage = () => {
     window.localStorage.setItem("curecode_active_testing_session", JSON.stringify(stoppedSession));
     setTestingSession(stoppedSession);
     setSessionNow(Date.now());
+  };
+
+  const handleCompleteGoalSetup = () => {
+    setTestingGoal((goal) => ({
+      ...goal,
+      setupComplete: true,
+      totalModules: Math.max(1, Number(goal.totalModules) || 1),
+      completedModules: Math.min(
+        Math.max(1, Number(goal.totalModules) || 1),
+        Math.max(0, Number(goal.completedModules) || 0)
+      ),
+    }));
+  };
+
+  const handleAdjustCompletedModules = (delta) => {
+    setTestingGoal((goal) => {
+      const totalModules = Math.max(1, Number(goal.totalModules) || 1);
+      const completedModules = Math.min(
+        totalModules,
+        Math.max(0, (Number(goal.completedModules) || 0) + delta)
+      );
+
+      return {
+        ...goal,
+        totalModules,
+        completedModules,
+      };
+    });
   };
 
   const handleRefresh = async () => {
@@ -1568,43 +1626,158 @@ const TesterDashboardPage = () => {
                 </section>
 
                 <section className="rounded-[18px] border border-slate-200/80 bg-white/74 p-3 shadow-sm">
-                  <div className="flex items-center justify-between gap-2">
-                    <h3 className="text-sm font-semibold text-slate-950">Assigned Projects</h3>
-                    <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-500">
-                      {qaProjects.length}
-                    </span>
-                  </div>
-                  <div className="mt-3 max-h-[300px] space-y-1.5 overflow-y-auto pr-1">
-                    {qaProjects.map((project) => (
-                      <button
-                        className={cn(
-                          "flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left transition hover:bg-blue-50",
-                          project.readyForQaCount > 0 && "border border-rose-200 bg-rose-50/60 hover:bg-rose-50",
-                          selectedQaProjectId === project.id && (project.readyForQaCount > 0 ? "bg-rose-50 ring-1 ring-rose-200" : "bg-blue-50 ring-1 ring-blue-200")
-                        )}
-                        key={project.id}
-                        onClick={() => handleSelectQaProject(project.id)}
-                        type="button"
-                      >
-                        <span className="min-w-0">
-                          <span className="block truncate text-sm font-semibold text-slate-900">{project.name}</span>
-                          <span className="mt-0.5 flex items-center gap-2 text-xs text-slate-500">
-                            <span>{project.buildVersion}</span>
-                            <span className="h-1 w-1 rounded-full bg-slate-300" />
-                            <span>{project.environment}</span>
-                          </span>
+                  {activeSelectedSession ? (
+                    <div>
+                      <div className="flex items-center justify-between gap-2">
+                        <div>
+                          <h3 className="text-sm font-semibold text-slate-950">Testing Goal</h3>
+                          <p className="mt-0.5 text-xs text-slate-500">
+                            {testingGoal.setupComplete ? "Track today's module progress." : "Complete setup before tracking progress."}
+                          </p>
+                        </div>
+                        <span className={cn(
+                          "rounded-full px-2 py-0.5 text-xs font-bold",
+                          testingGoal.setupComplete ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"
+                        )}>
+                          {testingGoal.setupComplete ? `${goalProgress}%` : "Setup"}
                         </span>
-                        <span className="flex shrink-0 items-center gap-2">
-                          {project.readyForQaCount > 0 && (
-                            <span className="rounded-full border border-rose-200 bg-white px-2 py-0.5 text-[10px] font-bold text-rose-700">
-                              {project.readyForQaCount}
+                      </div>
+
+                      {!testingGoal.setupComplete ? (
+                        <div className="mt-3 space-y-3">
+                          <div className="space-y-2 rounded-2xl border border-blue-100 bg-blue-50/45 p-3">
+                            {[
+                              ["Project selected", selectedQaProject?.name],
+                              ["Module selected", activeSelectedSession.module || selectedTestingModule || "General"],
+                              ["Session started", formatDateTime(activeSelectedSession.startedAt)],
+                            ].map(([label, value]) => (
+                              <div className="flex items-start gap-2" key={label}>
+                                <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-emerald-50 text-emerald-600">
+                                  <CheckCircle2 className="h-3.5 w-3.5" />
+                                </span>
+                                <span className="min-w-0">
+                                  <span className="block text-xs font-bold text-slate-800">{label}</span>
+                                  <span className="block truncate text-xs text-slate-500">{value}</span>
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+
+                          <div>
+                            <label className="text-[11px] font-bold uppercase tracking-[0.12em] text-slate-500" htmlFor="testing-goal-modules">
+                              Today&apos;s Modules
+                            </label>
+                            <Input
+                              className="mt-2 h-10 rounded-xl border-slate-200 bg-white"
+                              id="testing-goal-modules"
+                              min="1"
+                              onChange={(event) =>
+                                setTestingGoal((goal) => ({
+                                  ...goal,
+                                  totalModules: event.target.value,
+                                  completedModules: Math.min(Number(goal.completedModules) || 0, Math.max(1, Number(event.target.value) || 1)),
+                                }))
+                              }
+                              type="number"
+                              value={testingGoal.totalModules}
+                            />
+                          </div>
+
+                          <Button
+                            className="h-9 w-full rounded-xl bg-blue-600 text-white hover:bg-blue-700"
+                            onClick={handleCompleteGoalSetup}
+                            type="button"
+                          >
+                            Complete Setup
+                          </Button>
+                        </div>
+                      ) : (
+                        <div className="mt-3 space-y-3">
+                          <div className="rounded-2xl border border-slate-200 bg-slate-950 p-4 text-white shadow-[0_18px_36px_-30px_rgba(15,23,42,0.6)]">
+                            <p className="text-xs font-bold uppercase tracking-[0.12em] text-slate-300">Today&apos;s Goal</p>
+                            <div className="mt-4 grid grid-cols-3 gap-2">
+                              {[
+                                ["Modules", goalTotalModules],
+                                ["Completed", goalCompletedModules],
+                                ["Remaining", goalRemainingModules],
+                              ].map(([label, value]) => (
+                                <div className="rounded-xl bg-white/8 p-2" key={label}>
+                                  <p className="text-[10px] font-bold uppercase tracking-[0.1em] text-slate-400">{label}</p>
+                                  <p className="mt-1 text-xl font-semibold">{value}</p>
+                                </div>
+                              ))}
+                            </div>
+                            <div className="mt-4">
+                              <div className="flex items-center justify-between text-xs font-semibold text-slate-300">
+                                <span>Progress</span>
+                                <span>{goalProgress}%</span>
+                              </div>
+                              <div className="mt-2 h-2 overflow-hidden rounded-full bg-white/12">
+                                <div className="h-full rounded-full bg-[linear-gradient(90deg,#22C55E,#38BDF8)]" style={{ width: `${goalProgress}%` }} />
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-2">
+                            <Button className="h-9 rounded-xl" variant="outline" onClick={() => handleAdjustCompletedModules(-1)} type="button">
+                              - Completed
+                            </Button>
+                            <Button className="h-9 rounded-xl bg-emerald-600 text-white hover:bg-emerald-700" onClick={() => handleAdjustCompletedModules(1)} type="button">
+                              + Completed
+                            </Button>
+                          </div>
+                          <Button
+                            className="h-9 w-full rounded-xl"
+                            variant="outline"
+                            onClick={() => setTestingGoal((goal) => ({ ...goal, setupComplete: false }))}
+                            type="button"
+                          >
+                            Edit Setup
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <>
+                      <div className="flex items-center justify-between gap-2">
+                        <h3 className="text-sm font-semibold text-slate-950">Assigned Projects</h3>
+                        <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-500">
+                          {qaProjects.length}
+                        </span>
+                      </div>
+                      <div className="mt-3 max-h-[300px] space-y-1.5 overflow-y-auto pr-1">
+                        {qaProjects.map((project) => (
+                          <button
+                            className={cn(
+                              "flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left transition hover:bg-blue-50",
+                              project.readyForQaCount > 0 && "border border-rose-200 bg-rose-50/60 hover:bg-rose-50",
+                              selectedQaProjectId === project.id && (project.readyForQaCount > 0 ? "bg-rose-50 ring-1 ring-rose-200" : "bg-blue-50 ring-1 ring-blue-200")
+                            )}
+                            key={project.id}
+                            onClick={() => handleSelectQaProject(project.id)}
+                            type="button"
+                          >
+                            <span className="min-w-0">
+                              <span className="block truncate text-sm font-semibold text-slate-900">{project.name}</span>
+                              <span className="mt-0.5 flex items-center gap-2 text-xs text-slate-500">
+                                <span>{project.buildVersion}</span>
+                                <span className="h-1 w-1 rounded-full bg-slate-300" />
+                                <span>{project.environment}</span>
+                              </span>
                             </span>
-                          )}
-                          <span className={cn("h-2.5 w-2.5 rounded-full", project.readyForQaCount > 0 ? "bg-rose-500" : project.status.dot)} />
-                        </span>
-                      </button>
-                    ))}
-                  </div>
+                            <span className="flex shrink-0 items-center gap-2">
+                              {project.readyForQaCount > 0 && (
+                                <span className="rounded-full border border-rose-200 bg-white px-2 py-0.5 text-[10px] font-bold text-rose-700">
+                                  {project.readyForQaCount}
+                                </span>
+                              )}
+                              <span className={cn("h-2.5 w-2.5 rounded-full", project.readyForQaCount > 0 ? "bg-rose-500" : project.status.dot)} />
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    </>
+                  )}
                 </section>
               </div>
             ) : (
