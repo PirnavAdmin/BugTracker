@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import Select from "react-select";
+import Select, { components as selectComponents } from "react-select";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -417,13 +417,36 @@ const SectionLabel = ({ title, description }) => (
   </div>
 );
 
+const ScrollableMenuList = (props) => (
+  <selectComponents.MenuList
+    {...props}
+    innerProps={{
+      ...props.innerProps,
+      onWheel: (event) => {
+        const menuList = event.currentTarget;
+
+        if (menuList.scrollHeight <= menuList.clientHeight) {
+          return;
+        }
+
+        event.preventDefault();
+        event.stopPropagation();
+        menuList.scrollTop += event.deltaY;
+      },
+    }}
+  />
+);
+
 const baseSelectProps = {
+  components: {
+    MenuList: ScrollableMenuList,
+  },
   menuPlacement: "bottom",
-  menuPosition: "fixed",
+  menuPosition: "absolute",
   menuShouldScrollIntoView: false,
   menuShouldBlockScroll: false,
   closeMenuOnScroll: false,
-  captureMenuScroll: false,
+  captureMenuScroll: true,
   maxMenuHeight: SELECT_MENU_MAX_HEIGHT,
 };
 
@@ -480,9 +503,6 @@ const IssueCreateDialog = ({
   const { role, user } = useAuth();
   const canManagePlanningFields = hasAdminPanelAccess(role);
   const currentUserId = resolveUserId(user);
-
-  const menuPortalTarget =
-    typeof document !== "undefined" ? document.body : undefined;
 
   const projectOptions = useMemo(
     () => projects.map(buildProjectOption),
@@ -1188,7 +1208,7 @@ const IssueCreateDialog = ({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="w-[calc(100vw-2rem)] max-w-[1280px] gap-0 overflow-visible border border-slate-200/80 bg-white p-0 shadow-[0_36px_90px_-50px_rgba(15,23,42,0.35)]">
-        <div className="max-h-[90vh] overflow-y-auto overflow-x-visible">
+        <div className="overflow-visible">
           <DialogHeader className="sticky top-0 z-20 border-b border-slate-200/80 bg-white px-5 py-3.5 sm:px-6">
             <div className="flex items-center justify-between gap-4 pr-12">
               <DialogTitle className="text-2xl tracking-tight text-slate-950">
@@ -1214,40 +1234,37 @@ const IssueCreateDialog = ({
 
             <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1.08fr)_minmax(380px,0.92fr)]">
               <div className="space-y-3.5">
-                <div className="grid gap-3 lg:grid-cols-[minmax(220px,0.35fr)_minmax(0,0.65fr)]">
-                  <div className="space-y-1.5">
-                    <SectionLabel title="Project" />
-                    <Select
-                      options={projectOptions}
-                      value={selectedProjectOption}
-                      onChange={handleProjectChange}
-                      styles={issueSelectStyles}
-                      formatOptionLabel={formatProjectOptionLabel}
-                      isSearchable={false}
-                      isDisabled={!projectOptions.length || isSubmitPending}
-                      menuPortalTarget={menuPortalTarget}
-                      {...baseSelectProps}
-                      placeholder="Select a project"
-                    />
-                  </div>
-
-                  <label className="space-y-1.5">
-                    <span className="text-sm font-semibold text-slate-900">Work Item Title</span>
-                    <Input
-                      className="h-12 rounded-2xl border-slate-200 text-base shadow-none focus-visible:border-blue-500 focus-visible:ring-4 focus-visible:ring-blue-500/10"
-                      name="title"
-                      value={formData.title}
-                      onChange={(event) =>
-                        setFormData((current) => ({
-                          ...current,
-                          title: event.target.value,
-                        }))
-                      }
-                      placeholder="Add a concise summary"
-                      disabled={isSubmitPending}
-                    />
-                  </label>
+                <div className="max-w-md space-y-1.5">
+                  <SectionLabel title="Project" />
+                  <Select
+                    options={projectOptions}
+                    value={selectedProjectOption}
+                    onChange={handleProjectChange}
+                    styles={issueSelectStyles}
+                    formatOptionLabel={formatProjectOptionLabel}
+                    isSearchable={false}
+                    isDisabled={!projectOptions.length || isSubmitPending}
+                    {...baseSelectProps}
+                    placeholder="Select a project"
+                  />
                 </div>
+
+                <label className="block space-y-1.5">
+                  <span className="text-sm font-semibold text-slate-900">Work Item Title</span>
+                  <Input
+                    className="h-12 rounded-2xl border-slate-200 text-base shadow-none focus-visible:border-blue-500 focus-visible:ring-4 focus-visible:ring-blue-500/10"
+                    name="title"
+                    value={formData.title}
+                    onChange={(event) =>
+                      setFormData((current) => ({
+                        ...current,
+                        title: event.target.value,
+                      }))
+                    }
+                    placeholder="Add a concise summary"
+                    disabled={isSubmitPending}
+                  />
+                </label>
 
                 {supportsDescription ? (
                   <label className="block space-y-1.5">
@@ -1294,7 +1311,6 @@ const IssueCreateDialog = ({
                             isClearable
                             isSearchable
                             isDisabled={!formData.projectId || !activeEpicOptions.length || isSubmitPending}
-                            menuPortalTarget={menuPortalTarget}
                             {...baseSelectProps}
                             placeholder={
                               activeEpicOptions.length
@@ -1326,7 +1342,6 @@ const IssueCreateDialog = ({
                             formatOptionLabel={formatSprintOptionLabel}
                             isSearchable
                             isDisabled={!formData.projectId || isSubmitPending}
-                            menuPortalTarget={menuPortalTarget}
                             {...baseSelectProps}
                             placeholder="Backlog"
                             noOptionsMessage={() =>
@@ -1338,39 +1353,6 @@ const IssueCreateDialog = ({
                         </div>
                       </div>
                     </div>
-                  </div>
-                ) : null}
-
-                {supportsParentStory ? (
-                  <div className="space-y-1.5">
-                    <span className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">
-                      Parent Story (Optional)
-                    </span>
-                    <Select
-                      options={storyOptions}
-                      value={selectedStoryOption}
-                      onChange={(option) => {
-                        const story = option?.issue;
-
-                        setFormData((current) => ({
-                          ...current,
-                          parentStoryId: option?.value || "",
-                          teamId: story?.teamId?._id || story?.teamId || current.teamId,
-                          epicId: story?.epicId?._id || story?.epicId || current.epicId,
-                          sprintId:
-                            story?.sprintId?._id || story?.sprintId || current.sprintId,
-                        }));
-                      }}
-                      styles={parentStorySelectStyles}
-                      formatOptionLabel={formatParentStoryOptionLabel}
-                      isSearchable
-                      isClearable
-                      isDisabled={!formData.projectId || isSubmitPending}
-                      menuPortalTarget={menuPortalTarget}
-                      {...baseSelectProps}
-                      placeholder="No parent Story"
-                      noOptionsMessage={() => "No Stories found in this project."}
-                    />
                   </div>
                 ) : null}
 
@@ -1411,7 +1393,6 @@ const IssueCreateDialog = ({
                       formatOptionLabel={formatTeamOptionLabel}
                       isSearchable={false}
                       isDisabled={!teamOptions.length || isSubmitPending}
-                      menuPortalTarget={menuPortalTarget}
                       {...baseSelectProps}
                       placeholder="Select team"
                     />
@@ -1486,7 +1467,6 @@ const IssueCreateDialog = ({
                             assignToSelf ||
                             isSubmitPending
                           }
-                          menuPortalTarget={menuPortalTarget}
                           {...baseSelectProps}
                           placeholder={
                             assignEntireTeam
@@ -1610,62 +1590,54 @@ const IssueCreateDialog = ({
 
                 <label className="space-y-1.5">
                   <span className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">
-                    Type
+                    Due Date & Time (Optional)
                   </span>
-                  <select
-                    className="field-select rounded-2xl"
-                    value={formData.type}
+                  <Input
+                    type="datetime-local"
+                    className="h-auto rounded-2xl py-3"
+                    value={formData.dueAt}
                     onChange={(event) =>
                       setFormData((current) => ({
                         ...current,
-                        type: event.target.value,
-                        status:
-                          event.target.value === "Bug"
-                            ? ISSUE_STATUS.NEW
-                            : event.target.value === "Story"
-                              ? ISSUE_STATUS.DRAFT
-                              : ISSUE_STATUS.TODO,
-                        priority:
-                          event.target.value === "Bug" && current.priority === "Low"
-                            ? "High"
-                            : current.priority,
-                        bugDetails: {
-                          ...current.bugDetails,
-                          severity:
-                            event.target.value === "Bug"
-                              ? current.bugDetails.severity || "Major"
-                              : current.bugDetails.severity,
-                        },
+                        dueAt: event.target.value,
                       }))
                     }
-                    disabled={lockType || isSubmitPending}
-                  >
-                    {typeOptions.map((type) => (
-                      <option key={type} value={type}>
-                        {type}
-                      </option>
-                    ))}
-                  </select>
+                    disabled={isSubmitPending}
+                  />
                 </label>
               </div>
 
-              <label className="mt-3 block space-y-1.5 md:max-w-[calc(50%-0.375rem)]">
-                <span className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">
-                  Due Date & Time (Optional)
-                </span>
-                <Input
-                  type="datetime-local"
-                  className="h-auto rounded-2xl py-3"
-                  value={formData.dueAt}
-                  onChange={(event) =>
-                    setFormData((current) => ({
-                      ...current,
-                      dueAt: event.target.value,
-                    }))
-                  }
-                  disabled={isSubmitPending}
-                />
-              </label>
+              {supportsParentStory ? (
+                <div className="mt-3 space-y-1.5">
+                  <span className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">
+                    Parent Story (Optional)
+                  </span>
+                  <Select
+                    options={storyOptions}
+                    value={selectedStoryOption}
+                    onChange={(option) => {
+                      const story = option?.issue;
+
+                      setFormData((current) => ({
+                        ...current,
+                        parentStoryId: option?.value || "",
+                        teamId: story?.teamId?._id || story?.teamId || current.teamId,
+                        epicId: story?.epicId?._id || story?.epicId || current.epicId,
+                        sprintId:
+                          story?.sprintId?._id || story?.sprintId || current.sprintId,
+                      }));
+                    }}
+                    styles={parentStorySelectStyles}
+                    formatOptionLabel={formatParentStoryOptionLabel}
+                    isSearchable
+                    isClearable
+                    isDisabled={!formData.projectId || isSubmitPending}
+                    {...baseSelectProps}
+                    placeholder="No parent Story"
+                    noOptionsMessage={() => "No Stories found in this project."}
+                  />
+                </div>
+              ) : null}
             </div>
 
             {isBugType ? (
