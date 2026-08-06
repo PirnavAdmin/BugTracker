@@ -1209,13 +1209,13 @@ const IssueCreateDialog = ({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="w-[calc(100vw-2rem)] max-w-[1280px] gap-0 overflow-visible border border-slate-200/80 bg-white p-0 shadow-[0_36px_90px_-50px_rgba(15,23,42,0.35)]">
         <div className="overflow-visible">
-          <DialogHeader className="sticky top-0 z-20 border-b border-slate-200/80 bg-white px-5 py-3.5 sm:px-6">
+          <DialogHeader className="sticky top-0 z-20 border-b border-slate-200/80 bg-white px-5 py-2.5 sm:px-6">
             <div className="flex items-center justify-between gap-4 pr-12">
-              <DialogTitle className="text-2xl tracking-tight text-slate-950">
+              <DialogTitle className="text-xl tracking-tight text-slate-950">
                 Create work item
               </DialogTitle>
               <Button
-                className="h-10 rounded-xl px-5"
+                className="h-9 rounded-xl px-5"
                 type="submit"
                 form="create-work-item-form"
                 disabled={isSubmitPending || Boolean(blockedMessage)}
@@ -1225,14 +1225,14 @@ const IssueCreateDialog = ({
             </div>
           </DialogHeader>
 
-          <form id="create-work-item-form" className="px-5 py-4 sm:px-6" onSubmit={handleSubmit}>
+          <form id="create-work-item-form" className="px-5 py-3.5 sm:px-6" onSubmit={handleSubmit}>
             {blockedMessage ? (
               <div className="mb-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm text-amber-700">
                 {blockedMessage}
               </div>
             ) : null}
 
-            <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1.08fr)_minmax(380px,0.92fr)]">
+            <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,1.08fr)_minmax(380px,0.92fr)]">
               <div className="space-y-3.5">
                 <div className="max-w-md space-y-1.5">
                   <SectionLabel title="Project" />
@@ -1360,7 +1360,7 @@ const IssueCreateDialog = ({
 
               <div className="space-y-3.5">
             {!isDeveloperStoryTask ? (
-            <div className="rounded-[24px] border border-slate-200/80 bg-slate-50/80 p-3 sm:p-3.5 shadow-[0_16px_40px_-32px_rgba(15,23,42,0.35)]">
+            <div className="rounded-[22px] border border-slate-200/80 bg-white p-3 sm:p-3.5 shadow-[0_16px_40px_-32px_rgba(15,23,42,0.24)]">
               <div className="space-y-3">
                 <SectionLabel
                   title="Assign"
@@ -1397,7 +1397,7 @@ const IssueCreateDialog = ({
                       placeholder="Select team"
                     />
 
-                    <label className="mt-2.5 flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50/70 px-3 py-2.5 text-sm text-amber-900">
+                    <label className="mt-2.5 flex min-h-[96px] items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50/70 px-3 py-2.5 text-sm text-amber-900">
                       <input
                         type="checkbox"
                         className="mt-0.5 h-4 w-4 rounded border-amber-300 text-amber-600 focus:ring-amber-500/30"
@@ -1488,7 +1488,7 @@ const IssueCreateDialog = ({
                       </div>
 
                       {canManagerSelfAssign ? (
-                        <label className="flex items-start gap-3 rounded-2xl border border-blue-200 bg-blue-50/70 px-3 py-2.5 text-sm text-blue-800">
+                        <label className="flex min-h-[96px] items-start gap-3 rounded-2xl border border-blue-200 bg-blue-50/70 px-3 py-2.5 text-sm text-blue-800">
                           <input
                             type="checkbox"
                             className="mt-0.5 h-4 w-4 rounded border-blue-300 text-blue-600 focus:ring-blue-500/30"
@@ -1530,7 +1530,7 @@ const IssueCreateDialog = ({
                       ) : null}
 
                       {!hasSelectedAssignees ? (
-                      <label className="flex items-start gap-3 rounded-2xl border border-slate-200 bg-white/80 px-3 py-2.5 text-sm text-slate-600">
+                      <label className="flex min-h-[96px] items-start gap-3 rounded-2xl border border-slate-200 bg-white/80 px-3 py-2.5 text-sm text-slate-600">
                         <input
                           type="checkbox"
                           className="mt-0.5 h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500/30"
@@ -1563,8 +1563,8 @@ const IssueCreateDialog = ({
             </div>
             ) : null}
 
-            <div className="border-t border-slate-200/80 pt-3">
-              <div className="grid gap-3 md:grid-cols-2">
+            <div className="rounded-[22px] border border-slate-200/80 bg-white p-3 sm:p-3.5 shadow-[0_16px_40px_-32px_rgba(15,23,42,0.18)]">
+              <div className="grid items-start gap-3 md:grid-cols-2">
                 <label className="space-y-1.5">
                   <span className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">
                     Priority
