@@ -11,7 +11,6 @@ import {
   Clock3,
   ClipboardCheck,
   FolderKanban,
-  Megaphone,
   PauseCircle,
   PlayCircle,
   Plus,
@@ -65,6 +64,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Textarea } from "@/components/ui/textarea";
 
 const STATUS_BUCKETS = {
   open: [ISSUE_STATUS.NEW, ISSUE_STATUS.OPEN, ISSUE_STATUS.TODO],
@@ -222,6 +222,20 @@ const getAssigneeName = (issue) => {
 
 const getBugUpdatedAt = (issue) =>
   issue?.updatedAt || issue?.lastUpdatedAt || issue?.createdAt || null;
+
+const getLocalDateKey = (date = new Date()) => {
+  const value = date instanceof Date ? date : new Date(date);
+
+  if (Number.isNaN(value.getTime())) {
+    return "";
+  }
+
+  const year = value.getFullYear();
+  const month = String(value.getMonth() + 1).padStart(2, "0");
+  const day = String(value.getDate()).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
+};
 
 const filterBugs = ({ issues, projects, projectId, searchTerm }) => {
   const normalizedSearch = searchTerm.trim().toLowerCase();
@@ -624,6 +638,7 @@ const TesterDashboardPage = () => {
   const timeOfDay = currentHour < 12 ? "morning" : currentHour < 17 ? "afternoon" : "evening";
   const testerName = String(user?.name || "Tester").trim().split(/\s+/)[0];
   const testerId = String(user?._id || user?.id || "");
+  const dailyNoteDateKey = getLocalDateKey();
   const isTester = hasTesterPanelAccess(user?.role);
   const [searchTerm, setSearchTerm] = useState("");
   const [projectFilter, setProjectFilter] = useState("all");
@@ -645,6 +660,13 @@ const TesterDashboardPage = () => {
   });
   const [sessionNow, setSessionNow] = useState(() => Date.now());
   const [lastRefreshedAt, setLastRefreshedAt] = useState(() => new Date());
+  const [dailyNote, setDailyNote] = useState(() => {
+    try {
+      return window.localStorage.getItem(`curecode_daily_note_${testerId}_${dailyNoteDateKey}`) || "";
+    } catch {
+      return "";
+    }
+  });
 
   const {
     data: projects = [],
@@ -708,6 +730,31 @@ const TesterDashboardPage = () => {
     queryFn: fetchUnreadNotificationCount,
     enabled: Boolean(testerId),
   });
+
+  useEffect(() => {
+    try {
+      setDailyNote(
+        window.localStorage.getItem(`curecode_daily_note_${testerId}_${dailyNoteDateKey}`) || ""
+      );
+    } catch {
+      setDailyNote("");
+    }
+  }, [dailyNoteDateKey, testerId]);
+
+  useEffect(() => {
+    if (!testerId) {
+      return;
+    }
+
+    try {
+      window.localStorage.setItem(
+        `curecode_daily_note_${testerId}_${dailyNoteDateKey}`,
+        dailyNote
+      );
+    } catch {
+      // Ignore local storage write failures; the note remains editable in-session.
+    }
+  }, [dailyNote, dailyNoteDateKey, testerId]);
 
   useEffect(() => {
     const session = readStoredSession();
@@ -789,6 +836,21 @@ const TesterDashboardPage = () => {
     return metrics;
   }, [visibleIssues]);
   const todayKey = useMemo(() => new Date().toDateString(), []);
+  const todaysAssignedTasks = useMemo(
+    () =>
+      recentTasks.filter((task) => {
+        const taskDates = [
+          task?.dueAt,
+          task?.dueDate,
+          task?.targetDate,
+          task?.createdAt,
+          task?.updatedAt,
+        ];
+
+        return taskDates.some((value) => value && getLocalDateKey(value) === dailyNoteDateKey);
+      }),
+    [dailyNoteDateKey, recentTasks]
+  );
   const qaProjects = useMemo(
     () =>
       assignedProjects.map((project) => {
@@ -1571,17 +1633,22 @@ const TesterDashboardPage = () => {
           <WorkspaceCard>
             <div className="flex items-center gap-2.5">
               <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-50 text-blue-700">
-                <Megaphone className="h-4 w-4" />
+                <ClipboardCheck className="h-4 w-4" />
               </span>
-              <h2 className="text-base font-semibold text-slate-950">QA Lead Announcements</h2>
+              <div>
+                <h2 className="text-base font-semibold text-slate-950">Daily Notes</h2>
+                <p className="text-xs text-slate-500">Capture important QA notes for today.</p>
+              </div>
             </div>
-            <div className="mt-3 space-y-2">
-              {["Regression testing starts tomorrow", "Payment module ready", "Release scheduled Friday", "OTP verification mandatory"].map((announcement) => (
-                <div className="rounded-xl border border-blue-100 bg-blue-50/55 px-3 py-2 text-xs font-medium leading-5 text-slate-700" key={announcement}>
-                  {announcement}
-                </div>
-              ))}
-            </div>
+            <Textarea
+              className="mt-3 min-h-[132px] resize-none rounded-xl border-blue-100 bg-blue-50/45 text-sm leading-6 shadow-none focus-visible:border-blue-300 focus-visible:ring-4 focus-visible:ring-blue-500/10"
+              value={dailyNote}
+              onChange={(event) => setDailyNote(event.target.value)}
+              placeholder="Write testing blockers, handoff notes, environment issues, or anything important..."
+            />
+            <p className="mt-2 text-[11px] font-medium text-slate-500">
+              Saved for {formatDate(new Date())}
+            </p>
           </WorkspaceCard>
 
           <WorkspaceCard>
@@ -1589,21 +1656,46 @@ const TesterDashboardPage = () => {
               <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-violet-50 text-violet-700">
                 <CalendarDays className="h-4 w-4" />
               </span>
-              <h2 className="text-base font-semibold text-slate-950">Upcoming Releases</h2>
+              <div>
+                <h2 className="text-base font-semibold text-slate-950">Today&apos;s Assigned Tasks</h2>
+                <p className="text-xs text-slate-500">Tasks assigned to you for today.</p>
+              </div>
             </div>
             <div className="mt-3 space-y-2">
-              {[
-                ["Smoke Release", qaProjects[0]?.buildVersion || "QA-2026.08", "Friday", "Ready"],
-                ["Regression Pack", "REG-2026.08", "Next week", "Planned"],
-              ].map(([name, version, date, status]) => (
-                <div className="rounded-xl border border-slate-200/80 bg-white/84 p-3" key={name}>
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="text-sm font-semibold text-slate-900">{name}</p>
-                    <Badge className="border-blue-200 bg-blue-50 text-blue-700" variant="outline">{status}</Badge>
-                  </div>
-                  <p className="mt-1 text-xs text-slate-500">{version} - {date}</p>
+              {isRecentTasksLoading ? (
+                Array.from({ length: 2 }).map((_, index) => (
+                  <Skeleton className="h-[86px] rounded-xl" key={`today-task-skeleton-${index}`} />
+                ))
+              ) : recentTasksError ? (
+                <div className="rounded-xl border border-rose-100 bg-rose-50/70 px-3 py-3 text-xs font-medium leading-5 text-rose-700">
+                  Unable to load today&apos;s assigned tasks.
                 </div>
-              ))}
+              ) : todaysAssignedTasks.length ? (
+                todaysAssignedTasks.slice(0, 4).map((task) => (
+                  <button
+                    className="w-full rounded-xl border border-slate-200/80 bg-white/84 p-3 text-left transition hover:border-blue-200 hover:bg-blue-50/45"
+                    key={task._id}
+                    onClick={() => navigate(`/tasks?taskId=${encodeURIComponent(task._id)}`)}
+                    type="button"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="line-clamp-1 text-sm font-semibold text-slate-900">
+                        {task.title || "Untitled task"}
+                      </p>
+                      <Badge className="shrink-0" variant={getIssuePriorityVariant(task.priority)}>
+                        {task.priority || "Medium"}
+                      </Badge>
+                    </div>
+                    <p className="mt-1 line-clamp-1 text-xs text-slate-500">
+                      {getProjectName(task, assignedProjects)} / {getIssueStatusLabel(task.status)}
+                    </p>
+                  </button>
+                ))
+              ) : (
+                <div className="rounded-xl border border-dashed border-violet-200 bg-violet-50/45 px-3 py-5 text-center text-xs font-medium leading-5 text-slate-500">
+                  No assigned tasks for today.
+                </div>
+              )}
             </div>
           </WorkspaceCard>
 
