@@ -251,6 +251,7 @@ const issueSelectStyles = {
   }),
   menu: (base) => ({
     ...base,
+    maxHeight: SELECT_MENU_MAX_HEIGHT,
     overflow: "auto",
     borderRadius: 18,
     border: "1px solid #e2e8f0",
@@ -265,7 +266,9 @@ const issueSelectStyles = {
     maxHeight: SELECT_MENU_MAX_HEIGHT,
     overflowY: "auto",
     overflowX: "hidden",
+    overscrollBehavior: "contain",
     scrollBehavior: "smooth",
+    scrollbarWidth: "thin",
     WebkitOverflowScrolling: "touch",
   }),
   option: (base, state) => ({
@@ -383,8 +386,10 @@ const SectionLabel = ({ title, description }) => (
 
 const baseSelectProps = {
   menuPlacement: "bottom",
-  menuPosition: "absolute",
+  menuPosition: "fixed",
   menuShouldScrollIntoView: false,
+  closeMenuOnScroll: false,
+  captureMenuScroll: true,
   maxMenuHeight: SELECT_MENU_MAX_HEIGHT,
 };
 
@@ -547,11 +552,15 @@ const IssueCreateDialog = ({
   );
   const teamWideAssignableAssignees = useMemo(
     () =>
-      role === ROLE_MANAGER && currentUserId
-        ? taskAssignableAssignees.filter(
-            (assignee) => resolveUserId(assignee) !== String(currentUserId)
-          )
-        : taskAssignableAssignees,
+      taskAssignableAssignees.filter((assignee) => {
+        if (assignee.role === ROLE_MANAGER) {
+          return false;
+        }
+
+        return role !== ROLE_MANAGER || !currentUserId
+          ? true
+          : resolveUserId(assignee) !== String(currentUserId);
+      }),
     [currentUserId, role, taskAssignableAssignees]
   );
   const assigneeOptions = useMemo(
@@ -1145,7 +1154,7 @@ const IssueCreateDialog = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-5xl gap-0 overflow-visible border border-slate-200/80 bg-white p-0 shadow-[0_36px_90px_-50px_rgba(15,23,42,0.35)]">
+      <DialogContent className="w-[calc(100vw-2rem)] max-w-[1280px] gap-0 overflow-visible border border-slate-200/80 bg-white p-0 shadow-[0_36px_90px_-50px_rgba(15,23,42,0.35)]">
         <div className="max-h-[90vh] overflow-y-auto overflow-x-visible">
           <DialogHeader className="sticky top-0 z-20 border-b border-slate-200/80 bg-white px-5 py-3.5 sm:px-6">
             <DialogTitle className="text-2xl tracking-tight text-slate-950">
@@ -1153,66 +1162,71 @@ const IssueCreateDialog = ({
             </DialogTitle>
           </DialogHeader>
 
-          <form className="space-y-3.5 px-5 py-4 sm:px-6" onSubmit={handleSubmit}>
+          <form className="px-5 py-4 sm:px-6" onSubmit={handleSubmit}>
             {blockedMessage ? (
-              <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm text-amber-700">
+              <div className="mb-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm text-amber-700">
                 {blockedMessage}
               </div>
             ) : null}
 
-            <div className="grid gap-3 lg:grid-cols-[minmax(220px,0.3fr)_minmax(0,0.7fr)]">
-              <div className="space-y-1.5">
-                <SectionLabel title="Project" />
-                <Select
-                  options={projectOptions}
-                  value={selectedProjectOption}
-                  onChange={handleProjectChange}
-                  styles={issueSelectStyles}
-                  formatOptionLabel={formatProjectOptionLabel}
-                  isSearchable={false}
-                  isDisabled={!projectOptions.length || isSubmitPending}
-                  menuPortalTarget={menuPortalTarget}
-                  {...baseSelectProps}
-                  placeholder="Select a project"
-                />
+            <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1.08fr)_minmax(380px,0.92fr)]">
+              <div className="space-y-3.5">
+                <div className="grid gap-3 lg:grid-cols-[minmax(220px,0.35fr)_minmax(0,0.65fr)]">
+                  <div className="space-y-1.5">
+                    <SectionLabel title="Project" />
+                    <Select
+                      options={projectOptions}
+                      value={selectedProjectOption}
+                      onChange={handleProjectChange}
+                      styles={issueSelectStyles}
+                      formatOptionLabel={formatProjectOptionLabel}
+                      isSearchable={false}
+                      isDisabled={!projectOptions.length || isSubmitPending}
+                      menuPortalTarget={menuPortalTarget}
+                      {...baseSelectProps}
+                      placeholder="Select a project"
+                    />
+                  </div>
+
+                  <label className="space-y-1.5">
+                    <span className="text-sm font-semibold text-slate-900">Work Item Title</span>
+                    <Input
+                      className="h-12 rounded-2xl border-slate-200 text-base shadow-none focus-visible:border-blue-500 focus-visible:ring-4 focus-visible:ring-blue-500/10"
+                      name="title"
+                      value={formData.title}
+                      onChange={(event) =>
+                        setFormData((current) => ({
+                          ...current,
+                          title: event.target.value,
+                        }))
+                      }
+                      placeholder="Add a concise summary"
+                      disabled={isSubmitPending}
+                    />
+                  </label>
+                </div>
+
+                {supportsDescription ? (
+                  <label className="block space-y-1.5">
+                    <span className="text-sm font-semibold text-slate-900">Description</span>
+                    <Textarea
+                      className="min-h-[156px] rounded-2xl border-slate-200 text-sm shadow-none focus-visible:border-blue-500 focus-visible:ring-4 focus-visible:ring-blue-500/10"
+                      value={formData.description}
+                      onChange={(event) =>
+                        setFormData((current) => ({
+                          ...current,
+                          description: event.target.value,
+                        }))
+                      }
+                      placeholder="Add context, user value, acceptance notes, or scope details"
+                      disabled={isSubmitPending}
+                    />
+                  </label>
+                ) : null}
+
               </div>
 
-              <label className="space-y-1.5">
-                <span className="text-sm font-semibold text-slate-900">Work Item Title</span>
-                <Input
-                  className="h-12 rounded-2xl border-slate-200 text-base shadow-none focus-visible:border-blue-500 focus-visible:ring-4 focus-visible:ring-blue-500/10"
-                  name="title"
-                  value={formData.title}
-                  onChange={(event) =>
-                    setFormData((current) => ({
-                      ...current,
-                      title: event.target.value,
-                    }))
-                  }
-                  placeholder="Add a concise summary"
-                  disabled={isSubmitPending}
-                />
-              </label>
-            </div>
-
-            {supportsDescription ? (
-              <label className="block space-y-1.5">
-                <span className="text-sm font-semibold text-slate-900">Description</span>
-                <Textarea
-                  className="min-h-[96px] rounded-2xl border-slate-200 text-sm shadow-none focus-visible:border-blue-500 focus-visible:ring-4 focus-visible:ring-blue-500/10"
-                  value={formData.description}
-                  onChange={(event) =>
-                    setFormData((current) => ({
-                      ...current,
-                      description: event.target.value,
-                    }))
-                  }
-                  placeholder="Add context, user value, acceptance notes, or scope details"
-                  disabled={isSubmitPending}
-                />
-              </label>
-            ) : null}
-
+              <div className="space-y-3.5">
             {!isDeveloperStoryTask ? (
             <div className="rounded-[24px] border border-slate-200/80 bg-slate-50/80 p-3 sm:p-3.5 shadow-[0_16px_40px_-32px_rgba(15,23,42,0.35)]">
               <div className="space-y-3">
@@ -1296,7 +1310,7 @@ const IssueCreateDialog = ({
                       >
                         <Select
                           options={assigneeOptions}
-                          value={isStoryType ? selectedAssigneeOptions : selectedAssigneeOption}
+                          value={selectedAssigneeOptions}
                           onChange={(option) =>
                             setFormData((current) => ({
                               ...current,
@@ -1312,7 +1326,7 @@ const IssueCreateDialog = ({
                           }
                           styles={issueSelectStyles}
                           formatOptionLabel={formatAssigneeOptionLabel}
-                          isMulti={isStoryType}
+                          isMulti
                           isClearable
                           isDisabled={
                             !formData.teamId ||
@@ -1330,9 +1344,7 @@ const IssueCreateDialog = ({
                                 ? "Manager self-assignment is enabled"
                               : assignToQueue
                                 ? "Disabled while work queue is enabled"
-                                : isStoryType
-                                  ? "Select assignees"
-                                  : "Select assignee"
+                                : "Select assignees"
                           }
                           noOptionsMessage={() =>
                             formData.teamId
@@ -1407,7 +1419,7 @@ const IssueCreateDialog = ({
                       {assignEntireTeam ? (
                         <div className="rounded-2xl border border-blue-100 bg-blue-50/80 px-3 py-2.5 text-sm text-blue-900">
                           {teamWideAssignableAssignees.length
-                            ? `This work item will be created for ${teamWideAssignableAssignees.length} assignee${teamWideAssignableAssignees.length === 1 ? "" : "s"}.`
+                            ? `This work item will be created for ${teamWideAssignableAssignees.length} non-manager assignee${teamWideAssignableAssignees.length === 1 ? "" : "s"}.`
                             : "This team does not have any assignees available yet."}
                         </div>
                       ) : null}
@@ -1714,6 +1726,9 @@ const IssueCreateDialog = ({
                 />
               </div>
             ) : null}
+
+              </div>
+            </div>
 
             {error ? (
               <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-2.5 text-sm text-rose-700">

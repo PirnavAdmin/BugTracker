@@ -14,6 +14,7 @@ import {
   HeartPulse,
   Layers3,
   Link2,
+  LoaderCircle,
   MoreHorizontal,
   Plus,
   Route,
@@ -25,6 +26,7 @@ import {
   Target,
   TimerReset,
   TrendingUp,
+  Trash2,
   UserRoundPlus,
   Users2,
   WalletCards,
@@ -56,6 +58,7 @@ import ProjectManageDialog from "@/components/projects/ProjectManageDialog";
 import {
   projectDialogBodyClass,
   projectDialogContentClass,
+  projectDialogFooterClass,
   projectDialogHeaderClass,
 } from "@/components/projects/projectDialogStyles";
 import TeamCard from "@/components/teams/TeamCard";
@@ -66,9 +69,11 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import EmptyState from "@/components/shared/EmptyState";
 import ToastNotice from "@/components/shared/ToastNotice";
@@ -431,6 +436,8 @@ const ProjectsPage = () => {
   const [projectDetailView, setProjectDetailView] = useState("overview");
   const [projectPanelView, setProjectPanelView] = useState("details");
   const [isQuickAddOpen, setIsQuickAddOpen] = useState(false);
+  const [isSelectedProjectDeleteOpen, setIsSelectedProjectDeleteOpen] = useState(false);
+  const [selectedProjectDeleteConfirmation, setSelectedProjectDeleteConfirmation] = useState("");
   const [projectSettings, setProjectSettings] = useState({
     name: "",
     description: "",
@@ -795,6 +802,10 @@ const ProjectsPage = () => {
       null,
     [filteredProjects, selectedProjectId]
   );
+
+  const isSelectedProjectDeleteConfirmationValid =
+    Boolean(selectedProject?.name) &&
+    selectedProjectDeleteConfirmation === selectedProject.name;
 
   const selectedProjectTeams = useMemo(
     () => (selectedProject ? getProjectTeams(selectedProject) : []),
@@ -1179,6 +1190,8 @@ const ProjectsPage = () => {
     setProjectPanelView("details");
     setSettingsTeamId("");
     setSettingsError("");
+    setSelectedProjectDeleteConfirmation("");
+    setIsSelectedProjectDeleteOpen(false);
   }, [selectedProject?._id]);
 
   useEffect(() => {
@@ -1262,6 +1275,25 @@ const ProjectsPage = () => {
     } catch (error) {
       setSettingsError(error.response?.data?.message || "Unable to attach team.");
     }
+  };
+
+  const handleSelectedProjectDeleteDialogChange = (open) => {
+    setIsSelectedProjectDeleteOpen(open);
+
+    if (!open) {
+      setSelectedProjectDeleteConfirmation("");
+    }
+  };
+
+  const handleDeleteSelectedProject = async () => {
+    if (!selectedProject || !isSelectedProjectDeleteConfirmationValid) {
+      return;
+    }
+
+    await deleteProjectMutation.mutateAsync(selectedProject._id);
+    handleSelectedProjectDeleteDialogChange(false);
+    setSelectedProjectId("");
+    showToast("success", "Project deleted successfully.");
   };
 
   if (projectsError) {
@@ -1548,7 +1580,7 @@ const ProjectsPage = () => {
             </div>
           </aside>
 
-          <div className="min-h-0 min-w-0 space-y-4 overflow-y-auto overscroll-contain pr-1">
+          <div className="min-h-0 min-w-0 space-y-4 overflow-y-auto overscroll-contain pb-10 pr-1">
             {selectedProject ? (
               <>
                 <Card className="overflow-hidden rounded-[18px] border-[#EEF2F7] bg-white shadow-[0_2px_12px_rgba(0,0,0,.04)]">
@@ -1660,6 +1692,17 @@ const ProjectsPage = () => {
                         >
                           <Layers3 className="h-4 w-4" />
                           Backlog
+                        </Button>
+                        <Button
+                          className="h-10 w-10 rounded-xl border-rose-200 px-0 text-rose-600 hover:bg-rose-50 hover:text-rose-700"
+                          variant="outline"
+                          type="button"
+                          title="Delete project"
+                          aria-label="Delete project"
+                          disabled={!canManageProjects || deleteProjectMutation.isPending}
+                          onClick={() => handleSelectedProjectDeleteDialogChange(true)}
+                        >
+                          <Trash2 className="h-4 w-4" />
                         </Button>
                         <Button
                           className="h-10 rounded-xl"
@@ -2896,6 +2939,90 @@ const ProjectsPage = () => {
           usersErrorMessage={isUsersLoading ? "" : usersErrorMessage}
         />
       ) : null}
+
+      <Dialog
+        open={isSelectedProjectDeleteOpen && Boolean(selectedProject)}
+        onOpenChange={handleSelectedProjectDeleteDialogChange}
+      >
+        <DialogContent
+          className={projectDialogContentClass(
+            "grid max-h-[calc(100svh-6.25rem)] w-[calc(100%-2rem)] max-w-lg grid-rows-[auto_minmax(0,1fr)_auto] rounded-[26px] sm:max-h-[calc(100vh-7.5rem)]"
+          )}
+        >
+          <DialogHeader className={projectDialogHeaderClass("space-y-4")}>
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-rose-200 bg-rose-50 text-rose-600 shadow-sm">
+              <AlertTriangle className="h-5 w-5" />
+            </div>
+            <div className="space-y-2">
+              <DialogTitle>Delete Project</DialogTitle>
+              <DialogDescription>
+                This action will permanently delete the project and all associated
+                data.
+              </DialogDescription>
+            </div>
+          </DialogHeader>
+
+          <div className={projectDialogBodyClass("space-y-4")}>
+            <div className="rounded-[24px] border border-rose-200 bg-[linear-gradient(145deg,rgba(255,241,242,0.96),rgba(255,255,255,0.98))] p-4 text-sm text-rose-900 shadow-sm">
+              <p className="font-semibold">This action cannot be undone.</p>
+              <p className="mt-2 leading-6 text-rose-700">
+                Type the project name exactly as shown to confirm the deletion.
+              </p>
+            </div>
+
+            <div className="rounded-[24px] border border-slate-200 bg-slate-50/85 p-4 shadow-sm">
+              <p className="text-[11px] font-semibold uppercase text-slate-500">
+                Project Name
+              </p>
+              <p className="mt-2 break-words text-lg font-semibold text-slate-950">
+                {selectedProject?.name}
+              </p>
+            </div>
+
+            <label className="space-y-2">
+              <span className="text-sm font-medium text-slate-700">
+                Confirmation
+              </span>
+              <Input
+                autoComplete="off"
+                className="rounded-[20px] border-slate-300"
+                disabled={deleteProjectMutation.isPending}
+                placeholder={`Type "${selectedProject?.name || "project name"}"`}
+                value={selectedProjectDeleteConfirmation}
+                onChange={(event) =>
+                  setSelectedProjectDeleteConfirmation(event.target.value)
+                }
+              />
+            </label>
+          </div>
+
+          <DialogFooter className={projectDialogFooterClass()}>
+            <Button
+              variant="ghost"
+              type="button"
+              onClick={() => handleSelectedProjectDeleteDialogChange(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              disabled={
+                !isSelectedProjectDeleteConfirmationValid ||
+                deleteProjectMutation.isPending
+              }
+              type="button"
+              onClick={handleDeleteSelectedProject}
+            >
+              {deleteProjectMutation.isPending ? (
+                <LoaderCircle className="h-4 w-4 animate-spin" />
+              ) : (
+                <Trash2 className="h-4 w-4" />
+              )}
+              {deleteProjectMutation.isPending ? "Deleting..." : "Delete"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
         <DialogContent
