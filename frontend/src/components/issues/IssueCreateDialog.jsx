@@ -542,12 +542,17 @@ const IssueCreateDialog = ({
     [formData.teamId, selectedProjectWithTeams]
   );
   const taskAssignableAssignees = useMemo(
-    () =>
-      hasTaskStoryLeadAccess(role) && ["Task", "Sub-task"].includes(formData.type)
-        ? availableAssignees.filter((assignee) =>
+    () => {
+      const nonManagerAssignees = availableAssignees.filter(
+        (assignee) => assignee.role !== ROLE_MANAGER
+      );
+
+      return hasTaskStoryLeadAccess(role) && ["Task", "Sub-task"].includes(formData.type)
+        ? nonManagerAssignees.filter((assignee) =>
             [ROLE_DEVELOPER, ROLE_TEAM_LEAD, ROLE_QA_LEAD, ROLE_TESTER].includes(assignee.role)
           )
-        : availableAssignees,
+        : nonManagerAssignees;
+    },
     [availableAssignees, formData.type, role]
   );
   const teamWideAssignableAssignees = useMemo(
@@ -566,13 +571,6 @@ const IssueCreateDialog = ({
   const assigneeOptions = useMemo(
     () => taskAssignableAssignees.map(buildAssigneeOption),
     [taskAssignableAssignees]
-  );
-  const selectedAssigneeOption = useMemo(
-    () =>
-      assigneeOptions.find(
-        (assignee) => assignee.value === String(formData.assigneeId)
-      ) || null,
-    [assigneeOptions, formData.assigneeId]
   );
   const selectedAssigneeOptions = useMemo(
     () =>
@@ -1157,12 +1155,22 @@ const IssueCreateDialog = ({
       <DialogContent className="w-[calc(100vw-2rem)] max-w-[1280px] gap-0 overflow-visible border border-slate-200/80 bg-white p-0 shadow-[0_36px_90px_-50px_rgba(15,23,42,0.35)]">
         <div className="max-h-[90vh] overflow-y-auto overflow-x-visible">
           <DialogHeader className="sticky top-0 z-20 border-b border-slate-200/80 bg-white px-5 py-3.5 sm:px-6">
-            <DialogTitle className="text-2xl tracking-tight text-slate-950">
-              Create work item
-            </DialogTitle>
+            <div className="flex items-center justify-between gap-4 pr-12">
+              <DialogTitle className="text-2xl tracking-tight text-slate-950">
+                Create work item
+              </DialogTitle>
+              <Button
+                className="h-10 rounded-xl px-5"
+                type="submit"
+                form="create-work-item-form"
+                disabled={isSubmitPending || Boolean(blockedMessage)}
+              >
+                {isSubmitPending ? "Creating..." : "Create"}
+              </Button>
+            </div>
           </DialogHeader>
 
-          <form className="px-5 py-4 sm:px-6" onSubmit={handleSubmit}>
+          <form id="create-work-item-form" className="px-5 py-4 sm:px-6" onSubmit={handleSubmit}>
             {blockedMessage ? (
               <div className="mb-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm text-amber-700">
                 {blockedMessage}
@@ -1222,6 +1230,80 @@ const IssueCreateDialog = ({
                       disabled={isSubmitPending}
                     />
                   </label>
+                ) : null}
+
+                {canManagePlanningFields ? (
+                  <div className="rounded-[24px] border border-slate-200/80 bg-white p-3 sm:p-3.5 shadow-[0_16px_40px_-32px_rgba(15,23,42,0.28)]">
+                    <div className="space-y-3">
+                      <SectionLabel
+                        title="Planning"
+                        description="Map the work item into an epic and sprint when needed."
+                      />
+
+                      <div className="grid items-start gap-3 md:grid-cols-2">
+                        <div className="space-y-1.5">
+                          <span className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">
+                            Epic (Optional)
+                          </span>
+                          <Select
+                            options={activeEpicOptions}
+                            value={selectedEpicOption}
+                            onChange={(option) =>
+                              setFormData((current) => ({
+                                ...current,
+                                epicId: option?.value || "",
+                              }))
+                            }
+                            styles={issueSelectStyles}
+                            formatOptionLabel={formatEpicOptionLabel}
+                            isClearable
+                            isSearchable
+                            isDisabled={!formData.projectId || !activeEpicOptions.length || isSubmitPending}
+                            menuPortalTarget={menuPortalTarget}
+                            {...baseSelectProps}
+                            placeholder={
+                              activeEpicOptions.length
+                                ? "Search epics"
+                                : "No epics in this project"
+                            }
+                            noOptionsMessage={() =>
+                              formData.projectId
+                                ? "No epics available."
+                                : "Select a project first."
+                            }
+                          />
+                        </div>
+
+                        <div className="space-y-1.5">
+                          <span className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">
+                            Sprint
+                          </span>
+                          <Select
+                            options={sprintOptions}
+                            value={selectedSprintOption}
+                            onChange={(option) =>
+                              setFormData((current) => ({
+                                ...current,
+                                sprintId: option?.value || "",
+                              }))
+                            }
+                            styles={issueSelectStyles}
+                            formatOptionLabel={formatSprintOptionLabel}
+                            isSearchable
+                            isDisabled={!formData.projectId || isSubmitPending}
+                            menuPortalTarget={menuPortalTarget}
+                            {...baseSelectProps}
+                            placeholder="Backlog"
+                            noOptionsMessage={() =>
+                              formData.projectId
+                                ? "No active or upcoming sprints."
+                                : "Select a project first."
+                            }
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                 ) : null}
 
               </div>
@@ -1428,80 +1510,6 @@ const IssueCreateDialog = ({
                 </div>
               </div>
             </div>
-            ) : null}
-
-            {canManagePlanningFields ? (
-              <div className="rounded-[24px] border border-slate-200/80 bg-white p-3 sm:p-3.5 shadow-[0_16px_40px_-32px_rgba(15,23,42,0.28)]">
-                <div className="space-y-3">
-                  <SectionLabel
-                    title="Planning"
-                    description="Map the work item into an epic and sprint when needed."
-                  />
-
-                  <div className="grid items-start gap-3 md:grid-cols-2">
-                    <div className="space-y-1.5">
-                      <span className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">
-                        Epic (Optional)
-                      </span>
-                      <Select
-                        options={activeEpicOptions}
-                        value={selectedEpicOption}
-                        onChange={(option) =>
-                          setFormData((current) => ({
-                            ...current,
-                            epicId: option?.value || "",
-                          }))
-                        }
-                        styles={issueSelectStyles}
-                        formatOptionLabel={formatEpicOptionLabel}
-                        isClearable
-                        isSearchable
-                        isDisabled={!formData.projectId || !activeEpicOptions.length || isSubmitPending}
-                        menuPortalTarget={menuPortalTarget}
-                        {...baseSelectProps}
-                        placeholder={
-                          activeEpicOptions.length
-                            ? "Search epics"
-                            : "No epics in this project"
-                        }
-                        noOptionsMessage={() =>
-                          formData.projectId
-                            ? "No epics available."
-                            : "Select a project first."
-                        }
-                      />
-                    </div>
-
-                    <div className="space-y-1.5">
-                      <span className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">
-                        Sprint
-                      </span>
-                      <Select
-                        options={sprintOptions}
-                        value={selectedSprintOption}
-                        onChange={(option) =>
-                          setFormData((current) => ({
-                            ...current,
-                            sprintId: option?.value || "",
-                          }))
-                        }
-                        styles={issueSelectStyles}
-                        formatOptionLabel={formatSprintOptionLabel}
-                        isSearchable
-                        isDisabled={!formData.projectId || isSubmitPending}
-                        menuPortalTarget={menuPortalTarget}
-                        {...baseSelectProps}
-                        placeholder="Backlog"
-                        noOptionsMessage={() =>
-                          formData.projectId
-                            ? "No active or upcoming sprints."
-                            : "Select a project first."
-                        }
-                      />
-                    </div>
-                  </div>
-                </div>
-              </div>
             ) : null}
 
             <div className="border-t border-slate-200/80 pt-3">
@@ -1736,22 +1744,6 @@ const IssueCreateDialog = ({
               </div>
             ) : null}
 
-            <div className="sticky bottom-0 -mx-5 flex justify-end gap-3 border-t border-slate-200/80 bg-white/95 px-5 py-3 backdrop-blur sm:-mx-6 sm:px-6">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => onOpenChange(false)}
-                disabled={isSubmitPending}
-              >
-                Cancel
-              </Button>
-              <Button
-                type="submit"
-                disabled={isSubmitPending || Boolean(blockedMessage)}
-              >
-                {isSubmitPending ? "Creating..." : "Create"}
-              </Button>
-            </div>
           </form>
         </div>
       </DialogContent>
