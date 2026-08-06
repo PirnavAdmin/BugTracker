@@ -160,6 +160,8 @@ const SUMMARY_CARDS = [
   },
 ];
 
+const COMMON_TESTING_MODULES = ["Login", "Dashboard", "Reports", "API", "Payment", "Attendance"];
+
 const createEmptyMetrics = () => ({
   total: 0,
   open: 0,
@@ -486,10 +488,10 @@ const getQaProjectStatusMeta = (project, projectIssues = []) => {
   if (readyForQaCount || explicitStatus.includes("verification")) {
     return {
       key: "verification",
-      label: "Ready For Verification",
-      action: "Open Verification",
-      tone: "border-blue-200 bg-blue-50 text-blue-700",
-      dot: "bg-blue-500",
+      label: "Ready For Q/A",
+      action: "Start Session",
+      tone: "border-rose-200 bg-rose-50 text-rose-700",
+      dot: "bg-rose-500",
     };
   }
 
@@ -516,18 +518,17 @@ const getQaProjectStatusMeta = (project, projectIssues = []) => {
   if (!hasBuild || explicitStatus.includes("waiting")) {
     return {
       key: "waiting",
-      label: "Waiting For Build",
-      action: "Waiting For Build",
-      tone: "border-slate-200 bg-slate-50 text-slate-500",
-      dot: "bg-slate-300",
-      disabled: true,
+      label: "Start Session",
+      action: "Start Session",
+      tone: "border-blue-200 bg-blue-50 text-blue-700",
+      dot: "bg-blue-500",
     };
   }
 
   return {
     key: "ready",
     label: "Ready For Testing",
-    action: "Start Testing",
+    action: "Start Session",
     tone: "border-emerald-200 bg-emerald-50 text-emerald-700",
     dot: "bg-emerald-500",
   };
@@ -537,7 +538,12 @@ const QaProjectCard = ({ onCreateBug, onOpen, onReleaseNotes, onStart, project }
   const Icon = project.status.key === "verification" ? ShieldCheck : project.status.key === "waiting" ? Clock3 : PlayCircle;
 
   return (
-    <article className="group relative min-h-[208px] rounded-[18px] border border-slate-200/80 bg-white/92 p-4 shadow-[0_14px_34px_-30px_rgba(15,23,42,0.34)] transition duration-200 hover:-translate-y-0.5 hover:border-blue-200 hover:bg-blue-50/35">
+    <article
+      className={cn(
+        "group relative min-h-[208px] rounded-[18px] border bg-white/92 p-4 shadow-[0_14px_34px_-30px_rgba(15,23,42,0.34)] transition duration-200 hover:-translate-y-0.5 hover:border-blue-200 hover:bg-blue-50/35",
+        project.readyForQaCount > 0 ? "border-rose-200 bg-rose-50/55" : "border-slate-200/80"
+      )}
+    >
       <button
         aria-label="More project actions"
         className="absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-xl text-slate-400 hover:bg-slate-100 hover:text-slate-700"
@@ -557,7 +563,7 @@ const QaProjectCard = ({ onCreateBug, onOpen, onReleaseNotes, onStart, project }
             </h3>
             <span className={cn("inline-flex max-w-[136px] shrink-0 items-center gap-1.5 truncate rounded-full border px-2 py-0.5 text-[10px] font-bold", project.status.tone)}>
               <span className={cn("h-2 w-2 rounded-full", project.status.dot)} />
-              {project.status.label}
+              {project.readyForQaCount > 0 ? `${project.readyForQaCount} Ready For Q/A` : project.status.label}
             </span>
           </div>
           <div className="mt-2 grid gap-1 text-xs text-slate-600 sm:grid-cols-2">
@@ -587,13 +593,15 @@ const QaProjectCard = ({ onCreateBug, onOpen, onReleaseNotes, onStart, project }
 
       <div className="mt-4 flex items-center justify-between gap-2">
         <Button
-          className="h-9 min-w-0 flex-1 rounded-xl bg-blue-600 px-3 text-sm text-white hover:bg-blue-700 disabled:bg-slate-200 disabled:text-slate-500"
-          disabled={project.status.disabled}
+          className={cn(
+            "h-9 min-w-0 flex-1 rounded-xl px-3 text-sm text-white",
+            project.readyForQaCount > 0 ? "bg-rose-600 hover:bg-rose-700" : "bg-blue-600 hover:bg-blue-700"
+          )}
           onClick={() => onStart(project)}
           type="button"
         >
           <Icon className="h-4 w-4" />
-          {project.status.action}
+          Start Session
         </Button>
         {project.status.key === "progress" ? (
           <Button className="h-9 rounded-xl px-3" variant="outline" onClick={() => onCreateBug(project)} type="button">
@@ -646,6 +654,13 @@ const TesterDashboardPage = () => {
   const [selectedQaProjectId, setSelectedQaProjectId] = useState(() => {
     try {
       return window.localStorage.getItem("curecode_selected_qa_project") || "";
+    } catch {
+      return "";
+    }
+  });
+  const [selectedTestingModule, setSelectedTestingModule] = useState(() => {
+    try {
+      return window.localStorage.getItem(`curecode_selected_testing_module_${testerId}`) || "";
     } catch {
       return "";
     }
@@ -758,6 +773,21 @@ const TesterDashboardPage = () => {
   }, [dailyNote, dailyNoteDateKey, testerId]);
 
   useEffect(() => {
+    if (!testerId) {
+      return;
+    }
+
+    try {
+      window.localStorage.setItem(
+        `curecode_selected_testing_module_${testerId}`,
+        selectedTestingModule
+      );
+    } catch {
+      // Ignore storage failures.
+    }
+  }, [selectedTestingModule, testerId]);
+
+  useEffect(() => {
     const session = readStoredSession();
     const token = session?.token;
     const socket = getChatSocket(token);
@@ -857,6 +887,9 @@ const TesterDashboardPage = () => {
       assignedProjects.map((project) => {
         const projectId = String(project._id);
         const projectIssues = issues.filter((issue) => resolveIssueProjectId(issue) === projectId);
+        const readyForQaCount = projectIssues.filter((issue) =>
+          [ISSUE_STATUS.READY_FOR_QA, ISSUE_STATUS.QA, ISSUE_STATUS.FIXED, ISSUE_STATUS.TESTING].includes(getComparableStatus(issue))
+        ).length;
         const totalWork = projectIssues.length;
         const completedWork = projectIssues.filter((issue) =>
           [ISSUE_STATUS.CLOSED, ISSUE_STATUS.DONE].includes(getComparableStatus(issue))
@@ -876,6 +909,7 @@ const TesterDashboardPage = () => {
           uploadedTime: project.updatedAt ? formatDateTime(project.updatedAt) : "Waiting for upload",
           modules: getProjectModules(project),
           progress,
+          readyForQaCount,
           status,
         };
       }),
@@ -887,7 +921,7 @@ const TesterDashboardPage = () => {
       { key: "ready", title: "Ready For Testing", projects: qaProjects.filter((project) => project.status.key === "ready") },
       { key: "progress", title: "Testing In Progress", projects: qaProjects.filter((project) => project.status.key === "progress") },
       { key: "verification", title: "Ready For Verification", projects: qaProjects.filter((project) => project.status.key === "verification") },
-      { key: "waiting", title: "Waiting For Build", projects: qaProjects.filter((project) => project.status.key === "waiting") },
+      { key: "waiting", title: "Start Session", projects: qaProjects.filter((project) => project.status.key === "waiting") },
       { key: "completed", title: "Testing Completed", projects: qaProjects.filter((project) => project.status.key === "completed") },
     ].filter((group) => group.projects.length),
     [qaProjects]
@@ -895,6 +929,16 @@ const TesterDashboardPage = () => {
   const selectedQaProject = useMemo(
     () => qaProjects.find((project) => project.id === selectedQaProjectId) || null,
     [qaProjects, selectedQaProjectId]
+  );
+  const testingModuleOptions = useMemo(
+    () =>
+      Array.from(
+        new Set([
+          ...COMMON_TESTING_MODULES,
+          ...(selectedQaProject?.modules || []),
+        ].filter(Boolean))
+      ),
+    [selectedQaProject?.modules]
   );
 
   useEffect(() => {
@@ -996,7 +1040,6 @@ const TesterDashboardPage = () => {
     [criticalBugsFound, dashboardMetrics.closed, dashboardMetrics.inProgress, readyForQaCount, rejectedBugsCount, reportedIssues.length]
   );
 
-  const testingModules = ["Login", "Dashboard", "Reports", "Payment", "Attendance"];
   const testingActivity = useMemo(() => {
     const recentBugItems = myReportedBugs.slice(0, 2).map((issue) => ({
       label: `Created ${getIssueDisplayKey(issue)}`,
@@ -1027,6 +1070,7 @@ const TesterDashboardPage = () => {
       projectName: project.name,
       buildVersion: project.buildVersion,
       environment: project.environment,
+      module: selectedTestingModule.trim() || "General",
       startedAt: new Date().toISOString(),
       modules: project.modules,
       status: "In Progress",
@@ -1342,7 +1386,7 @@ const TesterDashboardPage = () => {
                     >
                       <span className={cn("min-w-0 truncate", !selectedQaProject && "text-slate-400")}>
                         {selectedQaProject
-                          ? `${selectedQaProject.name} - ${selectedQaProject.status.label}`
+                          ? selectedQaProject.name
                           : "Select a QA project"}
                       </span>
                       <ChevronRight
@@ -1374,7 +1418,8 @@ const TesterDashboardPage = () => {
                             <button
                               className={cn(
                                 "flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2.5 text-left transition hover:bg-blue-50",
-                                selectedQaProjectId === project.id && "bg-blue-50"
+                                project.readyForQaCount > 0 && "border border-rose-200 bg-rose-50/70 hover:bg-rose-50",
+                                selectedQaProjectId === project.id && (project.readyForQaCount > 0 ? "bg-rose-50 ring-1 ring-rose-200" : "bg-blue-50")
                               )}
                               key={project.id}
                               onClick={() => {
@@ -1395,7 +1440,7 @@ const TesterDashboardPage = () => {
                                 </span>
                               </span>
                               <span className={cn("shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-bold", project.status.tone)}>
-                                {project.status.label}
+                                {project.readyForQaCount > 0 ? `${project.readyForQaCount} Ready Q/A` : project.status.label}
                               </span>
                             </button>
                           ))}
@@ -1405,7 +1450,14 @@ const TesterDashboardPage = () => {
                   </div>
 
                   {selectedQaProject ? (
-                    <div className="mt-4 rounded-[18px] border border-slate-200/80 bg-slate-50/72 p-4">
+                    <div
+                      className={cn(
+                        "mt-4 rounded-[18px] border bg-slate-50/72 p-4",
+                        selectedQaProject.readyForQaCount > 0
+                          ? "border-rose-200 bg-rose-50/55 shadow-[0_18px_40px_-34px_rgba(225,29,72,0.5)]"
+                          : "border-slate-200/80"
+                      )}
+                    >
                       <div className="flex flex-wrap items-start justify-between gap-3">
                         <div className="flex min-w-0 items-start gap-3">
                           <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-50 to-violet-50 text-sm font-bold text-blue-700">
@@ -1424,7 +1476,9 @@ const TesterDashboardPage = () => {
                         </div>
                         <span className={cn("inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-bold", selectedQaProject.status.tone)}>
                           <span className={cn("h-2 w-2 rounded-full", selectedQaProject.status.dot)} />
-                          {selectedQaProject.status.label}
+                          {selectedQaProject.readyForQaCount > 0
+                            ? `${selectedQaProject.readyForQaCount} Ready For Q/A`
+                            : selectedQaProject.status.label}
                         </span>
                       </div>
 
@@ -1434,6 +1488,45 @@ const TesterDashboardPage = () => {
                             {module}
                           </span>
                         ))}
+                      </div>
+
+                      <div className="mt-4 rounded-2xl border border-slate-200/80 bg-white/82 p-3">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <label className="text-[11px] font-bold uppercase tracking-[0.12em] text-slate-500" htmlFor="qa-testing-module">
+                            Module
+                          </label>
+                          <span className="text-[11px] font-semibold text-slate-400">Select or type</span>
+                        </div>
+                        <Input
+                          className="mt-2 h-10 rounded-xl border-slate-200 bg-white"
+                          id="qa-testing-module"
+                          list="qa-testing-module-options"
+                          onChange={(event) => setSelectedTestingModule(event.target.value)}
+                          placeholder="Choose or type module"
+                          value={selectedTestingModule}
+                        />
+                        <datalist id="qa-testing-module-options">
+                          {testingModuleOptions.map((module) => (
+                            <option key={module} value={module} />
+                          ))}
+                        </datalist>
+                        <div className="mt-2 flex flex-wrap gap-1.5">
+                          {testingModuleOptions.slice(0, 6).map((module) => (
+                            <button
+                              className={cn(
+                                "rounded-full border px-2.5 py-1 text-[11px] font-semibold transition",
+                                selectedTestingModule === module
+                                  ? "border-blue-300 bg-blue-50 text-blue-700"
+                                  : "border-slate-200 bg-white text-slate-600 hover:border-blue-200 hover:bg-blue-50/70"
+                              )}
+                              key={module}
+                              onClick={() => setSelectedTestingModule(module)}
+                              type="button"
+                            >
+                              {module}
+                            </button>
+                          ))}
+                        </div>
                       </div>
 
                       <div className="mt-4">
@@ -1448,13 +1541,17 @@ const TesterDashboardPage = () => {
 
                       <div className="mt-4 flex flex-wrap gap-2">
                         <Button
-                          className="h-9 rounded-xl bg-blue-600 px-4 text-white hover:bg-blue-700 disabled:bg-slate-200 disabled:text-slate-500"
-                          disabled={selectedQaProject.status.disabled && activeSelectedSession?.status !== "In Progress"}
+                          className={cn(
+                            "h-9 rounded-xl px-4 text-white",
+                            selectedQaProject.readyForQaCount > 0
+                              ? "bg-rose-600 hover:bg-rose-700"
+                              : "bg-blue-600 hover:bg-blue-700"
+                          )}
                           onClick={() => handleStartTesting(selectedQaProject)}
                           type="button"
                         >
                           <PlayCircle className="h-4 w-4" />
-                          {activeSelectedSession?.status === "In Progress" ? "Continue Testing" : selectedQaProject.status.action}
+                          {activeSelectedSession?.status === "In Progress" ? "Continue Testing" : "Start Session"}
                         </Button>
                         <Button className="h-9 rounded-xl px-3" variant="ghost" onClick={() => handleCreateBugForProject(selectedQaProject)} type="button">
                           Create Bug
@@ -1482,7 +1579,8 @@ const TesterDashboardPage = () => {
                       <button
                         className={cn(
                           "flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left transition hover:bg-blue-50",
-                          selectedQaProjectId === project.id && "bg-blue-50 ring-1 ring-blue-200"
+                          project.readyForQaCount > 0 && "border border-rose-200 bg-rose-50/60 hover:bg-rose-50",
+                          selectedQaProjectId === project.id && (project.readyForQaCount > 0 ? "bg-rose-50 ring-1 ring-rose-200" : "bg-blue-50 ring-1 ring-blue-200")
                         )}
                         key={project.id}
                         onClick={() => handleSelectQaProject(project.id)}
@@ -1496,7 +1594,14 @@ const TesterDashboardPage = () => {
                             <span>{project.environment}</span>
                           </span>
                         </span>
-                        <span className={cn("h-2.5 w-2.5 shrink-0 rounded-full", project.status.dot)} />
+                        <span className="flex shrink-0 items-center gap-2">
+                          {project.readyForQaCount > 0 && (
+                            <span className="rounded-full border border-rose-200 bg-white px-2 py-0.5 text-[10px] font-bold text-rose-700">
+                              {project.readyForQaCount}
+                            </span>
+                          )}
+                          <span className={cn("h-2.5 w-2.5 rounded-full", project.readyForQaCount > 0 ? "bg-rose-500" : project.status.dot)} />
+                        </span>
                       </button>
                     ))}
                   </div>
@@ -1506,7 +1611,7 @@ const TesterDashboardPage = () => {
               <div className="mt-6 flex min-h-[220px] flex-col items-center justify-center rounded-[18px] border border-dashed border-blue-200 bg-blue-50/50 px-6 text-center">
                 <Rocket className="h-10 w-10 text-blue-400" />
                 <h2 className="mt-4 text-xl font-semibold text-slate-950">No Active Testing</h2>
-                <p className="mt-2 text-sm text-slate-600">Click Start Testing Session to begin.</p>
+                <p className="mt-2 text-sm text-slate-600">Click Start Session to begin.</p>
               </div>
             )}
           </WorkspaceCard>
@@ -1627,6 +1732,12 @@ const TesterDashboardPage = () => {
                   <span className="text-xs font-bold uppercase tracking-[0.1em] text-slate-500">Environment</span>
                   <span className="text-sm font-semibold text-slate-900">{selectedQaProject.environment}</span>
                 </div>
+                <div className="flex items-center justify-between gap-3 rounded-xl bg-blue-50/70 px-3 py-2">
+                  <span className="text-xs font-bold uppercase tracking-[0.1em] text-blue-700">Module</span>
+                  <span className="min-w-0 truncate text-sm font-semibold text-slate-900">
+                    {activeSelectedSession?.module || selectedTestingModule.trim() || "Not selected"}
+                  </span>
+                </div>
                 <div className="flex items-center justify-between rounded-xl bg-slate-50/90 px-3 py-2">
                   <span className="text-xs font-bold uppercase tracking-[0.1em] text-slate-500">Session</span>
                   <span className={cn(
@@ -1670,12 +1781,16 @@ const TesterDashboardPage = () => {
                   </Button>
                 ) : (
                   <Button
-                    className="mt-1 h-9 w-full rounded-xl bg-blue-600 text-white hover:bg-blue-700 disabled:bg-slate-200 disabled:text-slate-500"
-                    disabled={selectedQaProject.status.disabled}
+                    className={cn(
+                      "mt-1 h-9 w-full rounded-xl text-white",
+                      selectedQaProject.readyForQaCount > 0
+                        ? "bg-rose-600 hover:bg-rose-700"
+                        : "bg-blue-600 hover:bg-blue-700"
+                    )}
                     onClick={() => handleStartTesting(selectedQaProject)}
                     type="button"
                   >
-                    Start Testing
+                    Start Session
                   </Button>
                 )}
               </div>
