@@ -1147,8 +1147,75 @@ const TesterDashboardPage = () => {
     );
   }
 
+  const readyForQaPanel = (
+    <section>
+      <WorkspaceCard>
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h2 className="text-base font-semibold tracking-tight text-slate-950">Ready For Q/A</h2>
+            <p className="mt-0.5 text-xs text-slate-600">Developer fixes waiting for QA sign-off.</p>
+          </div>
+          <Button className="h-8 rounded-xl" size="sm" variant="outline" onClick={() => navigate("/bugs")}>
+            View All
+            <ChevronRight className="h-4 w-4" />
+          </Button>
+        </div>
+
+        <div className="mt-3 grid gap-3 lg:grid-cols-2">
+          {isReportedBugsLoading ? (
+            Array.from({ length: 4 }).map((_, index) => (
+              <Skeleton className="h-32 rounded-2xl" key={`verification-skeleton-${index}`} />
+            ))
+          ) : readyForVerificationBugs.length ? (
+            readyForVerificationBugs.slice(0, 4).map((issue) => (
+              <div
+                className="min-h-[132px] rounded-2xl border border-slate-200/80 bg-white/86 p-4 transition hover:-translate-y-0.5 hover:border-blue-200 hover:bg-blue-50/45 hover:shadow-[0_16px_34px_-30px_rgba(37,99,235,0.38)]"
+                key={issue._id}
+              >
+                <div className="flex h-full flex-col justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <span className="font-mono text-xs font-bold text-blue-700">{getIssueDisplayKey(issue)}</span>
+                      <TableBadge variant={getIssuePriorityVariant(issue.priority)}>
+                        {issue.priority || "Medium"}
+                      </TableBadge>
+                    </div>
+                    <h3 className="mt-1 line-clamp-1 text-sm font-semibold text-slate-950">
+                      {issue.title || "Untitled bug"}
+                    </h3>
+                    <p className="mt-0.5 text-xs text-slate-500">
+                      {getAssigneeName(issue)}
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    <Button className="h-8 rounded-xl bg-emerald-600 px-3 text-white hover:bg-emerald-700" size="sm" onClick={() => handleOpenReportedBug(issue._id)}>
+                      Verify
+                    </Button>
+                    <Button className="h-8 rounded-xl px-3" size="sm" variant="outline" onClick={() => handleOpenReportedBug(issue._id)}>
+                      View
+                    </Button>
+                    <Button className="h-8 w-8 rounded-xl p-0" size="icon" variant="ghost" onClick={() => handleOpenReportedBug(issue._id)}>
+                      ...
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            ))
+          ) : (
+            <div className="rounded-[18px] border border-dashed border-emerald-200 bg-emerald-50/60 p-5 text-center">
+              <CheckCircle2 className="mx-auto h-7 w-7 text-emerald-500" />
+              <p className="mt-2 text-sm font-semibold text-slate-800">Everything has been verified.</p>
+            </div>
+          )}
+        </div>
+      </WorkspaceCard>
+    </section>
+  );
+
   return (
     <div className="space-y-4">
+      {readyForQaPanel}
+
       <section className="relative isolate flex flex-wrap items-center gap-3 overflow-hidden rounded-[28px] border border-blue-100/80 bg-white p-3 shadow-[0_24px_65px_-42px_rgba(37,99,235,0.65)] lg:flex-nowrap">
         <GreetingBeachScene timeOfDay={timeOfDay} />
         <div className="relative z-10 w-full min-w-0 shrink-0 sm:flex-1 lg:w-[420px] lg:flex-none xl:w-[460px]">
@@ -1437,69 +1504,6 @@ const TesterDashboardPage = () => {
               tone="red"
               value={criticalBugsFound}
             />
-          </section>
-
-          <section>
-            <WorkspaceCard>
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <h2 className="text-base font-semibold tracking-tight text-slate-950">Ready For Q/A</h2>
-                  <p className="mt-0.5 text-xs text-slate-600">Developer fixes waiting for QA sign-off.</p>
-                </div>
-                <Button className="h-8 rounded-xl" size="sm" variant="outline" onClick={() => navigate("/bugs")}>
-                  View All
-                  <ChevronRight className="h-4 w-4" />
-                </Button>
-              </div>
-
-              <div className="mt-3 grid gap-3 lg:grid-cols-2">
-                {isReportedBugsLoading ? (
-                  Array.from({ length: 4 }).map((_, index) => (
-                    <Skeleton className="h-32 rounded-2xl" key={`verification-skeleton-${index}`} />
-                  ))
-                ) : readyForVerificationBugs.length ? (
-                  readyForVerificationBugs.slice(0, 4).map((issue) => (
-                    <div
-                      className="min-h-[132px] rounded-2xl border border-slate-200/80 bg-white/86 p-4 transition hover:-translate-y-0.5 hover:border-blue-200 hover:bg-blue-50/45 hover:shadow-[0_16px_34px_-30px_rgba(37,99,235,0.38)]"
-                      key={issue._id}
-                    >
-                      <div className="flex h-full flex-col justify-between gap-3">
-                        <div className="min-w-0">
-                          <div className="flex flex-wrap items-center gap-1.5">
-                            <span className="font-mono text-xs font-bold text-blue-700">{getIssueDisplayKey(issue)}</span>
-                            <TableBadge variant={getIssuePriorityVariant(issue.priority)}>
-                              {issue.priority || "Medium"}
-                            </TableBadge>
-                          </div>
-                          <h3 className="mt-1 line-clamp-1 text-sm font-semibold text-slate-950">
-                            {issue.title || "Untitled bug"}
-                          </h3>
-                          <p className="mt-0.5 text-xs text-slate-500">
-                            {getAssigneeName(issue)}
-                          </p>
-                        </div>
-                        <div className="flex flex-wrap gap-1.5">
-                          <Button className="h-8 rounded-xl bg-emerald-600 px-3 text-white hover:bg-emerald-700" size="sm" onClick={() => handleOpenReportedBug(issue._id)}>
-                            Verify
-                          </Button>
-                          <Button className="h-8 rounded-xl px-3" size="sm" variant="outline" onClick={() => handleOpenReportedBug(issue._id)}>
-                            View
-                          </Button>
-                          <Button className="h-8 w-8 rounded-xl p-0" size="icon" variant="ghost" onClick={() => handleOpenReportedBug(issue._id)}>
-                            ...
-                          </Button>
-                        </div>
-                      </div>
-                    </div>
-                  ))
-                ) : (
-                  <div className="rounded-[18px] border border-dashed border-emerald-200 bg-emerald-50/60 p-5 text-center">
-                    <CheckCircle2 className="mx-auto h-7 w-7 text-emerald-500" />
-                    <p className="mt-2 text-sm font-semibold text-slate-800">Everything has been verified.</p>
-                  </div>
-                )}
-              </div>
-            </WorkspaceCard>
           </section>
 
           <section className="grid items-start gap-4 xl:grid-cols-[0.9fr_1.1fr]">
