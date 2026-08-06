@@ -161,6 +161,7 @@ const SUMMARY_CARDS = [
 ];
 
 const COMMON_TESTING_MODULES = ["Login", "Dashboard", "Reports", "API", "Payment", "Attendance"];
+const BUILD_MODULE_FALLBACK = ["Login", "Dashboard", "Reports", "Payment", "Attendance"];
 
 const createEmptyMetrics = () => ({
   total: 0,
@@ -459,10 +460,10 @@ const getProjectModules = (project) => {
   const rawModules = project?.modules || project?.testedModules || project?.moduleNames;
 
   if (Array.isArray(rawModules) && rawModules.length) {
-    return rawModules.map((module) => String(module?.name || module)).filter(Boolean).slice(0, 4);
+    return rawModules.map((module) => String(module?.name || module)).filter(Boolean).slice(0, 5);
   }
 
-  return ["Login", "Dashboard", "Reports", "API"];
+  return BUILD_MODULE_FALLBACK;
 };
 
 const formatSessionDuration = (milliseconds = 0) => {
@@ -1630,112 +1631,86 @@ const TesterDashboardPage = () => {
                     <div>
                       <div className="flex items-center justify-between gap-2">
                         <div>
-                          <h3 className="text-sm font-semibold text-slate-950">Testing Goal</h3>
-                          <p className="mt-0.5 text-xs text-slate-500">
-                            {testingGoal.setupComplete ? "Track today's module progress." : "Complete setup before tracking progress."}
-                          </p>
+                          <h3 className="text-sm font-semibold text-slate-950">Current Build</h3>
+                          <p className="mt-0.5 text-xs text-slate-500">{selectedQaProject?.name || activeSelectedSession.projectName}</p>
                         </div>
-                        <span className={cn(
-                          "rounded-full px-2 py-0.5 text-xs font-bold",
-                          testingGoal.setupComplete ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"
-                        )}>
-                          {testingGoal.setupComplete ? `${goalProgress}%` : "Setup"}
+                        <span className="rounded-full bg-blue-50 px-2 py-0.5 text-xs font-bold text-blue-700">
+                          Build
                         </span>
                       </div>
 
-                      {!testingGoal.setupComplete ? (
-                        <div className="mt-3 space-y-3">
-                          <div className="space-y-2 rounded-2xl border border-blue-100 bg-blue-50/45 p-3">
+                      <div className="mt-3 space-y-3">
+                        <div className="rounded-2xl border border-blue-100 bg-blue-50/45 p-3">
+                          <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-slate-500">Build</p>
+                          <p className="mt-1 text-2xl font-semibold tracking-tight text-slate-950">
+                            {selectedQaProject?.buildVersion || activeSelectedSession.buildVersion || "2.4.1"}
+                          </p>
+                        </div>
+
+                        <div className="rounded-2xl border border-slate-200 bg-white/90 p-3">
+                          <div className="flex items-center justify-between gap-2">
+                            <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-slate-500">Modules</p>
+                            <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-bold text-emerald-700">40%</span>
+                          </div>
+
+                          <div className="mt-3 space-y-2">
+                            {(selectedQaProject?.modules?.length ? selectedQaProject.modules : BUILD_MODULE_FALLBACK).slice(0, 5).map((module, index) => {
+                              const status = index < 2 ? "done" : index === 2 ? "progress" : "pending";
+
+                              return (
+                                <div className="flex items-center justify-between gap-3 rounded-xl bg-slate-50/90 px-3 py-2" key={module}>
+                                  <span className="min-w-0 truncate text-sm font-semibold text-slate-800">{module}</span>
+                                  <span className={cn(
+                                    "flex h-7 w-7 shrink-0 items-center justify-center rounded-full border text-xs font-bold",
+                                    status === "done" && "border-emerald-100 bg-emerald-50 text-emerald-600",
+                                    status === "progress" && "border-amber-100 bg-amber-50 text-amber-600",
+                                    status === "pending" && "border-slate-200 bg-white text-slate-400"
+                                  )}>
+                                    {status === "done" ? (
+                                      <CheckCircle2 className="h-4 w-4" />
+                                    ) : status === "progress" ? (
+                                      <Clock3 className="h-4 w-4" />
+                                    ) : (
+                                      <span className="h-3 w-3 rounded-sm border border-current" />
+                                    )}
+                                  </span>
+                                </div>
+                              );
+                            })}
+                          </div>
+
+                          <div className="mt-3">
+                            <div className="flex items-center justify-between text-xs font-semibold text-slate-500">
+                              <span>Module Progress</span>
+                              <span>40%</span>
+                            </div>
+                            <div className="mt-1.5 h-2 overflow-hidden rounded-full bg-slate-100">
+                              <div className="h-full w-[40%] rounded-full bg-[linear-gradient(90deg,#22C55E,#38BDF8)]" />
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="rounded-2xl border border-slate-200 bg-white/90 p-3">
+                          <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-slate-500">Test Cases</p>
+                          <div className="mt-3 grid grid-cols-2 gap-2">
                             {[
-                              ["Project selected", selectedQaProject?.name],
-                              ["Module selected", activeSelectedSession.module || selectedTestingModule || "General"],
-                              ["Session started", formatDateTime(activeSelectedSession.startedAt)],
-                            ].map(([label, value]) => (
-                              <div className="flex items-start gap-2" key={label}>
-                                <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-emerald-50 text-emerald-600">
-                                  <CheckCircle2 className="h-3.5 w-3.5" />
-                                </span>
-                                <span className="min-w-0">
-                                  <span className="block text-xs font-bold text-slate-800">{label}</span>
-                                  <span className="block truncate text-xs text-slate-500">{value}</span>
-                                </span>
+                              ["Executed", 62, "bg-blue-50 text-blue-700"],
+                              ["Passed", 54, "bg-emerald-50 text-emerald-700"],
+                              ["Failed", 6, "bg-rose-50 text-rose-700"],
+                              ["Blocked", 2, "bg-amber-50 text-amber-700"],
+                            ].map(([label, value, tone]) => (
+                              <div className={cn("rounded-xl p-3", tone)} key={label}>
+                                <p className="text-[10px] font-bold uppercase tracking-[0.1em]">{label}</p>
+                                <p className="mt-1 text-xl font-semibold text-slate-950">{value}</p>
                               </div>
                             ))}
                           </div>
-
-                          <div>
-                            <label className="text-[11px] font-bold uppercase tracking-[0.12em] text-slate-500" htmlFor="testing-goal-modules">
-                              Today&apos;s Modules
-                            </label>
-                            <Input
-                              className="mt-2 h-10 rounded-xl border-slate-200 bg-white"
-                              id="testing-goal-modules"
-                              min="1"
-                              onChange={(event) =>
-                                setTestingGoal((goal) => ({
-                                  ...goal,
-                                  totalModules: event.target.value,
-                                  completedModules: Math.min(Number(goal.completedModules) || 0, Math.max(1, Number(event.target.value) || 1)),
-                                }))
-                              }
-                              type="number"
-                              value={testingGoal.totalModules}
-                            />
+                          <div className="mt-3 flex items-center justify-between rounded-xl bg-violet-50 px-3 py-2">
+                            <span className="text-xs font-bold uppercase tracking-[0.1em] text-violet-700">Coverage</span>
+                            <span className="text-lg font-semibold text-slate-950">78%</span>
                           </div>
-
-                          <Button
-                            className="h-9 w-full rounded-xl bg-blue-600 text-white hover:bg-blue-700"
-                            onClick={handleCompleteGoalSetup}
-                            type="button"
-                          >
-                            Complete Setup
-                          </Button>
                         </div>
-                      ) : (
-                        <div className="mt-3 space-y-3">
-                          <div className="rounded-2xl border border-slate-200 bg-slate-950 p-4 text-white shadow-[0_18px_36px_-30px_rgba(15,23,42,0.6)]">
-                            <p className="text-xs font-bold uppercase tracking-[0.12em] text-slate-300">Today&apos;s Goal</p>
-                            <div className="mt-4 grid grid-cols-3 gap-2">
-                              {[
-                                ["Modules", goalTotalModules],
-                                ["Completed", goalCompletedModules],
-                                ["Remaining", goalRemainingModules],
-                              ].map(([label, value]) => (
-                                <div className="rounded-xl bg-white/8 p-2" key={label}>
-                                  <p className="text-[10px] font-bold uppercase tracking-[0.1em] text-slate-400">{label}</p>
-                                  <p className="mt-1 text-xl font-semibold">{value}</p>
-                                </div>
-                              ))}
-                            </div>
-                            <div className="mt-4">
-                              <div className="flex items-center justify-between text-xs font-semibold text-slate-300">
-                                <span>Progress</span>
-                                <span>{goalProgress}%</span>
-                              </div>
-                              <div className="mt-2 h-2 overflow-hidden rounded-full bg-white/12">
-                                <div className="h-full rounded-full bg-[linear-gradient(90deg,#22C55E,#38BDF8)]" style={{ width: `${goalProgress}%` }} />
-                              </div>
-                            </div>
-                          </div>
-
-                          <div className="grid grid-cols-2 gap-2">
-                            <Button className="h-9 rounded-xl" variant="outline" onClick={() => handleAdjustCompletedModules(-1)} type="button">
-                              - Completed
-                            </Button>
-                            <Button className="h-9 rounded-xl bg-emerald-600 text-white hover:bg-emerald-700" onClick={() => handleAdjustCompletedModules(1)} type="button">
-                              + Completed
-                            </Button>
-                          </div>
-                          <Button
-                            className="h-9 w-full rounded-xl"
-                            variant="outline"
-                            onClick={() => setTestingGoal((goal) => ({ ...goal, setupComplete: false }))}
-                            type="button"
-                          >
-                            Edit Setup
-                          </Button>
-                        </div>
-                      )}
+                      </div>
                     </div>
                   ) : (
                     <>
