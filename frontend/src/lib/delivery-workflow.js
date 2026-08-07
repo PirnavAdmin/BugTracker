@@ -53,8 +53,12 @@ export const getLatestGitActivity = (project = {}) => {
     commitMessage: activity.commitMessage || "No pushes recorded yet",
     commitSha: activity.commitSha || "",
     filesChanged: Array.isArray(activity.filesChanged) ? activity.filesChanged : [],
+    filesChangedCount: activity.filesChangedCount || activity.changedFiles || 0,
+    additions: activity.additions || activity.linesAdded || 0,
+    deletions: activity.deletions || activity.linesDeleted || 0,
     modulesChanged: Array.isArray(activity.modulesChanged) ? activity.modulesChanged : [],
     pushedByName: activity.pushedByName || "Developer",
+    pushedByUsername: activity.pushedByUsername || activity.pushedByLogin || "",
     pushedAt: activity.pushedAt || project.updatedAt || project.createdAt || null,
     qaStatus: activity.qaStatus || "Waiting for QA",
   };

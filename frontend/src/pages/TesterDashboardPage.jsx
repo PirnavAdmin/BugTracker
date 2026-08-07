@@ -60,8 +60,7 @@ import { getChatSocket } from "@/lib/socket";
 import NotificationCard from "@/components/dashboard/NotificationCard";
 import GreetingBeachScene from "@/components/dashboard/GreetingBeachScene";
 import {
-  LatestGitActivityCard,
-  ProjectTestSetupSummary,
+  QAGitActivityPanel,
 } from "@/components/delivery/ProjectDeliveryWorkflowPanel";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -1996,13 +1995,20 @@ const TesterDashboardPage = () => {
           </WorkspaceCard>
 
           {selectedQaProject && (
-            <section className="grid gap-4 xl:grid-cols-[minmax(0,0.95fr)_minmax(320px,1.05fr)]">
-              <ProjectTestSetupSummary
-                project={selectedQaProject.raw || selectedQaProject}
-                onOpenSetup={() => document.getElementById("qa-testing-module")?.focus()}
-              />
-              <LatestGitActivityCard project={selectedQaProject.raw || selectedQaProject} roleLabel="QA Git Activity" />
-            </section>
+            <QAGitActivityPanel
+              projects={qaProjects}
+              selectedProject={selectedQaProject}
+              onSelectProject={(projectId) => {
+                if (projectId) {
+                  setSelectedQaProjectId(projectId);
+                }
+              }}
+              onStartTesting={(project) => {
+                const projectModel = project?.raw ? project : qaProjects.find((item) => item.id === project?.id) || selectedQaProject;
+                handleStartTesting(projectModel);
+                document.getElementById("qa-testing-module")?.focus();
+              }}
+            />
           )}
 
           <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-6">
