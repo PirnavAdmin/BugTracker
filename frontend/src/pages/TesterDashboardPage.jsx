@@ -666,6 +666,13 @@ const TesterDashboardPage = () => {
       return "";
     }
   });
+  const [testingModuleDetails, setTestingModuleDetails] = useState(() => {
+    try {
+      return window.localStorage.getItem(`curecode_testing_module_details_${testerId}`) || "";
+    } catch {
+      return "";
+    }
+  });
   const [isQaProjectDropdownOpen, setIsQaProjectDropdownOpen] = useState(false);
   const [testingSession, setTestingSession] = useState(() => {
     try {
@@ -804,6 +811,21 @@ const TesterDashboardPage = () => {
       // Ignore storage failures.
     }
   }, [selectedTestingModule, testerId]);
+
+  useEffect(() => {
+    if (!testerId) {
+      return;
+    }
+
+    try {
+      window.localStorage.setItem(
+        `curecode_testing_module_details_${testerId}`,
+        testingModuleDetails
+      );
+    } catch {
+      // Ignore storage failures.
+    }
+  }, [testingModuleDetails, testerId]);
 
   useEffect(() => {
     if (!testerId) {
@@ -997,28 +1019,31 @@ const TesterDashboardPage = () => {
   const activeSelectedSession = selectedQaProject && testingSession?.projectId === selectedQaProject.id
     ? testingSession
     : null;
-  const sessionStartedAtMs = activeSelectedSession?.startedAt
-    ? new Date(activeSelectedSession.startedAt).getTime()
+  const activeTestingSession = testingSession && ["In Progress", "Stopped"].includes(testingSession.status)
+    ? testingSession
+    : null;
+  const sessionStartedAtMs = activeTestingSession?.startedAt
+    ? new Date(activeTestingSession.startedAt).getTime()
     : 0;
-  const sessionStoppedAtMs = activeSelectedSession?.stoppedAt
-    ? new Date(activeSelectedSession.stoppedAt).getTime()
+  const sessionStoppedAtMs = activeTestingSession?.stoppedAt
+    ? new Date(activeTestingSession.stoppedAt).getTime()
     : 0;
-  const sessionElapsedMs = activeSelectedSession
-    ? (activeSelectedSession.totalMs || ((sessionStoppedAtMs || sessionNow) - sessionStartedAtMs))
+  const sessionElapsedMs = activeTestingSession
+    ? (activeTestingSession.totalMs || ((sessionStoppedAtMs || sessionNow) - sessionStartedAtMs))
     : 0;
   const sessionReportedBugsCount = useMemo(
     () =>
-      activeSelectedSession && sessionStartedAtMs
+      activeTestingSession && sessionStartedAtMs
         ? reportedIssues.filter((issue) => {
             const createdAt = issue?.createdAt ? new Date(issue.createdAt).getTime() : 0;
             return (
-              resolveIssueProjectId(issue) === activeSelectedSession.projectId &&
+              resolveIssueProjectId(issue) === activeTestingSession.projectId &&
               createdAt >= sessionStartedAtMs &&
               (!sessionStoppedAtMs || createdAt <= sessionStoppedAtMs)
             );
           }).length
         : 0,
-    [activeSelectedSession, reportedIssues, sessionStartedAtMs, sessionStoppedAtMs]
+    [activeTestingSession, reportedIssues, sessionStartedAtMs, sessionStoppedAtMs]
   );
   const selectedProjectBugBoardIssues = useMemo(
     () =>
@@ -1028,14 +1053,20 @@ const TesterDashboardPage = () => {
     [issues, selectedQaProject]
   );
   const currentBuildModules = useMemo(() => {
-    const projectModules = selectedQaProject?.modules?.length ? selectedQaProject.modules : BUILD_MODULE_FALLBACK;
-    const userModules = selectedQaProject ? customBuildModules[selectedQaProject.id] || [] : [];
+    const configKey = activeTestingSession?.projectId || selectedQaProject?.id;
+    const sessionModules = activeTestingSession?.configuredModules || [];
+    const projectModules = activeTestingSession
+      ? sessionModules
+      : selectedQaProject?.modules?.length
+        ? selectedQaProject.modules
+        : BUILD_MODULE_FALLBACK;
+    const userModules = configKey ? customBuildModules[configKey] || [] : [];
 
     return Array.from(new Set([...projectModules, ...userModules].filter(Boolean)));
-  }, [customBuildModules, selectedQaProject]);
+  }, [activeTestingSession, customBuildModules, selectedQaProject]);
   const getModuleStatus = (module, index) =>
-    selectedQaProject
-      ? buildModuleStatuses[selectedQaProject.id]?.[module] || (index < 2 ? "done" : index === 2 ? "progress" : "pending")
+    activeTestingSession || selectedQaProject
+      ? buildModuleStatuses[activeTestingSession?.projectId || selectedQaProject?.id]?.[module] || (index === 0 ? "progress" : "pending")
       : "pending";
   const completedModuleCount = currentBuildModules.filter((module, index) => getModuleStatus(module, index) === "done").length;
   const moduleProgress = currentBuildModules.length
@@ -1141,6 +1172,12 @@ const TesterDashboardPage = () => {
   ];
 
   const handleStartTesting = (project) => {
+    const configuredModules = Array.from(
+      new Set([
+        ...(customBuildModules[project.id] || []),
+        ...(selectedTestingModule.trim() ? [selectedTestingModule.trim()] : []),
+      ].filter(Boolean))
+    );
     const session = {
       testerId,
       testerName,
@@ -1149,8 +1186,10 @@ const TesterDashboardPage = () => {
       buildVersion: project.buildVersion,
       environment: project.environment,
       module: selectedTestingModule.trim() || "General",
+      moduleDetails: testingModuleDetails.trim(),
       startedAt: new Date().toISOString(),
-      modules: project.modules,
+      modules: configuredModules,
+      configuredModules,
       status: "In Progress",
     };
 
@@ -1195,7 +1234,9 @@ const TesterDashboardPage = () => {
   };
 
   const handleCycleBuildModuleStatus = (module, index) => {
-    if (!selectedQaProject) {
+    const configKey = activeTestingSession?.projectId || selectedQaProject?.id;
+
+    if (!configKey) {
       return;
     }
 
@@ -1204,26 +1245,28 @@ const TesterDashboardPage = () => {
 
     setBuildModuleStatuses((statuses) => ({
       ...statuses,
-      [selectedQaProject.id]: {
-        ...(statuses[selectedQaProject.id] || {}),
+      [configKey]: {
+        ...(statuses[configKey] || {}),
         [module]: nextStatus,
       },
     }));
   };
 
   const handleAddBuildModule = () => {
-    if (!selectedQaProject) {
+    const configKey = activeTestingSession?.projectId || selectedQaProject?.id;
+
+    if (!configKey) {
       return;
     }
 
-    const module = newBuildModule.trim();
+    const module = (newBuildModule || selectedTestingModule).trim();
 
     if (!module) {
       return;
     }
 
     setCustomBuildModules((modulesByProject) => {
-      const projectModules = modulesByProject[selectedQaProject.id] || [];
+      const projectModules = modulesByProject[configKey] || [];
 
       if (projectModules.some((item) => item.toLowerCase() === module.toLowerCase())) {
         return modulesByProject;
@@ -1231,17 +1274,18 @@ const TesterDashboardPage = () => {
 
       return {
         ...modulesByProject,
-        [selectedQaProject.id]: [...projectModules, module],
+        [configKey]: [...projectModules, module],
       };
     });
     setBuildModuleStatuses((statuses) => ({
       ...statuses,
-      [selectedQaProject.id]: {
-        ...(statuses[selectedQaProject.id] || {}),
+      [configKey]: {
+        ...(statuses[configKey] || {}),
         [module]: "pending",
       },
     }));
     setNewBuildModule("");
+    setSelectedTestingModule(module);
   };
 
   const handleRefresh = async () => {
@@ -1329,49 +1373,57 @@ const TesterDashboardPage = () => {
         <div>
           <h2 className="text-base font-semibold text-slate-950">Today&apos;s Q/A Metric</h2>
           <p className="text-xs text-slate-500">
-            {selectedQaProject ? selectedQaProject.name : "Select a project to start tracking."}
+            {activeTestingSession?.projectName || selectedQaProject?.name || "Select a project to start tracking."}
           </p>
         </div>
       </div>
 
-      {selectedQaProject ? (
+      {activeTestingSession || selectedQaProject ? (
         <div className="mt-3 space-y-2">
           <div className="flex items-center justify-between rounded-xl bg-slate-50/90 px-3 py-2">
             <span className="text-xs font-bold uppercase tracking-[0.1em] text-slate-500">Environment</span>
-            <span className="text-sm font-semibold text-slate-900">{selectedQaProject.environment}</span>
+            <span className="text-sm font-semibold text-slate-900">{activeTestingSession?.environment || selectedQaProject?.environment}</span>
           </div>
           <div className="flex items-center justify-between gap-3 rounded-xl bg-blue-50/70 px-3 py-2">
             <span className="text-xs font-bold uppercase tracking-[0.1em] text-blue-700">Module</span>
             <span className="min-w-0 truncate text-sm font-semibold text-slate-900">
-              {activeSelectedSession?.module || selectedTestingModule.trim() || "Not selected"}
+              {activeTestingSession?.module || selectedTestingModule.trim() || "Not selected"}
             </span>
           </div>
+          {(activeTestingSession?.moduleDetails || testingModuleDetails.trim()) && (
+            <div className="rounded-xl bg-white/80 px-3 py-2">
+              <span className="text-xs font-bold uppercase tracking-[0.1em] text-slate-500">Details</span>
+              <p className="mt-1 line-clamp-3 text-xs leading-5 text-slate-600">
+                {activeTestingSession?.moduleDetails || testingModuleDetails.trim()}
+              </p>
+            </div>
+          )}
           <div className="flex items-center justify-between rounded-xl bg-slate-50/90 px-3 py-2">
             <span className="text-xs font-bold uppercase tracking-[0.1em] text-slate-500">Session</span>
             <span className={cn(
               "rounded-full px-2 py-0.5 text-xs font-bold",
-              activeSelectedSession?.status === "In Progress"
+              activeTestingSession?.status === "In Progress"
                 ? "bg-emerald-50 text-emerald-700"
-                : activeSelectedSession?.status === "Stopped"
+                : activeTestingSession?.status === "Stopped"
                   ? "bg-slate-100 text-slate-700"
                   : "bg-amber-50 text-amber-700"
             )}>
-              {activeSelectedSession?.status || "Not Started"}
+              {activeTestingSession?.status || "Not Started"}
             </span>
           </div>
           <div className="grid grid-cols-2 gap-2">
             <div className="rounded-xl bg-blue-50/70 p-3">
               <p className="text-[11px] font-bold uppercase tracking-[0.1em] text-blue-700">Start Time</p>
               <p className="mt-1 text-sm font-semibold text-slate-950">
-                {activeSelectedSession?.startedAt ? formatDateTime(activeSelectedSession.startedAt) : "-"}
+                {activeTestingSession?.startedAt ? formatDateTime(activeTestingSession.startedAt) : "-"}
               </p>
             </div>
             <div className="rounded-xl bg-violet-50/70 p-3">
               <p className="text-[11px] font-bold uppercase tracking-[0.1em] text-violet-700">
-                {activeSelectedSession?.status === "Stopped" ? "Total Time" : "Live Time"}
+                {activeTestingSession?.status === "Stopped" ? "Total Time" : "Live Time"}
               </p>
               <p className="mt-1 text-lg font-semibold text-slate-950">
-                {activeSelectedSession ? formatSessionDuration(sessionElapsedMs) : "-"}
+                {activeTestingSession ? formatSessionDuration(sessionElapsedMs) : "-"}
               </p>
             </div>
           </div>
@@ -1379,7 +1431,7 @@ const TesterDashboardPage = () => {
             <p className="text-[11px] font-bold uppercase tracking-[0.1em] text-rose-700">Reported Bugs In Session</p>
             <p className="mt-1 text-2xl font-semibold text-slate-950">{sessionReportedBugsCount}</p>
           </div>
-          {activeSelectedSession?.status === "In Progress" ? (
+          {activeTestingSession?.status === "In Progress" ? (
             <Button
               className="mt-1 h-9 w-full rounded-xl bg-rose-600 text-white hover:bg-rose-700"
               onClick={handleStopTesting}
@@ -1391,11 +1443,11 @@ const TesterDashboardPage = () => {
             <Button
               className={cn(
                 "mt-1 h-9 w-full rounded-xl text-white",
-                selectedQaProject.readyForQaCount > 0
+                selectedQaProject?.readyForQaCount > 0
                   ? "bg-rose-600 hover:bg-rose-700"
                   : "bg-blue-600 hover:bg-blue-700"
               )}
-              onClick={() => handleStartTesting(selectedQaProject)}
+              onClick={() => selectedQaProject && handleStartTesting(selectedQaProject)}
               type="button"
             >
               Start Session
@@ -1415,10 +1467,10 @@ const TesterDashboardPage = () => {
       <div className="flex items-start justify-between gap-3">
         <div>
           <h2 className="text-base font-semibold text-slate-950">Current Build</h2>
-          <p className="mt-0.5 text-xs text-slate-500">{selectedQaProject?.name || activeSelectedSession?.projectName || "School Management"}</p>
+          <p className="mt-0.5 text-xs text-slate-500">{activeTestingSession?.projectName || selectedQaProject?.name || "School Management"}</p>
         </div>
         <span className="rounded-full bg-blue-50 px-2.5 py-1 text-xs font-bold text-blue-700">
-          {selectedQaProject?.buildVersion || activeSelectedSession?.buildVersion || "Build"}
+          {activeTestingSession?.buildVersion || selectedQaProject?.buildVersion || "Build"}
         </span>
       </div>
 
@@ -1428,7 +1480,7 @@ const TesterDashboardPage = () => {
           <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-bold text-emerald-700">{moduleProgress}%</span>
         </div>
         <div className="mt-3 space-y-2">
-          {currentBuildModules.map((module, index) => {
+          {currentBuildModules.length ? currentBuildModules.map((module, index) => {
             const status = getModuleStatus(module, index);
 
             return (
@@ -1455,7 +1507,11 @@ const TesterDashboardPage = () => {
                 </button>
               </div>
             );
-          })}
+          }) : (
+            <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/80 px-3 py-4 text-center text-xs font-medium text-slate-500">
+              No modules configured for this session.
+            </div>
+          )}
         </div>
         <div className="mt-3 flex gap-2">
           <Input
@@ -1482,27 +1538,6 @@ const TesterDashboardPage = () => {
           <div className="mt-1.5 h-2 overflow-hidden rounded-full bg-slate-100">
             <div className="h-full rounded-full bg-[linear-gradient(90deg,#22C55E,#38BDF8)]" style={{ width: `${moduleProgress}%` }} />
           </div>
-        </div>
-      </div>
-
-      <div className="mt-3 rounded-2xl border border-slate-200 bg-white/90 p-3">
-        <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-slate-500">Test Cases</p>
-        <div className="mt-3 grid grid-cols-2 gap-2">
-          {[
-            ["Executed", buildTestCaseStats.executed, "bg-blue-50 text-blue-700"],
-            ["Passed", buildTestCaseStats.passed, "bg-emerald-50 text-emerald-700"],
-            ["Failed", buildTestCaseStats.failed, "bg-rose-50 text-rose-700"],
-            ["Blocked", buildTestCaseStats.blocked, "bg-amber-50 text-amber-700"],
-          ].map(([label, value, tone]) => (
-            <div className={cn("rounded-xl p-3", tone)} key={label}>
-              <p className="text-[10px] font-bold uppercase tracking-[0.1em]">{label}</p>
-              <p className="mt-1 text-xl font-semibold text-slate-950">{value}</p>
-            </div>
-          ))}
-        </div>
-        <div className="mt-3 flex items-center justify-between rounded-xl bg-violet-50 px-3 py-2">
-          <span className="text-xs font-bold uppercase tracking-[0.1em] text-violet-700">Coverage</span>
-          <span className="text-lg font-semibold text-slate-950">{buildTestCaseStats.coverage}%</span>
         </div>
       </div>
     </WorkspaceCard>
@@ -1798,49 +1833,45 @@ const TesterDashboardPage = () => {
                         </span>
                       </div>
 
-                      <div className="mt-4 flex flex-wrap gap-1.5">
-                        {selectedQaProject.modules.map((module) => (
-                          <span className="rounded-full border border-blue-100 bg-blue-50/70 px-2.5 py-1 text-[11px] font-semibold text-slate-600" key={module}>
-                            {module}
-                          </span>
-                        ))}
-                      </div>
-
                       <div className="mt-4 rounded-2xl border border-slate-200/80 bg-white/82 p-3">
                         <div className="flex flex-wrap items-center justify-between gap-2">
                           <label className="text-[11px] font-bold uppercase tracking-[0.12em] text-slate-500" htmlFor="qa-testing-module">
-                            Module
+                            Module Configuration
                           </label>
-                          <span className="text-[11px] font-semibold text-slate-400">Select or type</span>
+                          <span className="text-[11px] font-semibold text-slate-400">Manual setup</span>
                         </div>
-                        <Input
-                          className="mt-2 h-10 rounded-xl border-slate-200 bg-white"
-                          id="qa-testing-module"
-                          list="qa-testing-module-options"
-                          onChange={(event) => setSelectedTestingModule(event.target.value)}
-                          placeholder="Choose or type module"
-                          value={selectedTestingModule}
-                        />
+                        <div className="mt-2 grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
+                          <Input
+                            className="h-10 rounded-xl border-slate-200 bg-white"
+                            id="qa-testing-module"
+                            list="qa-testing-module-options"
+                            onChange={(event) => setSelectedTestingModule(event.target.value)}
+                            placeholder="Module name"
+                            value={selectedTestingModule}
+                          />
+                          <Button className="h-10 rounded-xl px-3" onClick={handleAddBuildModule} type="button">
+                            <Plus className="h-4 w-4" />
+                            Add
+                          </Button>
+                        </div>
                         <datalist id="qa-testing-module-options">
                           {testingModuleOptions.map((module) => (
                             <option key={module} value={module} />
                           ))}
                         </datalist>
+                        <Textarea
+                          className="mt-2 min-h-[78px] resize-none rounded-xl border-slate-200 bg-white text-sm shadow-none"
+                          onChange={(event) => setTestingModuleDetails(event.target.value)}
+                          placeholder="Add module details, scope, device/browser notes, or test focus"
+                          value={testingModuleDetails}
+                        />
                         <div className="mt-2 flex flex-wrap gap-1.5">
-                          {testingModuleOptions.slice(0, 6).map((module) => (
-                            <button
-                              className={cn(
-                                "rounded-full border px-2.5 py-1 text-[11px] font-semibold transition",
-                                selectedTestingModule === module
-                                  ? "border-blue-300 bg-blue-50 text-blue-700"
-                                  : "border-slate-200 bg-white text-slate-600 hover:border-blue-200 hover:bg-blue-50/70"
-                              )}
-                              key={module}
-                              onClick={() => setSelectedTestingModule(module)}
-                              type="button"
-                            >
+                          {((customBuildModules[selectedQaProject.id] || []).length
+                            ? customBuildModules[selectedQaProject.id]
+                            : ["No modules configured yet"]).map((module) => (
+                            <span className="rounded-full border border-blue-100 bg-blue-50/70 px-2.5 py-1 text-[11px] font-semibold text-slate-600" key={module}>
                               {module}
-                            </button>
+                            </span>
                           ))}
                         </div>
                       </div>
@@ -1884,7 +1915,7 @@ const TesterDashboardPage = () => {
                 </section>
 
                 <section className="rounded-[18px] border border-slate-200/80 bg-white/74 p-3 shadow-sm">
-                  {activeSelectedSession ? (
+                  {activeTestingSession ? (
                     todayQaMetricPanel
                   ) : (
                     <>
@@ -2035,7 +2066,7 @@ const TesterDashboardPage = () => {
         </div>
 
         <aside className="space-y-4">
-          {activeSelectedSession ? currentBuildPanel : (
+          {activeTestingSession ? currentBuildPanel : (
             <WorkspaceCard>
               {todayQaMetricPanel}
             </WorkspaceCard>
