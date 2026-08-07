@@ -24,6 +24,7 @@ const taskRoutes = require("./routes/taskRoutes");
 const teamRoutes = require("./routes/teamRoutes");
 const testRoutes = require("./routes/testRoutes");
 const userRoutes = require("./routes/userRoutes");
+const webhookRoutes = require("./routes/webhookRoutes");
 const workspaceRoutes = require("./routes/workspaceRoutes");
 const { startSprintNotificationWorker } = require("./services/sprintNotificationQueue");
 const { setupChatSocket } = require("./socket");
@@ -88,6 +89,7 @@ app.use("/api/reports", reportRoutes);
 app.use("/api/comments", commentRoutes);
 app.use("/api/chat", chatRoutes);
 app.use("/api/settings", settingsRoutes);
+app.use("/api/webhooks", webhookRoutes);
 app.use("/", testRoutes);
 
 app.use(notFound);

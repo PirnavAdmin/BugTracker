@@ -1,4 +1,4 @@
-import { CheckCircle2, GitBranch, KeyRound, Plus, RefreshCcw, ShieldCheck, Trash2 } from "lucide-react";
+import { CheckCircle2, Copy, GitBranch, KeyRound, Plus, RefreshCcw, ShieldCheck, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -32,6 +32,42 @@ export const AUTOMATION_RULES = [
   ["notifyAssignedDevelopers", "Notify Assigned Developers"],
 ];
 
+const getAppOrigin = () => {
+  if (typeof window !== "undefined" && window.location?.origin) {
+    return window.location.origin;
+  }
+
+  return "";
+};
+
+const buildWebhookEndpoint = (provider = "GitHub") => {
+  const normalized = String(provider || "GitHub").toLowerCase();
+  const path =
+    normalized === "gitlab"
+      ? "/api/webhooks/gitlab"
+      : normalized === "bitbucket"
+        ? "/api/webhooks/bitbucket"
+        : "/api/webhooks/github";
+  const origin = getAppOrigin();
+
+  return origin ? `${origin}${path}` : path;
+};
+
+const normalizeWebhookEndpoint = (value = "", provider = "GitHub") => {
+  const endpoint = String(value || "").trim();
+
+  if (!endpoint) {
+    return buildWebhookEndpoint(provider);
+  }
+
+  if (/^https?:\/\//i.test(endpoint)) {
+    return endpoint;
+  }
+
+  const origin = getAppOrigin();
+  return origin ? `${origin}${endpoint.startsWith("/") ? endpoint : `/${endpoint}`}` : endpoint;
+};
+
 export const createDeliveryConfiguration = () => ({
   git: {
     enabled: true,
@@ -42,7 +78,7 @@ export const createDeliveryConfiguration = () => ({
     defaultBranch: "main",
     token: "",
     tokenConfigured: false,
-    webhookEndpoint: "/api/webhooks/github",
+    webhookEndpoint: buildWebhookEndpoint("GitHub"),
     webhookSecret: `cc_${Math.random().toString(36).slice(2, 10)}`,
     webhookEvents: ["push", "pull_request"],
     automationRules: {
@@ -77,7 +113,7 @@ export const createDeliveryConfiguration = () => ({
     qaBranch: "qa",
     releaseBranch: "release",
     webhookEnabled: true,
-    webhookEndpoint: "/api/webhooks/github",
+    webhookEndpoint: buildWebhookEndpoint("GitHub"),
     webhookSecret: `cc_${Math.random().toString(36).slice(2, 10)}`,
     repositoryIdentifier: "",
     branchStrategy: {
@@ -125,7 +161,10 @@ export const normalizeProjectDeliveryConfiguration = (project = {}) => {
       defaultBranch: git.defaultBranch || legacyRepository.defaultBranch || "main",
       token: "",
       tokenConfigured: Boolean(git.tokenConfigured),
-      webhookEndpoint: git.webhookEndpoint || legacyRepository.webhookEndpoint || "/api/webhooks/github",
+      webhookEndpoint: normalizeWebhookEndpoint(
+        git.webhookEndpoint || legacyRepository.webhookEndpoint,
+        git.provider || legacyRepository.provider || "GitHub"
+      ),
       webhookSecret: git.webhookSecret || legacyRepository.webhookSecret || defaults.git.webhookSecret,
       webhookEvents: Array.isArray(git.webhookEvents) && git.webhookEvents.length
         ? git.webhookEvents
@@ -179,10 +218,7 @@ export const normalizeProjectDeliveryConfiguration = (project = {}) => {
 };
 
 const webhookEndpointForProvider = (provider) => {
-  const normalized = String(provider || "GitHub").toLowerCase();
-  if (normalized === "gitlab") return "/api/webhooks/gitlab";
-  if (normalized === "bitbucket") return "/api/webhooks/bitbucket";
-  return "/api/webhooks/github";
+  return buildWebhookEndpoint(provider);
 };
 
 const chipClassName =
@@ -225,6 +261,7 @@ const ProjectDeliveryConfiguration = ({
   const config = value || createDeliveryConfiguration();
 
   const update = (patch) => onChange?.({ ...config, ...patch });
+  const webhookEndpoint = normalizeWebhookEndpoint(config.git.webhookEndpoint, config.git.provider);
   const updateGit = (field, nextValue) => {
     const git = {
       ...config.git,
@@ -250,7 +287,7 @@ const ProjectDeliveryConfiguration = ({
         name: git.repositoryName,
         url: git.repositoryUrl,
         defaultBranch: git.defaultBranch,
-        webhookEndpoint: git.webhookEndpoint,
+        webhookEndpoint: normalizeWebhookEndpoint(git.webhookEndpoint, git.provider),
         webhookSecret: git.webhookSecret,
         webhookEnabled: git.webhookEvents.length > 0,
         repositoryIdentifier: `${git.repositoryOwner}/${git.repositoryName}`,
@@ -374,6 +411,13 @@ const ProjectDeliveryConfiguration = ({
       .split("\n")
       .map((item) => item.trim())
       .filter(Boolean);
+  const copyWebhookEndpoint = async () => {
+    if (typeof navigator === "undefined" || !navigator.clipboard) {
+      return;
+    }
+
+    await navigator.clipboard.writeText(webhookEndpoint);
+  };
 
   return (
     <div className="space-y-4">
@@ -436,7 +480,18 @@ const ProjectDeliveryConfiguration = ({
         <div className="mt-4 grid gap-3 lg:grid-cols-[minmax(0,1fr)_220px]">
           <label className="space-y-1.5">
             <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">Webhook Endpoint</span>
-            <Input className={`${fieldClassName} bg-slate-50 text-slate-600`} value={config.git.webhookEndpoint} readOnly />
+            <div className="flex gap-2">
+              <Input className={`${fieldClassName} min-w-0 bg-slate-50 text-slate-600`} value={webhookEndpoint} readOnly />
+              <Button
+                type="button"
+                variant="outline"
+                className="h-10 w-10 shrink-0 rounded-xl px-0"
+                title="Copy webhook endpoint"
+                onClick={copyWebhookEndpoint}
+              >
+                <Copy className="h-4 w-4" />
+              </Button>
+            </div>
           </label>
           <label className="space-y-1.5">
             <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">Webhook Secret</span>
