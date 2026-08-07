@@ -51,13 +51,12 @@ import {
   resolveBugDetails,
   resolveIssueProjectId,
 } from "@/lib/issues";
-import { getProjectTeams, resolveUserId } from "@/lib/project-teams";
+import { getProjectMembers, getProjectTeams, resolveUserId } from "@/lib/project-teams";
 import { hasTesterPanelAccess } from "@/lib/roles";
 import { cn, formatDate, formatDateTime } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
 import { readStoredSession } from "@/lib/session";
 import { getChatSocket } from "@/lib/socket";
-import EmptyState from "@/components/shared/EmptyState";
 import NotificationCard from "@/components/dashboard/NotificationCard";
 import GreetingBeachScene from "@/components/dashboard/GreetingBeachScene";
 import {
@@ -196,16 +195,43 @@ const incrementMetrics = (metrics, issue) => {
   });
 };
 
+const getIssueTesterOwnerId = (issue) => resolveUserId(resolveBugDetails(issue)?.testerOwner);
+
 const isTesterTeam = (team, testerId) =>
   (team?.members || []).some((member) => resolveUserId(member) === testerId);
 
 const getAssignedTeamsForTester = (project, testerId) =>
   getProjectTeams(project).filter((team) => isTesterTeam(team, testerId));
 
-const buildTesterProject = (project, testerId) => {
-  const assignedTeams = getAssignedTeamsForTester(project, testerId);
+const isTesterProjectParticipant = (project, testerId) => {
+  if (!testerId) {
+    return false;
+  }
 
-  if (!assignedTeams.length) {
+  const leadershipUsers = [
+    project?.projectManager,
+    project?.manager,
+    project?.teamLead,
+    project?.qaLead,
+  ];
+
+  return [
+    ...leadershipUsers,
+    ...getProjectMembers(project),
+    ...(project?.projectMembers || []).map((member) => member?.user || member?.userId || member),
+  ].some((member) => resolveUserId(member) === testerId);
+};
+
+const buildTesterProject = (project, testerId, issues = []) => {
+  const assignedTeams = getAssignedTeamsForTester(project, testerId);
+  const projectId = String(project?._id || "");
+  const hasOwnedBugInProject = issues.some(
+    (issue) =>
+      resolveIssueProjectId(issue) === projectId &&
+      (getReporterId(issue) === testerId || getIssueTesterOwnerId(issue) === testerId)
+  );
+
+  if (!assignedTeams.length && !isTesterProjectParticipant(project, testerId) && !hasOwnedBugInProject) {
     return null;
   }
 
@@ -895,9 +921,9 @@ const TesterDashboardPage = () => {
   const assignedProjects = useMemo(
     () =>
       projects
-        .map((project) => buildTesterProject(project, testerId))
+        .map((project) => buildTesterProject(project, testerId, issues))
         .filter(Boolean),
-    [projects, testerId]
+    [issues, projects, testerId]
   );
 
   const reportedIssues = useMemo(
@@ -1019,6 +1045,22 @@ const TesterDashboardPage = () => {
       window.localStorage.setItem("curecode_selected_qa_project", testingSession.projectId);
     }
   }, [qaProjects, selectedQaProjectId, testingSession?.projectId]);
+
+  useEffect(() => {
+    if (!qaProjects.length) {
+      return;
+    }
+
+    const hasValidSelection = qaProjects.some((project) => project.id === selectedQaProjectId);
+
+    if (hasValidSelection) {
+      return;
+    }
+
+    const nextProjectId = qaProjects[0].id;
+    setSelectedQaProjectId(nextProjectId);
+    window.localStorage.setItem("curecode_selected_qa_project", nextProjectId);
+  }, [qaProjects, selectedQaProjectId]);
 
   const activeSelectedSession = selectedQaProject && testingSession?.projectId === selectedQaProject.id
     ? testingSession
@@ -1377,16 +1419,6 @@ const TesterDashboardPage = () => {
         </section>
         <Skeleton className="h-[430px] w-full rounded-[28px]" />
       </div>
-    );
-  }
-
-  if (!assignedProjects.length) {
-    return (
-      <EmptyState
-        title="No assigned projects yet"
-        description="Once an admin adds you to a project team, your tester dashboard metrics will appear here."
-        icon={<FolderKanban className="h-5 w-5" />}
-      />
     );
   }
 
