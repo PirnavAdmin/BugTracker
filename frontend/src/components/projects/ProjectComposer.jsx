@@ -47,6 +47,7 @@ const ProjectComposer = ({
   usersErrorMessage = "",
   teamsErrorMessage = "",
   formId = "create-project-form",
+  canManageGitConfiguration = true,
 }) => {
   const [formData, setFormData] = useState({
     name: "",
@@ -200,21 +201,27 @@ const ProjectComposer = ({
       setError("Start date is required.");
       return;
     }
-    if (!deliveryConfig.repository.provider) {
-      setError("Git provider is required.");
-      return;
-    }
-    if (!deliveryConfig.repository.name.trim()) {
-      setError("Repository name is required.");
-      return;
-    }
-    if (!deliveryConfig.repository.url.trim()) {
-      setError("Repository URL is required.");
-      return;
-    }
-    if (!deliveryConfig.repository.defaultBranch.trim()) {
-      setError("Default branch is required.");
-      return;
+    if (canManageGitConfiguration) {
+      if (!deliveryConfig.git.repositoryOwner.trim()) {
+        setError("Repository owner is required.");
+        return;
+      }
+      if (!deliveryConfig.git.repositoryName.trim()) {
+        setError("Repository name is required.");
+        return;
+      }
+      if (!deliveryConfig.git.repositoryUrl.trim()) {
+        setError("Repository URL is required.");
+        return;
+      }
+      if (!deliveryConfig.git.defaultBranch.trim()) {
+        setError("Default branch is required.");
+        return;
+      }
+      if (!deliveryConfig.git.token?.trim()) {
+        setError("GitHub Personal Access Token is required.");
+        return;
+      }
     }
     if (!deliveryConfig.deliveryModules.some((module) => module.name.trim())) {
       setError("At least one project module is required.");
@@ -235,6 +242,7 @@ const ProjectComposer = ({
         themeColor: formData.themeColor,
         startDate: formData.startDate || null,
         targetDate: formData.targetDate || null,
+        ...(canManageGitConfiguration ? { git: deliveryConfig.git } : {}),
         repository: deliveryConfig.repository,
         deliveryWorkflow: deliveryConfig.deliveryWorkflow,
         deliveryModules: deliveryConfig.deliveryModules,
@@ -675,6 +683,7 @@ const ProjectComposer = ({
         value={deliveryConfig}
         onChange={setDeliveryConfig}
         mode="create"
+        readOnly={!canManageGitConfiguration}
       />
 
       {usersErrorMessage ? (

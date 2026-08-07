@@ -232,6 +232,23 @@ const serializeProjectsWithRelations = async (projects = []) => {
 
   return projectsWithTeams.map((project) => {
     const { members: _legacyMembers, ...projectWithoutLegacyMembers } = project;
+    const rawGit = project.git || {};
+    const serializedGit = {
+      ...rawGit,
+      encryptedToken: undefined,
+      tokenConfigured: Boolean(rawGit.tokenConfigured),
+      repositoryOwner: rawGit.repositoryOwner || project.repository?.owner || "",
+      repositoryName: rawGit.repositoryName || project.repository?.name || "",
+      repositoryUrl: rawGit.repositoryUrl || project.repository?.url || "",
+      defaultBranch: rawGit.defaultBranch || project.repository?.defaultBranch || "main",
+      provider: rawGit.provider || project.repository?.provider || "GitHub",
+      webhookEndpoint: rawGit.webhookEndpoint || project.repository?.webhookEndpoint || "/api/webhooks/github",
+      webhookEvents: Array.isArray(rawGit.webhookEvents) ? rawGit.webhookEvents : [],
+      automationRules: rawGit.automationRules || {},
+      moduleMappings: Array.isArray(rawGit.moduleMappings) ? rawGit.moduleMappings : [],
+      status: rawGit.status || {},
+      auditLog: Array.isArray(rawGit.auditLog) ? rawGit.auditLog.slice(-10) : [],
+    };
     const directProjectMembers = (project.projectMembers || []).map((member) => ({
       ...member,
       user: member.userId,
@@ -256,6 +273,7 @@ const serializeProjectsWithRelations = async (projects = []) => {
       status: project.status || (project.isCompleted ? "Completed" : "Active"),
       priority: project.priority || "Medium",
       themeColor: project.themeColor || "#2563EB",
+      git: serializedGit,
       epics: Array.isArray(project.epics)
         ? project.epics
             .map((epic) => (typeof epic === "string" ? epic.trim() : ""))

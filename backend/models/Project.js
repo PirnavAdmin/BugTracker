@@ -160,6 +160,186 @@ const projectSchema = new Schema(
         default: "Not Configured",
       },
     },
+    git: {
+      enabled: {
+        type: Boolean,
+        default: true,
+      },
+      provider: {
+        type: String,
+        trim: true,
+        enum: ["GitHub", ""],
+        default: "GitHub",
+      },
+      repositoryOwner: {
+        type: String,
+        trim: true,
+        default: "",
+      },
+      repositoryName: {
+        type: String,
+        trim: true,
+        default: "",
+      },
+      repositoryUrl: {
+        type: String,
+        trim: true,
+        default: "",
+      },
+      defaultBranch: {
+        type: String,
+        trim: true,
+        default: "main",
+      },
+      encryptedToken: {
+        type: String,
+        default: "",
+        select: false,
+      },
+      tokenConfigured: {
+        type: Boolean,
+        default: false,
+      },
+      tokenUpdatedAt: {
+        type: Date,
+        default: null,
+      },
+      webhookEndpoint: {
+        type: String,
+        trim: true,
+        default: "/api/webhooks/github",
+      },
+      webhookSecret: {
+        type: String,
+        trim: true,
+        default: "",
+      },
+      webhookEvents: {
+        type: [String],
+        default: ["push", "pull_request"],
+      },
+      automationRules: {
+        autoNotifyQa: {
+          type: Boolean,
+          default: true,
+        },
+        autoDetectChangedModules: {
+          type: Boolean,
+          default: true,
+        },
+        autoLinkCommitsToTasks: {
+          type: Boolean,
+          default: true,
+        },
+        autoLinkCommitsToBugs: {
+          type: Boolean,
+          default: true,
+        },
+        autoGenerateReleaseNotes: {
+          type: Boolean,
+          default: true,
+        },
+        autoCreateQaSession: {
+          type: Boolean,
+          default: false,
+        },
+        autoUpdateTaskStatus: {
+          type: Boolean,
+          default: true,
+        },
+        notifyAssignedDevelopers: {
+          type: Boolean,
+          default: true,
+        },
+      },
+      moduleMappings: {
+        type: [
+          {
+            module: {
+              type: String,
+              trim: true,
+              required: true,
+            },
+            paths: {
+              type: [String],
+              default: [],
+            },
+          },
+        ],
+        default: [],
+      },
+      status: {
+        connectionStatus: {
+          type: String,
+          trim: true,
+          default: "Not Configured",
+        },
+        latestCommitHash: {
+          type: String,
+          trim: true,
+          default: "",
+        },
+        latestCommitMessage: {
+          type: String,
+          trim: true,
+          default: "",
+        },
+        lastPushTime: {
+          type: Date,
+          default: null,
+        },
+        lastSyncTime: {
+          type: Date,
+          default: null,
+        },
+        webhookStatus: {
+          type: String,
+          trim: true,
+          default: "Not Configured",
+        },
+        connectionHealth: {
+          type: String,
+          trim: true,
+          default: "Unknown",
+        },
+        lastError: {
+          type: String,
+          trim: true,
+          default: "",
+        },
+      },
+      auditLog: {
+        type: [
+          {
+            action: {
+              type: String,
+              trim: true,
+              required: true,
+            },
+            actor: {
+              type: Schema.Types.ObjectId,
+              ref: "User",
+              default: null,
+            },
+            actorName: {
+              type: String,
+              trim: true,
+              default: "",
+            },
+            message: {
+              type: String,
+              trim: true,
+              default: "",
+            },
+            createdAt: {
+              type: Date,
+              default: Date.now,
+            },
+          },
+        ],
+        default: [],
+      },
+    },
     deliveryWorkflow: {
       autoModuleDetection: {
         type: Boolean,

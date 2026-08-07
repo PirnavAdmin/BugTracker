@@ -2,8 +2,37 @@ const Notification = require("../models/Notification");
 const User = require("../models/User");
 const TeamMember = require("../models/TeamMember");
 const ProjectTeam = require("../models/ProjectTeam");
-const { ROLE_TESTER, ROLE_QA_LEAD, ROLE_ADMIN } = require("../utils/roles");
+const {
+  ROLE_ADMIN,
+  ROLE_DEVELOPER,
+  ROLE_QA_LEAD,
+  ROLE_TEAM_LEAD,
+  ROLE_TESTER,
+} = require("../utils/roles");
 const { BUG_STATUS } = require("../utils/bugLifecycle");
+
+const TESTER_NOTIFICATION_ROLES = [ROLE_TESTER, ROLE_QA_LEAD];
+const DEVELOPER_QUEUE_NOTIFICATION_ROLES = [ROLE_DEVELOPER, ROLE_TEAM_LEAD];
+
+const getUserRoleMap = async (userIds = []) => {
+  const uniqueUserIds = Array.from(
+    new Set(userIds.map((userId) => String(userId || "")).filter(Boolean))
+  );
+
+  if (!uniqueUserIds.length) {
+    return new Map();
+  }
+
+  const users = await User.find({ _id: { $in: uniqueUserIds } })
+    .select("_id role")
+    .lean();
+
+  return new Map(users.map((user) => [String(user._id), user.role || ""]));
+};
+
+const isTesterNotificationRole = (role = "") => TESTER_NOTIFICATION_ROLES.includes(role);
+const isDeveloperQueueNotificationRole = (role = "") =>
+  DEVELOPER_QUEUE_NOTIFICATION_ROLES.includes(role);
 
 const emitNotificationToUser = (recipientId, notification) => {
   try {
@@ -92,10 +121,23 @@ const notifyIssueEvent = async ({
 
   const currentAssigneeId = issue.assignee?._id || issue.assignee;
   const testerOwnerId = issue.bugDetails?.testerOwner?._id || issue.bugDetails?.testerOwner;
+  const readyStatuses = [
+    BUG_STATUS.READY_FOR_TESTING,
+    BUG_STATUS.READY_FOR_QA,
+    BUG_STATUS.READY_FOR_VERIFICATION,
+  ];
+  const isReadyForQaHandoff = isBug && readyStatuses.includes(issue.status);
+  const roleMap = await getUserRoleMap([currentAssigneeId, testerOwnerId, oldAssigneeId]);
+  const currentAssigneeRole = roleMap.get(String(currentAssigneeId || "")) || "";
+  const oldAssigneeRole = roleMap.get(String(oldAssigneeId || "")) || "";
 
   if (eventType === "assignment") {
     // Notify new assignee (Rule 1 & 5)
-    if (currentAssigneeId && String(currentAssigneeId) !== String(actorId)) {
+    if (
+      currentAssigneeId &&
+      String(currentAssigneeId) !== String(actorId) &&
+      !(isBug && isTesterNotificationRole(currentAssigneeRole) && !isReadyForQaHandoff)
+    ) {
       await createNotification({
         recipientId: currentAssigneeId,
         text: `${issue.type} ${issueKey} assigned to you.`,
@@ -105,19 +147,30 @@ const notifyIssueEvent = async ({
       });
     }
 
-    // Notify tester owner if reassigned or assigned (Rule 4)
-    if (isBug && testerOwnerId && String(testerOwnerId) !== String(actorId) && String(testerOwnerId) !== String(currentAssigneeId)) {
+    // Testers/QA should only be notified on developer handoff into Ready for Q/A.
+    if (
+      isBug &&
+      testerOwnerId &&
+      isReadyForQaHandoff &&
+      String(testerOwnerId) !== String(actorId) &&
+      String(testerOwnerId) !== String(currentAssigneeId)
+    ) {
       await createNotification({
         recipientId: testerOwnerId,
-        text: `Bug ${issueKey} assigned to ${issue.assignee?.name || 'developer'}.`,
-        type: "assignment",
+        text: `Bug ${issueKey} is ready for Q/A verification.`,
+        type: "status_change",
         relatedId: issue._id,
         link,
       });
     }
 
     // Notify old assignee if reassigned
-    if (oldAssigneeId && String(oldAssigneeId) !== String(currentAssigneeId) && String(oldAssigneeId) !== String(actorId)) {
+    if (
+      oldAssigneeId &&
+      String(oldAssigneeId) !== String(currentAssigneeId) &&
+      String(oldAssigneeId) !== String(actorId) &&
+      !(isBug && isTesterNotificationRole(oldAssigneeRole) && !isReadyForQaHandoff)
+    ) {
       await createNotification({
         recipientId: oldAssigneeId,
         text: `${issue.type} ${issueKey} has been reassigned.`,
@@ -148,8 +201,12 @@ const notifyIssueEvent = async ({
       ? (require("../utils/bugLifecycle").BUG_STATUS_LABELS[issue.status] || issue.status)
       : issue.status;
 
-    // Notify assignee about status change (Rule 4 if tester is assignee)
-    if (currentAssigneeId && String(currentAssigneeId) !== String(actorId)) {
+    // Notify assignee about status change. Tester/QA assignees only get Ready for Q/A handoff notifications.
+    if (
+      currentAssigneeId &&
+      String(currentAssigneeId) !== String(actorId) &&
+      !(isBug && isTesterNotificationRole(currentAssigneeRole) && !isReadyForQaHandoff)
+    ) {
       await createNotification({
         recipientId: currentAssigneeId,
         text: `${issue.type} "${issueTitle}" moved to ${statusLabel}.`,
@@ -159,28 +216,25 @@ const notifyIssueEvent = async ({
       });
     }
 
-    // Notify tester owner about status change (Rule 4)
-    if (isBug && testerOwnerId && String(testerOwnerId) !== String(actorId) && String(testerOwnerId) !== String(currentAssigneeId)) {
+    // Notify tester owner only when a developer handoff reaches Ready for Q/A.
+    if (
+      isBug &&
+      testerOwnerId &&
+      isReadyForQaHandoff &&
+      String(testerOwnerId) !== String(actorId) &&
+      String(testerOwnerId) !== String(currentAssigneeId)
+    ) {
       await createNotification({
         recipientId: testerOwnerId,
-        text: `Bug "${issueTitle}" moved to ${statusLabel}.`,
+        text: `Bug "${issueTitle}" is ready for Q/A verification.`,
         type: "status_change",
         relatedId: issue._id,
         link,
       });
     }
 
-    // Rule 2: Notify if bug enters the queue (Rule 2 + Rule 7)
-    const queueStatuses = [BUG_STATUS.AVAILABLE_QUEUE, BUG_STATUS.NEEDS_TRIAGE];
-    const isEnteringQueue = queueStatuses.includes(issue.status);
-
-    // Rule 3: Notify all project testers if status is Ready for Testing/QA/Verification
-    const readyStatuses = [
-      BUG_STATUS.READY_FOR_TESTING,
-      BUG_STATUS.READY_FOR_QA,
-      BUG_STATUS.READY_FOR_VERIFICATION,
-    ];
-    if (isBug && (readyStatuses.includes(issue.status) || isEnteringQueue)) {
+    // Notify all project testers only when the bug is handed off for QA verification.
+    if (isBug && readyStatuses.includes(issue.status)) {
       const projectTesters = await getTestersForProject(issue.projectId);
       for (const tId of projectTesters) {
         if (String(tId) === String(actorId)) continue;
@@ -202,12 +256,10 @@ const notifyIssueEvent = async ({
     if (issue.teamId && isBug) {
       const teamMembers = await TeamMember.find({ teamId: issue.teamId }).lean();
       const teamUserIds = teamMembers.map((m) => String(m.userId));
-
-      // Rule 2 & 7: Include all project testers
-      const projectTesters = await getTestersForProject(issue.projectId);
-      const projectTesterIds = projectTesters.map((id) => String(id));
-
-      const recipients = [...new Set([...teamUserIds, ...projectTesterIds])];
+      const teamRoleMap = await getUserRoleMap(teamUserIds);
+      const recipients = teamUserIds.filter((userId) =>
+        isDeveloperQueueNotificationRole(teamRoleMap.get(String(userId)) || "")
+      );
 
       for (const recipientId of recipients) {
         if (String(recipientId) === String(actorId)) continue;

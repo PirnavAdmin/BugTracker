@@ -6,6 +6,8 @@ const {
   updateProject,
   updateProjectLeadership,
   updateProjectDeliveryWorkflow,
+  testProjectGitConnection,
+  syncProjectGitRepository,
   addProjectMember,
   removeProjectMember,
   deleteProject,
@@ -24,6 +26,8 @@ router.post("/", auth, createProject);
 router.patch("/:id", auth, updateProject);
 router.patch("/:id/leadership", auth, updateProjectLeadership);
 router.patch("/:id/delivery-workflow", auth, updateProjectDeliveryWorkflow);
+router.post("/:id/git/test", auth, testProjectGitConnection);
+router.post("/:id/git/sync", auth, syncProjectGitRepository);
 router.post("/:id/members", auth, addProjectMember);
 router.delete("/:id/members/:userId", auth, removeProjectMember);
 router.delete("/:id", auth, deleteProject);

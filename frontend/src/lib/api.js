@@ -360,6 +360,16 @@ export const updateProjectDeliveryWorkflow = async ({ projectId, payload }) => {
   return response.data;
 };
 
+export const testProjectGitConnection = async ({ projectId, payload }) => {
+  const response = await api.post(`/projects/${projectId}/git/test`, payload);
+  return response.data;
+};
+
+export const syncProjectGitRepository = async ({ projectId }) => {
+  const response = await api.post(`/projects/${projectId}/git/sync`);
+  return response.data;
+};
+
 export const deleteProject = async (projectId) => {
   const response = await api.delete(`/projects/${projectId}`);
   return response.data;

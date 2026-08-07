@@ -49,6 +49,8 @@ import {
   fetchUsers,
   detachProjectTeam,
   removeProjectMember,
+  syncProjectGitRepository,
+  testProjectGitConnection,
   updateEpic,
   updateProject,
   updateProjectDeliveryWorkflow,
@@ -462,6 +464,8 @@ const ProjectsPage = () => {
   const [settingsTeamId, setSettingsTeamId] = useState("");
   const [settingsError, setSettingsError] = useState("");
   const [gitConfigError, setGitConfigError] = useState("");
+  const [gitTestResult, setGitTestResult] = useState(null);
+  const [gitSyncResult, setGitSyncResult] = useState(null);
   const [projectDeliveryConfig, setProjectDeliveryConfig] = useState(() =>
     normalizeProjectDeliveryConfiguration()
   );
@@ -628,6 +632,42 @@ const ProjectsPage = () => {
     },
   });
 
+  const testProjectGitConnectionMutation = useMutation({
+    mutationFn: testProjectGitConnection,
+    onSuccess: (response) => {
+      setGitTestResult({
+        type: "success",
+        message: response?.message || "GitHub connection verified successfully.",
+      });
+      queryClient.invalidateQueries({ queryKey: ["projects"] });
+    },
+    onError: (error) => {
+      setGitTestResult({
+        type: "error",
+        message: error.response?.data?.message || "GitHub connection test failed.",
+      });
+    },
+  });
+
+  const syncProjectGitRepositoryMutation = useMutation({
+    mutationFn: syncProjectGitRepository,
+    onSuccess: (response) => {
+      setGitSyncResult({
+        type: "success",
+        message: response?.lastSyncTime
+          ? `Repository synchronized successfully at ${new Date(response.lastSyncTime).toLocaleString()}.`
+          : response?.message || "Repository synchronized successfully.",
+      });
+      queryClient.invalidateQueries({ queryKey: ["projects"] });
+    },
+    onError: (error) => {
+      setGitSyncResult({
+        type: "error",
+        message: error.response?.data?.message || "Unable to synchronize repository.",
+      });
+    },
+  });
+
   const updateProjectStatusMutation = useMutation({
     mutationFn: updateProjectStatus,
     onSuccess: () => {
@@ -764,6 +804,7 @@ const ProjectsPage = () => {
   }, [teams]);
 
   const canManageProjects = hasAdminPanelAccess(user?.role);
+  const canManageGitConfiguration = user?.role === ROLE_MANAGER;
 
   const projectStats = useMemo(() => {
     const active = projects.filter((project) => getProjectStatus(project) === "Active").length;
@@ -1252,6 +1293,8 @@ const ProjectsPage = () => {
     setSettingsTeamId("");
     setSettingsError("");
     setGitConfigError("");
+    setGitTestResult(null);
+    setGitSyncResult(null);
     setSelectedProjectDeleteConfirmation("");
     setIsSelectedProjectDeleteOpen(false);
   }, [selectedProject?._id]);
@@ -1366,16 +1409,28 @@ const ProjectsPage = () => {
       return;
     }
 
-    if (!projectDeliveryConfig.repository.name.trim()) {
+    if (!canManageGitConfiguration) {
+      setGitConfigError("Only Managers can save Git configuration.");
+      return;
+    }
+    if (!projectDeliveryConfig.git.repositoryOwner.trim()) {
+      setGitConfigError("Repository owner is required.");
+      return;
+    }
+    if (!projectDeliveryConfig.git.repositoryName.trim()) {
       setGitConfigError("Repository name is required.");
       return;
     }
-    if (!projectDeliveryConfig.repository.url.trim()) {
+    if (!projectDeliveryConfig.git.repositoryUrl.trim()) {
       setGitConfigError("Repository URL is required.");
       return;
     }
-    if (!projectDeliveryConfig.repository.defaultBranch.trim()) {
+    if (!projectDeliveryConfig.git.defaultBranch.trim()) {
       setGitConfigError("Default branch is required.");
+      return;
+    }
+    if (!projectDeliveryConfig.git.tokenConfigured && !projectDeliveryConfig.git.token?.trim()) {
+      setGitConfigError("GitHub Personal Access Token is required before saving.");
       return;
     }
     if (!projectDeliveryConfig.deliveryModules.some((module) => module.name.trim())) {
@@ -1388,6 +1443,7 @@ const ProjectsPage = () => {
       await updateProjectDeliveryWorkflowMutation.mutateAsync({
         projectId: selectedProject._id,
         payload: {
+          git: projectDeliveryConfig.git,
           repository: projectDeliveryConfig.repository,
           deliveryWorkflow: projectDeliveryConfig.deliveryWorkflow,
           deliveryModules: projectDeliveryConfig.deliveryModules,
@@ -1399,6 +1455,47 @@ const ProjectsPage = () => {
       setGitConfigError(
         error.response?.data?.message || "Unable to update Git configuration."
       );
+    }
+  };
+
+  const handleTestGitConnection = async (config = projectDeliveryConfig) => {
+    if (!selectedProject) {
+      return;
+    }
+
+    if (!canManageGitConfiguration) {
+      setGitTestResult({ type: "error", message: "Only Managers can test Git configuration." });
+      return;
+    }
+
+    try {
+      setGitTestResult(null);
+      await testProjectGitConnectionMutation.mutateAsync({
+        projectId: selectedProject._id,
+        payload: { git: config.git },
+      });
+    } catch {
+      // The mutation owns the visible error state.
+    }
+  };
+
+  const handleSyncGitRepository = async () => {
+    if (!selectedProject) {
+      return;
+    }
+
+    if (!canManageGitConfiguration) {
+      setGitSyncResult({ type: "error", message: "Only Managers can synchronize Git configuration." });
+      return;
+    }
+
+    try {
+      setGitSyncResult(null);
+      await syncProjectGitRepositoryMutation.mutateAsync({
+        projectId: selectedProject._id,
+      });
+    } catch {
+      // The mutation owns the visible error state.
     }
   };
 
@@ -2316,7 +2413,7 @@ const ProjectsPage = () => {
                         className="h-9 rounded-lg"
                         type="button"
                         disabled={
-                          !canManageProjects ||
+                          !canManageGitConfiguration ||
                           updateProjectDeliveryWorkflowMutation.isPending
                         }
                         onClick={handleSaveGitConfiguration}
@@ -2335,8 +2432,14 @@ const ProjectsPage = () => {
                     <ProjectDeliveryConfiguration
                       value={projectDeliveryConfig}
                       onChange={setProjectDeliveryConfig}
-                      readOnly={!canManageProjects}
+                      readOnly={!canManageGitConfiguration}
                       mode="settings"
+                      onTestConnection={handleTestGitConnection}
+                      onSyncNow={handleSyncGitRepository}
+                      isTestingConnection={testProjectGitConnectionMutation.isPending}
+                      isSyncing={syncProjectGitRepositoryMutation.isPending}
+                      testResult={gitTestResult}
+                      syncResult={gitSyncResult}
                     />
                   </section>
                 ) : null}
@@ -3325,6 +3428,7 @@ const ProjectsPage = () => {
               formId="create-project-form"
               usersErrorMessage={isUsersLoading ? "" : usersErrorMessage}
               teamsErrorMessage={isTeamsLoading ? "" : teamsErrorMessage}
+              canManageGitConfiguration={canManageGitConfiguration}
             />
           </div>
         </DialogContent>
