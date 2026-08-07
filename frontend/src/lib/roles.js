@@ -55,7 +55,7 @@ export const hasWorkspaceMailAccess = (role) =>
 export const dashboardPathByRole = {
   [ROLE_ADMIN]: "/admin/dashboard",
   [ROLE_MANAGER]: "/admin/dashboard",
-  [ROLE_TEAM_LEAD]: "/admin/dashboard",
+  [ROLE_TEAM_LEAD]: "/dev/dashboard",
   [ROLE_QA_LEAD]: "/tester/dashboard",
   [ROLE_DEVELOPER]: "/dev/dashboard",
   [ROLE_TESTER]: "/tester/dashboard",
@@ -65,14 +65,14 @@ export const getDashboardPathByRole = (role) =>
   dashboardPathByRole[role] || "/login";
 
 export const getRoleNavigation = (role) => {
-  if (hasAdminPanelAccess(role) || role === ROLE_TEAM_LEAD) {
+  if (hasAdminPanelAccess(role)) {
     const navigation = [
-      { id: "dashboard", label: "Dashboard", href: dashboardPathByRole[role] || dashboardPathByRole[ROLE_ADMIN], icon: "dashboard" },
+      { id: "dashboard", label: "Dashboard", href: dashboardPathByRole[ROLE_ADMIN], icon: "dashboard" },
       { id: "projects", label: "Projects", href: "/projects", icon: "projects" },
       { id: "backlog", label: "Backlog", href: "/backlog", icon: "backlog" },
       { id: "stories", label: "Stories", href: "/stories", icon: "stories" },
       { id: "tasks", label: "Tasks", href: "/tasks", icon: "tasks" },
-      { id: "bugs", label: "Bugs", href: role === ROLE_TEAM_LEAD ? "/bugs" : "/admin/bugs", icon: "bugs" },
+      { id: "bugs", label: "Bugs", href: "/admin/bugs", icon: "bugs" },
       { id: "reports", label: "Reports", href: "/reports", icon: "reports" },
       { id: "chat", label: "Chat", href: "/chat", icon: "chat" },
     ];
@@ -128,7 +128,7 @@ export const normalizeScreenPermissions = (permissions = {}) =>
   }, {});
 
 export const filterRoleNavigation = (navigation = [], role, permissions = null) => {
-  if (hasAdminPanelAccess(role) || role === ROLE_TEAM_LEAD || !SCREEN_PERMISSION_ROLES.includes(role)) {
+  if (hasAdminPanelAccess(role) || !SCREEN_PERMISSION_ROLES.includes(role)) {
     return navigation;
   }
 
@@ -278,7 +278,7 @@ export const getPageMeta = (pathname, role) => {
 
 export const canManageUsers = (role) => hasAdminPanelAccess(role);
 export const canManageProjects = (role) =>
-  hasAdminPanelAccess(role) || role === ROLE_TEAM_LEAD;
+  hasAdminPanelAccess(role);
 export const canAssignIssues = (role) =>
   hasAdminPanelAccess(role) || hasTaskStoryLeadAccess(role);
 export const canDeleteIssues = (role) => hasAdminPanelAccess(role);

@@ -296,7 +296,7 @@ const App = () => (
       <Route
         path="/admin/dashboard"
         element={
-          <ProtectedRoute roles={[...ADMIN_PANEL_ROLES, ROLE_TEAM_LEAD]}>
+          <ProtectedRoute roles={ADMIN_PANEL_ROLES}>
             <DashboardPage />
           </ProtectedRoute>
         }
@@ -336,7 +336,7 @@ const App = () => (
       <Route
         path="/tester/dashboard"
         element={
-          <ProtectedRoute roles={[...TESTER_PANEL_ROLES, ROLE_TEAM_LEAD]}>
+          <ProtectedRoute roles={TESTER_PANEL_ROLES}>
             <TesterDashboardPage />
           </ProtectedRoute>
         }
@@ -352,7 +352,7 @@ const App = () => (
       <Route
         path="/admin/bugs"
         element={
-          <ProtectedRoute roles={[...ADMIN_PANEL_ROLES, ROLE_TEAM_LEAD]}>
+          <ProtectedRoute roles={ADMIN_PANEL_ROLES}>
             <AdminBugsPage />
           </ProtectedRoute>
         }
@@ -360,7 +360,7 @@ const App = () => (
       <Route
         path="/backlog"
         element={
-          <ProtectedRoute roles={[...ADMIN_PANEL_ROLES, ROLE_TEAM_LEAD]}>
+          <ProtectedRoute roles={ADMIN_PANEL_ROLES}>
             <BacklogPage />
           </ProtectedRoute>
         }
@@ -368,7 +368,7 @@ const App = () => (
       <Route
         path="/projects"
         element={
-          <ProtectedRoute roles={[...ADMIN_PANEL_ROLES, ROLE_TEAM_LEAD]}>
+          <ProtectedRoute roles={ADMIN_PANEL_ROLES}>
             <ProjectsPage />
           </ProtectedRoute>
         }
@@ -376,7 +376,7 @@ const App = () => (
       <Route
         path="/teams"
         element={
-          <ProtectedRoute roles={[...ADMIN_PANEL_ROLES, ROLE_TEAM_LEAD]}>
+          <ProtectedRoute roles={ADMIN_PANEL_ROLES}>
             <Navigate to="/projects?tab=teams" replace />
           </ProtectedRoute>
         }
@@ -384,7 +384,7 @@ const App = () => (
       <Route
         path="/teams/create"
         element={
-          <ProtectedRoute roles={[...ADMIN_PANEL_ROLES, ROLE_TEAM_LEAD]}>
+          <ProtectedRoute roles={ADMIN_PANEL_ROLES}>
             <Navigate to="/projects?tab=teams" replace />
           </ProtectedRoute>
         }
@@ -392,7 +392,7 @@ const App = () => (
       <Route
         path="/teams/:id"
         element={
-          <ProtectedRoute roles={[...ADMIN_PANEL_ROLES, ROLE_TEAM_LEAD]}>
+          <ProtectedRoute roles={ADMIN_PANEL_ROLES}>
             <TeamDetailsPage />
           </ProtectedRoute>
         }
