@@ -7,6 +7,7 @@ import {
   ShieldCheck,
   Trash2,
   UserCircle2,
+  UserRoundCheck,
   Users2,
   X,
 } from "lucide-react";
@@ -46,6 +47,7 @@ const summaryIconMap = {
   [USER_FILTER_KEY_ALL]: Users2,
   Admin: ShieldCheck,
   Manager: UserCircle2,
+  "Team Lead": UserRoundCheck,
   "Q/A Lead": CheckCircle2,
   Developer: MailPlus,
   Tester: CheckCircle2,
@@ -84,6 +86,7 @@ const UsersSettings = ({
       total: users.length,
       adminCount: countByRole("Admin"),
       managerCount: countByRole("Manager"),
+      teamLeadCount: countByRole("Team Lead"),
       qaLeadCount: countByRole("Q/A Lead"),
       developerCount: countByRole("Developer"),
       testerCount: countByRole("Tester"),
@@ -109,6 +112,12 @@ const UsersSettings = ({
         label: "Managers",
         count: stats.managerCount,
         description: "Delivery managers",
+      },
+      {
+        key: "Team Lead",
+        label: "Team Leads",
+        count: stats.teamLeadCount,
+        description: "Leads managing team execution",
       },
       {
         key: "Q/A Lead",
@@ -252,8 +261,8 @@ const UsersSettings = ({
     >
       {isLoading ? (
         <div className="space-y-5">
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-            {Array.from({ length: 5 }, (_, index) => (
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
+            {Array.from({ length: 6 }, (_, index) => (
               <Skeleton key={index} className="h-28 rounded-[16px]" />
             ))}
           </div>
@@ -261,7 +270,7 @@ const UsersSettings = ({
         </div>
       ) : (
         <div className="space-y-5">
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
             {summaryCards.map((card) => {
               const Icon = summaryIconMap[card.key] || Users2;
               const isActive =
