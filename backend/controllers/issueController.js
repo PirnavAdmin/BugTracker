@@ -1301,6 +1301,7 @@ const getBugPickupProjectEligibility = async ({
   projectId,
   project = null,
   issueTeamId = null,
+  hasProjectAccess = false,
 }) => {
   const [userTeamIds, projectTeamIds] = await Promise.all([
     getWorkspaceTeamIdsForUser(user),
@@ -1316,6 +1317,10 @@ const getBugPickupProjectEligibility = async ({
   const effectiveMatchingTeamIds = hasIssueTeamAccess
     ? Array.from(new Set([...matchingTeamIds, String(issueTeamId)]))
     : matchingTeamIds;
+  const canPickThroughProjectAccess =
+    Boolean(hasProjectAccess) &&
+    (isWorkspaceAdmin(user) || user?.role === ROLE_MANAGER || user?.role === ROLE_TEAM_LEAD);
+  const canPick = effectiveMatchingTeamIds.length > 0 || canPickThroughProjectAccess;
   const matchingTeams = effectiveMatchingTeamIds.length
     ? await Team.find({
         _id: {
@@ -1328,10 +1333,10 @@ const getBugPickupProjectEligibility = async ({
     : [];
 
   return {
-    canPick: effectiveMatchingTeamIds.length > 0,
-    reason: effectiveMatchingTeamIds.length
+    canPick,
+    reason: canPick
       ? ""
-      : "You can only pick bugs when one of your teams is attached to this project.",
+      : "You can only pick work when one of your teams is attached to this project.",
     userTeamIds: userTeamIds.map(String),
     projectTeamIds: projectTeamIds.map(String),
     matchingTeamIds: effectiveMatchingTeamIds,
@@ -4193,6 +4198,7 @@ const getBugBucket = asyncHandler(async (req, res) => {
 
   const issues = await applyListOptions(populateIssueQuery(Issue.find(query)), req);
   const issueIds = issues.map((issue) => issue._id);
+  const accessibleProjectIdSet = new Set(accessibleProjectIds.map(String));
   const pickupEligibilityByIssueId = new Map(
     await Promise.all(
       issues.map(async (issue) => [
@@ -4201,6 +4207,9 @@ const getBugBucket = asyncHandler(async (req, res) => {
           user: req.user,
           projectId: issue.projectId?._id || issue.projectId,
           issueTeamId: issue.teamId?._id || issue.teamId,
+          hasProjectAccess: accessibleProjectIdSet.has(
+            String(issue.projectId?._id || issue.projectId || "")
+          ),
         }),
       ])
     )
@@ -4310,6 +4319,7 @@ const pickIssue = asyncHandler(async (req, res) => {
     projectId: existingIssue.projectId,
     project,
     issueTeamId: existingIssue.teamId,
+    hasProjectAccess: Boolean(project),
   });
 
   if (!pickupEligibility.canPick) {
