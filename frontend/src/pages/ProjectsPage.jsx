@@ -804,7 +804,7 @@ const ProjectsPage = () => {
   }, [teams]);
 
   const canManageProjects = hasAdminPanelAccess(user?.role);
-  const canManageGitConfiguration = user?.role === ROLE_MANAGER;
+  const canManageGitConfiguration = [ROLE_ADMIN, ROLE_MANAGER].includes(user?.role);
 
   const projectStats = useMemo(() => {
     const active = projects.filter((project) => getProjectStatus(project) === "Active").length;
@@ -1410,7 +1410,7 @@ const ProjectsPage = () => {
     }
 
     if (!canManageGitConfiguration) {
-      setGitConfigError("Only Managers can save Git configuration.");
+      setGitConfigError("Only Admins and Managers can save Git configuration.");
       return;
     }
     if (!projectDeliveryConfig.git.repositoryOwner.trim()) {
@@ -1464,7 +1464,7 @@ const ProjectsPage = () => {
     }
 
     if (!canManageGitConfiguration) {
-      setGitTestResult({ type: "error", message: "Only Managers can test Git configuration." });
+      setGitTestResult({ type: "error", message: "Only Admins and Managers can test Git configuration." });
       return;
     }
 
@@ -1485,7 +1485,7 @@ const ProjectsPage = () => {
     }
 
     if (!canManageGitConfiguration) {
-      setGitSyncResult({ type: "error", message: "Only Managers can synchronize Git configuration." });
+      setGitSyncResult({ type: "error", message: "Only Admins and Managers can synchronize Git configuration." });
       return;
     }
 

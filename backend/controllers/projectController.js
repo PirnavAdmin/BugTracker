@@ -56,7 +56,8 @@ const populateProject = (target) => target.populate(projectPopulation);
 
 const getProjectIssueCount = async (projectId) => Issue.countDocuments({ projectId });
 
-const canConfigureProjectDelivery = (role = "") => role === ROLE_MANAGER;
+const canConfigureProjectDelivery = (role = "") =>
+  [ROLE_ADMIN, ROLE_MANAGER].includes(role);
 
 const normalizeString = (value, fallback = "") =>
   typeof value === "string" ? value.trim() : fallback;
@@ -1170,9 +1171,9 @@ const createProject = asyncHandler(async (req, res) => {
   let createGitPatch = {};
 
   if (git) {
-    if (req.user.role !== ROLE_MANAGER) {
+    if (!canConfigureProjectDelivery(req.user.role)) {
       res.status(403);
-      throw new Error("Only Managers can create Git settings");
+      throw new Error("Only Admins and Managers can create Git settings");
     }
 
     const normalizedGit = normalizeGitConfiguration({
@@ -1448,7 +1449,7 @@ const updateProjectDeliveryWorkflow = asyncHandler(async (req, res) => {
 
   if (!canConfigureProjectDelivery(req.user.role)) {
     res.status(403);
-    throw new Error("Only Managers can configure Git settings");
+    throw new Error("Only Admins and Managers can configure Git settings");
   }
 
   if (!mongoose.isValidObjectId(req.params.id)) {
@@ -1539,7 +1540,7 @@ const testProjectGitConnection = asyncHandler(async (req, res) => {
 
   if (!canConfigureProjectDelivery(req.user.role)) {
     res.status(403);
-    throw new Error("Only Managers can test Git settings");
+    throw new Error("Only Admins and Managers can test Git settings");
   }
 
   if (!mongoose.isValidObjectId(req.params.id)) {
@@ -1609,7 +1610,7 @@ const syncProjectGitRepository = asyncHandler(async (req, res) => {
 
   if (!canConfigureProjectDelivery(req.user.role)) {
     res.status(403);
-    throw new Error("Only Managers can synchronize Git settings");
+    throw new Error("Only Admins and Managers can synchronize Git settings");
   }
 
   if (!mongoose.isValidObjectId(req.params.id)) {
