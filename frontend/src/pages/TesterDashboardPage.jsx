@@ -1214,7 +1214,7 @@ const TesterDashboardPage = () => {
     { label: "Testing Sessions", value: Math.max(1, assignedProjects.length) },
     { label: "Bugs Created", value: myReportedBugs.length },
     { label: "Verified", value: verifiedToday },
-    { label: "Avg Testing Time", value: "2h 15m" },
+    { label: "Rejected Bugs", value: rejectedBugsCount },
   ];
 
   const handleStartTesting = (project) => {
@@ -2014,11 +2014,11 @@ const TesterDashboardPage = () => {
               value={Math.max(1, assignedProjects.length)}
             />
             <WorkspaceKpiCard
-              Icon={Clock3}
-              description="Focused testing time"
-              label="Testing Duration"
-              tone="purple"
-              value="2h 15m"
+              Icon={RotateCcw}
+              description="Returned for developer fixes"
+              label="Rejected Bugs"
+              tone="orange"
+              value={rejectedBugsCount}
             />
             <WorkspaceKpiCard
               Icon={Bug}
