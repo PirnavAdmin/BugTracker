@@ -1288,6 +1288,28 @@ const TesterDashboardPage = () => {
     setSelectedTestingModule(module);
   };
 
+  const handleDeleteBuildModule = (module) => {
+    const configKey = activeTestingSession?.projectId || selectedQaProject?.id;
+
+    if (!configKey) {
+      return;
+    }
+
+    setCustomBuildModules((modulesByProject) => ({
+      ...modulesByProject,
+      [configKey]: (modulesByProject[configKey] || []).filter((item) => item !== module),
+    }));
+    setBuildModuleStatuses((statuses) => {
+      const nextProjectStatuses = { ...(statuses[configKey] || {}) };
+      delete nextProjectStatuses[module];
+
+      return {
+        ...statuses,
+        [configKey]: nextProjectStatuses,
+      };
+    });
+  };
+
   const handleRefresh = async () => {
     await Promise.all([
       refetchProjects(),
@@ -1431,26 +1453,13 @@ const TesterDashboardPage = () => {
             <p className="text-[11px] font-bold uppercase tracking-[0.1em] text-rose-700">Reported Bugs In Session</p>
             <p className="mt-1 text-2xl font-semibold text-slate-950">{sessionReportedBugsCount}</p>
           </div>
-          {activeTestingSession?.status === "In Progress" ? (
+          {activeTestingSession?.status === "In Progress" && (
             <Button
               className="mt-1 h-9 w-full rounded-xl bg-rose-600 text-white hover:bg-rose-700"
               onClick={handleStopTesting}
               type="button"
             >
               Stop Testing
-            </Button>
-          ) : (
-            <Button
-              className={cn(
-                "mt-1 h-9 w-full rounded-xl text-white",
-                selectedQaProject?.readyForQaCount > 0
-                  ? "bg-rose-600 hover:bg-rose-700"
-                  : "bg-blue-600 hover:bg-blue-700"
-              )}
-              onClick={() => selectedQaProject && handleStartTesting(selectedQaProject)}
-              type="button"
-            >
-              Start Session
             </Button>
           )}
         </div>
@@ -1482,29 +1491,42 @@ const TesterDashboardPage = () => {
         <div className="mt-3 space-y-2">
           {currentBuildModules.length ? currentBuildModules.map((module, index) => {
             const status = getModuleStatus(module, index);
+            const canDeleteModule = Boolean(customBuildModules[activeTestingSession?.projectId || selectedQaProject?.id]?.includes(module));
 
             return (
               <div className="flex items-center justify-between gap-3 rounded-xl bg-slate-50/90 px-3 py-2" key={module}>
                 <span className="min-w-0 truncate text-sm font-semibold text-slate-800">{module}</span>
-                <button
-                  aria-label={`Mark ${module} module status`}
-                  className={cn(
-                  "flex h-7 w-7 shrink-0 items-center justify-center rounded-full border text-xs font-bold",
-                  status === "done" && "border-emerald-100 bg-emerald-50 text-emerald-600",
-                  status === "progress" && "border-amber-100 bg-amber-50 text-amber-600",
-                  status === "pending" && "border-slate-200 bg-white text-slate-400"
+                <span className="flex shrink-0 items-center gap-1.5">
+                  {canDeleteModule && (
+                    <button
+                      aria-label={`Delete ${module}`}
+                      className="flex h-7 w-7 items-center justify-center rounded-full text-slate-400 hover:bg-rose-50 hover:text-rose-600"
+                      onClick={() => handleDeleteBuildModule(module)}
+                      type="button"
+                    >
+                      x
+                    </button>
                   )}
-                  onClick={() => handleCycleBuildModuleStatus(module, index)}
-                  type="button"
-                >
-                  {status === "done" ? (
-                    <CheckCircle2 className="h-4 w-4" />
-                  ) : status === "progress" ? (
-                    <Clock3 className="h-4 w-4" />
-                  ) : (
-                    <span className="h-3 w-3 rounded-full border border-current" />
-                  )}
-                </button>
+                  <button
+                    aria-label={`Mark ${module} module status`}
+                    className={cn(
+                    "flex h-7 w-7 items-center justify-center rounded-full border text-xs font-bold",
+                    status === "done" && "border-emerald-100 bg-emerald-50 text-emerald-600",
+                    status === "progress" && "border-amber-100 bg-amber-50 text-amber-600",
+                    status === "pending" && "border-slate-200 bg-white text-slate-400"
+                    )}
+                    onClick={() => handleCycleBuildModuleStatus(module, index)}
+                    type="button"
+                  >
+                    {status === "done" ? (
+                      <CheckCircle2 className="h-4 w-4" />
+                    ) : status === "progress" ? (
+                      <Clock3 className="h-4 w-4" />
+                    ) : (
+                      <span className="h-3 w-3 rounded-full border border-current" />
+                    )}
+                  </button>
+                </span>
               </div>
             );
           }) : (
@@ -1869,8 +1891,18 @@ const TesterDashboardPage = () => {
                           {((customBuildModules[selectedQaProject.id] || []).length
                             ? customBuildModules[selectedQaProject.id]
                             : ["No modules configured yet"]).map((module) => (
-                            <span className="rounded-full border border-blue-100 bg-blue-50/70 px-2.5 py-1 text-[11px] font-semibold text-slate-600" key={module}>
+                            <span className="inline-flex items-center gap-1 rounded-full border border-blue-100 bg-blue-50/70 px-2.5 py-1 text-[11px] font-semibold text-slate-600" key={module}>
                               {module}
+                              {module !== "No modules configured yet" && (
+                                <button
+                                  aria-label={`Delete ${module}`}
+                                  className="ml-1 text-slate-400 hover:text-rose-600"
+                                  onClick={() => handleDeleteBuildModule(module)}
+                                  type="button"
+                                >
+                                  x
+                                </button>
+                              )}
                             </span>
                           ))}
                         </div>
@@ -1898,10 +1930,10 @@ const TesterDashboardPage = () => {
                           type="button"
                         >
                           <PlayCircle className="h-4 w-4" />
-                          {activeSelectedSession?.status === "In Progress" ? "Continue Testing" : "Start Session"}
+                          Configure
                         </Button>
-                        <Button className="h-9 rounded-xl px-3" variant="ghost" onClick={() => handleCreateBugForProject(selectedQaProject)} type="button">
-                          Create Bug
+                        <Button className="h-9 rounded-xl px-3" variant="ghost" onClick={() => document.getElementById("qa-testing-module")?.focus()} type="button">
+                          Edit
                         </Button>
                       </div>
                     </div>
