@@ -2123,6 +2123,24 @@ const validateBugTransition = ({ user, fromStatus, toStatus, payload }) => {
     return "Deferred requires a target future release";
   }
 
+  if (
+    user?.role === ROLE_TEAM_LEAD &&
+    [
+      BUG_STATUS.OPEN,
+      BUG_STATUS.TRIAGED,
+      BUG_STATUS.ASSIGNED,
+      BUG_STATUS.IN_PROGRESS,
+      BUG_STATUS.READY_FOR_QA,
+      BUG_STATUS.READY_FOR_TESTING,
+      BUG_STATUS.READY_FOR_VERIFICATION,
+      BUG_STATUS.FIXED,
+      BUG_STATUS.REJECTED,
+      BUG_STATUS.DEFERRED,
+    ].includes(toStatus)
+  ) {
+    return "";
+  }
+
   if (isQaRole(user?.role)) {
     return [BUG_STATUS.TESTING, BUG_STATUS.DONE, BUG_STATUS.CLOSED, BUG_STATUS.REOPEN].includes(toStatus)
       ? ""
