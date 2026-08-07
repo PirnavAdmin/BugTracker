@@ -5633,6 +5633,13 @@ const updateIssue = asyncHandler(async (req, res) => {
             "assignedDeveloperId",
             "devLeadId",
             "devLead",
+            "status",
+            "reopenReason",
+            "rejectionReason",
+            "targetRelease",
+            "futureRelease",
+            "statusChangeComment",
+            "comment",
           ]
       : canTesterEditReportedBug
         ? [
