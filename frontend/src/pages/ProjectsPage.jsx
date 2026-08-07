@@ -82,7 +82,14 @@ import { Skeleton } from "@/components/ui/skeleton";
 import EmptyState from "@/components/shared/EmptyState";
 import ToastNotice from "@/components/shared/ToastNotice";
 import { useAuth } from "@/hooks/use-auth";
-import { hasAdminPanelAccess } from "@/lib/roles";
+import {
+  ROLE_ADMIN,
+  ROLE_MANAGER,
+  ROLE_QA_LEAD,
+  ROLE_TEAM_LEAD,
+  ROLE_TESTER,
+  hasAdminPanelAccess,
+} from "@/lib/roles";
 import { getWorkspaceScope } from "@/lib/workspace";
 import { getProjectTeams, resolveUserId } from "@/lib/project-teams";
 import { getInitials } from "@/lib/utils";
@@ -582,10 +589,11 @@ const ProjectsPage = () => {
 
   const detachProjectTeamMutation = useMutation({
     mutationFn: detachProjectTeam,
-    onSuccess: () => {
+    onSuccess: (response) => {
       queryClient.invalidateQueries({ queryKey: ["projects"] });
       queryClient.invalidateQueries({ queryKey: ["project-teams"] });
       queryClient.invalidateQueries({ queryKey: ["analytics"] });
+      showToast("success", response?.message || "Team detached from project.");
     },
   });
 
@@ -843,6 +851,37 @@ const ProjectsPage = () => {
       .filter((team) => !attachedTeamIds.has(String(team._id)))
       .sort((left, right) => (left.name || "").localeCompare(right.name || ""));
   }, [selectedProjectTeams, teams]);
+  const projectManagerOptions = useMemo(
+    () =>
+      users
+        .filter((workspaceUser) =>
+          [ROLE_ADMIN, ROLE_MANAGER].includes(workspaceUser.role)
+        )
+        .sort((left, right) =>
+          (left.name || left.email || "").localeCompare(right.name || right.email || "")
+        ),
+    [users]
+  );
+  const teamLeadOptions = useMemo(
+    () =>
+      users
+        .filter((workspaceUser) => workspaceUser.role === ROLE_TEAM_LEAD)
+        .sort((left, right) =>
+          (left.name || left.email || "").localeCompare(right.name || right.email || "")
+        ),
+    [users]
+  );
+  const qaLeadOptions = useMemo(
+    () =>
+      users
+        .filter((workspaceUser) =>
+          [ROLE_QA_LEAD, ROLE_TESTER].includes(workspaceUser.role)
+        )
+        .sort((left, right) =>
+          (left.name || left.email || "").localeCompare(right.name || right.email || "")
+        ),
+    [users]
+  );
 
   const selectedProjectMembers = useMemo(() => {
     if (!selectedProject) {
@@ -1378,6 +1417,22 @@ const ProjectsPage = () => {
       setSettingsTeamId("");
     } catch (error) {
       setSettingsError(error.response?.data?.message || "Unable to attach team.");
+    }
+  };
+
+  const handleDetachSettingsTeam = async (team) => {
+    if (!selectedProject || !team?._id) {
+      return;
+    }
+
+    try {
+      setSettingsError("");
+      await detachProjectTeamMutation.mutateAsync({
+        projectId: selectedProject._id,
+        teamId: team._id,
+      });
+    } catch (error) {
+      setSettingsError(error.response?.data?.message || "Unable to detach team.");
     }
   };
 
@@ -2398,33 +2453,84 @@ const ProjectsPage = () => {
                           />
                         </label>
 
-                        <div className="grid gap-3 md:grid-cols-3">
-                          {[
-                            ["projectManager", "Project Manager"],
-                            ["teamLead", "Team Lead"],
-                            ["qaLead", "QA Lead"],
-                          ].map(([field, label]) => (
-                            <label key={field} className="space-y-1.5">
+                        <div className="grid gap-3 lg:grid-cols-3">
+                          <div className="rounded-2xl border border-[#EEF2F7] bg-white/80 p-4">
+                            <label className="space-y-1.5">
                               <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                                {label}
+                                Project Manager
                               </span>
                               <select
                                 className="h-10 w-full rounded-xl border border-[#DDE5F0] bg-white px-3 text-sm text-slate-950 outline-none focus:border-blue-400 focus:ring-4 focus:ring-blue-500/10"
-                                value={projectSettings[field]}
+                                value={projectSettings.projectManager}
                                 disabled={!canManageProjects || isUsersLoading}
                                 onChange={(event) =>
-                                  handleSettingsChange(field, event.target.value)
+                                  handleSettingsChange("projectManager", event.target.value)
                                 }
                               >
                                 <option value="">Unassigned</option>
-                                {users.map((workspaceUser) => (
+                                {projectManagerOptions.map((workspaceUser) => (
                                   <option key={workspaceUser._id} value={workspaceUser._id}>
                                     {workspaceUser.name || workspaceUser.email}
                                   </option>
                                 ))}
                               </select>
                             </label>
-                          ))}
+                            <p className="mt-2 text-xs text-slate-500">
+                              Managers own project settings and delivery decisions.
+                            </p>
+                          </div>
+
+                          <div className="rounded-2xl border border-[#B6D4FE] bg-[#F4F8FF] p-4">
+                            <label className="space-y-1.5">
+                              <span className="text-xs font-semibold uppercase tracking-wide text-blue-600">
+                                Team Lead
+                              </span>
+                              <select
+                                className="h-10 w-full rounded-xl border border-[#B6D4FE] bg-white px-3 text-sm text-slate-950 outline-none focus:border-blue-400 focus:ring-4 focus:ring-blue-500/10"
+                                value={projectSettings.teamLead}
+                                disabled={!canManageProjects || isUsersLoading}
+                                onChange={(event) =>
+                                  handleSettingsChange("teamLead", event.target.value)
+                                }
+                              >
+                                <option value="">Unassigned</option>
+                                {teamLeadOptions.map((workspaceUser) => (
+                                  <option key={workspaceUser._id} value={workspaceUser._id}>
+                                    {workspaceUser.name || workspaceUser.email}
+                                  </option>
+                                ))}
+                              </select>
+                            </label>
+                            <p className="mt-2 text-xs text-slate-500">
+                              Only users with the Team Lead role are listed here.
+                            </p>
+                          </div>
+
+                          <div className="rounded-2xl border border-[#EEF2F7] bg-white/80 p-4">
+                            <label className="space-y-1.5">
+                              <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                                QA Lead
+                              </span>
+                              <select
+                                className="h-10 w-full rounded-xl border border-[#DDE5F0] bg-white px-3 text-sm text-slate-950 outline-none focus:border-blue-400 focus:ring-4 focus:ring-blue-500/10"
+                                value={projectSettings.qaLead}
+                                disabled={!canManageProjects || isUsersLoading}
+                                onChange={(event) =>
+                                  handleSettingsChange("qaLead", event.target.value)
+                                }
+                              >
+                                <option value="">Unassigned</option>
+                                {qaLeadOptions.map((workspaceUser) => (
+                                  <option key={workspaceUser._id} value={workspaceUser._id}>
+                                    {workspaceUser.name || workspaceUser.email}
+                                  </option>
+                                ))}
+                              </select>
+                            </label>
+                            <p className="mt-2 text-xs text-slate-500">
+                              QA Leads coordinate test ownership and verification.
+                            </p>
+                          </div>
                         </div>
                       </div>
 
@@ -2481,12 +2587,7 @@ const ProjectsPage = () => {
                                   className="text-xs font-semibold text-rose-600 hover:text-rose-700 disabled:text-slate-400"
                                   type="button"
                                   disabled={!canManageProjects || detachProjectTeamMutation.isPending}
-                                  onClick={() =>
-                                    detachProjectTeamMutation.mutateAsync({
-                                      projectId: selectedProject._id,
-                                      teamId: team._id,
-                                    })
-                                  }
+                                  onClick={() => handleDetachSettingsTeam(team)}
                                 >
                                   Remove
                                 </button>

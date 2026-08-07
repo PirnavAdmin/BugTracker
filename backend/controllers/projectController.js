@@ -760,7 +760,7 @@ const createProject = asyncHandler(async (req, res) => {
       userId: teamLead,
       workspaceId,
       label: "Team lead",
-      allowedRoles: ["Admin", "Manager", "Team Lead", "Developer"],
+      allowedRoles: ["Team Lead"],
     }),
     loadWorkspaceUserAssignment({
       userId: qaLead,
@@ -993,7 +993,7 @@ const updateProject = asyncHandler(async (req, res) => {
             userId: req.body.teamLead,
             workspaceId,
             label: "Team lead",
-            allowedRoles: ["Admin", "Manager", "Team Lead", "Developer"],
+            allowedRoles: ["Team Lead"],
           })
         : Promise.resolve({ value: project.teamLead || null }),
       hasQaLeadInput
@@ -1570,22 +1570,15 @@ const detachProjectTeam = asyncHandler(async (req, res) => {
     throw new Error("This team is not attached to the project");
   }
 
-  const activeIssueCount = await Issue.countDocuments({
+  const activeIssueFilter = {
     projectId: project._id,
     teamId: team._id,
     status: {
       $nin: CLOSED_DETACH_STATUS_VALUES,
     },
-  });
+  };
 
-  if (activeIssueCount > 0) {
-    res.status(409);
-    throw new Error(
-      `Cannot detach ${team.name} while ${activeIssueCount} active work item${
-        activeIssueCount === 1 ? " is" : "s are"
-      } assigned to this team. Reassign or close the work first.`
-    );
-  }
+  const activeIssueCount = await Issue.countDocuments(activeIssueFilter);
 
   await Promise.all([
     projectTeam
@@ -1605,10 +1598,24 @@ const detachProjectTeam = asyncHandler(async (req, res) => {
         },
       }
     ),
+    activeIssueCount
+      ? Issue.updateMany(activeIssueFilter, {
+          $unset: {
+            teamId: "",
+            team: "",
+          },
+        })
+      : Promise.resolve(),
   ]);
 
   res.status(200).json({
-    message: `${team.name} detached from the project`,
+    message: `${team.name} detached from the project${
+      activeIssueCount
+        ? ` and removed from ${activeIssueCount} active work item${
+            activeIssueCount === 1 ? "" : "s"
+          }`
+        : ""
+    }`,
     ...(await buildProjectResponse(project._id)),
   });
 });

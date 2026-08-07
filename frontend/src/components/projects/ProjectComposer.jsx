@@ -17,7 +17,7 @@ import ProjectDeliveryConfiguration, {
 } from "@/components/projects/ProjectDeliveryConfiguration";
 
 const MANAGER_ROLES = ["Admin", "Manager"];
-const TEAM_LEAD_ROLES = ["Admin", "Manager", "Developer"];
+const TEAM_LEAD_ROLES = ["Team Lead"];
 const PROJECT_STATUSES = ["Active", "On Hold", "Completed"];
 const PROJECT_PRIORITIES = ["Low", "Medium", "High", "Critical"];
 
