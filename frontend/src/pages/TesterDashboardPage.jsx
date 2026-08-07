@@ -161,6 +161,7 @@ const SUMMARY_CARDS = [
 ];
 
 const COMMON_TESTING_MODULES = ["Login", "Dashboard", "Reports", "API", "Payment", "Attendance"];
+const BUILD_MODULE_FALLBACK = ["Login", "Dashboard", "Reports", "Payment", "Attendance"];
 
 const createEmptyMetrics = () => ({
   total: 0,
