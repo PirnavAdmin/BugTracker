@@ -1283,6 +1283,45 @@ const ProjectsPage = () => {
     }
   };
 
+  const handleHoldSelectedProject = async () => {
+    if (!selectedProject) {
+      return;
+    }
+
+    try {
+      await updateProjectMutation.mutateAsync({
+        projectId: selectedProject._id,
+        payload: {
+          status: "On Hold",
+        },
+      });
+    } catch (error) {
+      showToast(
+        "error",
+        error.response?.data?.message || "Unable to put this project on hold."
+      );
+    }
+  };
+
+  const handleCompleteSelectedProject = async () => {
+    if (!selectedProject) {
+      return;
+    }
+
+    try {
+      await updateProjectStatusMutation.mutateAsync({
+        projectId: selectedProject._id,
+        isCompleted: true,
+      });
+      showToast("success", "Project marked as completed.");
+    } catch (error) {
+      showToast(
+        "error",
+        error.response?.data?.message || "Unable to mark this project as completed."
+      );
+    }
+  };
+
   const handleSaveGitConfiguration = async () => {
     if (!selectedProject) {
       return;
@@ -1744,10 +1783,30 @@ const ProjectsPage = () => {
                           className="h-10 rounded-xl"
                           variant="outline"
                           type="button"
-                          onClick={() => navigate(`/tasks?projectId=${selectedProject._id}`)}
+                          disabled={
+                            !canManageProjects ||
+                            updateProjectMutation.isPending ||
+                            getProjectStatus(selectedProject) === "On Hold" ||
+                            getProjectStatus(selectedProject) === "Completed"
+                          }
+                          onClick={handleHoldSelectedProject}
                         >
-                          <ClipboardList className="h-4 w-4" />
-                          Board
+                          <Archive className="h-4 w-4" />
+                          Hold
+                        </Button>
+                        <Button
+                          className="h-10 rounded-xl"
+                          variant="outline"
+                          type="button"
+                          disabled={
+                            !canManageProjects ||
+                            updateProjectStatusMutation.isPending ||
+                            getProjectStatus(selectedProject) === "Completed"
+                          }
+                          onClick={handleCompleteSelectedProject}
+                        >
+                          <CheckCircle2 className="h-4 w-4" />
+                          Mark Completed
                         </Button>
                         <Button
                           className="h-10 rounded-xl"
@@ -1768,15 +1827,6 @@ const ProjectsPage = () => {
                           onClick={() => handleSelectedProjectDeleteDialogChange(true)}
                         >
                           <Trash2 className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          className="h-10 rounded-xl"
-                          variant="outline"
-                          type="button"
-                          onClick={() => setProjectMode("planning")}
-                        >
-                          <Route className="h-4 w-4" />
-                          Planning
                         </Button>
                       </div>
                     </div>
