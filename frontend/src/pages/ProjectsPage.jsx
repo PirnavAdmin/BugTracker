@@ -56,6 +56,9 @@ import {
 } from "@/lib/api";
 import ProjectComposer from "@/components/projects/ProjectComposer";
 import ProjectManageDialog from "@/components/projects/ProjectManageDialog";
+import ProjectDeliveryConfiguration, {
+  normalizeProjectDeliveryConfiguration,
+} from "@/components/projects/ProjectDeliveryConfiguration";
 import {
   projectDialogBodyClass,
   projectDialogContentClass,
@@ -451,6 +454,10 @@ const ProjectsPage = () => {
   });
   const [settingsTeamId, setSettingsTeamId] = useState("");
   const [settingsError, setSettingsError] = useState("");
+  const [gitConfigError, setGitConfigError] = useState("");
+  const [projectDeliveryConfig, setProjectDeliveryConfig] = useState(() =>
+    normalizeProjectDeliveryConfiguration()
+  );
   const [selectedProjectId, setSelectedProjectId] = useState("");
   const [isSelectedProjectManageOpen, setIsSelectedProjectManageOpen] = useState(false);
   const [toast, setToast] = useState(null);
@@ -1205,6 +1212,7 @@ const ProjectsPage = () => {
     setProjectPanelView("details");
     setSettingsTeamId("");
     setSettingsError("");
+    setGitConfigError("");
     setSelectedProjectDeleteConfirmation("");
     setIsSelectedProjectDeleteOpen(false);
   }, [selectedProject?._id]);
@@ -1224,6 +1232,7 @@ const ProjectsPage = () => {
       teamLead: resolveUserId(selectedProject.teamLead),
       qaLead: resolveUserId(selectedProject.qaLead),
     });
+    setProjectDeliveryConfig(normalizeProjectDeliveryConfiguration(selectedProject));
   }, [selectedProject]);
 
   const handleCreateProject = async (payload) => {
@@ -1271,6 +1280,47 @@ const ProjectsPage = () => {
       });
     } catch (error) {
       setSettingsError(error.response?.data?.message || "Unable to update project.");
+    }
+  };
+
+  const handleSaveGitConfiguration = async () => {
+    if (!selectedProject) {
+      return;
+    }
+
+    if (!projectDeliveryConfig.repository.name.trim()) {
+      setGitConfigError("Repository name is required.");
+      return;
+    }
+    if (!projectDeliveryConfig.repository.url.trim()) {
+      setGitConfigError("Repository URL is required.");
+      return;
+    }
+    if (!projectDeliveryConfig.repository.defaultBranch.trim()) {
+      setGitConfigError("Default branch is required.");
+      return;
+    }
+    if (!projectDeliveryConfig.deliveryModules.some((module) => module.name.trim())) {
+      setGitConfigError("At least one module is required.");
+      return;
+    }
+
+    try {
+      setGitConfigError("");
+      await updateProjectDeliveryWorkflowMutation.mutateAsync({
+        projectId: selectedProject._id,
+        payload: {
+          repository: projectDeliveryConfig.repository,
+          deliveryWorkflow: projectDeliveryConfig.deliveryWorkflow,
+          deliveryModules: projectDeliveryConfig.deliveryModules,
+          defaultTestSuites: projectDeliveryConfig.defaultTestSuites,
+          testCases: projectDeliveryConfig.testCases,
+        },
+      });
+    } catch (error) {
+      setGitConfigError(
+        error.response?.data?.message || "Unable to update Git configuration."
+      );
     }
   };
 
@@ -1811,6 +1861,7 @@ const ProjectsPage = () => {
                     { id: "tasks", label: "Tasks", detail: "tasks" },
                     { id: "bugs", label: "Bugs", detail: "bugs" },
                     { id: "reports", label: "Reports", path: "/reports" },
+                    { id: "git", label: "Git Configuration" },
                     { id: "settings", label: "Settings" },
                   ].map(({ id, label, detail, path, action }) => {
                     const isActive = projectPanelView === id;
@@ -2142,6 +2193,46 @@ const ProjectsPage = () => {
                         </div>
                       )}
                     </div>
+                  </section>
+                ) : null}
+
+                {projectPanelView === "git" ? (
+                  <section className="space-y-4">
+                    <div className="flex flex-col gap-3 border-b border-[#EEF2F7] pb-4 sm:flex-row sm:items-start sm:justify-between">
+                      <div>
+                        <h3 className="text-base font-semibold text-slate-950">
+                          Git Configuration
+                        </h3>
+                        <p className="mt-1 text-sm text-slate-500">
+                          Configure repository, webhooks, branch strategy, modules, and QA defaults.
+                        </p>
+                      </div>
+                      <Button
+                        className="h-9 rounded-lg"
+                        type="button"
+                        disabled={
+                          !canManageProjects ||
+                          updateProjectDeliveryWorkflowMutation.isPending
+                        }
+                        onClick={handleSaveGitConfiguration}
+                      >
+                        <CheckCircle2 className="h-4 w-4" />
+                        Save Git Configuration
+                      </Button>
+                    </div>
+
+                    {gitConfigError ? (
+                      <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
+                        {gitConfigError}
+                      </div>
+                    ) : null}
+
+                    <ProjectDeliveryConfiguration
+                      value={projectDeliveryConfig}
+                      onChange={setProjectDeliveryConfig}
+                      readOnly={!canManageProjects}
+                      mode="settings"
+                    />
                   </section>
                 ) : null}
 
