@@ -217,7 +217,15 @@ const SelfSettingsRoute = () => {
 const BugsRoute = () => {
   const { role } = useAuth();
 
-  return ADMIN_PANEL_ROLES.includes(role) ? <AdminBugsPage /> : <TesterBugsPage />;
+  if (ADMIN_PANEL_ROLES.includes(role)) {
+    return <AdminBugsPage />;
+  }
+
+  if (role === ROLE_TEAM_LEAD) {
+    return <DeveloperBugBoardPage />;
+  }
+
+  return <TesterBugsPage />;
 };
 
 const TasksRoute = () => {

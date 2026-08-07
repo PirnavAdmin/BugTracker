@@ -142,7 +142,12 @@ const TEAM_LEAD_TASK_ASSIGNABLE_ROLES = [
   ROLE_QA_LEAD,
   ROLE_TESTER,
 ];
-const TEAM_LEAD_BUG_ASSIGNABLE_ROLES = [ROLE_DEVELOPER, ROLE_TEAM_LEAD, ROLE_QA_LEAD];
+const TEAM_LEAD_BUG_ASSIGNABLE_ROLES = [
+  ROLE_DEVELOPER,
+  ROLE_TEAM_LEAD,
+  ROLE_QA_LEAD,
+  ROLE_TESTER,
+];
 const canAssignBugWork = (user, type) =>
   isWorkspaceAdmin(user) ||
   (user?.role === ROLE_TEAM_LEAD &&
@@ -5997,7 +6002,7 @@ const updateIssue = asyncHandler(async (req, res) => {
         !TEAM_LEAD_BUG_ASSIGNABLE_ROLES.includes(assigneeResult.assignee?.role)
       ) {
         res.status(400);
-        throw new Error("Team Leads can assign bugs only to developers, team leads, or QA leads");
+        throw new Error("Team Leads can assign bugs only to developers, team leads, QA leads, or testers");
       }
     }
   }

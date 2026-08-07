@@ -414,7 +414,7 @@ const IssueDetailsDialog = ({
 
     if (detailDraft.type === "Bug") {
       return availableAssignees.filter((assignee) =>
-        [ROLE_DEVELOPER, ROLE_TEAM_LEAD, ROLE_QA_LEAD].includes(assignee.role)
+        [ROLE_DEVELOPER, ROLE_TEAM_LEAD, ROLE_QA_LEAD, ROLE_TESTER].includes(assignee.role)
       );
     }
 
@@ -2317,7 +2317,11 @@ const IssueDetailsDialog = ({
                         assigneeId: event.target.value || null,
                       })
                     }
-                    disabled={!canEditAssignee || isUpdatingCurrentIssue || !issue.teamId?._id}
+                    disabled={
+                      !canEditAssignee ||
+                      isUpdatingCurrentIssue ||
+                      !resolveUserId(issue.teamId)
+                    }
                   >
                     <option value="">Unassigned</option>
                     {assigneeOptions.map((assignee) => (
