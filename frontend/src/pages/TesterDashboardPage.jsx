@@ -674,16 +674,23 @@ const TesterDashboardPage = () => {
       return null;
     }
   });
-  const [testingGoal, setTestingGoal] = useState(() => {
+  const [customBuildModules, setCustomBuildModules] = useState(() => {
     try {
-      const rawGoal = window.localStorage.getItem("curecode_testing_goal");
-      return rawGoal
-        ? JSON.parse(rawGoal)
-        : { setupComplete: false, totalModules: 5, completedModules: 0 };
+      const rawModules = window.localStorage.getItem(`curecode_custom_build_modules_${testerId}`);
+      return rawModules ? JSON.parse(rawModules) : {};
     } catch {
-      return { setupComplete: false, totalModules: 5, completedModules: 0 };
+      return {};
     }
   });
+  const [buildModuleStatuses, setBuildModuleStatuses] = useState(() => {
+    try {
+      const rawStatuses = window.localStorage.getItem(`curecode_build_module_statuses_${testerId}`);
+      return rawStatuses ? JSON.parse(rawStatuses) : {};
+    } catch {
+      return {};
+    }
+  });
+  const [newBuildModule, setNewBuildModule] = useState("");
   const [sessionNow, setSessionNow] = useState(() => Date.now());
   const [lastRefreshedAt, setLastRefreshedAt] = useState(() => new Date());
   const [dailyNote, setDailyNote] = useState(() => {
@@ -798,12 +805,28 @@ const TesterDashboardPage = () => {
   }, [selectedTestingModule, testerId]);
 
   useEffect(() => {
+    if (!testerId) {
+      return;
+    }
+
     try {
-      window.localStorage.setItem("curecode_testing_goal", JSON.stringify(testingGoal));
+      window.localStorage.setItem(`curecode_custom_build_modules_${testerId}`, JSON.stringify(customBuildModules));
     } catch {
       // Ignore storage failures.
     }
-  }, [testingGoal]);
+  }, [customBuildModules, testerId]);
+
+  useEffect(() => {
+    if (!testerId) {
+      return;
+    }
+
+    try {
+      window.localStorage.setItem(`curecode_build_module_statuses_${testerId}`, JSON.stringify(buildModuleStatuses));
+    } catch {
+      // Ignore storage failures.
+    }
+  }, [buildModuleStatuses, testerId]);
 
   useEffect(() => {
     const session = readStoredSession();
@@ -996,13 +1019,42 @@ const TesterDashboardPage = () => {
         : 0,
     [activeSelectedSession, reportedIssues, sessionStartedAtMs, sessionStoppedAtMs]
   );
-  const goalTotalModules = Math.max(1, Number(testingGoal.totalModules) || 1);
-  const goalCompletedModules = Math.min(
-    goalTotalModules,
-    Math.max(0, Number(testingGoal.completedModules) || 0)
+  const selectedProjectBugBoardIssues = useMemo(
+    () =>
+      selectedQaProject
+        ? issues.filter((issue) => resolveIssueProjectId(issue) === selectedQaProject.id)
+        : [],
+    [issues, selectedQaProject]
   );
-  const goalRemainingModules = Math.max(0, goalTotalModules - goalCompletedModules);
-  const goalProgress = Math.round((goalCompletedModules / goalTotalModules) * 100);
+  const currentBuildModules = useMemo(() => {
+    const projectModules = selectedQaProject?.modules?.length ? selectedQaProject.modules : BUILD_MODULE_FALLBACK;
+    const userModules = selectedQaProject ? customBuildModules[selectedQaProject.id] || [] : [];
+
+    return Array.from(new Set([...projectModules, ...userModules].filter(Boolean)));
+  }, [customBuildModules, selectedQaProject]);
+  const getModuleStatus = (module, index) =>
+    selectedQaProject
+      ? buildModuleStatuses[selectedQaProject.id]?.[module] || (index < 2 ? "done" : index === 2 ? "progress" : "pending")
+      : "pending";
+  const completedModuleCount = currentBuildModules.filter((module, index) => getModuleStatus(module, index) === "done").length;
+  const moduleProgress = currentBuildModules.length
+    ? Math.round((completedModuleCount / currentBuildModules.length) * 100)
+    : 0;
+  const buildTestCaseStats = useMemo(() => {
+    const executed = selectedProjectBugBoardIssues.length;
+    const passed = selectedProjectBugBoardIssues.filter((issue) =>
+      [ISSUE_STATUS.CLOSED, ISSUE_STATUS.DONE].includes(getComparableStatus(issue))
+    ).length;
+    const failed = selectedProjectBugBoardIssues.filter((issue) =>
+      [ISSUE_STATUS.REJECTED, ISSUE_STATUS.REOPEN].includes(getComparableStatus(issue))
+    ).length;
+    const blocked = selectedProjectBugBoardIssues.filter((issue) =>
+      getComparableStatus(issue) === ISSUE_STATUS.BLOCKED
+    ).length;
+    const coverage = executed ? Math.round((passed / executed) * 100) : 0;
+
+    return { executed, passed, failed, blocked, coverage };
+  }, [selectedProjectBugBoardIssues]);
 
   const readyForVerificationBugs = useMemo(
     () =>
@@ -1105,11 +1157,6 @@ const TesterDashboardPage = () => {
     window.localStorage.setItem("curecode_selected_qa_project", project.id);
     setSelectedQaProjectId(project.id);
     setTestingSession(session);
-    setTestingGoal({
-      setupComplete: false,
-      totalModules: Math.max(1, project.modules.length || 5),
-      completedModules: 0,
-    });
     setSessionNow(Date.now());
   };
 
@@ -1146,32 +1193,54 @@ const TesterDashboardPage = () => {
     setSessionNow(Date.now());
   };
 
-  const handleCompleteGoalSetup = () => {
-    setTestingGoal((goal) => ({
-      ...goal,
-      setupComplete: true,
-      totalModules: Math.max(1, Number(goal.totalModules) || 1),
-      completedModules: Math.min(
-        Math.max(1, Number(goal.totalModules) || 1),
-        Math.max(0, Number(goal.completedModules) || 0)
-      ),
+  const handleCycleBuildModuleStatus = (module, index) => {
+    if (!selectedQaProject) {
+      return;
+    }
+
+    const currentStatus = getModuleStatus(module, index);
+    const nextStatus = currentStatus === "pending" ? "progress" : currentStatus === "progress" ? "done" : "pending";
+
+    setBuildModuleStatuses((statuses) => ({
+      ...statuses,
+      [selectedQaProject.id]: {
+        ...(statuses[selectedQaProject.id] || {}),
+        [module]: nextStatus,
+      },
     }));
   };
 
-  const handleAdjustCompletedModules = (delta) => {
-    setTestingGoal((goal) => {
-      const totalModules = Math.max(1, Number(goal.totalModules) || 1);
-      const completedModules = Math.min(
-        totalModules,
-        Math.max(0, (Number(goal.completedModules) || 0) + delta)
-      );
+  const handleAddBuildModule = () => {
+    if (!selectedQaProject) {
+      return;
+    }
+
+    const module = newBuildModule.trim();
+
+    if (!module) {
+      return;
+    }
+
+    setCustomBuildModules((modulesByProject) => {
+      const projectModules = modulesByProject[selectedQaProject.id] || [];
+
+      if (projectModules.some((item) => item.toLowerCase() === module.toLowerCase())) {
+        return modulesByProject;
+      }
 
       return {
-        ...goal,
-        totalModules,
-        completedModules,
+        ...modulesByProject,
+        [selectedQaProject.id]: [...projectModules, module],
       };
     });
+    setBuildModuleStatuses((statuses) => ({
+      ...statuses,
+      [selectedQaProject.id]: {
+        ...(statuses[selectedQaProject.id] || {}),
+        [module]: "pending",
+      },
+    }));
+    setNewBuildModule("");
   };
 
   const handleRefresh = async () => {
@@ -1250,7 +1319,6 @@ const TesterDashboardPage = () => {
     );
   }
 
-  const currentBuildModules = (selectedQaProject?.modules?.length ? selectedQaProject.modules : BUILD_MODULE_FALLBACK).slice(0, 5);
   const todayQaMetricPanel = (
     <div>
       <div className="flex items-center gap-2.5">
@@ -1348,34 +1416,34 @@ const TesterDashboardPage = () => {
           <h2 className="text-base font-semibold text-slate-950">Current Build</h2>
           <p className="mt-0.5 text-xs text-slate-500">{selectedQaProject?.name || activeSelectedSession?.projectName || "School Management"}</p>
         </div>
-        <span className="rounded-full bg-blue-50 px-2.5 py-1 text-xs font-bold text-blue-700">Build</span>
-      </div>
-
-      <div className="mt-3 rounded-2xl border border-blue-100 bg-blue-50/35 p-4">
-        <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-slate-500">Build</p>
-        <p className="mt-2 text-2xl font-semibold tracking-tight text-slate-950">
-          {selectedQaProject?.buildVersion || activeSelectedSession?.buildVersion || "2.4.1"}
-        </p>
+        <span className="rounded-full bg-blue-50 px-2.5 py-1 text-xs font-bold text-blue-700">
+          {selectedQaProject?.buildVersion || activeSelectedSession?.buildVersion || "Build"}
+        </span>
       </div>
 
       <div className="mt-3 rounded-2xl border border-slate-200 bg-white/90 p-3">
         <div className="flex items-center justify-between gap-2">
           <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-slate-500">Modules</p>
-          <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-bold text-emerald-700">40%</span>
+          <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-bold text-emerald-700">{moduleProgress}%</span>
         </div>
         <div className="mt-3 space-y-2">
           {currentBuildModules.map((module, index) => {
-            const status = index < 2 ? "done" : index === 2 ? "progress" : "pending";
+            const status = getModuleStatus(module, index);
 
             return (
               <div className="flex items-center justify-between gap-3 rounded-xl bg-slate-50/90 px-3 py-2" key={module}>
                 <span className="min-w-0 truncate text-sm font-semibold text-slate-800">{module}</span>
-                <span className={cn(
+                <button
+                  aria-label={`Mark ${module} module status`}
+                  className={cn(
                   "flex h-7 w-7 shrink-0 items-center justify-center rounded-full border text-xs font-bold",
                   status === "done" && "border-emerald-100 bg-emerald-50 text-emerald-600",
                   status === "progress" && "border-amber-100 bg-amber-50 text-amber-600",
                   status === "pending" && "border-slate-200 bg-white text-slate-400"
-                )}>
+                  )}
+                  onClick={() => handleCycleBuildModuleStatus(module, index)}
+                  type="button"
+                >
                   {status === "done" ? (
                     <CheckCircle2 className="h-4 w-4" />
                   ) : status === "progress" ? (
@@ -1383,18 +1451,35 @@ const TesterDashboardPage = () => {
                   ) : (
                     <span className="h-3 w-3 rounded-full border border-current" />
                   )}
-                </span>
+                </button>
               </div>
             );
           })}
         </div>
+        <div className="mt-3 flex gap-2">
+          <Input
+            className="h-9 rounded-xl border-slate-200 bg-white text-sm"
+            onChange={(event) => setNewBuildModule(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
+                event.preventDefault();
+                handleAddBuildModule();
+              }
+            }}
+            placeholder="Add module"
+            value={newBuildModule}
+          />
+          <Button className="h-9 rounded-xl px-3" onClick={handleAddBuildModule} type="button">
+            <Plus className="h-4 w-4" />
+          </Button>
+        </div>
         <div className="mt-3">
           <div className="flex items-center justify-between text-xs font-semibold text-slate-500">
             <span>Module Progress</span>
-            <span>40%</span>
+            <span>{moduleProgress}%</span>
           </div>
           <div className="mt-1.5 h-2 overflow-hidden rounded-full bg-slate-100">
-            <div className="h-full w-[40%] rounded-full bg-[linear-gradient(90deg,#22C55E,#38BDF8)]" />
+            <div className="h-full rounded-full bg-[linear-gradient(90deg,#22C55E,#38BDF8)]" style={{ width: `${moduleProgress}%` }} />
           </div>
         </div>
       </div>
@@ -1403,10 +1488,10 @@ const TesterDashboardPage = () => {
         <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-slate-500">Test Cases</p>
         <div className="mt-3 grid grid-cols-2 gap-2">
           {[
-            ["Executed", 62, "bg-blue-50 text-blue-700"],
-            ["Passed", 54, "bg-emerald-50 text-emerald-700"],
-            ["Failed", 6, "bg-rose-50 text-rose-700"],
-            ["Blocked", 2, "bg-amber-50 text-amber-700"],
+            ["Executed", buildTestCaseStats.executed, "bg-blue-50 text-blue-700"],
+            ["Passed", buildTestCaseStats.passed, "bg-emerald-50 text-emerald-700"],
+            ["Failed", buildTestCaseStats.failed, "bg-rose-50 text-rose-700"],
+            ["Blocked", buildTestCaseStats.blocked, "bg-amber-50 text-amber-700"],
           ].map(([label, value, tone]) => (
             <div className={cn("rounded-xl p-3", tone)} key={label}>
               <p className="text-[10px] font-bold uppercase tracking-[0.1em]">{label}</p>
@@ -1416,7 +1501,7 @@ const TesterDashboardPage = () => {
         </div>
         <div className="mt-3 flex items-center justify-between rounded-xl bg-violet-50 px-3 py-2">
           <span className="text-xs font-bold uppercase tracking-[0.1em] text-violet-700">Coverage</span>
-          <span className="text-lg font-semibold text-slate-950">78%</span>
+          <span className="text-lg font-semibold text-slate-950">{buildTestCaseStats.coverage}%</span>
         </div>
       </div>
     </WorkspaceCard>
