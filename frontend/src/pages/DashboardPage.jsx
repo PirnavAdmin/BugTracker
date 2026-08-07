@@ -41,6 +41,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import UserAvatar from "@/components/shared/UserAvatar";
 import GreetingBeachScene from "@/components/dashboard/GreetingBeachScene";
 import WeeklyTaskCompletionTrend from "@/components/dashboard/WeeklyTaskCompletionTrend";
+import { ProjectOverviewDashboardPanel } from "@/components/delivery/ProjectDeliveryWorkflowPanel";
 import { useAuth } from "@/hooks/use-auth";
 import { ROLE_MANAGER } from "@/lib/roles";
 import {
@@ -2063,6 +2064,8 @@ const DashboardPage = () => {
         activeTeams={summary.activeTeams || teams.length}
         onViewReports={() => navigate("/reports")}
       />
+
+      <ProjectOverviewDashboardPanel issues={[...issues, ...bugs]} projects={allProjects} />
 
       <section className="grid gap-5 xl:grid-cols-[1fr_0.95fr]">
         <UserDistributionCard

@@ -68,6 +68,7 @@ import {
 import IssueDetailsDialog from "@/components/issues/IssueDetailsDialog";
 import NotificationCard from "@/components/dashboard/NotificationCard";
 import GreetingBeachScene from "@/components/dashboard/GreetingBeachScene";
+import { LatestGitActivityCard } from "@/components/delivery/ProjectDeliveryWorkflowPanel";
 import EmptyState from "@/components/shared/EmptyState";
 import { Button } from "@/components/ui/button";
 import {
@@ -1731,6 +1732,46 @@ const DeveloperDashboardPage = () => {
       taskIssues.length,
     ]
   );
+  const latestDeliveryProject = useMemo(
+    () =>
+      [...projects].sort(
+        (left, right) =>
+          new Date(right.latestGitActivity?.pushedAt || right.updatedAt || right.createdAt || 0) -
+          new Date(left.latestGitActivity?.pushedAt || left.updatedAt || left.createdAt || 0)
+      )[0] || projects[0],
+    [projects]
+  );
+  const developmentWorkStats = useMemo(
+    () => [
+      { label: "Assigned Projects", value: projects.length, tone: "bg-blue-50 text-blue-700" },
+      { label: "Assigned Tasks", value: taskIssues.length, tone: "bg-slate-100 text-slate-700" },
+      { label: "Open Bugs", value: bugIssues.length, tone: "bg-rose-50 text-rose-700" },
+      {
+        label: "Waiting for QA",
+        value: workflowIssues.filter((issue) =>
+          [ISSUE_STATUS.READY_FOR_QA, ISSUE_STATUS.QA, ISSUE_STATUS.FIXED, ISSUE_STATUS.TESTING].includes(
+            isBugIssue(issue) ? normalizeBugStatusForIssue(issue) : issue.status
+          )
+        ).length,
+        tone: "bg-cyan-50 text-cyan-700",
+      },
+      {
+        label: "Returned by QA",
+        value: workflowIssues.filter((issue) =>
+          [ISSUE_STATUS.REOPEN, ISSUE_STATUS.REJECTED, ISSUE_STATUS.BLOCKED].includes(
+            isBugIssue(issue) ? normalizeBugStatusForIssue(issue) : issue.status
+          )
+        ).length,
+        tone: "bg-amber-50 text-amber-700",
+      },
+      {
+        label: "Pull Requests",
+        value: latestDeliveryProject?.deliveryWorkflow?.pullRequestsOpen || 0,
+        tone: "bg-violet-50 text-violet-700",
+      },
+    ],
+    [bugIssues.length, latestDeliveryProject, projects.length, taskIssues.length, workflowIssues]
+  );
   const activeStatusLabel = activeTab === "bugs" ? "Bugs / Issues" : "Tasks";
   const error = projectsError || issuesError;
   const isLoading = isProjectsLoading || isIssuesLoading;
@@ -1847,6 +1888,33 @@ const DeveloperDashboardPage = () => {
         <div className="relative z-10 w-full sm:w-auto">
           <SprintProgressWidget metrics={sprintProgress} isLoading={isIssuesLoading} />
         </div>
+      </section>
+
+      <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_420px]">
+        <Card className="rounded-2xl border-blue-100/80 bg-white/90 shadow-[0_18px_46px_-36px_rgba(37,99,235,0.45)]">
+          <CardContent className="p-4">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-blue-600">My Development Work</p>
+                <h2 className="mt-1 text-lg font-semibold text-slate-950">Delivery queue</h2>
+                <p className="mt-1 text-sm text-slate-600">Assigned work, repository readiness, and QA handoff signals.</p>
+              </div>
+              <Button className="h-9 rounded-xl" variant="outline" onClick={() => navigate("/tasks")} type="button">
+                <ClipboardList className="h-4 w-4" />
+                Tasks
+              </Button>
+            </div>
+            <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+              {developmentWorkStats.map((item) => (
+                <div className={cn("rounded-xl px-3 py-2", item.tone)} key={item.label}>
+                  <p className="text-[10px] font-bold uppercase tracking-[0.1em]">{item.label}</p>
+                  <p className="mt-1 text-2xl font-semibold text-slate-950">{item.value}</p>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+        <LatestGitActivityCard project={latestDeliveryProject} roleLabel="Developer Git Activity" />
       </section>
 
       <BugBucketPanel

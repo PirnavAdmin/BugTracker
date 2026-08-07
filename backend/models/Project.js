@@ -67,6 +67,146 @@ const projectSchema = new Schema(
       ],
       default: [],
     },
+    repository: {
+      provider: {
+        type: String,
+        trim: true,
+        default: "",
+      },
+      url: {
+        type: String,
+        trim: true,
+        default: "",
+      },
+      defaultBranch: {
+        type: String,
+        trim: true,
+        default: "main",
+      },
+      webhookEnabled: {
+        type: Boolean,
+        default: false,
+      },
+      status: {
+        type: String,
+        trim: true,
+        default: "Not Configured",
+      },
+    },
+    deliveryWorkflow: {
+      autoModuleDetection: {
+        type: Boolean,
+        default: true,
+      },
+      autoQaNotification: {
+        type: Boolean,
+        default: true,
+      },
+      releaseApprovalRequired: {
+        type: Boolean,
+        default: true,
+      },
+      qaRequired: {
+        type: Boolean,
+        default: true,
+      },
+    },
+    deliveryModules: {
+      type: [
+        {
+          name: {
+            type: String,
+            trim: true,
+            required: true,
+          },
+          description: {
+            type: String,
+            trim: true,
+            default: "",
+          },
+          ownerRole: {
+            type: String,
+            trim: true,
+            default: "Shared",
+          },
+          order: {
+            type: Number,
+            default: 0,
+          },
+        },
+      ],
+      default: [],
+    },
+    testCases: {
+      type: [
+        {
+          module: {
+            type: String,
+            trim: true,
+            default: "",
+          },
+          title: {
+            type: String,
+            trim: true,
+            required: true,
+          },
+          description: {
+            type: String,
+            trim: true,
+            default: "",
+          },
+          estimatedMinutes: {
+            type: Number,
+            default: 10,
+            min: 0,
+          },
+          active: {
+            type: Boolean,
+            default: true,
+          },
+        },
+      ],
+      default: [],
+    },
+    latestGitActivity: {
+      commitSha: {
+        type: String,
+        trim: true,
+        default: "",
+      },
+      commitMessage: {
+        type: String,
+        trim: true,
+        default: "",
+      },
+      branch: {
+        type: String,
+        trim: true,
+        default: "",
+      },
+      pushedByName: {
+        type: String,
+        trim: true,
+        default: "",
+      },
+      pushedAt: {
+        type: Date,
+        default: null,
+      },
+      filesChanged: {
+        type: [String],
+        default: [],
+      },
+      modulesChanged: {
+        type: [String],
+        default: [],
+      },
+      qaStatus: {
+        type: String,
+        trim: true,
+        default: "Waiting for QA",
+      },
+    },
     manager: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",

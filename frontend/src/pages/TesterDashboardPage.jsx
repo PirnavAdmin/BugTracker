@@ -60,6 +60,10 @@ import { getChatSocket } from "@/lib/socket";
 import EmptyState from "@/components/shared/EmptyState";
 import NotificationCard from "@/components/dashboard/NotificationCard";
 import GreetingBeachScene from "@/components/dashboard/GreetingBeachScene";
+import {
+  LatestGitActivityCard,
+  ProjectTestSetupSummary,
+} from "@/components/delivery/ProjectDeliveryWorkflowPanel";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -2000,6 +2004,16 @@ const TesterDashboardPage = () => {
               </div>
             )}
           </WorkspaceCard>
+
+          {selectedQaProject && (
+            <section className="grid gap-4 xl:grid-cols-[minmax(0,0.95fr)_minmax(320px,1.05fr)]">
+              <ProjectTestSetupSummary
+                project={selectedQaProject.raw || selectedQaProject}
+                onOpenSetup={() => document.getElementById("qa-testing-module")?.focus()}
+              />
+              <LatestGitActivityCard project={selectedQaProject.raw || selectedQaProject} roleLabel="QA Git Activity" />
+            </section>
+          )}
 
           <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-6">
             <WorkspaceKpiCard

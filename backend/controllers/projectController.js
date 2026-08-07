@@ -55,6 +55,137 @@ const populateProject = (target) => target.populate(projectPopulation);
 
 const getProjectIssueCount = async (projectId) => Issue.countDocuments({ projectId });
 
+const canConfigureProjectDelivery = (role = "") =>
+  hasAdminAccess(role) || role === ROLE_TEAM_LEAD;
+
+const normalizeString = (value, fallback = "") =>
+  typeof value === "string" ? value.trim() : fallback;
+
+const normalizeBoolean = (value, fallback = false) =>
+  typeof value === "boolean" ? value : fallback;
+
+const normalizeStringArray = (value) =>
+  Array.isArray(value)
+    ? Array.from(
+        new Set(
+          value
+            .map((item) => String(item || "").trim())
+            .filter(Boolean)
+        )
+      )
+    : [];
+
+const normalizeDeliveryModules = (value) => {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .map((module, index) => {
+      const name = normalizeString(
+        typeof module === "string" ? module : module?.name
+      );
+
+      if (!name) {
+        return null;
+      }
+
+      return {
+        name,
+        description: normalizeString(module?.description),
+        ownerRole: normalizeString(module?.ownerRole, "Shared"),
+        order: Number.isFinite(Number(module?.order)) ? Number(module.order) : index,
+      };
+    })
+    .filter(Boolean);
+};
+
+const normalizeTestCases = (value) => {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .map((testCase) => {
+      const title = normalizeString(testCase?.title);
+
+      if (!title) {
+        return null;
+      }
+
+      return {
+        module: normalizeString(testCase?.module),
+        title,
+        description: normalizeString(testCase?.description),
+        estimatedMinutes: Math.max(0, Number(testCase?.estimatedMinutes) || 10),
+        active: normalizeBoolean(testCase?.active, true),
+      };
+    })
+    .filter(Boolean);
+};
+
+const buildDeliveryWorkflowPatch = (payload = {}, project = {}) => {
+  const patch = {};
+
+  if (Object.prototype.hasOwnProperty.call(payload, "repository")) {
+    const repository = payload.repository || {};
+    patch.repository = {
+      provider: normalizeString(repository.provider || repository.gitProvider),
+      url: normalizeString(repository.url || repository.repository),
+      defaultBranch: normalizeString(repository.defaultBranch, "main"),
+      webhookEnabled: normalizeBoolean(repository.webhookEnabled, false),
+      status: normalizeString(
+        repository.status,
+        repository.url || repository.repository ? "Connected" : "Not Configured"
+      ),
+    };
+  }
+
+  if (Object.prototype.hasOwnProperty.call(payload, "deliveryWorkflow")) {
+    const workflow = payload.deliveryWorkflow || {};
+    const existingWorkflow = project.deliveryWorkflow || {};
+    patch.deliveryWorkflow = {
+      autoModuleDetection: normalizeBoolean(
+        workflow.autoModuleDetection,
+        existingWorkflow.autoModuleDetection ?? true
+      ),
+      autoQaNotification: normalizeBoolean(
+        workflow.autoQaNotification,
+        existingWorkflow.autoQaNotification ?? true
+      ),
+      releaseApprovalRequired: normalizeBoolean(
+        workflow.releaseApprovalRequired,
+        existingWorkflow.releaseApprovalRequired ?? true
+      ),
+      qaRequired: normalizeBoolean(workflow.qaRequired, existingWorkflow.qaRequired ?? true),
+    };
+  }
+
+  if (Object.prototype.hasOwnProperty.call(payload, "deliveryModules")) {
+    patch.deliveryModules = normalizeDeliveryModules(payload.deliveryModules);
+  }
+
+  if (Object.prototype.hasOwnProperty.call(payload, "testCases")) {
+    patch.testCases = normalizeTestCases(payload.testCases);
+  }
+
+  if (Object.prototype.hasOwnProperty.call(payload, "latestGitActivity")) {
+    const activity = payload.latestGitActivity || {};
+    patch.latestGitActivity = {
+      commitSha: normalizeString(activity.commitSha),
+      commitMessage: normalizeString(activity.commitMessage),
+      branch: normalizeString(activity.branch),
+      pushedByName: normalizeString(activity.pushedByName),
+      pushedAt: activity.pushedAt ? new Date(activity.pushedAt) : null,
+      filesChanged: normalizeStringArray(activity.filesChanged),
+      modulesChanged: normalizeStringArray(activity.modulesChanged),
+      qaStatus: normalizeString(activity.qaStatus, "Waiting for QA"),
+    };
+  }
+
+  return patch;
+};
+
 const parseProjectCompletedValue = (value) => {
   if (typeof value === "boolean") {
     return {
@@ -485,6 +616,11 @@ const createProject = asyncHandler(async (req, res) => {
     targetDate = null,
     teamIds = [],
     attachedTeams = [],
+    repository,
+    deliveryWorkflow,
+    deliveryModules,
+    testCases,
+    latestGitActivity,
   } = req.body;
 
   if (!userId) {
@@ -606,6 +742,16 @@ const createProject = asyncHandler(async (req, res) => {
     workspaceId,
     createdBy: userId,
     isCompleted: statusResult.value === "Completed",
+    ...buildDeliveryWorkflowPatch(
+      {
+        repository,
+        deliveryWorkflow,
+        deliveryModules,
+        testCases,
+        latestGitActivity,
+      },
+      {}
+    ),
   });
 
   if (normalizedEpicInputs.length) {
@@ -721,6 +867,11 @@ const updateProject = asyncHandler(async (req, res) => {
     project.themeColor = normalizeThemeColor(req.body.themeColor, project.themeColor);
   }
 
+  const deliveryPatch = buildDeliveryWorkflowPatch(req.body, project);
+  Object.entries(deliveryPatch).forEach(([key, value]) => {
+    project[key] = value;
+  });
+
   const hasProjectManagerInput =
     Object.prototype.hasOwnProperty.call(req.body, "projectManager") ||
     Object.prototype.hasOwnProperty.call(req.body, "manager");
@@ -795,6 +946,52 @@ const updateProject = asyncHandler(async (req, res) => {
 });
 
 const updateProjectLeadership = updateProject;
+
+const updateProjectDeliveryWorkflow = asyncHandler(async (req, res) => {
+  if (!req.user) {
+    res.status(401);
+    throw new Error("Unauthorized");
+  }
+
+  if (!canConfigureProjectDelivery(req.user.role)) {
+    res.status(403);
+    throw new Error("Only admins, managers, and team leads can configure project delivery workflow");
+  }
+
+  if (!mongoose.isValidObjectId(req.params.id)) {
+    res.status(400);
+    throw new Error("Invalid project id");
+  }
+
+  const workspaceId = normalizeWorkspaceId(req.user.workspaceId);
+  const project = await Project.findOne({
+    _id: req.params.id,
+    workspaceId,
+  });
+
+  if (!project) {
+    res.status(404);
+    throw new Error("Project not found");
+  }
+
+  const deliveryPatch = buildDeliveryWorkflowPatch(req.body, project);
+
+  Object.entries(deliveryPatch).forEach(([key, value]) => {
+    project[key] = value;
+  });
+
+  await project.save();
+
+  req.app.get("io")?.to?.(`workspace:${workspaceId}`)?.emit?.("project_delivery_workflow_updated", {
+    projectId: String(project._id),
+    project: await buildProjectResponse(project._id),
+  });
+
+  res.status(200).json({
+    message: "Project delivery workflow updated successfully",
+    ...(await buildProjectResponse(project._id)),
+  });
+});
 
 const normalizeProjectMemberRole = (value, fallback = "Developer") => {
   const allowedRoles = ["Developer", "Tester", "Q/A Lead", "Team Lead", "Manager"];
@@ -1513,6 +1710,7 @@ module.exports = {
   createProject,
   updateProject,
   updateProjectLeadership,
+  updateProjectDeliveryWorkflow,
   addProjectMember,
   removeProjectMember,
   deleteProject,

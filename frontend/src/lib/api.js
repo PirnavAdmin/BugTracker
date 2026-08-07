@@ -355,6 +355,11 @@ export const updateProject = async ({ projectId, payload }) => {
   return response.data;
 };
 
+export const updateProjectDeliveryWorkflow = async ({ projectId, payload }) => {
+  const response = await api.patch(`/projects/${projectId}/delivery-workflow`, payload);
+  return response.data;
+};
+
 export const deleteProject = async (projectId) => {
   const response = await api.delete(`/projects/${projectId}`);
   return response.data;

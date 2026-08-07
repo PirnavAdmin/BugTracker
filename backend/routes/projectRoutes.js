@@ -5,6 +5,7 @@ const {
   createProject,
   updateProject,
   updateProjectLeadership,
+  updateProjectDeliveryWorkflow,
   addProjectMember,
   removeProjectMember,
   deleteProject,
@@ -22,6 +23,7 @@ router.get("/", auth, getProjects);
 router.post("/", auth, createProject);
 router.patch("/:id", auth, updateProject);
 router.patch("/:id/leadership", auth, updateProjectLeadership);
+router.patch("/:id/delivery-workflow", auth, updateProjectDeliveryWorkflow);
 router.post("/:id/members", auth, addProjectMember);
 router.delete("/:id/members/:userId", auth, removeProjectMember);
 router.delete("/:id", auth, deleteProject);
