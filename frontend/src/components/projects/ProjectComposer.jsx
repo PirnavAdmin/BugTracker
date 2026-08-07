@@ -12,6 +12,9 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import ProjectDeliveryConfiguration, {
+  createDeliveryConfiguration,
+} from "@/components/projects/ProjectDeliveryConfiguration";
 
 const MANAGER_ROLES = ["Admin", "Manager"];
 const TEAM_LEAD_ROLES = ["Admin", "Manager", "Developer"];
@@ -56,6 +59,9 @@ const ProjectComposer = ({
     startDate: "",
     targetDate: "",
   });
+  const [deliveryConfig, setDeliveryConfig] = useState(() =>
+    createDeliveryConfiguration()
+  );
   const [selectedTeamIds, setSelectedTeamIds] = useState([]);
   const [epicDraft, setEpicDraft] = useState({
     name: "",
@@ -182,6 +188,38 @@ const ProjectComposer = ({
       setError("A project name is required.");
       return;
     }
+    if (!formData.description.trim()) {
+      setError("A project description is required.");
+      return;
+    }
+    if (!formData.manager) {
+      setError("Select a project manager before creating the project.");
+      return;
+    }
+    if (!formData.startDate) {
+      setError("Start date is required.");
+      return;
+    }
+    if (!deliveryConfig.repository.provider) {
+      setError("Git provider is required.");
+      return;
+    }
+    if (!deliveryConfig.repository.name.trim()) {
+      setError("Repository name is required.");
+      return;
+    }
+    if (!deliveryConfig.repository.url.trim()) {
+      setError("Repository URL is required.");
+      return;
+    }
+    if (!deliveryConfig.repository.defaultBranch.trim()) {
+      setError("Default branch is required.");
+      return;
+    }
+    if (!deliveryConfig.deliveryModules.some((module) => module.name.trim())) {
+      setError("At least one project module is required.");
+      return;
+    }
 
     try {
       setError("");
@@ -197,6 +235,11 @@ const ProjectComposer = ({
         themeColor: formData.themeColor,
         startDate: formData.startDate || null,
         targetDate: formData.targetDate || null,
+        repository: deliveryConfig.repository,
+        deliveryWorkflow: deliveryConfig.deliveryWorkflow,
+        deliveryModules: deliveryConfig.deliveryModules,
+        defaultTestSuites: deliveryConfig.defaultTestSuites,
+        testCases: deliveryConfig.testCases,
       });
       setFormData({
         name: "",
@@ -210,6 +253,7 @@ const ProjectComposer = ({
         targetDate: "",
       });
       setSelectedTeamIds([]);
+      setDeliveryConfig(createDeliveryConfiguration());
       setEpicDraft({ name: "", startDate: "", targetDate: "" });
       setEpics([]);
     } catch (submitError) {
@@ -626,6 +670,12 @@ const ProjectComposer = ({
 
         </aside>
       </div>
+
+      <ProjectDeliveryConfiguration
+        value={deliveryConfig}
+        onChange={setDeliveryConfig}
+        mode="create"
+      />
 
       {usersErrorMessage ? (
         <div className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm text-amber-700">

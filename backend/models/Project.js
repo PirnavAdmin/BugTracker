@@ -68,7 +68,17 @@ const projectSchema = new Schema(
       default: [],
     },
     repository: {
+      enabled: {
+        type: Boolean,
+        default: true,
+      },
       provider: {
+        type: String,
+        trim: true,
+        enum: ["GitHub", "GitLab", "Bitbucket", ""],
+        default: "GitHub",
+      },
+      name: {
         type: String,
         trim: true,
         default: "",
@@ -83,9 +93,66 @@ const projectSchema = new Schema(
         trim: true,
         default: "main",
       },
+      developmentBranch: {
+        type: String,
+        trim: true,
+        default: "develop",
+      },
+      qaBranch: {
+        type: String,
+        trim: true,
+        default: "qa",
+      },
+      releaseBranch: {
+        type: String,
+        trim: true,
+        default: "release",
+      },
       webhookEnabled: {
         type: Boolean,
-        default: false,
+        default: true,
+      },
+      webhookSecret: {
+        type: String,
+        trim: true,
+        default: "",
+      },
+      webhookEndpoint: {
+        type: String,
+        trim: true,
+        default: "/api/webhooks/github",
+      },
+      repositoryIdentifier: {
+        type: String,
+        trim: true,
+        default: "",
+      },
+      branchStrategy: {
+        mainBranch: {
+          type: String,
+          trim: true,
+          default: "main",
+        },
+        developmentBranch: {
+          type: String,
+          trim: true,
+          default: "develop",
+        },
+        featurePattern: {
+          type: String,
+          trim: true,
+          default: "feature/*",
+        },
+        hotfixPattern: {
+          type: String,
+          trim: true,
+          default: "hotfix/*",
+        },
+        releasePattern: {
+          type: String,
+          trim: true,
+          default: "release/*",
+        },
       },
       status: {
         type: String,
@@ -107,6 +174,18 @@ const projectSchema = new Schema(
         default: true,
       },
       qaRequired: {
+        type: Boolean,
+        default: true,
+      },
+      autoLinkCommitsToTasks: {
+        type: Boolean,
+        default: true,
+      },
+      autoLinkCommitsToBugs: {
+        type: Boolean,
+        default: true,
+      },
+      releaseNotesGeneration: {
         type: Boolean,
         default: true,
       },
@@ -133,9 +212,21 @@ const projectSchema = new Schema(
             type: Number,
             default: 0,
           },
+          sourcePaths: {
+            type: [String],
+            default: [],
+          },
+          defaultTestSuites: {
+            type: [String],
+            default: [],
+          },
         },
       ],
       default: [],
+    },
+    defaultTestSuites: {
+      type: [String],
+      default: ["Smoke Testing", "Regression", "API Testing"],
     },
     testCases: {
       type: [

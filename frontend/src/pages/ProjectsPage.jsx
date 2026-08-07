@@ -51,6 +51,7 @@ import {
   removeProjectMember,
   updateEpic,
   updateProject,
+  updateProjectDeliveryWorkflow,
   updateProjectStatus,
 } from "@/lib/api";
 import ProjectComposer from "@/components/projects/ProjectComposer";
@@ -595,6 +596,20 @@ const ProjectsPage = () => {
         }),
       ]);
       showToast("success", updatedProject?.message || "Project updated.");
+    },
+  });
+
+  const updateProjectDeliveryWorkflowMutation = useMutation({
+    mutationFn: updateProjectDeliveryWorkflow,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["projects"] });
+      showToast("success", "Project delivery setup updated.");
+    },
+    onError: (error) => {
+      showToast(
+        "error",
+        error.response?.data?.message || "Unable to update project delivery setup."
+      );
     },
   });
 
@@ -2907,6 +2922,9 @@ const ProjectsPage = () => {
           epics={selectedProjectEpics}
           canManageProject={canManageProjects}
           onUpdateProject={(payload) => updateProjectMutation.mutateAsync(payload)}
+          onUpdateDeliveryWorkflow={(payload) =>
+            updateProjectDeliveryWorkflowMutation.mutateAsync(payload)
+          }
           onAttachTeam={(payload) => attachProjectTeamMutation.mutateAsync(payload)}
           onDetachTeam={(payload) => detachProjectTeamMutation.mutateAsync(payload)}
           onCreateEpic={(payload) => createEpicMutation.mutateAsync(payload)}

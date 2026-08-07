@@ -75,6 +75,9 @@ const normalizeStringArray = (value) =>
       )
     : [];
 
+const generateWebhookSecret = () =>
+  `cc_${Math.random().toString(36).slice(2, 10)}${Date.now().toString(36)}`;
+
 const normalizeDeliveryModules = (value) => {
   if (!Array.isArray(value)) {
     return [];
@@ -95,6 +98,8 @@ const normalizeDeliveryModules = (value) => {
         description: normalizeString(module?.description),
         ownerRole: normalizeString(module?.ownerRole, "Shared"),
         order: Number.isFinite(Number(module?.order)) ? Number(module.order) : index,
+        sourcePaths: normalizeStringArray(module?.sourcePaths),
+        defaultTestSuites: normalizeStringArray(module?.defaultTestSuites),
       };
     })
     .filter(Boolean);
@@ -129,14 +134,59 @@ const buildDeliveryWorkflowPatch = (payload = {}, project = {}) => {
 
   if (Object.prototype.hasOwnProperty.call(payload, "repository")) {
     const repository = payload.repository || {};
+    const existingRepository = project.repository || {};
+    const provider = normalizeString(repository.provider || repository.gitProvider, existingRepository.provider || "GitHub");
+    const url = normalizeString(repository.url || repository.repository, existingRepository.url || "");
+    const repoName = normalizeString(repository.name || repository.repositoryName, existingRepository.name || "");
+    const defaultBranch = normalizeString(repository.defaultBranch, existingRepository.defaultBranch || "main");
+    const developmentBranch = normalizeString(
+      repository.developmentBranch,
+      existingRepository.developmentBranch || "develop"
+    );
+    const qaBranch = normalizeString(repository.qaBranch, existingRepository.qaBranch || "qa");
+    const releaseBranch = normalizeString(
+      repository.releaseBranch,
+      existingRepository.releaseBranch || "release"
+    );
+    const branchStrategy = repository.branchStrategy || {};
+    const webhookEndpoint = normalizeString(
+      repository.webhookEndpoint,
+      provider.toLowerCase() === "gitlab"
+        ? "/api/webhooks/gitlab"
+        : provider.toLowerCase() === "bitbucket"
+          ? "/api/webhooks/bitbucket"
+          : "/api/webhooks/github"
+    );
+
     patch.repository = {
-      provider: normalizeString(repository.provider || repository.gitProvider),
-      url: normalizeString(repository.url || repository.repository),
-      defaultBranch: normalizeString(repository.defaultBranch, "main"),
-      webhookEnabled: normalizeBoolean(repository.webhookEnabled, false),
+      enabled: normalizeBoolean(repository.enabled, existingRepository.enabled ?? true),
+      provider,
+      name: repoName,
+      url,
+      defaultBranch,
+      developmentBranch,
+      qaBranch,
+      releaseBranch,
+      webhookEnabled: normalizeBoolean(repository.webhookEnabled, existingRepository.webhookEnabled ?? true),
+      webhookSecret: normalizeString(
+        repository.webhookSecret,
+        existingRepository.webhookSecret || generateWebhookSecret()
+      ),
+      webhookEndpoint,
+      repositoryIdentifier: normalizeString(
+        repository.repositoryIdentifier,
+        existingRepository.repositoryIdentifier || repoName || url
+      ),
+      branchStrategy: {
+        mainBranch: normalizeString(branchStrategy.mainBranch, defaultBranch),
+        developmentBranch: normalizeString(branchStrategy.developmentBranch, developmentBranch),
+        featurePattern: normalizeString(branchStrategy.featurePattern, "feature/*"),
+        hotfixPattern: normalizeString(branchStrategy.hotfixPattern, "hotfix/*"),
+        releasePattern: normalizeString(branchStrategy.releasePattern, "release/*"),
+      },
       status: normalizeString(
         repository.status,
-        repository.url || repository.repository ? "Connected" : "Not Configured"
+        url ? "Connected" : "Not Configured"
       ),
     };
   }
@@ -158,11 +208,27 @@ const buildDeliveryWorkflowPatch = (payload = {}, project = {}) => {
         existingWorkflow.releaseApprovalRequired ?? true
       ),
       qaRequired: normalizeBoolean(workflow.qaRequired, existingWorkflow.qaRequired ?? true),
+      autoLinkCommitsToTasks: normalizeBoolean(
+        workflow.autoLinkCommitsToTasks,
+        existingWorkflow.autoLinkCommitsToTasks ?? true
+      ),
+      autoLinkCommitsToBugs: normalizeBoolean(
+        workflow.autoLinkCommitsToBugs,
+        existingWorkflow.autoLinkCommitsToBugs ?? true
+      ),
+      releaseNotesGeneration: normalizeBoolean(
+        workflow.releaseNotesGeneration,
+        existingWorkflow.releaseNotesGeneration ?? true
+      ),
     };
   }
 
   if (Object.prototype.hasOwnProperty.call(payload, "deliveryModules")) {
     patch.deliveryModules = normalizeDeliveryModules(payload.deliveryModules);
+  }
+
+  if (Object.prototype.hasOwnProperty.call(payload, "defaultTestSuites")) {
+    patch.defaultTestSuites = normalizeStringArray(payload.defaultTestSuites);
   }
 
   if (Object.prototype.hasOwnProperty.call(payload, "testCases")) {
@@ -619,6 +685,7 @@ const createProject = asyncHandler(async (req, res) => {
     repository,
     deliveryWorkflow,
     deliveryModules,
+    defaultTestSuites,
     testCases,
     latestGitActivity,
   } = req.body;
@@ -636,6 +703,36 @@ const createProject = asyncHandler(async (req, res) => {
   if (!name || !name.trim()) {
     res.status(400);
     throw new Error("Project name is required");
+  }
+
+  const existingProjectName = await Project.exists({
+    workspaceId,
+    name: { $regex: `^${name.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, $options: "i" },
+  });
+
+  if (existingProjectName) {
+    res.status(409);
+    throw new Error("Project name must be unique");
+  }
+
+  const repositoryInput = repository || {};
+  const requiredRepositoryFields = [
+    ["provider", "Git provider is required"],
+    ["name", "Repository name is required"],
+    ["url", "Repository URL is required"],
+    ["defaultBranch", "Default branch is required"],
+  ];
+
+  requiredRepositoryFields.forEach(([field, message]) => {
+    if (!normalizeString(repositoryInput[field])) {
+      res.status(400);
+      throw new Error(message);
+    }
+  });
+
+  if (!Array.isArray(deliveryModules) || !normalizeDeliveryModules(deliveryModules).length) {
+    res.status(400);
+    throw new Error("At least one project module is required");
   }
 
   const statusResult = normalizeProjectStatus(status, "Active");
@@ -747,6 +844,7 @@ const createProject = asyncHandler(async (req, res) => {
         repository,
         deliveryWorkflow,
         deliveryModules,
+        defaultTestSuites,
         testCases,
         latestGitActivity,
       },

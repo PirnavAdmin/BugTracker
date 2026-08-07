@@ -29,6 +29,9 @@ import {
   projectDialogFooterClass,
   projectDialogHeaderClass,
 } from "@/components/projects/projectDialogStyles";
+import ProjectDeliveryConfiguration, {
+  normalizeProjectDeliveryConfiguration,
+} from "@/components/projects/ProjectDeliveryConfiguration";
 
 const MANAGER_ROLES = ["Admin", "Manager"];
 const TEAM_LEAD_ROLES = ["Admin", "Manager", "Developer"];
@@ -66,6 +69,7 @@ const ProjectManageDialog = ({
   epics = [],
   canManageProject = false,
   onUpdateProject,
+  onUpdateDeliveryWorkflow,
   onAttachTeam,
   onDetachTeam,
   onCreateEpic,
@@ -94,6 +98,10 @@ const ProjectManageDialog = ({
   const [teamToDetach, setTeamToDetach] = useState(null);
   const [teamError, setTeamError] = useState("");
   const [detailsError, setDetailsError] = useState("");
+  const [deliveryError, setDeliveryError] = useState("");
+  const [deliveryConfig, setDeliveryConfig] = useState(() =>
+    normalizeProjectDeliveryConfiguration()
+  );
   const [epicError, setEpicError] = useState("");
   const [epicDraft, setEpicDraft] = useState({
     name: "",
@@ -143,9 +151,11 @@ const ProjectManageDialog = ({
       teamLead: resolveId(project.teamLead),
       qaLead: resolveId(project.qaLead),
     });
+    setDeliveryConfig(normalizeProjectDeliveryConfiguration(project));
     setSelectedTeamId("");
     setTeamToDetach(null);
     setDetailsError("");
+    setDeliveryError("");
     setTeamError("");
     setEpicError("");
     setEditingEpicId("");
@@ -171,6 +181,43 @@ const ProjectManageDialog = ({
       ...current,
       [field]: value,
     }));
+  };
+
+  const handleSaveDeliveryWorkflow = async () => {
+    if (!deliveryConfig.repository.name.trim()) {
+      setDeliveryError("Repository name is required.");
+      return;
+    }
+    if (!deliveryConfig.repository.url.trim()) {
+      setDeliveryError("Repository URL is required.");
+      return;
+    }
+    if (!deliveryConfig.repository.defaultBranch.trim()) {
+      setDeliveryError("Default branch is required.");
+      return;
+    }
+    if (!deliveryConfig.deliveryModules.some((module) => module.name.trim())) {
+      setDeliveryError("At least one module is required.");
+      return;
+    }
+
+    try {
+      setDeliveryError("");
+      await onUpdateDeliveryWorkflow?.({
+        projectId: project._id,
+        payload: {
+          repository: deliveryConfig.repository,
+          deliveryWorkflow: deliveryConfig.deliveryWorkflow,
+          deliveryModules: deliveryConfig.deliveryModules,
+          defaultTestSuites: deliveryConfig.defaultTestSuites,
+          testCases: deliveryConfig.testCases,
+        },
+      });
+    } catch (error) {
+      setDeliveryError(
+        error.response?.data?.message || "Unable to update delivery workflow."
+      );
+    }
   };
 
   const handleSaveDetails = async () => {
@@ -722,6 +769,37 @@ const ProjectManageDialog = ({
                   </div>
                 ) : null}
               </div>
+            </section>
+
+            <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+              <div className="mb-4 flex flex-col gap-3 border-b border-slate-200 pb-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <h3 className="text-sm font-semibold text-slate-950">Git, Modules, QA Configuration</h3>
+                  <p className="mt-1 text-xs text-slate-500">
+                    General, Team, Git, Modules, QA Configuration, and Integrations setup for this project.
+                  </p>
+                </div>
+                <Button
+                  type="button"
+                  className="h-9 rounded-xl"
+                  disabled={!canManageProject || isUpdatingProject}
+                  onClick={handleSaveDeliveryWorkflow}
+                >
+                  <Check className="h-4 w-4" />
+                  Save Delivery Setup
+                </Button>
+              </div>
+              {deliveryError ? (
+                <div className="mb-4 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
+                  {deliveryError}
+                </div>
+              ) : null}
+              <ProjectDeliveryConfiguration
+                value={deliveryConfig}
+                onChange={setDeliveryConfig}
+                readOnly={!canManageProject}
+                mode="settings"
+              />
             </section>
           </div>
         </DialogContent>
