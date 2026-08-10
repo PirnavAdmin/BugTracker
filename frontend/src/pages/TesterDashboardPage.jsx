@@ -11,13 +11,11 @@ import {
   Clock3,
   ClipboardCheck,
   Eye,
-  FolderKanban,
   PauseCircle,
   PlayCircle,
   Plus,
   RefreshCcw,
   RotateCcw,
-  Rocket,
   Search,
   ShieldCheck,
   TimerReset,
@@ -702,7 +700,6 @@ const TesterDashboardPage = () => {
       return "";
     }
   });
-  const [isQaProjectDropdownOpen, setIsQaProjectDropdownOpen] = useState(false);
   const [testingSession, setTestingSession] = useState(() => {
     try {
       const rawSession = window.localStorage.getItem("curecode_active_testing_session");
@@ -1245,16 +1242,6 @@ const TesterDashboardPage = () => {
     setSessionNow(Date.now());
   };
 
-  const handleSelectQaProject = (projectId) => {
-    setSelectedQaProjectId(projectId);
-
-    if (projectId) {
-      window.localStorage.setItem("curecode_selected_qa_project", projectId);
-    } else {
-      window.localStorage.removeItem("curecode_selected_qa_project");
-    }
-  };
-
   const handleCreateBugForProject = (project) => {
     const projectId = activeSelectedSession?.status === "In Progress"
       ? activeSelectedSession.projectId
@@ -1759,231 +1746,6 @@ const TesterDashboardPage = () => {
 
       <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_306px]">
         <div className="min-w-0 space-y-4">
-          <WorkspaceCard className="border-blue-100 bg-[linear-gradient(135deg,#ffffff_0%,#f7fbff_52%,#f4f0ff_100%)]">
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div>
-                <Badge className="border-blue-200 bg-blue-50 text-blue-700" variant="outline">
-                  My QA Projects
-                </Badge>
-              </div>
-              <div className="rounded-2xl border border-blue-100 bg-white/72 px-3 py-2 text-right shadow-sm">
-                <p className="text-xl font-semibold text-slate-950">{qaProjects.length}</p>
-                <p className="text-[11px] font-bold uppercase tracking-[0.1em] text-slate-400">Projects</p>
-              </div>
-            </div>
-
-            {qaProjects.length ? (
-              <div className="mt-4">
-                <section className="rounded-[18px] border border-blue-100 bg-white/78 p-4 shadow-sm">
-                  <div className="relative">
-                    <span className="text-xs font-bold uppercase tracking-[0.12em] text-slate-500">
-                      QA Project
-                    </span>
-                    <button
-                      aria-expanded={isQaProjectDropdownOpen}
-                      aria-haspopup="listbox"
-                      className="mt-2 flex h-11 w-full items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-3 text-left text-sm font-semibold text-slate-800 shadow-sm outline-none transition hover:border-blue-200 focus:border-blue-300 focus:ring-2 focus:ring-blue-500/20"
-                      onClick={() => setIsQaProjectDropdownOpen((open) => !open)}
-                      type="button"
-                    >
-                      <span className={cn("min-w-0 truncate", !selectedQaProject && "text-slate-400")}>
-                        {selectedQaProject
-                          ? selectedQaProject.name
-                          : "Select a QA project"}
-                      </span>
-                      <ChevronRight
-                        className={cn(
-                          "h-4 w-4 shrink-0 text-slate-400 transition",
-                          isQaProjectDropdownOpen && "rotate-90 text-blue-600"
-                        )}
-                      />
-                    </button>
-
-                    {isQaProjectDropdownOpen && (
-                      <div
-                        className="absolute left-0 right-0 top-[calc(100%+8px)] z-50 overflow-hidden rounded-2xl border border-blue-100 bg-white shadow-[0_24px_54px_-28px_rgba(15,23,42,0.34)]"
-                        role="listbox"
-                      >
-                        <button
-                          className="flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left text-sm font-semibold text-slate-500 transition hover:bg-blue-50"
-                          onClick={() => {
-                            handleSelectQaProject("");
-                            setIsQaProjectDropdownOpen(false);
-                          }}
-                          role="option"
-                          type="button"
-                        >
-                          Select a QA project
-                        </button>
-                        <div className="max-h-[292px] overflow-y-auto p-1">
-                          {qaProjects.map((project) => (
-                            <button
-                              className={cn(
-                                "flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2.5 text-left transition hover:bg-blue-50",
-                                project.readyForQaCount > 0 && "border border-rose-200 bg-rose-50/70 hover:bg-rose-50",
-                                selectedQaProjectId === project.id && (project.readyForQaCount > 0 ? "bg-rose-50 ring-1 ring-rose-200" : "bg-blue-50")
-                              )}
-                              key={project.id}
-                              onClick={() => {
-                                handleSelectQaProject(project.id);
-                                setIsQaProjectDropdownOpen(false);
-                              }}
-                              role="option"
-                              type="button"
-                            >
-                              <span className="min-w-0">
-                                <span className="block truncate text-sm font-semibold text-slate-900">
-                                  {project.name}
-                                </span>
-                                <span className="mt-0.5 flex items-center gap-2 text-xs text-slate-500">
-                                  <span>{project.buildVersion}</span>
-                                  <span className="h-1 w-1 rounded-full bg-slate-300" />
-                                  <span>{project.environment}</span>
-                                </span>
-                              </span>
-                              <span className={cn("shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-bold", project.status.tone)}>
-                                {project.readyForQaCount > 0 ? `${project.readyForQaCount} Ready Q/A` : project.status.label}
-                              </span>
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-
-                  {selectedQaProject ? (
-                    <div
-                      className={cn(
-                        "mt-4 rounded-[18px] border bg-slate-50/72 p-4",
-                        selectedQaProject.readyForQaCount > 0
-                          ? "border-rose-200 bg-rose-50/55 shadow-[0_18px_40px_-34px_rgba(225,29,72,0.5)]"
-                          : "border-slate-200/80"
-                      )}
-                    >
-                      <div className="flex flex-wrap items-start justify-between gap-3">
-                        <div className="flex min-w-0 items-start gap-3">
-                          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-50 to-violet-50 text-sm font-bold text-blue-700">
-                            {selectedQaProject.key.slice(0, 2)}
-                          </div>
-                          <div className="min-w-0">
-                            <h3 className="truncate text-lg font-semibold text-slate-950">
-                              {selectedQaProject.name}
-                            </h3>
-                            <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-600">
-                              <span>Build: <strong className="text-slate-900">{selectedQaProject.buildVersion}</strong></span>
-                              <span>Env: <strong className="text-slate-900">{selectedQaProject.environment}</strong></span>
-                              <span>Uploaded: <strong className="text-slate-900">{selectedQaProject.uploadedTime}</strong></span>
-                            </div>
-                          </div>
-                        </div>
-                        <span className={cn("inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-bold", selectedQaProject.status.tone)}>
-                          <span className={cn("h-2 w-2 rounded-full", selectedQaProject.status.dot)} />
-                          {selectedQaProject.readyForQaCount > 0
-                            ? `${selectedQaProject.readyForQaCount} Ready For Q/A`
-                            : selectedQaProject.status.label}
-                        </span>
-                      </div>
-
-                      <div className="mt-4 rounded-2xl border border-slate-200/80 bg-white/82 p-3">
-                        <div className="flex flex-wrap items-center justify-between gap-2">
-                          <label className="text-[11px] font-bold uppercase tracking-[0.12em] text-slate-500" htmlFor="qa-testing-module">
-                            Module Configuration
-                          </label>
-                          <span className="text-[11px] font-semibold text-slate-400">Manual setup</span>
-                        </div>
-                        <div className="mt-2 grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
-                          <Input
-                            className="h-10 rounded-xl border-slate-200 bg-white"
-                            id="qa-testing-module"
-                            list="qa-testing-module-options"
-                            onChange={(event) => setSelectedTestingModule(event.target.value)}
-                            placeholder="Module name"
-                            value={selectedTestingModule}
-                          />
-                          <Button className="h-10 rounded-xl px-3" onClick={handleAddBuildModule} type="button">
-                            <Plus className="h-4 w-4" />
-                            Add
-                          </Button>
-                        </div>
-                        <datalist id="qa-testing-module-options">
-                          {testingModuleOptions.map((module) => (
-                            <option key={module} value={module} />
-                          ))}
-                        </datalist>
-                        <Textarea
-                          className="mt-2 min-h-[78px] resize-none rounded-xl border-slate-200 bg-white text-sm shadow-none"
-                          onChange={(event) => setTestingModuleDetails(event.target.value)}
-                          placeholder="Add module details, scope, device/browser notes, or test focus"
-                          value={testingModuleDetails}
-                        />
-                        <div className="mt-2 flex flex-wrap gap-1.5">
-                          {((customBuildModules[selectedQaProject.id] || []).length
-                            ? customBuildModules[selectedQaProject.id]
-                            : ["No modules configured yet"]).map((module) => (
-                            <span className="inline-flex items-center gap-1 rounded-full border border-blue-100 bg-blue-50/70 px-2.5 py-1 text-[11px] font-semibold text-slate-600" key={module}>
-                              {module}
-                              {module !== "No modules configured yet" && (
-                                <button
-                                  aria-label={`Delete ${module}`}
-                                  className="ml-1 text-slate-400 hover:text-rose-600"
-                                  onClick={() => handleDeleteBuildModule(module)}
-                                  type="button"
-                                >
-                                  x
-                                </button>
-                              )}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-
-                      <div className="mt-4">
-                        <div className="flex items-center justify-between text-xs font-semibold text-slate-500">
-                          <span>Progress</span>
-                          <span>{selectedQaProject.progress}%</span>
-                        </div>
-                        <div className="mt-1.5 h-2 overflow-hidden rounded-full bg-white">
-                          <div className="h-full rounded-full bg-[linear-gradient(90deg,#2563EB,#8B5CF6)]" style={{ width: `${selectedQaProject.progress}%` }} />
-                        </div>
-                      </div>
-
-                      <div className="mt-4 flex flex-wrap gap-2">
-                        <Button
-                          className={cn(
-                            "h-9 rounded-xl px-4 text-white",
-                            selectedQaProject.readyForQaCount > 0
-                              ? "bg-rose-600 hover:bg-rose-700"
-                              : "bg-blue-600 hover:bg-blue-700"
-                          )}
-                          onClick={() => handleStartTesting(selectedQaProject)}
-                          type="button"
-                        >
-                          <PlayCircle className="h-4 w-4" />
-                          Configure
-                        </Button>
-                        <Button className="h-9 rounded-xl px-3" variant="ghost" onClick={() => document.getElementById("qa-testing-module")?.focus()} type="button">
-                          Edit
-                        </Button>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="mt-4 flex min-h-[150px] flex-col items-center justify-center rounded-[18px] border border-dashed border-blue-200 bg-blue-50/45 px-4 text-center">
-                      <FolderKanban className="h-8 w-8 text-blue-400" />
-                      <p className="mt-3 text-sm font-semibold text-slate-800">Select a project to view testing controls.</p>
-                      <p className="mt-1 text-xs text-slate-500">Assigned project details are listed on the right.</p>
-                    </div>
-                  )}
-                </section>
-              </div>
-            ) : (
-              <div className="mt-6 flex min-h-[220px] flex-col items-center justify-center rounded-[18px] border border-dashed border-blue-200 bg-blue-50/50 px-6 text-center">
-                <Rocket className="h-10 w-10 text-blue-400" />
-                <h2 className="mt-4 text-xl font-semibold text-slate-950">No Active Testing</h2>
-                <p className="mt-2 text-sm text-slate-600">Click Start Session to begin.</p>
-              </div>
-            )}
-          </WorkspaceCard>
-
           {selectedQaProject && (
             <QAGitActivityPanel
               projects={qaProjects}
