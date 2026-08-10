@@ -1765,12 +1765,6 @@ const TesterDashboardPage = () => {
                 <Badge className="border-blue-200 bg-blue-50 text-blue-700" variant="outline">
                   My QA Projects
                 </Badge>
-                <h2 className="mt-2 text-xl font-semibold tracking-tight text-slate-950">
-                  Choose a project to test
-                </h2>
-                <p className="mt-1 max-w-3xl text-sm leading-5 text-slate-600">
-                  Start a build session, continue active testing, or open the verification queue for developer fixes.
-                </p>
               </div>
               <div className="rounded-2xl border border-blue-100 bg-white/72 px-3 py-2 text-right shadow-sm">
                 <p className="text-xl font-semibold text-slate-950">{qaProjects.length}</p>
@@ -1779,7 +1773,7 @@ const TesterDashboardPage = () => {
             </div>
 
             {qaProjects.length ? (
-              <div className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,0.78fr)_minmax(320px,0.42fr)]">
+              <div className="mt-4">
                 <section className="rounded-[18px] border border-blue-100 bg-white/78 p-4 shadow-sm">
                   <div className="relative">
                     <span className="text-xs font-bold uppercase tracking-[0.12em] text-slate-500">
@@ -1980,10 +1974,6 @@ const TesterDashboardPage = () => {
                     </div>
                   )}
                 </section>
-
-                <section className="rounded-[18px] border border-slate-200/80 bg-white/74 p-3 shadow-sm">
-                  {todayQaMetricPanel}
-                </section>
               </div>
             ) : (
               <div className="mt-6 flex min-h-[220px] flex-col items-center justify-center rounded-[18px] border border-dashed border-blue-200 bg-blue-50/50 px-6 text-center">
@@ -2108,6 +2098,10 @@ const TesterDashboardPage = () => {
         </div>
 
         <aside className="space-y-4">
+          <WorkspaceCard>
+            {todayQaMetricPanel}
+          </WorkspaceCard>
+
           {currentBuildPanel}
 
           <WorkspaceCard>
