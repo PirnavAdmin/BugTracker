@@ -102,6 +102,9 @@ router.post("/github", async (req, res) => {
   const pushedAt = commit?.timestamp ? new Date(commit.timestamp) : new Date();
   const latestCommitHash = normalizeString(commit?.id || commit?.sha || payload.after || payload.workflow_run?.head_sha);
   const latestCommitMessage = normalizeString(commit?.message || payload.action || eventName);
+  const commits = Array.isArray(payload.commits) ? payload.commits : [];
+  const addedFiles = new Set(commits.flatMap((item) => item.added || []).filter(Boolean));
+  const removedFiles = new Set(commits.flatMap((item) => item.removed || []).filter(Boolean));
 
   project.latestGitActivity = {
     ...(project.latestGitActivity?.toObject?.() || project.latestGitActivity || {}),
@@ -112,7 +115,7 @@ router.post("/github", async (req, res) => {
     pushedAt,
     filesChanged: Array.from(
       new Set(
-        (Array.isArray(payload.commits) ? payload.commits : [])
+        commits
           .flatMap((item) => [
             ...(item.added || []),
             ...(item.modified || []),
@@ -121,6 +124,8 @@ router.post("/github", async (req, res) => {
           .filter(Boolean)
       )
     ),
+    additions: addedFiles.size,
+    deletions: removedFiles.size,
   };
 
   project.git = {

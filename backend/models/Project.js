@@ -468,6 +468,14 @@ const projectSchema = new Schema(
         type: [String],
         default: [],
       },
+      additions: {
+        type: Number,
+        default: null,
+      },
+      deletions: {
+        type: Number,
+        default: null,
+      },
       modulesChanged: {
         type: [String],
         default: [],

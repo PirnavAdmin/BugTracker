@@ -32,14 +32,25 @@ export const normalizeDeliveryModules = (project = {}) => {
 
 export const getRepositorySummary = (project = {}) => {
   const repository = project.repository || {};
+  const git = project.git || {};
+  const gitStatus = git.status || {};
 
   return {
-    provider: repository.provider || repository.gitProvider || "GitHub",
-    url: repository.url || repository.repository || "",
-    defaultBranch: repository.defaultBranch || project.latestGitActivity?.branch || "main",
-    webhookEnabled: Boolean(repository.webhookEnabled),
-    status: repository.status || (repository.url ? "Connected" : "Not Configured"),
+    provider: git.provider || repository.provider || repository.gitProvider || "GitHub",
+    owner: git.repositoryOwner || repository.owner || "",
+    name: git.repositoryName || repository.name || "",
+    url: git.repositoryUrl || repository.url || repository.repository || "",
+    defaultBranch: git.defaultBranch || repository.defaultBranch || project.latestGitActivity?.branch || "main",
+    webhookEnabled: Boolean(git.webhookEnabled || repository.webhookEnabled),
+    status: gitStatus.connectionStatus || repository.status || (git.repositoryUrl || repository.url ? "Connected" : "Not Configured"),
   };
+};
+
+const coerceNumber = (...values) => {
+  const value = values.find((item) => item !== undefined && item !== null && item !== "");
+  const numeric = Number(value);
+
+  return Number.isFinite(numeric) ? numeric : null;
 };
 
 export const getLatestGitActivity = (project = {}) => {
@@ -54,8 +65,8 @@ export const getLatestGitActivity = (project = {}) => {
     commitSha: activity.commitSha || "",
     filesChanged: Array.isArray(activity.filesChanged) ? activity.filesChanged : [],
     filesChangedCount: activity.filesChangedCount || activity.changedFiles || 0,
-    additions: activity.additions || activity.linesAdded || 0,
-    deletions: activity.deletions || activity.linesDeleted || 0,
+    additions: coerceNumber(activity.additions, activity.linesAdded, activity.added, activity.addedFiles),
+    deletions: coerceNumber(activity.deletions, activity.linesDeleted, activity.removed, activity.removedFiles),
     modulesChanged: Array.isArray(activity.modulesChanged) ? activity.modulesChanged : [],
     pushedByName: activity.pushedByName || "Developer",
     pushedByUsername: activity.pushedByUsername || activity.pushedByLogin || "",

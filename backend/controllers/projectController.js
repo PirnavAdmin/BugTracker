@@ -76,6 +76,16 @@ const normalizeStringArray = (value) =>
       )
     : [];
 
+const normalizeNullableNumber = (value) => {
+  if (value === undefined || value === null || value === "") {
+    return null;
+  }
+
+  const numeric = Number(value);
+
+  return Number.isFinite(numeric) ? numeric : null;
+};
+
 const generateWebhookSecret = () =>
   `cc_${Math.random().toString(36).slice(2, 10)}${Date.now().toString(36)}`;
 
@@ -588,6 +598,8 @@ const buildDeliveryWorkflowPatch = (payload = {}, project = {}) => {
       pushedByName: normalizeString(activity.pushedByName),
       pushedAt: activity.pushedAt ? new Date(activity.pushedAt) : null,
       filesChanged: normalizeStringArray(activity.filesChanged),
+      additions: normalizeNullableNumber(activity.additions),
+      deletions: normalizeNullableNumber(activity.deletions),
       modulesChanged: normalizeStringArray(activity.modulesChanged),
       qaStatus: normalizeString(activity.qaStatus, "Waiting for QA"),
     };

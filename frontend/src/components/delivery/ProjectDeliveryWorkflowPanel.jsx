@@ -51,6 +51,21 @@ const getActivityModules = (project = {}) => {
 };
 const getFilesChangedCount = (activity = {}) =>
   activity.filesChanged.length || Number(activity.filesChangedCount || activity.changedFiles || 0);
+const formatRepositoryName = (repository = {}) => {
+  if (repository.owner && repository.name) {
+    return `${repository.owner}/${repository.name}`;
+  }
+
+  if (repository.name) {
+    return repository.name;
+  }
+
+  if (repository.url) {
+    return repository.url.replace(/^https?:\/\/github\.com\//, "").replace(/\.git$/i, "").split("/").slice(0, 2).join("/");
+  }
+
+  return repository.provider || "Repository";
+};
 const getActivityStatusTone = (status = "") => {
   const normalized = String(status).toLowerCase();
 
@@ -93,22 +108,27 @@ export const QAGitActivityPanel = ({
   projects = [],
   selectedProject,
 }) => {
-  const activityRows = projects.map((project) => {
-    const record = getProjectRecord(project);
-    const activity = getLatestGitActivity(record);
-    const repository = getRepositorySummary(record);
-    const modules = getActivityModules(project);
+  const activityRows = projects
+    .map((project) => {
+      const record = getProjectRecord(project);
+      const activity = getLatestGitActivity(record);
+      const repository = getRepositorySummary(record);
+      const modules = getActivityModules(project);
 
-    return {
-      id: getProjectId(project),
-      project,
-      record,
-      activity,
-      repository,
-      modules,
-      filesChanged: getFilesChangedCount(activity),
-    };
-  });
+      return {
+        id: getProjectId(project),
+        project,
+        record,
+        activity,
+        repository,
+        modules,
+        filesChanged: getFilesChangedCount(activity),
+      };
+    })
+    .sort((left, right) =>
+      new Date(right.activity.pushedAt || 0).getTime() -
+      new Date(left.activity.pushedAt || 0).getTime()
+    );
   const selectedId = getProjectId(selectedProject || activityRows[0]?.project || {});
   const selectedRow =
     activityRows.find((row) => row.id === selectedId) ||
@@ -118,8 +138,9 @@ export const QAGitActivityPanel = ({
   const latestRepository = selectedRow?.repository || {};
   const latestModules = selectedRow?.modules || [];
   const latestSha = getCommitShortSha(latestActivity.commitSha);
-  const additions = Number(latestActivity.additions || latestActivity.linesAdded || 0);
-  const deletions = Number(latestActivity.deletions || latestActivity.linesDeleted || 0);
+  const additions = latestActivity.additions;
+  const deletions = latestActivity.deletions;
+  const hasChangeTotals = additions !== null || deletions !== null;
 
   if (!activityRows.length) {
     return (
@@ -186,9 +207,7 @@ export const QAGitActivityPanel = ({
                         {row.activity.pushedByName}
                       </p>
                       <p className="truncate text-xs text-slate-500">
-                        {row.repository.url
-                          ? row.repository.url.replace(/^https?:\/\/github\.com\//, "").split("/").slice(0, 2).join("/")
-                          : row.repository.provider}
+                        {formatRepositoryName(row.repository)}
                       </p>
                     </div>
                   </div>
@@ -255,7 +274,7 @@ export const QAGitActivityPanel = ({
                   <ActivityAvatar name={latestActivity.pushedByName} />
                   <div className="min-w-0">
                     <p className="truncate text-sm font-semibold text-slate-950">{latestActivity.pushedByName}</p>
-                    <p className="truncate text-xs text-slate-500">{latestRepository.provider}</p>
+                    <p className="truncate text-xs text-slate-500">{formatRepositoryName(latestRepository)}</p>
                   </div>
                 </div>
               </div>
@@ -302,9 +321,9 @@ export const QAGitActivityPanel = ({
               <div className="rounded-xl bg-white px-4 py-3 ring-1 ring-slate-200">
                 <p className="text-xs font-bold uppercase tracking-[0.1em] text-slate-500">Additions / Deletions</p>
                 <p className="mt-4 text-lg font-semibold">
-                  <span className="text-emerald-600">+{additions}</span>
+                  <span className="text-emerald-600">+{hasChangeTotals ? additions || 0 : "--"}</span>
                   <span className="mx-5 text-slate-300"> </span>
-                  <span className="text-rose-600">-{deletions}</span>
+                  <span className="text-rose-600">-{hasChangeTotals ? deletions || 0 : "--"}</span>
                 </p>
               </div>
             </div>
