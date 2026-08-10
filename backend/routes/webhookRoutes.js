@@ -1,5 +1,6 @@
 const express = require("express");
 const Project = require("../models/Project");
+const { decryptGitToken } = require("../utils/gitTokenCrypto");
 const { normalizeWorkspaceId } = require("../utils/workspace");
 
 const router = express.Router();
@@ -63,6 +64,35 @@ const findProjectForGithubRepository = async ({ owner, name, fullName, url }) =>
   }).select("+git.encryptedToken");
 };
 
+const getGitHubCommitStats = async ({ owner, repo, sha, token }) => {
+  if (!owner || !repo || !sha) {
+    return null;
+  }
+
+  const headers = {
+    Accept: "application/vnd.github+json",
+    "User-Agent": "CureCode-Git-Webhook",
+    "X-GitHub-Api-Version": "2022-11-28",
+  };
+
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+
+  const response = await fetch(
+    `https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/commits/${encodeURIComponent(sha)}`,
+    { headers }
+  );
+
+  if (!response.ok) {
+    return null;
+  }
+
+  const data = await response.json().catch(() => null);
+
+  return data?.stats || null;
+};
+
 router.post("/github", async (req, res) => {
   const eventName = normalizeString(req.get("x-github-event") || "unknown");
   const deliveryId = normalizeString(req.get("x-github-delivery"));
@@ -105,6 +135,19 @@ router.post("/github", async (req, res) => {
   const commits = Array.isArray(payload.commits) ? payload.commits : [];
   const addedFiles = new Set(commits.flatMap((item) => item.added || []).filter(Boolean));
   const removedFiles = new Set(commits.flatMap((item) => item.removed || []).filter(Boolean));
+  let commitStats = null;
+
+  try {
+    const token = project.git?.encryptedToken ? decryptGitToken(project.git.encryptedToken) : "";
+    commitStats = await getGitHubCommitStats({
+      owner: repositoryIdentity.owner,
+      repo: repositoryIdentity.name,
+      sha: latestCommitHash,
+      token,
+    });
+  } catch {
+    commitStats = null;
+  }
 
   project.latestGitActivity = {
     ...(project.latestGitActivity?.toObject?.() || project.latestGitActivity || {}),
@@ -124,8 +167,8 @@ router.post("/github", async (req, res) => {
           .filter(Boolean)
       )
     ),
-    additions: addedFiles.size,
-    deletions: removedFiles.size,
+    additions: Number.isFinite(Number(commitStats?.additions)) ? Number(commitStats.additions) : addedFiles.size,
+    deletions: Number.isFinite(Number(commitStats?.deletions)) ? Number(commitStats.deletions) : removedFiles.size,
   };
 
   project.git = {

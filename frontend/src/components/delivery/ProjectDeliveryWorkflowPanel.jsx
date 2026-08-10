@@ -51,6 +51,15 @@ const getActivityModules = (project = {}) => {
 };
 const getFilesChangedCount = (activity = {}) =>
   activity.filesChanged.length || Number(activity.filesChangedCount || activity.changedFiles || 0);
+const getChangeTotals = (activity = {}, filesChanged = 0) => {
+  const hasAdditions = activity.additions !== null && activity.additions !== undefined;
+  const hasDeletions = activity.deletions !== null && activity.deletions !== undefined;
+
+  return {
+    additions: hasAdditions ? activity.additions : filesChanged,
+    deletions: hasDeletions ? activity.deletions : 0,
+  };
+};
 const formatRepositoryName = (repository = {}) => {
   if (repository.owner && repository.name) {
     return `${repository.owner}/${repository.name}`;
@@ -138,9 +147,7 @@ export const QAGitActivityPanel = ({
   const latestRepository = selectedRow?.repository || {};
   const latestModules = selectedRow?.modules || [];
   const latestSha = getCommitShortSha(latestActivity.commitSha);
-  const additions = latestActivity.additions;
-  const deletions = latestActivity.deletions;
-  const hasChangeTotals = additions !== null || deletions !== null;
+  const changeTotals = getChangeTotals(latestActivity, selectedRow?.filesChanged || 0);
 
   if (!activityRows.length) {
     return (
@@ -193,7 +200,7 @@ export const QAGitActivityPanel = ({
               return (
                 <button
                   className={cn(
-                    "grid w-full gap-3 rounded-xl border bg-white px-4 py-4 text-left transition hover:border-blue-200 hover:bg-blue-50/30 md:grid-cols-[minmax(0,1.15fr)_150px_minmax(180px,0.9fr)_auto] md:items-center",
+                    "grid w-full gap-3 rounded-xl border bg-white px-4 py-4 text-left transition hover:border-blue-200 hover:bg-blue-50/30 md:grid-cols-[minmax(0,1.15fr)_minmax(180px,0.9fr)_auto] md:items-center",
                     isSelected && "border-blue-400 bg-blue-50/30 shadow-[0_18px_40px_-34px_rgba(37,99,235,0.6)]"
                   )}
                   key={row.id}
@@ -204,26 +211,24 @@ export const QAGitActivityPanel = ({
                     <ActivityAvatar name={row.activity.pushedByName} />
                     <div className="min-w-0">
                       <p className="truncate text-sm font-semibold text-slate-950">
-                        {row.activity.pushedByName}
-                      </p>
-                      <p className="truncate text-xs text-slate-500">
                         {formatRepositoryName(row.repository)}
                       </p>
+                      <p className="mt-1 flex items-center gap-1.5 text-sm font-semibold text-blue-600">
+                        <GitBranch className="h-4 w-4 shrink-0" />
+                        <span className="min-w-0 truncate">{row.activity.branch}</span>
+                      </p>
+                      <p className="mt-1 truncate text-xs text-slate-500">
+                        {row.activity.pushedByName}
+                      </p>
                     </div>
-                  </div>
-                  <div className="text-sm">
-                    <p className="flex items-center gap-1.5 font-semibold text-blue-600">
-                      <GitBranch className="h-4 w-4" />
-                      {row.activity.branch}
-                    </p>
-                    <p className="mt-1 flex items-center gap-1.5 text-xs font-semibold text-slate-500">
-                      <GitCommit className="h-3.5 w-3.5" />
-                      {commitShortSha || "-"}
-                    </p>
                   </div>
                   <div className="min-w-0">
                     <p className="truncate text-sm font-semibold text-slate-950">
                       {row.activity.commitMessage}
+                    </p>
+                    <p className="mt-1 flex items-center gap-1.5 text-xs font-semibold text-slate-500">
+                      <GitCommit className="h-3.5 w-3.5" />
+                      {commitShortSha || "-"}
                     </p>
                     <p className="mt-1 text-sm text-slate-600">
                       {formatActivityTime(row.activity.pushedAt)}
@@ -321,9 +326,9 @@ export const QAGitActivityPanel = ({
               <div className="rounded-xl bg-white px-4 py-3 ring-1 ring-slate-200">
                 <p className="text-xs font-bold uppercase tracking-[0.1em] text-slate-500">Additions / Deletions</p>
                 <p className="mt-4 text-lg font-semibold">
-                  <span className="text-emerald-600">+{hasChangeTotals ? additions || 0 : "--"}</span>
+                  <span className="text-emerald-600">+{changeTotals.additions || 0}</span>
                   <span className="mx-5 text-slate-300"> </span>
-                  <span className="text-rose-600">-{hasChangeTotals ? deletions || 0 : "--"}</span>
+                  <span className="text-rose-600">-{changeTotals.deletions || 0}</span>
                 </p>
               </div>
             </div>
