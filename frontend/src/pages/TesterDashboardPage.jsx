@@ -50,6 +50,7 @@ import {
   resolveIssueProjectId,
 } from "@/lib/issues";
 import { getProjectMembers, getProjectTeams, resolveUserId } from "@/lib/project-teams";
+import { getLatestGitActivity } from "@/lib/delivery-workflow";
 import { hasTesterPanelAccess } from "@/lib/roles";
 import { cn, formatDate, formatDateTime } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
@@ -724,7 +725,6 @@ const TesterDashboardPage = () => {
       return {};
     }
   });
-  const [newBuildModule, setNewBuildModule] = useState("");
   const [sessionNow, setSessionNow] = useState(() => Date.now());
   const [lastRefreshedAt, setLastRefreshedAt] = useState(() => new Date());
   const [dailyNote, setDailyNote] = useState(() => {
@@ -1284,42 +1284,6 @@ const TesterDashboardPage = () => {
     }));
   };
 
-  const handleAddBuildModule = () => {
-    const configKey = activeTestingSession?.projectId || selectedQaProject?.id;
-
-    if (!configKey) {
-      return;
-    }
-
-    const module = (newBuildModule || selectedTestingModule).trim();
-
-    if (!module) {
-      return;
-    }
-
-    setCustomBuildModules((modulesByProject) => {
-      const projectModules = modulesByProject[configKey] || [];
-
-      if (projectModules.some((item) => item.toLowerCase() === module.toLowerCase())) {
-        return modulesByProject;
-      }
-
-      return {
-        ...modulesByProject,
-        [configKey]: [...projectModules, module],
-      };
-    });
-    setBuildModuleStatuses((statuses) => ({
-      ...statuses,
-      [configKey]: {
-        ...(statuses[configKey] || {}),
-        [module]: "pending",
-      },
-    }));
-    setNewBuildModule("");
-    setSelectedTestingModule(module);
-  };
-
   const handleDeleteBuildModule = (module) => {
     const configKey = activeTestingSession?.projectId || selectedQaProject?.id;
 
@@ -1493,16 +1457,36 @@ const TesterDashboardPage = () => {
     </div>
   );
 
+  const currentBuildActivity = getLatestGitActivity(selectedQaProject?.raw || {});
+  const currentBuildSha = String(currentBuildActivity.commitSha || "").slice(0, 7);
+  const currentBuildBranch = activeTestingSession?.branch || currentBuildActivity.branch || selectedQaProject?.raw?.git?.defaultBranch || "main";
+  const currentBuildPushedAt = currentBuildActivity.pushedAt ? formatDateTime(currentBuildActivity.pushedAt) : "-";
+
   const currentBuildPanel = (
     <WorkspaceCard>
       <div className="flex items-start justify-between gap-3">
         <div>
-          <h2 className="text-base font-semibold text-slate-950">Current Build</h2>
+          <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-blue-600">Current Build</p>
           <p className="mt-0.5 text-xs text-slate-500">{activeTestingSession?.projectName || selectedQaProject?.name || "School Management"}</p>
         </div>
         <span className="rounded-full bg-blue-50 px-2.5 py-1 text-xs font-bold text-blue-700">
           {activeTestingSession?.buildVersion || selectedQaProject?.buildVersion || "Build"}
         </span>
+      </div>
+
+      <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+        <div className="rounded-xl bg-slate-50/90 px-3 py-2">
+          <p className="font-bold uppercase tracking-[0.1em] text-slate-500">Branch</p>
+          <p className="mt-1 truncate font-semibold text-slate-950">{currentBuildBranch}</p>
+        </div>
+        <div className="rounded-xl bg-slate-50/90 px-3 py-2">
+          <p className="font-bold uppercase tracking-[0.1em] text-slate-500">Commit</p>
+          <p className="mt-1 truncate font-semibold text-slate-950">{currentBuildSha || "-"}</p>
+        </div>
+        <div className="col-span-2 rounded-xl bg-slate-50/90 px-3 py-2">
+          <p className="font-bold uppercase tracking-[0.1em] text-slate-500">Push Time</p>
+          <p className="mt-1 font-semibold text-slate-950">{currentBuildPushedAt}</p>
+        </div>
       </div>
 
       <div className="mt-3 rounded-2xl border border-slate-200 bg-white/90 p-3">
@@ -1519,7 +1503,7 @@ const TesterDashboardPage = () => {
               <div className="flex items-center justify-between gap-3 rounded-xl bg-slate-50/90 px-3 py-2" key={module}>
                 <span className="min-w-0 truncate text-sm font-semibold text-slate-800">{module}</span>
                 <span className="flex shrink-0 items-center gap-1.5">
-                  {canDeleteModule && (
+                  {canDeleteModule ? (
                     <button
                       aria-label={`Delete ${module}`}
                       className="flex h-7 w-7 items-center justify-center rounded-full text-slate-400 hover:bg-rose-50 hover:text-rose-600"
@@ -1528,7 +1512,7 @@ const TesterDashboardPage = () => {
                     >
                       x
                     </button>
-                  )}
+                  ) : null}
                   <button
                     aria-label={`Mark ${module} module status`}
                     className={cn(
@@ -1548,6 +1532,9 @@ const TesterDashboardPage = () => {
                       <span className="h-3 w-3 rounded-full border border-current" />
                     )}
                   </button>
+                  <span className="w-16 text-right text-[11px] font-bold uppercase tracking-[0.08em] text-slate-500">
+                    {status === "done" ? "Ready" : status === "progress" ? "Testing" : "Pending"}
+                  </span>
                 </span>
               </div>
             );
@@ -1557,32 +1544,24 @@ const TesterDashboardPage = () => {
             </div>
           )}
         </div>
-        <div className="mt-3 flex gap-2">
-          <Input
-            className="h-9 rounded-xl border-slate-200 bg-white text-sm"
-            onChange={(event) => setNewBuildModule(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === "Enter") {
-                event.preventDefault();
-                handleAddBuildModule();
-              }
-            }}
-            placeholder="Add module"
-            value={newBuildModule}
-          />
-          <Button className="h-9 rounded-xl px-3" onClick={handleAddBuildModule} type="button">
-            <Plus className="h-4 w-4" />
-          </Button>
-        </div>
         <div className="mt-3">
           <div className="flex items-center justify-between text-xs font-semibold text-slate-500">
-            <span>Module Progress</span>
+            <span>Overall QA Progress</span>
             <span>{moduleProgress}%</span>
           </div>
           <div className="mt-1.5 h-2 overflow-hidden rounded-full bg-slate-100">
             <div className="h-full rounded-full bg-[linear-gradient(90deg,#22C55E,#38BDF8)]" style={{ width: `${moduleProgress}%` }} />
           </div>
         </div>
+        <Button
+          className="mt-3 h-9 w-full rounded-xl bg-blue-600 text-white hover:bg-blue-700"
+          disabled={!selectedQaProject}
+          onClick={() => selectedQaProject && handleStartTesting(selectedQaProject)}
+          type="button"
+        >
+          <PlayCircle className="h-4 w-4" />
+          {activeTestingSession?.status === "In Progress" ? "Continue Testing" : "Start Testing"}
+        </Button>
       </div>
     </WorkspaceCard>
   );
@@ -1744,7 +1723,7 @@ const TesterDashboardPage = () => {
         </div>
       </section>
 
-      <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_306px]">
+      <section className="grid gap-4 xl:grid-cols-[minmax(0,4fr)_minmax(280px,1fr)]">
         <div className="min-w-0 space-y-4">
           {selectedQaProject && (
             <QAGitActivityPanel

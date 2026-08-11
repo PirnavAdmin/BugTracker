@@ -40,6 +40,39 @@ const getProjectId = (project = {}) => String(project.id || project._id || proje
 const getProjectRecord = (project = {}) => project.raw || project;
 const getCommitShortSha = (sha = "") => String(sha || "").slice(0, 7);
 const formatActivityTime = (value) => (value ? formatDateTime(value) : "-");
+const formatActivityClock = (value) => {
+  if (!value) {
+    return "-";
+  }
+
+  return new Date(value).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+};
+const getActivityGroupLabel = (value) => {
+  if (!value) {
+    return "Older";
+  }
+
+  const date = new Date(value);
+  const today = new Date();
+  const yesterday = new Date();
+  yesterday.setDate(today.getDate() - 1);
+
+  if (date.toDateString() === today.toDateString()) {
+    return "Today";
+  }
+
+  if (date.toDateString() === yesterday.toDateString()) {
+    return "Yesterday";
+  }
+
+  return "Older";
+};
+const hasRecordedPush = (activity = {}) =>
+  Boolean(
+    activity.commitSha ||
+    (activity.commitMessage && activity.commitMessage !== "No pushes recorded yet") ||
+    getFilesChangedCount(activity) > 0
+  );
 const getActivityModules = (project = {}) => {
   const record = getProjectRecord(project);
   const activity = getLatestGitActivity(record);
@@ -78,19 +111,48 @@ const formatRepositoryName = (repository = {}) => {
 const getActivityStatusTone = (status = "") => {
   const normalized = String(status).toLowerCase();
 
-  if (normalized.includes("ready") || normalized.includes("verified")) {
+  if (normalized.includes("pass") || normalized.includes("complete") || normalized.includes("verified")) {
     return "border-emerald-200 bg-emerald-50 text-emerald-700";
   }
 
-  if (normalized.includes("test")) {
+  if (normalized.includes("progress") || normalized.includes("test")) {
+    return "border-blue-200 bg-blue-50 text-blue-700";
+  }
+
+  if (normalized.includes("waiting") || normalized.includes("ready")) {
     return "border-amber-200 bg-amber-50 text-amber-700";
   }
 
-  if (normalized.includes("request") || normalized.includes("fail") || normalized.includes("reject")) {
+  if (normalized.includes("request") || normalized.includes("fail") || normalized.includes("reject") || normalized.includes("retest")) {
     return "border-violet-200 bg-violet-50 text-violet-700";
   }
 
   return "border-blue-200 bg-blue-50 text-blue-700";
+};
+const getActivityStatusLabel = (status = "") => {
+  const normalized = String(status).toLowerCase();
+
+  if (normalized.includes("waiting") || normalized.includes("ready")) {
+    return "Ready for Testing";
+  }
+
+  if (normalized.includes("progress") || normalized.includes("test")) {
+    return "Testing in Progress";
+  }
+
+  if (normalized.includes("pass") || normalized.includes("complete") || normalized.includes("verified")) {
+    return "QA Passed";
+  }
+
+  if (normalized.includes("fail") || normalized.includes("reject")) {
+    return "QA Failed";
+  }
+
+  if (normalized.includes("request") || normalized.includes("retest")) {
+    return "Retest Required";
+  }
+
+  return status || "Ready for Testing";
 };
 const getPersonInitials = (name = "QA") =>
   String(name || "QA")
@@ -138,10 +200,11 @@ export const QAGitActivityPanel = ({
       new Date(right.activity.pushedAt || 0).getTime() -
       new Date(left.activity.pushedAt || 0).getTime()
     );
-  const selectedId = getProjectId(selectedProject || activityRows[0]?.project || {});
+  const visibleActivityRows = activityRows.filter((row) => hasRecordedPush(row.activity));
+  const selectedId = getProjectId(selectedProject || visibleActivityRows[0]?.project || {});
   const selectedRow =
-    activityRows.find((row) => row.id === selectedId) ||
-    activityRows[0] ||
+    visibleActivityRows.find((row) => row.id === selectedId) ||
+    visibleActivityRows[0] ||
     null;
   const latestActivity = selectedRow?.activity || {};
   const latestRepository = selectedRow?.repository || {};
@@ -149,20 +212,20 @@ export const QAGitActivityPanel = ({
   const latestSha = getCommitShortSha(latestActivity.commitSha);
   const changeTotals = getChangeTotals(latestActivity, selectedRow?.filesChanged || 0);
 
-  if (!activityRows.length) {
+  if (!activityRows.length || !visibleActivityRows.length) {
     return (
-      <Card className="rounded-2xl border-dashed border-blue-200 bg-white/90">
+      <Card className="rounded-2xl border-dashed border-blue-200 bg-white/90 xl:col-span-2">
         <CardContent className="p-6 text-center">
           <GitBranch className="mx-auto h-8 w-8 text-blue-400" />
           <p className="mt-3 text-sm font-semibold text-slate-900">No QA git activity yet</p>
-          <p className="mt-1 text-xs text-slate-500">Assigned project pushes will appear here.</p>
+          <p className="mt-1 text-xs text-slate-500">New builds waiting for QA will appear here after a real push is received.</p>
         </CardContent>
       </Card>
     );
   }
 
   return (
-    <section className="grid gap-4 xl:grid-cols-[minmax(0,1.18fr)_minmax(360px,0.92fr)]">
+    <section className="grid gap-4 xl:grid-cols-[minmax(0,1.05fr)_minmax(360px,0.95fr)]">
       <Card className="rounded-2xl border-blue-100/80 bg-white/92 shadow-[0_18px_46px_-36px_rgba(37,99,235,0.45)]">
         <CardContent className="p-5">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -172,7 +235,7 @@ export const QAGitActivityPanel = ({
                 QA Git Activity
               </p>
               <p className="mt-2 text-sm font-medium text-slate-600">
-                Recent code updates requiring QA validation.
+                Testing Queue · {visibleActivityRows.length} {visibleActivityRows.length === 1 ? "build" : "builds"} waiting for QA.
               </p>
             </div>
             <select
@@ -181,7 +244,7 @@ export const QAGitActivityPanel = ({
               onChange={(event) => onSelectProject?.(event.target.value)}
             >
               <option value="">All Projects</option>
-              {activityRows.map((row) => (
+              {visibleActivityRows.map((row) => (
                 <option key={row.id} value={row.id}>
                   {row.activity.projectName}
                 </option>
@@ -190,59 +253,63 @@ export const QAGitActivityPanel = ({
           </div>
 
           <div className="mt-5 space-y-3">
-            {activityRows.map((row) => {
+            {visibleActivityRows.map((row, index) => {
               const isSelected = row.id === selectedRow?.id;
               const commitShortSha = getCommitShortSha(row.activity.commitSha);
+              const groupLabel = getActivityGroupLabel(row.activity.pushedAt);
+              const previousGroupLabel = index > 0
+                ? getActivityGroupLabel(visibleActivityRows[index - 1].activity.pushedAt)
+                : "";
               const moduleLabel = row.modules.length
-                ? `Modules: ${row.modules.slice(0, 2).join(", ")}`
+                ? row.modules.slice(0, 2).join(", ")
                 : "No module changes detected";
 
               return (
-                <button
-                  className={cn(
-                    "grid w-full gap-3 rounded-xl border bg-white px-4 py-4 text-left transition hover:border-blue-200 hover:bg-blue-50/30 md:grid-cols-[minmax(0,1.15fr)_minmax(180px,0.9fr)_auto] md:items-center",
-                    isSelected && "border-blue-400 bg-blue-50/30 shadow-[0_18px_40px_-34px_rgba(37,99,235,0.6)]"
+                <div key={row.id}>
+                  {groupLabel !== previousGroupLabel && (
+                    <p className="px-1 pb-2 text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400">
+                      {groupLabel}
+                    </p>
                   )}
-                  key={row.id}
-                  onClick={() => onSelectProject?.(row.id)}
-                  type="button"
-                >
-                  <div className="flex min-w-0 items-center gap-3">
-                    <ActivityAvatar name={row.activity.pushedByName} />
+                  <button
+                    className={cn(
+                      "grid w-full gap-3 rounded-xl border bg-white px-4 py-4 text-left transition hover:border-blue-200 hover:bg-blue-50/30 md:grid-cols-[minmax(0,1.05fr)_minmax(170px,0.95fr)_auto] md:items-center",
+                      isSelected && "border-blue-400 bg-blue-50/30 shadow-[0_18px_40px_-34px_rgba(37,99,235,0.6)]"
+                    )}
+                    onClick={() => onSelectProject?.(row.id)}
+                    type="button"
+                  >
+                    <div className="flex min-w-0 items-center gap-3">
+                      <ActivityAvatar name={row.activity.pushedByName} />
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-semibold text-slate-950">
+                          {formatRepositoryName(row.repository)}
+                        </p>
+                        <p className="mt-1 flex items-center gap-1.5 text-sm font-semibold text-blue-600">
+                          <GitBranch className="h-4 w-4 shrink-0" />
+                          <span className="min-w-0 truncate">{row.activity.branch}</span>
+                        </p>
+                        <p className="mt-1 truncate text-xs text-slate-500">
+                          {row.activity.pushedByName}
+                        </p>
+                      </div>
+                    </div>
                     <div className="min-w-0">
                       <p className="truncate text-sm font-semibold text-slate-950">
-                        {formatRepositoryName(row.repository)}
+                        pushed {commitShortSha || "-"}
                       </p>
-                      <p className="mt-1 flex items-center gap-1.5 text-sm font-semibold text-blue-600">
-                        <GitBranch className="h-4 w-4 shrink-0" />
-                        <span className="min-w-0 truncate">{row.activity.branch}</span>
+                      <p className="mt-1 text-sm text-slate-600">
+                        {row.activity.branch} · {row.filesChanged} {row.filesChanged === 1 ? "file" : "files"} · {moduleLabel}
                       </p>
-                      <p className="mt-1 truncate text-xs text-slate-500">
-                        {row.activity.pushedByName}
+                      <p className="mt-1 text-xs font-medium text-slate-500">
+                        {formatActivityClock(row.activity.pushedAt)}
                       </p>
                     </div>
-                  </div>
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-semibold text-slate-950">
-                      {row.activity.commitMessage}
-                    </p>
-                    <p className="mt-1 flex items-center gap-1.5 text-xs font-semibold text-slate-500">
-                      <GitCommit className="h-3.5 w-3.5" />
-                      {commitShortSha || "-"}
-                    </p>
-                    <p className="mt-1 text-sm text-slate-600">
-                      {formatActivityTime(row.activity.pushedAt)}
-                    </p>
-                    <p className="mt-3 text-sm text-slate-500">
-                      {row.filesChanged} {row.filesChanged === 1 ? "file" : "files"} changed
-                      <span className="px-3 text-slate-400">.</span>
-                      {moduleLabel}
-                    </p>
-                  </div>
-                  <Badge className={cn("justify-self-start rounded-full border px-3 py-1", getActivityStatusTone(row.activity.qaStatus))} variant="outline">
-                    {row.activity.qaStatus}
-                  </Badge>
-                </button>
+                    <Badge className={cn("justify-self-start rounded-full border px-3 py-1", getActivityStatusTone(row.activity.qaStatus))} variant="outline">
+                      {getActivityStatusLabel(row.activity.qaStatus)}
+                    </Badge>
+                  </button>
+                </div>
               );
             })}
           </div>
@@ -267,7 +334,7 @@ export const QAGitActivityPanel = ({
               </div>
             </div>
             <Badge className={cn("rounded-full border px-4 py-2", getActivityStatusTone(latestActivity.qaStatus))} variant="outline">
-              {latestActivity.qaStatus}
+              {getActivityStatusLabel(latestActivity.qaStatus)}
             </Badge>
           </div>
 
