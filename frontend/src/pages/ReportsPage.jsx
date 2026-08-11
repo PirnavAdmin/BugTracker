@@ -3989,6 +3989,57 @@ const PerformanceRankingCard = ({ description, emptyTitle, rows = [], title }) =
   </JiraPanel>
 );
 
+const QaTopPerformersCard = ({ rows = [] }) => (
+  <JiraSection title="Top QA Performers">
+    {rows.length ? (
+      <div className="space-y-3">
+        {rows.map((row, index) => (
+          <div
+            className="rounded-lg border border-slate-200 bg-white px-3 py-3"
+            key={row.key}
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex min-w-0 items-center gap-3">
+                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-emerald-50 text-sm font-semibold text-emerald-700">
+                  {index + 1}
+                </span>
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-semibold text-slate-950">{row.name}</p>
+                  <p className="mt-0.5 text-xs text-slate-500">
+                    {row.completedWork} completed of {row.totalWork} total work
+                  </p>
+                </div>
+              </div>
+              <div className="shrink-0 text-right">
+                <p className="text-lg font-semibold text-slate-950">{row.qaEfficiency}%</p>
+                <p className="text-xs text-slate-500">QA efficiency</p>
+              </div>
+            </div>
+            <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-100">
+              <div
+                className="h-full rounded-full bg-emerald-500"
+                style={{ width: `${Math.max(row.qaEfficiency, row.qaEfficiency ? 6 : 0)}%` }}
+              />
+            </div>
+            <div className="mt-3 grid gap-2 sm:grid-cols-3">
+              <MiniStat label="Closed Bugs" tone="emerald" value={row.closed} />
+              <MiniStat label="Done Tasks" tone="blue" value={row.doneTasks} />
+              <MiniStat label="Active Work" tone={row.activeWork > 0 ? "amber" : "emerald"} value={row.activeWork} />
+            </div>
+          </div>
+        ))}
+      </div>
+    ) : (
+      <AnalyticsEmptyState
+        className="min-h-[220px] border-0 bg-transparent"
+        icon={Trophy}
+        title="No QA performers"
+        description="QA performer ranking appears once testers have bug or task report data."
+      />
+    )}
+  </JiraSection>
+);
+
 const JiraSection = ({ children, defaultOpen = true, title }) => {
   const [open, setOpen] = useState(defaultOpen);
 
@@ -4578,7 +4629,15 @@ const JiraReportsDashboard = () => {
       .filter(Boolean)
       .reduce((rows, tester) => {
         const testerId = resolveUserId(tester);
-        if (testerId && !rows.has(testerId)) rows.set(testerId, tester);
+        const testerName = resolveUserLabel(tester, "");
+        if (
+          testerId &&
+          normalizeAnalyticsValue(testerId) !== "unassigned" &&
+          normalizeAnalyticsValue(testerName) !== "unassigned" &&
+          !rows.has(testerId)
+        ) {
+          rows.set(testerId, tester);
+        }
         return rows;
       }, new Map())
       .values()
@@ -4601,13 +4660,18 @@ const JiraReportsDashboard = () => {
         (issue) => issue.status === ISSUE_STATUS.IN_PROGRESS
       ).length;
       const doneTasks = testerTasks.filter(isClosed).length;
+      const completedWork = testerBugs.filter(isClosed).length + doneTasks;
+      const totalWork = testerBugs.length + testerTasks.length;
+      const activeWork = active + activeTasks;
 
       return {
         key: testerId,
         name: resolveUserLabel(tester),
         totalBugs: testerBugs.length,
         testerTasks: testerTasks.length,
-        totalWork: testerBugs.length + testerTasks.length,
+        totalWork,
+        completedWork,
+        activeWork,
         activeTasks,
         inProgressTasks,
         doneTasks,
@@ -4615,9 +4679,24 @@ const JiraReportsDashboard = () => {
         readyForQa: testerBugs.filter(isReadyForQa).length,
         closed: testerBugs.filter(isClosed).length,
         availability: active === 0 ? "Available" : "Assigned",
+        qaEfficiency: percent(completedWork, totalWork),
       };
     })
     .sort((left, right) => left.active - right.active || left.name.localeCompare(right.name));
+  const topQaPerformerRows = [...availableTesterRows]
+    .filter((row) => row.totalWork > 0)
+    .sort(
+      (left, right) =>
+        right.completedWork - left.completedWork ||
+        right.qaEfficiency - left.qaEfficiency ||
+        right.totalWork - left.totalWork ||
+        left.name.localeCompare(right.name)
+    )
+    .slice(0, 10);
+  const qaEfficiency = percent(
+    availableTesterRows.reduce((sum, tester) => sum + tester.completedWork, 0),
+    availableTesterRows.reduce((sum, tester) => sum + tester.totalWork, 0)
+  );
   const exportCurrentReport = () => {
     if (activePage === "qa") {
       exportCsv([
@@ -4815,12 +4894,13 @@ const JiraReportsDashboard = () => {
     if (activePage === "qa") {
       return (
         <>
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-6">
             <JiraKpi label="Total Bugs" value={formatCompactNumber(bugIssues.length)} helper="All filtered bugs" onClick={() => drillTo("All bugs", bugIssues)} />
             <JiraKpi label="QA Acceptance" value={`${percent(qaAccepted, closedBugs.length)}%`} helper={`${qaAccepted} accepted fixes`} onClick={() => drillTo("QA accepted bugs", closedBugs.filter((issue) => issue.status !== ISSUE_STATUS.REJECTED))} />
             <JiraKpi label="Ready For QA" value={bugIssues.filter(isReadyForQa).length} helper="Awaiting verification" onClick={() => drillTo("Ready for QA", bugIssues.filter(isReadyForQa))} />
             <JiraKpi label="Rejected Fixes" value={bugIssues.filter((issue) => issue.status === ISSUE_STATUS.REJECTED).length} helper="Returned by QA" />
             <JiraKpi label="Reopened" value={formatCompactNumber(reopenedBugs.length)} helper="Quality follow-up" onClick={() => drillTo("Reopened bugs", reopenedBugs)} />
+            <JiraKpi label="QA Efficiency" value={`${qaEfficiency}%`} helper="Closed bugs + done tasks" />
           </div>
           {renderDrilldownPanel()}
           {!hasDrilldown ? (
@@ -4875,9 +4955,7 @@ const JiraReportsDashboard = () => {
                 <AnalyticsEmptyState icon={Users2} title="No testers available" description="No tester members are assigned to the selected project scope." />
               )}
             </JiraSection>
-            <JiraSection title="QA Resolution Trend">
-              <JiraLineChart data={bugTrendRows} lines={[{ key: "completed", color: "#2563eb" }, { key: "reopened", color: "#dc2626" }]} />
-            </JiraSection>
+            <QaTopPerformersCard rows={topQaPerformerRows} />
           </div>
           ) : null}
         </>
