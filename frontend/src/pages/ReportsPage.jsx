@@ -69,6 +69,7 @@ import {
   resolveTeamId,
   resolveUserId,
 } from "@/lib/project-teams";
+import { getLatestGitActivity, normalizeDeliveryModules } from "@/lib/delivery-workflow";
 import {
   hasTesterPanelAccess,
   ROLE_ADMIN,
@@ -1012,7 +1013,482 @@ const ReportsLoading = () => (
   </div>
 );
 
-const TesterReportsDashboard = ({ user }) => {
+const QaMetricCard = ({ helper, label, onClick, tone = "blue", value }) => {
+  const tones = {
+    blue: "border-blue-100 bg-blue-50/35 text-blue-700",
+    emerald: "border-emerald-100 bg-emerald-50/35 text-emerald-700",
+    amber: "border-amber-100 bg-amber-50/35 text-amber-700",
+    rose: "border-rose-100 bg-rose-50/35 text-rose-700",
+  };
+
+  return (
+    <button
+      className={cn(
+        "rounded-[16px] border bg-white/90 p-4 text-left shadow-[0_18px_46px_-36px_rgba(37,99,235,0.45)] transition",
+        onClick && "hover:-translate-y-0.5 hover:border-blue-200",
+        tones[tone]
+      )}
+      disabled={!onClick}
+      onClick={onClick}
+      type="button"
+    >
+      <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-slate-500">{label}</p>
+      <p className="mt-2 text-2xl font-semibold text-slate-950">{value}</p>
+      <p className="mt-1 text-xs font-medium text-slate-500">{helper}</p>
+    </button>
+  );
+};
+
+const QaEmptyState = ({ icon: Icon = ShieldCheck, title = "No QA activity yet", description }) => (
+  <div className="flex min-h-[132px] flex-col items-center justify-center rounded-[14px] border border-dashed border-blue-100 bg-blue-50/35 px-4 py-5 text-center">
+    <Icon className="h-6 w-6 text-blue-400" />
+    <p className="mt-2 text-sm font-semibold text-slate-900">{title}</p>
+    <p className="mt-1 max-w-md text-xs leading-5 text-slate-500">
+      {description || "Testing and verification trends will appear here once QA activity is recorded."}
+    </p>
+  </div>
+);
+
+const getQaIssueTime = (issue) => new Date(issue?.closedAt || issue?.updatedAt || issue?.createdAt || 0).getTime();
+const getIssueModuleName = (issue) =>
+  issue?.module ||
+  issue?.bugDetails?.module ||
+  issue?.moduleName ||
+  issue?.component ||
+  (Array.isArray(issue?.labels) ? issue.labels[0] : "") ||
+  "General";
+const isQaTask = (issue) =>
+  issue?.type !== ISSUE_TYPES.BUG &&
+  /qa|test|verify/i.test(`${issue?.title || ""} ${issue?.status || ""} ${issue?.labels?.join(" ") || ""}`);
+const isRejectedOrInvalid = (issue) =>
+  getNormalizedBugStatus(issue) === ISSUE_STATUS.REJECTED ||
+  /invalid|duplicate/i.test(`${issue?.status || ""} ${issue?.resolution || ""} ${issue?.labels?.join(" ") || ""} ${issue?.title || ""}`);
+const hasGitPush = (activity = {}) =>
+  Boolean(activity.commitSha || (activity.commitMessage && activity.commitMessage !== "No pushes recorded yet") || activity.filesChanged?.length);
+const formatMaybePercent = (part, total) => (total ? `${percent(part, total)}%` : "—");
+const formatMaybeDuration = (value, fallback = "Not enough data") => (value > 0 ? formatDuration(value) : "—");
+const qaRiskTone = (risk) =>
+  risk === "At Risk" || risk === "High" ? "rose" : risk === "Attention" || risk === "Medium" ? "amber" : "emerald";
+
+const buildQaTrendRows = ({ bugs, tasks, days }) => {
+  const today = new Date();
+  const rows = Array.from({ length: days }).map((_, index) => {
+    const date = new Date(today);
+    date.setDate(today.getDate() - (days - index - 1));
+    const key = date.toISOString().slice(0, 10);
+
+    return { key, label: date.toLocaleDateString([], { month: "short", day: "numeric" }), completed: 0, passed: 0, failed: 0, bugs: 0 };
+  });
+  const rowByKey = new Map(rows.map((row) => [row.key, row]));
+
+  tasks.filter(isClosed).forEach((task) => {
+    const key = new Date(task.closedAt || task.updatedAt || task.createdAt).toISOString().slice(0, 10);
+    if (rowByKey.has(key)) rowByKey.get(key).completed += 1;
+  });
+  bugs.forEach((bug) => {
+    const createdKey = new Date(bug.createdAt || bug.updatedAt).toISOString().slice(0, 10);
+    if (rowByKey.has(createdKey)) rowByKey.get(createdKey).bugs += 1;
+    const closedKey = new Date(bug.closedAt || bug.updatedAt || bug.createdAt).toISOString().slice(0, 10);
+    if (rowByKey.has(closedKey) && isClosed(bug)) {
+      if (isRejectedOrInvalid(bug) || isReopened(bug)) rowByKey.get(closedKey).failed += 1;
+      else rowByKey.get(closedKey).passed += 1;
+    }
+  });
+
+  return rows;
+};
+
+const QaAnalyticsDashboard = ({ user }) => {
+  const navigate = useNavigate();
+  const isQaLead = user?.role === ROLE_QA_LEAD;
+  const currentUserId = String(user?._id || user?.id || "");
+  const [trendDays, setTrendDays] = useState(30);
+  const [filters, setFilters] = useState({
+    projectId: "all",
+    environment: "all",
+    status: "all",
+    testerId: "all",
+    severity: "all",
+    dateRange: "30",
+  });
+
+  const updateFilter = (key, value) => setFilters((current) => ({ ...current, [key]: value }));
+  const resetFilters = () => setFilters({ projectId: "all", environment: "all", status: "all", testerId: "all", severity: "all", dateRange: "30" });
+  const dateRangeStart = useMemo(() => {
+    if (filters.dateRange === "all") return "";
+    const days = Number(filters.dateRange) || 30;
+    const date = new Date();
+    date.setDate(date.getDate() - days + 1);
+    date.setHours(0, 0, 0, 0);
+    return date.toISOString();
+  }, [filters.dateRange]);
+
+  const { data: projects = [], isLoading: projectsLoading, error: projectsError, refetch: refetchProjects } = useQuery({
+    queryKey: ["projects", "qa-analytics-options"],
+    queryFn: fetchProjects,
+    staleTime: 60_000,
+  });
+
+  const projectOptions = useMemo(() => projects.filter((project) => {
+    if (isQaLead) return true;
+    return getProjectMembers(project).some((member) => String(resolveUserId(member)) === currentUserId);
+  }), [currentUserId, isQaLead, projects]);
+  const testerOptions = useMemo(() => {
+    const rows = new Map();
+    projectOptions.forEach((project) => {
+      getProjectMembers(project).forEach((member) => {
+        if ([ROLE_TESTER, ROLE_QA_LEAD].includes(member?.role)) {
+          const id = resolveUserId(member);
+          if (id) rows.set(id, member);
+        }
+      });
+    });
+    return Array.from(rows.values()).sort((left, right) => resolveUserLabel(left).localeCompare(resolveUserLabel(right)));
+  }, [projectOptions]);
+  const environmentOptions = useMemo(
+    () => Array.from(new Set(projectOptions.map((project) => project.environment || project.qaEnvironment).filter(Boolean))).sort(),
+    [projectOptions]
+  );
+
+  const scopedProjectIds = useMemo(
+    () => new Set(projectOptions.filter((project) =>
+      (filters.projectId === "all" || String(project._id) === String(filters.projectId)) &&
+      (filters.environment === "all" || String(project.environment || project.qaEnvironment || "") === filters.environment)
+    ).map((project) => String(project._id))),
+    [filters.environment, filters.projectId, projectOptions]
+  );
+  const selectedTesterId = isQaLead ? filters.testerId : currentUserId;
+  const analyticsBaseFilters = {
+    dateFrom: dateRangeStart,
+    dateTo: "",
+    projectId: filters.projectId,
+    testerId: selectedTesterId,
+    assigneeId: selectedTesterId,
+    severity: filters.severity,
+    status: filters.status,
+  };
+  const taskAnalytics = useAnalytics({ ...analyticsBaseFilters, type: ISSUE_TYPES.TASK }, { includeIssues: true, enabled: Boolean(currentUserId) });
+  const bugAnalytics = useAnalytics({ ...analyticsBaseFilters, type: ISSUE_TYPES.BUG }, { includeIssues: true, enabled: Boolean(currentUserId) });
+  const rawTasks = asArray(taskAnalytics.issues?.issues).filter((issue) => !isDeletedIssue(issue));
+  const rawBugs = asArray(bugAnalytics.issues?.issues).filter((issue) => !isDeletedIssue(issue));
+  const tasks = rawTasks.filter((issue) => scopedProjectIds.has(String(issue.project?._id || issue.projectId || "")) && (isQaLead || isQaTask(issue)));
+  const bugs = rawBugs.filter((issue) => scopedProjectIds.has(String(issue.project?._id || issue.projectId || "")));
+  const completedTests = tasks.filter(isClosed);
+  const pendingQaBugs = bugs.filter(isReadyForQa);
+  const bugsVerified = bugs.filter((bug) => isClosed(bug) && !isRejectedOrInvalid(bug));
+  const reopenedBugs = bugs.filter((bug) => isReopened(bug) || Number(bug.reopenedCount || 0) > 0);
+  const rejectedBugs = bugs.filter(isRejectedOrInvalid);
+  const verificationDecisions = bugsVerified.length + reopenedBugs.length + rejectedBugs.length;
+  const qaAccuracy = verificationDecisions ? percent(bugsVerified.length, verificationDecisions) : null;
+  const reopenRate = bugsVerified.length ? percent(reopenedBugs.length, bugsVerified.length) : null;
+  const falsePositiveRate = bugs.length ? percent(rejectedBugs.length, bugs.length) : null;
+  const cycleSamples = [...completedTests, ...bugsVerified].map((issue) => toNumber(issue.resolutionTimeMs)).filter((value) => value > 0);
+  const avgQaTime = cycleSamples.length ? cycleSamples.reduce((sum, value) => sum + value, 0) / cycleSamples.length : 0;
+  const buildRows = projectOptions
+    .filter((project) => scopedProjectIds.has(String(project._id)))
+    .map((project) => {
+      const activity = getLatestGitActivity(project);
+      const modules = normalizeDeliveryModules(project);
+      const projectBugs = bugs.filter((bug) => String(bug.project?._id || bug.projectId || "") === String(project._id));
+      const projectTasks = tasks.filter((task) => String(task.project?._id || task.projectId || "") === String(project._id));
+      const passed = projectBugs.some((bug) => isClosed(bug) && !isRejectedOrInvalid(bug));
+      const failed = projectBugs.some((bug) => isRejectedOrInvalid(bug) || isReopened(bug));
+      const tested = projectTasks.some(isClosed) || passed || failed;
+
+      return {
+        id: String(project._id),
+        project,
+        build: project.currentBuild || project.buildVersion || project.version || "Build",
+        commit: String(activity.commitSha || "").slice(0, 7) || "-",
+        branch: activity.branch || project.git?.defaultBranch || "main",
+        pushedBy: activity.pushedByName || "GitHub",
+        pushedAt: activity.pushedAt,
+        modules,
+        status: failed ? "Failed QA" : passed ? "Passed QA" : tested ? "Testing Complete" : hasGitPush(activity) ? "Ready for Testing" : "No Push",
+        durationMs: avgQaTime,
+        hasPush: hasGitPush(activity),
+      };
+    })
+    .filter((row) => row.hasPush)
+    .sort((left, right) => new Date(right.pushedAt || 0) - new Date(left.pushedAt || 0));
+  const buildsTested = buildRows.filter((row) => !["Ready for Testing", "No Push"].includes(row.status));
+  const buildsFailed = buildRows.filter((row) => row.status === "Failed QA");
+  const buildsPassed = buildRows.filter((row) => row.status === "Passed QA");
+  const buildCoverage = buildRows.length ? percent(buildsTested.length, buildRows.length) : null;
+  const trendRows = buildQaTrendRows({ bugs, tasks, days: trendDays });
+  const hasTrend = trendRows.some((row) => row.completed || row.passed || row.failed || row.bugs);
+  const pipelineRows = [
+    ["Git Pushes", buildRows.length],
+    ["Builds Available", buildRows.length],
+    ["Ready for QA", pendingQaBugs.length],
+    ["Testing Started", tasks.filter((task) => task.status === ISSUE_STATUS.IN_PROGRESS || isClosed(task)).length],
+    ["Testing Completed", completedTests.length],
+    ["QA Passed", buildsPassed.length || bugsVerified.length],
+    ["Released", projectOptions.filter((project) => project.isCompleted).length],
+  ].map(([label, count], index, rows) => ({
+    label,
+    count,
+    conversion: index === 0 ? 100 : rows[index - 1][1] ? percent(count, rows[index - 1][1]) : null,
+  }));
+  const severityRows = buildGroupedBugRows(bugs, BUG_SEVERITY_GROUPS, getBugSeverityValue, { key: "Unspecified", label: "Unspecified", color: "#64748b" });
+  const moduleRows = Array.from([...tasks, ...bugs].reduce((rows, issue) => {
+    const module = getIssueModuleName(issue);
+    const row = rows.get(module) || { module, tests: 0, bugs: 0, high: 0, failed: 0 };
+    if (issue.type === ISSUE_TYPES.BUG) {
+      row.bugs += 1;
+      if (isCriticalBug(issue)) row.high += 1;
+      if (isRejectedOrInvalid(issue) || isReopened(issue)) row.failed += 1;
+    } else {
+      row.tests += 1;
+    }
+    rows.set(module, row);
+    return rows;
+  }, new Map()).values()).map((row) => ({
+    ...row,
+    failureRate: row.bugs ? percent(row.failed, row.bugs) : null,
+    risk: row.high > 0 || row.failed >= 2 ? "High" : row.bugs > 0 ? "Medium" : "Low",
+  })).sort((left, right) => right.high - left.high || right.bugs - left.bugs).slice(0, 8);
+  const testerRows = testerOptions.map((tester) => {
+    const id = resolveUserId(tester);
+    const testerBugs = bugs.filter((bug) => String(resolveBugTesterId(bug)) === String(id));
+    const testerTasks = tasks.filter((task) => [task.assignee, ...(task.assignees || [])].map(resolveUserId).includes(String(id)));
+    const completed = testerTasks.filter(isClosed).length;
+    const pending = testerTasks.length - completed;
+    const verified = testerBugs.filter((bug) => isClosed(bug) && !isRejectedOrInvalid(bug)).length;
+    const reopened = testerBugs.filter(isReopened).length;
+    const accuracy = verified + reopened ? percent(verified, verified + reopened) : null;
+    const workload = pending >= 8 ? "High workload" : pending <= 1 ? "Underloaded" : "Balanced";
+    return { id, name: resolveUserLabel(tester), assigned: testerTasks.length, completed, pending, bugs: testerBugs.length, verified, accuracy, avg: avgQaTime, workload };
+  });
+  const projectQualityRows = projectOptions.filter((project) => scopedProjectIds.has(String(project._id))).map((project) => {
+    const projectBugs = bugs.filter((bug) => String(bug.project?._id || bug.projectId || "") === String(project._id));
+    const projectBuilds = buildRows.filter((row) => row.id === String(project._id));
+    const projectReopened = projectBugs.filter(isReopened).length;
+    const critical = projectBugs.filter(isCriticalBug).length;
+    const coverage = projectBuilds.length ? percent(projectBuilds.filter((row) => row.status !== "Ready for Testing").length, projectBuilds.length) : null;
+    const risk = critical || projectReopened ? "At Risk" : coverage !== null && coverage < 75 ? "Attention" : "Healthy";
+    return { id: String(project._id), name: project.name, builds: projectBuilds.length, coverage, bugs: projectBugs.length, critical, reopenRate: projectBugs.length ? percent(projectReopened, projectBugs.length) : null, cycle: avgQaTime, risk };
+  }).sort((left, right) => qaRiskTone(right.risk).localeCompare(qaRiskTone(left.risk)));
+  const recentActivity = [
+    ...buildRows.map((row) => ({ id: `build-${row.id}`, title: `${row.pushedBy} pushed build ${row.commit}`, meta: `${row.project.name} · ${row.branch}`, time: row.pushedAt })),
+    ...bugs.slice(0, 30).map((bug) => ({ id: bug._id, title: `${getIssueDisplayKey(bug)} ${isClosed(bug) ? "verified" : isReopened(bug) ? "reopened" : "reported"}`, meta: bug.project?.name || "Unknown project", time: bug.updatedAt || bug.createdAt })),
+  ].sort((left, right) => new Date(right.time || 0) - new Date(left.time || 0)).slice(0, 8);
+  const error = projectsError || taskAnalytics.error || bugAnalytics.error;
+  const isLoading = projectsLoading || taskAnalytics.isLoading || bugAnalytics.isLoading;
+
+  if (error) {
+    return (
+      <Card className="border-slate-200 bg-white">
+        <CardContent className="flex items-center justify-between gap-3 p-5 text-sm text-rose-700">
+          <span>Unable to load QA analytics</span>
+          <Button size="sm" variant="outline" onClick={() => { refetchProjects(); taskAnalytics.results.issues?.refetch?.(); bugAnalytics.results.issues?.refetch?.(); }}>Retry</Button>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (isLoading) return <ReportsLoading />;
+
+  return (
+    <div className="space-y-5">
+      <Card className="rounded-[18px] border-blue-100 bg-white/92 shadow-[0_20px_50px_-40px_rgba(37,99,235,0.55)]">
+        <CardContent className="p-4">
+          <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-[0.22em] text-blue-600">My QA Analytics</p>
+              <h1 className="mt-1 text-2xl font-semibold text-slate-950">MY QA ANALYTICS</h1>
+              <p className="mt-1 text-sm text-slate-500">Monitor testing activity, defect quality, build coverage and QA performance.</p>
+            </div>
+            <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-[160px_150px_150px_150px_150px_120px_auto]">
+              <select className={ANALYTICS_SELECT_CLASS} value={filters.projectId} onChange={(event) => updateFilter("projectId", event.target.value)}>
+                <option value="all">Project</option>
+                {projectOptions.map((project) => <option key={project._id} value={project._id}>{project.name}</option>)}
+              </select>
+              <select className={ANALYTICS_SELECT_CLASS} value={filters.environment} onChange={(event) => updateFilter("environment", event.target.value)}>
+                <option value="all">Environment</option>
+                {environmentOptions.map((environment) => <option key={environment} value={environment}>{environment}</option>)}
+              </select>
+              <select className={ANALYTICS_SELECT_CLASS} value={filters.status} onChange={(event) => updateFilter("status", event.target.value)}>
+                <option value="all">QA Status</option>
+                {BUG_STATUS_OPTIONS.map((status) => <option key={status.value} value={status.value}>{status.label}</option>)}
+              </select>
+              {isQaLead ? (
+                <select className={ANALYTICS_SELECT_CLASS} value={filters.testerId} onChange={(event) => updateFilter("testerId", event.target.value)}>
+                  <option value="all">Tester</option>
+                  {testerOptions.map((tester) => <option key={resolveUserId(tester)} value={resolveUserId(tester)}>{resolveUserLabel(tester)}</option>)}
+                </select>
+              ) : <div className="hidden xl:block" />}
+              <select className={ANALYTICS_SELECT_CLASS} value={filters.severity} onChange={(event) => updateFilter("severity", event.target.value)}>
+                <option value="all">Severity</option>
+                {BUG_SEVERITY_OPTIONS.map((severity) => <option key={severity} value={severity}>{severity}</option>)}
+              </select>
+              <select className={ANALYTICS_SELECT_CLASS} value={filters.dateRange} onChange={(event) => updateFilter("dateRange", event.target.value)}>
+                <option value="7">7 Days</option>
+                <option value="30">30 Days</option>
+                <option value="90">90 Days</option>
+                <option value="all">All Time</option>
+              </select>
+              <Button type="button" variant="outline" onClick={resetFilters}>Reset</Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <QaMetricCard label="Tests Completed" value={completedTests.length || "—"} helper="vs previous period" tone="emerald" />
+        <QaMetricCard label="Pending QA" value={pendingQaBugs.length || "—"} helper="Waiting for verification" tone="amber" onClick={() => navigate("/bugs")} />
+        <QaMetricCard label="Bugs Discovered" value={bugs.length || "—"} helper="Bugs reported during testing" tone="blue" />
+        <QaMetricCard label="Bugs Verified" value={bugsVerified.length || "—"} helper="Successfully verified" tone="emerald" />
+        <QaMetricCard label="QA Accuracy" value={qaAccuracy === null ? "—" : `${qaAccuracy}%`} helper={qaAccuracy === null ? "Not enough data" : "Correct verification decisions"} tone={qaAccuracy !== null && qaAccuracy < 75 ? "amber" : "emerald"} />
+        <QaMetricCard label="Reopen Rate" value={reopenRate === null ? "—" : `${reopenRate}%`} helper={reopenRate === null ? "Not enough data" : "Verified bugs reopened"} tone={reopenRate !== null && reopenRate > 20 ? "rose" : "emerald"} />
+        <QaMetricCard label="Avg QA Time" value={formatMaybeDuration(avgQaTime)} helper={avgQaTime ? "Average testing cycle" : "No completed QA sessions"} tone="blue" />
+        <QaMetricCard label="Build Coverage" value={buildCoverage === null ? "—" : `${buildCoverage}%`} helper="Builds tested / builds received" tone={buildCoverage !== null && buildCoverage < 70 ? "amber" : "blue"} />
+      </section>
+
+      <section className="grid gap-5 xl:grid-cols-[1.25fr_0.75fr]">
+        <AnalyticsPanel title="QA Verification Trend" description="Testing and verification activity over time.">
+          <div className="mb-3 flex gap-2">
+            {[7, 30, 90].map((days) => (
+              <Button key={days} size="sm" variant={trendDays === days ? "default" : "outline"} onClick={() => setTrendDays(days)}>{days} Days</Button>
+            ))}
+          </div>
+          {hasTrend ? (
+            <ChartFrame height={280}>
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={trendRows}>
+                  <CartesianGrid stroke={CHART_GRID_COLOR} vertical={false} />
+                  <XAxis dataKey="label" tick={{ fontSize: 11, fill: "#64748b" }} tickLine={false} axisLine={false} />
+                  <YAxis allowDecimals={false} tick={{ fontSize: 11, fill: "#64748b" }} tickLine={false} axisLine={false} />
+                  <Tooltip contentStyle={chartTooltipStyle} />
+                  <Area type="monotone" dataKey="completed" name="Tests completed" stroke="#2563eb" fill="#bfdbfe" fillOpacity={0.55} isAnimationActive={false} />
+                  <Line type="monotone" dataKey="passed" name="Tests passed" stroke="#10b981" strokeWidth={2} dot={false} isAnimationActive={false} />
+                  <Line type="monotone" dataKey="failed" name="Tests failed" stroke="#ef4444" strokeWidth={2} dot={false} isAnimationActive={false} />
+                  <Line type="monotone" dataKey="bugs" name="Bugs discovered" stroke="#f59e0b" strokeWidth={2} dot={false} isAnimationActive={false} />
+                </AreaChart>
+              </ResponsiveContainer>
+            </ChartFrame>
+          ) : <QaEmptyState icon={TrendingUp} title="No QA activity in this period." />}
+        </AnalyticsPanel>
+
+        <AnalyticsPanel title="QA Pipeline" description="Build movement through QA.">
+          <div className="space-y-2">
+            {pipelineRows.map((row, index) => (
+              <div key={row.label} className="rounded-xl border border-slate-200 bg-white/78 px-3 py-2">
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-sm font-semibold text-slate-800">{row.label}</span>
+                  <span className="text-lg font-semibold text-slate-950">{row.count}</span>
+                </div>
+                <p className="mt-1 text-xs text-slate-500">{index === 0 ? "Source stage" : row.conversion === null ? "— conversion" : `${row.conversion}% from previous stage`}</p>
+              </div>
+            ))}
+          </div>
+        </AnalyticsPanel>
+      </section>
+
+      <section className="grid gap-5 xl:grid-cols-2">
+        <AnalyticsPanel title="Defect Discovery" description="Severity mix and defect discovery rate.">
+          {bugs.length ? (
+            <div className="grid gap-4 lg:grid-cols-[0.8fr_1fr]">
+              <ChartFrame height={220}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie data={severityRows} dataKey="value" nameKey="name" innerRadius={54} outerRadius={86} paddingAngle={3}>
+                      {severityRows.map((row) => <Cell key={row.key} fill={row.color} />)}
+                    </Pie>
+                    <Tooltip contentStyle={chartTooltipStyle} />
+                  </PieChart>
+                </ResponsiveContainer>
+              </ChartFrame>
+              <div className="grid gap-2">
+                {severityRows.map((row) => <MiniStat key={row.key} label={row.name} value={row.value} />)}
+                <MiniStat label="Duplicate / Invalid" tone="rose" value={rejectedBugs.length} />
+                <MiniStat label="Discovery Rate" tone="blue" value={completedTests.length ? `${(bugs.length / completedTests.length).toFixed(1)} bugs/test` : "—"} />
+              </div>
+            </div>
+          ) : <QaEmptyState icon={Bug} title="No defects discovered in this period." />}
+        </AnalyticsPanel>
+
+        <AnalyticsPanel title="QA Effectiveness" description="Verification quality and escaped-risk indicators.">
+          <div className="grid gap-3 sm:grid-cols-2">
+            <MiniStat label="Verification Accuracy" tone={qaAccuracy !== null && qaAccuracy < 75 ? "amber" : "emerald"} value={qaAccuracy === null ? "—" : `${qaAccuracy}%`} />
+            <MiniStat label="Reopen Rate" tone={reopenRate !== null && reopenRate > 20 ? "rose" : "emerald"} value={reopenRate === null ? "—" : `${reopenRate}%`} />
+            <MiniStat label="False Positive Rate" tone={falsePositiveRate !== null && falsePositiveRate > 20 ? "amber" : "blue"} value={falsePositiveRate === null ? "—" : `${falsePositiveRate}%`} />
+            <MiniStat label="Defect Detection Rate" tone="blue" value={bugs.length ? `${percent(bugs.length - rejectedBugs.length, bugs.length)}%` : "—"} />
+          </div>
+        </AnalyticsPanel>
+      </section>
+
+      <AnalyticsPanel title="QA Cycle Time" description="Git to QA lifecycle timing based on available CureCode timestamps.">
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <MiniStat label="Time to QA" tone="amber" value={buildRows.length && tasks.length ? formatDuration(Math.max(0, getQaIssueTime(tasks[0]) - new Date(buildRows[0].pushedAt || tasks[0].createdAt).getTime())) : "—"} />
+          <MiniStat label="Testing Duration" tone="blue" value={formatMaybeDuration(avgQaTime)} />
+          <MiniStat label="Verification Time" tone="emerald" value={formatMaybeDuration(avgQaTime)} />
+          <MiniStat label="QA Completion" tone="violet" value={formatMaybeDuration(avgQaTime)} />
+        </div>
+      </AnalyticsPanel>
+
+      <section className="grid gap-5 xl:grid-cols-[0.95fr_1.05fr]">
+        <AnalyticsPanel title="Module Risk" description="Modules/features with the highest QA risk.">
+          {moduleRows.length ? (
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[620px] text-left text-sm">
+                <thead className="text-xs uppercase tracking-[0.14em] text-slate-500">
+                  <tr><th className="px-3 py-2">Module</th><th className="px-3 py-2">Tests</th><th className="px-3 py-2">Bugs</th><th className="px-3 py-2">Critical/High</th><th className="px-3 py-2">Failure</th><th className="px-3 py-2">Risk</th></tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {moduleRows.map((row) => (
+                    <tr key={row.module} className="hover:bg-blue-50/40">
+                      <td className="px-3 py-2 font-semibold text-slate-900">{row.module}</td><td className="px-3 py-2">{row.tests}</td><td className="px-3 py-2">{row.bugs}</td><td className="px-3 py-2">{row.high}</td><td className="px-3 py-2">{row.failureRate === null ? "—" : `${row.failureRate}%`}</td><td className="px-3 py-2"><Badge variant={qaRiskTone(row.risk) === "rose" ? "destructive" : "outline"}>{row.risk}</Badge></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : <QaEmptyState icon={Layers3} title="No module risk yet" />}
+        </AnalyticsPanel>
+
+        <AnalyticsPanel title="Build QA Coverage" description="Recent builds received from Git and their QA state.">
+          <div className="grid gap-2 sm:grid-cols-5">
+            <MiniStat label="Received" value={buildRows.length || "—"} />
+            <MiniStat label="Tested" tone="blue" value={buildsTested.length || "—"} />
+            <MiniStat label="Waiting" tone="amber" value={buildRows.length - buildsTested.length || "—"} />
+            <MiniStat label="Failed" tone="rose" value={buildsFailed.length || "—"} />
+            <MiniStat label="Passed" tone="emerald" value={buildsPassed.length || "—"} />
+          </div>
+          <div className="mt-4 overflow-x-auto">
+            {buildRows.length ? (
+              <table className="w-full min-w-[760px] text-left text-sm">
+                <thead className="text-xs uppercase tracking-[0.14em] text-slate-500"><tr><th className="px-3 py-2">Build</th><th className="px-3 py-2">Commit</th><th className="px-3 py-2">Branch</th><th className="px-3 py-2">Pushed By</th><th className="px-3 py-2">Push Time</th><th className="px-3 py-2">QA Status</th><th className="px-3 py-2">QA Duration</th></tr></thead>
+                <tbody className="divide-y divide-slate-100">
+                  {buildRows.slice(0, 8).map((row) => <tr key={row.id} className="hover:bg-blue-50/40"><td className="px-3 py-2 font-semibold">{row.build}</td><td className="px-3 py-2 font-mono text-xs">{row.commit}</td><td className="px-3 py-2">{row.branch}</td><td className="px-3 py-2">{row.pushedBy}</td><td className="px-3 py-2">{row.pushedAt ? formatDateTime(row.pushedAt) : "—"}</td><td className="px-3 py-2"><Badge variant="outline">{row.status}</Badge></td><td className="px-3 py-2">{formatMaybeDuration(row.durationMs)}</td></tr>)}
+                </tbody>
+              </table>
+            ) : <QaEmptyState icon={GitBranch} title="No builds received yet" />}
+          </div>
+        </AnalyticsPanel>
+      </section>
+
+      {isQaLead ? (
+        <>
+          <AnalyticsPanel title="Team QA Performance" description="Workload balancing and QA throughput by tester.">
+            <div className="overflow-x-auto"><table className="w-full min-w-[820px] text-left text-sm"><thead className="text-xs uppercase tracking-[0.14em] text-slate-500"><tr><th className="px-3 py-2">Tester</th><th className="px-3 py-2">Assigned</th><th className="px-3 py-2">Completed</th><th className="px-3 py-2">Pending</th><th className="px-3 py-2">Bugs Found</th><th className="px-3 py-2">Verified</th><th className="px-3 py-2">Accuracy</th><th className="px-3 py-2">Avg QA Time</th><th className="px-3 py-2">Workload</th></tr></thead><tbody className="divide-y divide-slate-100">{testerRows.map((row) => <tr key={row.id} className="hover:bg-blue-50/40"><td className="px-3 py-2 font-semibold">{row.name}</td><td className="px-3 py-2">{row.assigned}</td><td className="px-3 py-2">{row.completed}</td><td className="px-3 py-2">{row.pending}</td><td className="px-3 py-2">{row.bugs}</td><td className="px-3 py-2">{row.verified}</td><td className="px-3 py-2">{row.accuracy === null ? "—" : `${row.accuracy}%`}</td><td className="px-3 py-2">{formatMaybeDuration(row.avg)}</td><td className="px-3 py-2"><Badge variant="outline">{row.workload}</Badge></td></tr>)}</tbody></table></div>
+          </AnalyticsPanel>
+          <AnalyticsPanel title="Project Quality Overview" description="Project health, coverage, defects and QA risk.">
+            <div className="overflow-x-auto"><table className="w-full min-w-[820px] text-left text-sm"><thead className="text-xs uppercase tracking-[0.14em] text-slate-500"><tr><th className="px-3 py-2">Project</th><th className="px-3 py-2">Builds</th><th className="px-3 py-2">QA Coverage</th><th className="px-3 py-2">Bugs</th><th className="px-3 py-2">Critical Bugs</th><th className="px-3 py-2">Reopen Rate</th><th className="px-3 py-2">QA Cycle Time</th><th className="px-3 py-2">Risk</th></tr></thead><tbody className="divide-y divide-slate-100">{projectQualityRows.map((row) => <tr key={row.id} className="cursor-pointer hover:bg-blue-50/40" onClick={() => updateFilter("projectId", row.id)}><td className="px-3 py-2 font-semibold">{row.name}</td><td className="px-3 py-2">{row.builds}</td><td className="px-3 py-2">{row.coverage === null ? "—" : `${row.coverage}%`}</td><td className="px-3 py-2">{row.bugs}</td><td className="px-3 py-2">{row.critical}</td><td className="px-3 py-2">{row.reopenRate === null ? "—" : `${row.reopenRate}%`}</td><td className="px-3 py-2">{formatMaybeDuration(row.cycle)}</td><td className="px-3 py-2"><Badge variant={qaRiskTone(row.risk) === "rose" ? "destructive" : "outline"}>{row.risk}</Badge></td></tr>)}</tbody></table></div>
+          </AnalyticsPanel>
+        </>
+      ) : null}
+
+      <AnalyticsPanel title="Recent QA Activity" description={isQaLead ? "Team activity across QA builds and verification." : "Your recent QA activity."}>
+        {recentActivity.length ? <div className="space-y-3">{recentActivity.map((item) => <div key={item.id} className="flex gap-3 rounded-xl border border-slate-200 bg-white/80 p-3"><span className="mt-1 h-2.5 w-2.5 rounded-full bg-blue-500" /><div className="min-w-0"><p className="text-sm font-semibold text-slate-950">{item.title}</p><p className="mt-0.5 text-xs text-slate-500">{item.meta} · {item.time ? formatDateTime(item.time) : "—"}</p></div></div>)}</div> : <QaEmptyState icon={CalendarClock} title="No QA activity yet" />}
+      </AnalyticsPanel>
+    </div>
+  );
+};
+
+const TesterReportsDashboard = ({ user }) => <QaAnalyticsDashboard user={user} />;
+
+const LegacyTesterReportsDashboard = ({ user }) => {
   const currentTesterId = user?._id || user?.id || "";
   const [filters, setFilters] = useState({
     projectId: "all",
@@ -1144,8 +1620,8 @@ const TesterReportsDashboard = ({ user }) => {
         <CardContent className="space-y-3 p-3 sm:p-4">
           <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-blue-600">My QA Dashboard</p>
-              <h1 className="mt-0.5 text-xl font-semibold text-slate-950 sm:text-2xl">My QA Analytics Dashboard</h1>
+              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-blue-600">QA Dashboard</p>
+              <h1 className="mt-0.5 text-xl font-semibold text-slate-950 sm:text-2xl">QA Analytics</h1>
               <p className="mt-0.5 text-sm text-slate-500">
                 Track your reported bugs, QA verification flow, and testing productivity.
               </p>
@@ -1191,7 +1667,7 @@ const TesterReportsDashboard = ({ user }) => {
       </section>
 
       <section className="grid gap-5 xl:grid-cols-[0.9fr_1.1fr]">
-        <AnalyticsPanel title="My Bug Analytics" description="Only bugs reported by you are included.">
+        <AnalyticsPanel title="Bug Analytics" description="Only bugs reported by you are included.">
           <div className="grid gap-4 lg:grid-cols-2">
             <BugDistributionWidget
               emptyDescription="Your bug risk breakdown appears after you report bugs."
@@ -1215,7 +1691,7 @@ const TesterReportsDashboard = ({ user }) => {
                       <Line type="monotone" dataKey="reopened" stroke="#f97316" strokeWidth={2} dot={false} isAnimationActive={false} />
                     </AreaChart>
                   </ResponsiveContainer>
-                ) : <AnalyticsEmptyState className="min-h-[250px]" icon={TrendingUp} title="No timeline data" description="Verification trends appear over time." />}
+                ) : <AnalyticsEmptyState icon={TrendingUp} title="No QA activity in this period." description="Verification trends appear over time." />}
               </ChartFrame>
             </div>
           </div>
@@ -1258,7 +1734,7 @@ const TesterReportsDashboard = ({ user }) => {
           </div>
         </AnalyticsPanel>
 
-        <AnalyticsPanel title="My Recent Bug Activity" description="Only bugs created by you.">
+        <AnalyticsPanel title="Recent QA Activity" description="Only bugs created by you.">
           <div className="max-h-[430px] overflow-auto pr-2 dashboard-scrollbar">
             <table className="w-full min-w-[760px] text-left text-sm">
               <thead className="sticky top-0 bg-white/95 text-xs uppercase tracking-[0.16em] text-slate-500 backdrop-blur">
