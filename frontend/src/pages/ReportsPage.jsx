@@ -1162,17 +1162,28 @@ const QaAnalyticsDashboard = ({ user }) => {
     dateFrom: dateRangeStart,
     dateTo: "",
     projectId: filters.projectId,
-    testerId: selectedTesterId,
-    assigneeId: selectedTesterId,
     severity: filters.severity,
     status: filters.status,
   };
-  const taskAnalytics = useAnalytics({ ...analyticsBaseFilters, type: ISSUE_TYPES.TASK }, { includeIssues: true, enabled: Boolean(currentUserId) });
-  const bugAnalytics = useAnalytics({ ...analyticsBaseFilters, type: ISSUE_TYPES.BUG }, { includeIssues: true, enabled: Boolean(currentUserId) });
+  const taskAnalyticsFilters = {
+    ...analyticsBaseFilters,
+    assigneeId: selectedTesterId,
+    testerId: "all",
+    type: ISSUE_TYPES.TASK,
+  };
+  const bugAnalyticsFilters = {
+    ...analyticsBaseFilters,
+    testerId: selectedTesterId,
+    assigneeId: "all",
+    type: ISSUE_TYPES.BUG,
+  };
+  const taskAnalytics = useAnalytics(taskAnalyticsFilters, { includeIssues: true, enabled: Boolean(currentUserId) });
+  const bugAnalytics = useAnalytics(bugAnalyticsFilters, { includeIssues: true, enabled: Boolean(currentUserId) });
   const rawTasks = asArray(taskAnalytics.issues?.issues).filter((issue) => !isDeletedIssue(issue));
   const rawBugs = asArray(bugAnalytics.issues?.issues).filter((issue) => !isDeletedIssue(issue));
-  const tasks = rawTasks.filter((issue) => scopedProjectIds.has(String(issue.project?._id || issue.projectId || "")) && (isQaLead || isQaTask(issue)));
-  const bugs = rawBugs.filter((issue) => scopedProjectIds.has(String(issue.project?._id || issue.projectId || "")));
+  const getScopedProjectId = (issue) => String(issue.project?._id || issue.project || issue.projectId?._id || issue.projectId || "");
+  const tasks = rawTasks.filter((issue) => scopedProjectIds.has(getScopedProjectId(issue)) && (isQaLead || isQaTask(issue)));
+  const bugs = rawBugs.filter((issue) => scopedProjectIds.has(getScopedProjectId(issue)));
   const completedTests = tasks.filter(isClosed);
   const pendingQaBugs = bugs.filter(isReadyForQa);
   const bugsVerified = bugs.filter((bug) => isClosed(bug) && !isRejectedOrInvalid(bug));
