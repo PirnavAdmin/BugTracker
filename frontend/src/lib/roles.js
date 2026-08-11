@@ -91,11 +91,11 @@ export const getRoleNavigation = (role) => {
 
   if (hasTesterPanelAccess(role)) {
     return [
-      { id: "dashboard", label: "Dashboard", href: dashboardPathByRole[role] || dashboardPathByRole[ROLE_TESTER], icon: "dashboard" },
+      { id: "dashboard", label: "Workspace", href: dashboardPathByRole[role] || dashboardPathByRole[ROLE_TESTER], icon: "dashboard" },
       { id: "stories", label: "Stories", href: "/stories", icon: "stories" },
       { id: "tasks", label: "Tasks", href: "/tasks", icon: "tasks" },
       { id: "bugs", label: "Bugs", href: "/bugs", icon: "bugs" },
-      { id: "reports", label: "Reports", href: "/reports", icon: "reports" },
+      { id: "reports", label: "Analytics", href: "/analytics", icon: "reports" },
       { id: "chat", label: "Chat", href: "/chat", icon: "chat" },
     ];
   }
@@ -179,7 +179,7 @@ export const getPageMeta = (pathname, role) => {
         "Pick available bugs and move bug fixes through a workflow that stays separate from tasks and sprints.",
     },
     [dashboardPathByRole[ROLE_TESTER]]: {
-      title: "Assigned Projects",
+      title: "Workspace",
       description:
         "Review assigned projects and track project-wise testing performance.",
     },
@@ -222,6 +222,11 @@ export const getPageMeta = (pathname, role) => {
       title: "Reports",
       description:
         "Review work item analytics, distribution trends, and project-level workload signals.",
+    },
+    "/analytics": {
+      title: "Analytics",
+      description:
+        "Review QA activity, defect quality, build coverage, and project-level testing signals.",
     },
     "/chat": {
       title: "Chat",

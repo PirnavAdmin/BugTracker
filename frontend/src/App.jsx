@@ -451,6 +451,8 @@ const App = () => (
       />
       <Route path="/reports" element={<ReportsPage />} />
       <Route path="/reports/:reportKey" element={<ReportsPage />} />
+      <Route path="/analytics" element={<ReportsPage />} />
+      <Route path="/analytics/:reportKey" element={<ReportsPage />} />
     </Route>
     <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

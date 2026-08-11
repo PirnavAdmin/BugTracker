@@ -1057,9 +1057,6 @@ const getIssueModuleName = (issue) =>
   issue?.component ||
   (Array.isArray(issue?.labels) ? issue.labels[0] : "") ||
   "General";
-const isQaTask = (issue) =>
-  issue?.type !== ISSUE_TYPES.BUG &&
-  /qa|test|verify/i.test(`${issue?.title || ""} ${issue?.status || ""} ${issue?.labels?.join(" ") || ""}`);
 const isRejectedOrInvalid = (issue) =>
   getNormalizedBugStatus(issue) === ISSUE_STATUS.REJECTED ||
   /invalid|duplicate/i.test(`${issue?.status || ""} ${issue?.resolution || ""} ${issue?.labels?.join(" ") || ""} ${issue?.title || ""}`);
@@ -1109,11 +1106,11 @@ const QaAnalyticsDashboard = ({ user }) => {
     status: "all",
     testerId: "all",
     severity: "all",
-    dateRange: "30",
+    dateRange: "all",
   });
 
   const updateFilter = (key, value) => setFilters((current) => ({ ...current, [key]: value }));
-  const resetFilters = () => setFilters({ projectId: "all", environment: "all", status: "all", testerId: "all", severity: "all", dateRange: "30" });
+  const resetFilters = () => setFilters({ projectId: "all", environment: "all", status: "all", testerId: "all", severity: "all", dateRange: "all" });
   const dateRangeStart = useMemo(() => {
     if (filters.dateRange === "all") return "";
     const days = Number(filters.dateRange) || 30;
@@ -1157,7 +1154,7 @@ const QaAnalyticsDashboard = ({ user }) => {
     ).map((project) => String(project._id))),
     [filters.environment, filters.projectId, projectOptions]
   );
-  const selectedTesterId = isQaLead ? filters.testerId : currentUserId;
+  const selectedTesterId = isQaLead ? filters.testerId : "all";
   const analyticsBaseFilters = {
     dateFrom: dateRangeStart,
     dateTo: "",
@@ -1182,7 +1179,7 @@ const QaAnalyticsDashboard = ({ user }) => {
   const rawTasks = asArray(taskAnalytics.issues?.issues).filter((issue) => !isDeletedIssue(issue));
   const rawBugs = asArray(bugAnalytics.issues?.issues).filter((issue) => !isDeletedIssue(issue));
   const getScopedProjectId = (issue) => String(issue.project?._id || issue.project || issue.projectId?._id || issue.projectId || "");
-  const tasks = rawTasks.filter((issue) => scopedProjectIds.has(getScopedProjectId(issue)) && (isQaLead || isQaTask(issue)));
+  const tasks = rawTasks.filter((issue) => scopedProjectIds.has(getScopedProjectId(issue)));
   const bugs = rawBugs.filter((issue) => scopedProjectIds.has(getScopedProjectId(issue)));
   const completedTests = tasks.filter(isClosed);
   const pendingQaBugs = bugs.filter(isReadyForQa);
@@ -1200,8 +1197,8 @@ const QaAnalyticsDashboard = ({ user }) => {
     .map((project) => {
       const activity = getLatestGitActivity(project);
       const modules = normalizeDeliveryModules(project);
-      const projectBugs = bugs.filter((bug) => String(bug.project?._id || bug.projectId || "") === String(project._id));
-      const projectTasks = tasks.filter((task) => String(task.project?._id || task.projectId || "") === String(project._id));
+      const projectBugs = bugs.filter((bug) => getScopedProjectId(bug) === String(project._id));
+      const projectTasks = tasks.filter((task) => getScopedProjectId(task) === String(project._id));
       const passed = projectBugs.some((bug) => isClosed(bug) && !isRejectedOrInvalid(bug));
       const failed = projectBugs.some((bug) => isRejectedOrInvalid(bug) || isReopened(bug));
       const tested = projectTasks.some(isClosed) || passed || failed;
@@ -1235,7 +1232,7 @@ const QaAnalyticsDashboard = ({ user }) => {
     ["Testing Started", tasks.filter((task) => task.status === ISSUE_STATUS.IN_PROGRESS || isClosed(task)).length],
     ["Testing Completed", completedTests.length],
     ["QA Passed", buildsPassed.length || bugsVerified.length],
-    ["Released", projectOptions.filter((project) => project.isCompleted).length],
+    ["Released", projectOptions.filter((project) => scopedProjectIds.has(String(project._id)) && project.isCompleted).length],
   ].map(([label, count], index, rows) => ({
     label,
     count,
@@ -1272,7 +1269,7 @@ const QaAnalyticsDashboard = ({ user }) => {
     return { id, name: resolveUserLabel(tester), assigned: testerTasks.length, completed, pending, bugs: testerBugs.length, verified, accuracy, avg: avgQaTime, workload };
   });
   const projectQualityRows = projectOptions.filter((project) => scopedProjectIds.has(String(project._id))).map((project) => {
-    const projectBugs = bugs.filter((bug) => String(bug.project?._id || bug.projectId || "") === String(project._id));
+    const projectBugs = bugs.filter((bug) => getScopedProjectId(bug) === String(project._id));
     const projectBuilds = buildRows.filter((row) => row.id === String(project._id));
     const projectReopened = projectBugs.filter(isReopened).length;
     const critical = projectBugs.filter(isCriticalBug).length;
@@ -1334,10 +1331,10 @@ const QaAnalyticsDashboard = ({ user }) => {
                 {BUG_SEVERITY_OPTIONS.map((severity) => <option key={severity} value={severity}>{severity}</option>)}
               </select>
               <select className={ANALYTICS_SELECT_CLASS} value={filters.dateRange} onChange={(event) => updateFilter("dateRange", event.target.value)}>
+                <option value="all">All Time</option>
                 <option value="7">7 Days</option>
                 <option value="30">30 Days</option>
                 <option value="90">90 Days</option>
-                <option value="all">All Time</option>
               </select>
               <Button type="button" variant="outline" onClick={resetFilters}>Reset</Button>
             </div>

@@ -53,6 +53,12 @@ const resolveNavigationHref = (item, location) => {
     return item.href;
   }
 
+  if (item.href?.startsWith("/analytics")) {
+    return location.pathname.startsWith("/analytics")
+      ? `${location.pathname}${location.search}`
+      : item.href;
+  }
+
   if (location.pathname.startsWith("/reports")) {
     return `${location.pathname}${location.search}`;
   }
