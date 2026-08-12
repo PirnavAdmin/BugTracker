@@ -7,12 +7,12 @@ import {
   Activity,
   AlertTriangle,
   ArrowRight,
-  ArrowUpRight,
   BarChart3,
   Bug,
   CheckCircle2,
   FolderKanban,
   Layers3,
+  Plus,
   RefreshCcw,
   Settings,
   ShieldCheck,
@@ -37,7 +37,6 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import UserAvatar from "@/components/shared/UserAvatar";
-import GreetingBeachScene from "@/components/dashboard/GreetingBeachScene";
 import WeeklyTaskCompletionTrend from "@/components/dashboard/WeeklyTaskCompletionTrend";
 import { ProjectOverviewDashboardPanel } from "@/components/delivery/ProjectDeliveryWorkflowPanel";
 import { useAuth } from "@/hooks/use-auth";
@@ -46,14 +45,11 @@ import {
   ISSUE_STATUS,
   ISSUE_TYPES,
   getCriticalIssues,
-  getClosedIssues,
   getIssueDisplayKey,
   getIssuePriorityVariant,
   getIssueStatusLabel,
   getIssueStatusVariant,
-  getHighPriorityIssues,
   isIssueOverdue,
-  getOpenIssues,
   getReopenedIssues,
   normalizeBugStatusForIssue,
   resolveBugDetails,
@@ -1113,25 +1109,38 @@ const PriorityDistribution = ({ rows, total }) => {
   );
 };
 
-const UserDistributionCard = ({ rows, total, isLoading, hasError, onManageUsers }) => {
+const UserDistributionCard = ({
+  rows,
+  total,
+  isLoading,
+  hasError,
+  onManageUsers,
+  onViewProjects,
+  projectRows = [],
+}) => {
+  const [viewMode, setViewMode] = useState("role");
   let segmentStart = 0;
-  const donutBackground = `conic-gradient(${rows
-    .filter((row) => row.count > 0)
-    .map((row) => {
-      const segmentEnd = segmentStart + (row.count / total) * 360;
-      const segment = `${row.color} ${segmentStart}deg ${segmentEnd}deg`;
-      segmentStart = segmentEnd;
-      return segment;
-    })
-    .join(", ")})`;
+  const activeRows = rows.filter((row) => row.count > 0);
+  const donutBackground = activeRows.length
+    ? `conic-gradient(${activeRows
+        .map((row) => {
+          const segmentEnd = segmentStart + (row.count / total) * 360;
+          const segment = `${row.color} ${segmentStart}deg ${segmentEnd}deg`;
+          segmentStart = segmentEnd;
+          return segment;
+        })
+        .join(", ")})`
+    : "conic-gradient(#E2E8F0 0deg 360deg)";
 
   return (
     <AnalyticsPanel
+      className="h-full"
       title="User Distribution"
-      description="Workspace users grouped by active role."
+      description="Workspace users grouped by active role and project."
       action={
-        <Button variant="ghost" size="sm" className="h-8 text-xs font-bold" onClick={() => onManageUsers()}>
-          Manage Users
+        <Button variant="ghost" size="sm" className="group h-8 text-xs font-bold text-violet-700" onClick={() => onManageUsers()}>
+          View all users
+          <ArrowRight className="ml-1.5 h-3.5 w-3.5 transition group-hover:translate-x-0.5" />
         </Button>
       }
     >
@@ -1151,46 +1160,152 @@ const UserDistributionCard = ({ rows, total, isLoading, hasError, onManageUsers 
           description="User distribution will appear once membership data is available."
         />
       ) : total ? (
-        <div className="grid gap-5 md:grid-cols-[180px_minmax(0,1fr)] md:items-center">
-          <div
-            className="relative mx-auto h-40 w-40 shrink-0 rounded-full shadow-[0_12px_30px_-18px_rgba(15,23,42,0.65)]"
-            style={{ background: donutBackground }}
-            role="img"
-            aria-label={`${total} users distributed across ${rows.filter((row) => row.count > 0).length} roles`}
-          >
-            <div className="absolute inset-[19px] flex flex-col items-center justify-center rounded-full border border-white/80 bg-white text-center shadow-inner dark:border-white/10 dark:bg-slate-950">
-              <span className="text-2xl font-bold text-slate-950 dark:text-slate-100">
-                {formatCompactNumber(total)}
-              </span>
-              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
-                Total Users
-              </span>
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            {rows.map((row) => (
+        <div className="space-y-5">
+          <div className="grid w-full max-w-sm grid-cols-2 overflow-hidden rounded-lg border border-slate-200/80 bg-slate-50/60 p-0.5 shadow-inner">
+            {[
+              { key: "role", label: "By Role" },
+              { key: "project", label: "By Project" },
+            ].map((item) => (
               <button
-                key={row.key}
+                key={item.key}
                 type="button"
-                onClick={() => onManageUsers(row.key)}
-                className="grid w-full grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-3 rounded-lg border border-slate-100 bg-white/50 px-3 py-2 text-left transition-colors hover:bg-slate-50 dark:border-white/10 dark:bg-white/5"
+                onClick={() => setViewMode(item.key)}
+                className={cn(
+                  "rounded-md px-3 py-2 text-xs font-bold transition",
+                  viewMode === item.key
+                    ? "bg-white text-violet-700 shadow-sm"
+                    : "text-slate-500 hover:text-slate-800"
+                )}
               >
-                <span className="flex min-w-0 items-center gap-2">
-                  <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: row.color }} />
-                  <span className="truncate text-xs font-bold text-slate-800 dark:text-slate-100">
-                    {row.label}
-                  </span>
-                </span>
-                <span className="text-xs font-bold text-slate-600 dark:text-slate-300">
-                  {row.count}
-                </span>
-                <span className="w-9 text-right text-[10px] font-bold text-slate-400">
-                  {row.percentage}%
-                </span>
+                {item.label}
               </button>
             ))}
           </div>
+
+          {viewMode === "role" ? (
+            <div className="grid gap-5 md:grid-cols-[220px_minmax(0,1fr)] md:items-center">
+              <div
+                className="relative mx-auto h-44 w-44 shrink-0 rounded-full shadow-[0_16px_34px_-22px_rgba(15,23,42,0.58)]"
+                style={{ background: donutBackground }}
+                role="img"
+                aria-label={`${total} users distributed across ${activeRows.length} roles`}
+              >
+                <div className="absolute inset-[28px] flex flex-col items-center justify-center rounded-full border border-white/90 bg-white text-center shadow-inner dark:border-white/10 dark:bg-slate-950">
+                  <span className="text-3xl font-black leading-none text-slate-950 dark:text-slate-100">
+                    {formatCompactNumber(total)}
+                  </span>
+                  <span className="mt-1 text-[10px] font-black uppercase tracking-wider text-slate-500">
+                    Total Users
+                  </span>
+                </div>
+              </div>
+
+              <div className="min-w-0 overflow-hidden rounded-2xl border border-slate-100/90 bg-white/46">
+                <div className="grid grid-cols-[minmax(0,1fr)_70px_120px] gap-3 border-b border-slate-100 px-3 py-2 text-[10px] font-black uppercase tracking-[0.14em] text-slate-400">
+                  <span>Role</span>
+                  <span className="text-right">Users</span>
+                  <span>Percentage</span>
+                </div>
+                {rows.map((row) => (
+                  <button
+                    key={row.key}
+                    type="button"
+                    onClick={() => onManageUsers(row.key)}
+                    className="grid w-full grid-cols-[minmax(0,1fr)_70px_120px] items-center gap-3 border-b border-slate-100/80 px-3 py-2.5 text-left transition hover:bg-slate-50/80 last:border-b-0"
+                  >
+                    <span className="flex min-w-0 items-center gap-2">
+                      <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: row.color }} />
+                      <span className="truncate text-xs font-bold text-slate-800 dark:text-slate-100">
+                        {row.label}
+                      </span>
+                    </span>
+                    <span className="text-right text-xs font-black text-slate-800 dark:text-slate-200">
+                      {formatCompactNumber(row.count)}
+                    </span>
+                    <span className="flex items-center gap-2">
+                      <span className="w-8 text-right text-[10px] font-bold text-slate-500">
+                        {row.percentage}%
+                      </span>
+                      <span className="h-2 flex-1 overflow-hidden rounded-full bg-slate-100">
+                        <span
+                          className="block h-full rounded-full"
+                          style={{
+                            width: `${Math.max(row.count ? 4 : 0, row.percentage)}%`,
+                            backgroundColor: row.color,
+                          }}
+                        />
+                      </span>
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <div className="overflow-hidden rounded-2xl border border-slate-100/90 bg-white/46">
+              <div className="grid grid-cols-[minmax(0,1fr)_90px_90px] gap-3 border-b border-slate-100 px-3 py-2 text-[10px] font-black uppercase tracking-[0.14em] text-slate-400">
+                <span>Project</span>
+                <span className="text-right">Members</span>
+                <span className="text-right">Work</span>
+              </div>
+              {projectRows.length ? projectRows.map((project) => (
+                <button
+                  key={project.key}
+                  type="button"
+                  onClick={() => onViewProjects(project.projectId)}
+                  className="grid w-full grid-cols-[minmax(0,1fr)_90px_90px] items-center gap-3 border-b border-slate-100/80 px-3 py-2.5 text-left transition hover:bg-slate-50/80 last:border-b-0"
+                >
+                  <span className="flex min-w-0 items-center gap-3">
+                    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-blue-50 text-[10px] font-black text-blue-700">
+                      {project.initials}
+                    </span>
+                    <span className="truncate text-xs font-bold text-slate-800">
+                      {project.name}
+                    </span>
+                  </span>
+                  <span className="text-right text-xs font-black text-slate-800">
+                    {formatCompactNumber(project.members)}
+                  </span>
+                  <span className="text-right text-xs font-bold text-slate-500">
+                    {formatCompactNumber(project.work)}
+                  </span>
+                </button>
+              )) : (
+                <div className="px-3 py-8 text-center text-sm font-medium text-slate-500">
+                  Project membership appears once projects have assigned users.
+                </div>
+              )}
+            </div>
+          )}
+
+          {projectRows.length ? (
+            <div className="border-t border-slate-100 pt-4">
+              <div className="mb-2 flex items-center justify-between gap-3">
+                <p className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">
+                  User Distribution By Project
+                </p>
+                <Button variant="ghost" size="sm" className="h-7 text-xs font-bold text-violet-700" onClick={() => onViewProjects()}>
+                  View all projects
+                  <ArrowRight className="ml-1.5 h-3.5 w-3.5" />
+                </Button>
+              </div>
+              <div className="grid gap-2 sm:grid-cols-2">
+                {projectRows.slice(0, 4).map((project) => (
+                  <button
+                    key={`summary-${project.key}`}
+                    type="button"
+                    onClick={() => onViewProjects(project.projectId)}
+                    className="flex min-w-0 items-center justify-between gap-3 rounded-xl border border-slate-100 bg-white/54 px-3 py-2 text-left transition hover:border-blue-100 hover:bg-white"
+                  >
+                    <span className="min-w-0">
+                      <span className="block truncate text-xs font-bold text-slate-800">{project.name}</span>
+                      <span className="text-[11px] font-medium text-slate-500">{formatCompactNumber(project.work)} tracked work items</span>
+                    </span>
+                    <span className="text-xs font-black text-slate-800">{formatCompactNumber(project.members)}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : null}
         </div>
       ) : (
         <AnalyticsEmptyState
@@ -1205,14 +1320,18 @@ const UserDistributionCard = ({ rows, total, isLoading, hasError, onManageUsers 
 
 const AdminQuickActionsCard = ({ actions = [], stats = [] }) => (
   <AnalyticsPanel
+    className="h-full"
     title={
       <span className="flex items-center gap-2">
-        <Zap className="h-4 w-4 text-violet-600" />
+        <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-violet-50 text-violet-700">
+          <Zap className="h-4.5 w-4.5" />
+        </span>
         Quick Actions
       </span>
     }
+    description="Common actions to manage your workspace efficiently."
   >
-    <div className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
+    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
       {actions.map((action) => {
         const Icon = action.icon;
 
@@ -1221,13 +1340,13 @@ const AdminQuickActionsCard = ({ actions = [], stats = [] }) => (
             key={action.key}
             type="button"
             onClick={action.onClick}
-            className="group flex min-h-[48px] items-center gap-3 rounded-lg border border-slate-200/70 bg-white/55 px-3 py-2 text-left shadow-sm transition-all hover:border-blue-200 hover:bg-white/90 hover:shadow-md dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10"
+            className="group flex min-h-[86px] items-center gap-4 rounded-2xl border border-slate-200/70 bg-white/58 px-4 py-3 text-left shadow-[0_14px_34px_-30px_rgba(15,23,42,0.38)] transition-all hover:-translate-y-0.5 hover:border-blue-200 hover:bg-white/92 hover:shadow-[0_18px_44px_-34px_rgba(37,99,235,0.46)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/45 dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10"
           >
-            <span className={cn("flex h-8 w-8 shrink-0 items-center justify-center rounded-lg", action.className)}>
-              <Icon className="h-4 w-4" />
+            <span className={cn("flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl transition group-hover:scale-[1.03]", action.className)}>
+              <Icon className="h-5 w-5" />
             </span>
             <span className={cn(
-              "truncate text-xs font-semibold text-slate-800 dark:text-slate-100",
+              "truncate text-sm font-bold text-slate-900 dark:text-slate-100",
               action.labelClassName
             )}>
               {action.title}
@@ -1236,7 +1355,7 @@ const AdminQuickActionsCard = ({ actions = [], stats = [] }) => (
         );
       })}
     </div>
-    <div className="mt-5 grid grid-cols-2 gap-3 border-t border-slate-200/70 pt-4 dark:border-white/10">
+    <div className="mt-5 grid grid-cols-1 gap-4 border-t border-slate-200/70 pt-5 sm:grid-cols-2 dark:border-white/10">
       {stats.map((stat) => {
         const Icon = stat.icon;
 
@@ -1245,17 +1364,27 @@ const AdminQuickActionsCard = ({ actions = [], stats = [] }) => (
             key={stat.key}
             type="button"
             onClick={stat.onClick}
-            className="flex min-w-0 items-center gap-3 rounded-lg border border-slate-200/70 bg-white/45 px-4 py-3 text-left transition-colors hover:border-blue-200 hover:bg-white/80 dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10"
+            className="group flex min-w-0 items-center justify-between gap-4 rounded-2xl border border-slate-200/70 bg-white/58 px-4 py-4 text-left shadow-[0_14px_34px_-30px_rgba(15,23,42,0.38)] transition hover:-translate-y-0.5 hover:border-violet-200 hover:bg-white/90 dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10"
           >
-            <Icon className={cn("h-5 w-5 shrink-0", stat.iconClassName)} />
-            <span className="min-w-0">
-              <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-500">
-                {stat.title}
+            <span className="flex min-w-0 items-center gap-3">
+              <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-blue-50 text-blue-700">
+                <Icon className={cn("h-5 w-5", stat.iconClassName)} />
               </span>
-              <span className="block text-xl font-bold leading-tight text-slate-950 dark:text-slate-100">
-                {stat.value}
+              <span className="min-w-0">
+                <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                  {stat.title}
+                </span>
+                <span className="block text-2xl font-black leading-tight text-slate-950 dark:text-slate-100">
+                  {stat.value}
+                </span>
+                {stat.helper ? (
+                  <span className="mt-1 block truncate text-xs font-semibold text-emerald-600">
+                    {stat.helper}
+                  </span>
+                ) : null}
               </span>
             </span>
+            <ArrowRight className="h-4 w-4 shrink-0 text-slate-400 transition group-hover:translate-x-0.5" />
           </button>
         );
       })}
@@ -1445,13 +1574,14 @@ const TriageBoardWidget = ({ bugs, onOpen, onNavigate }) => {
 
 const AdminGreetingCard = ({
   user,
-  openIssues = 0,
-  activeTeams = 0,
-  onViewReports,
+  totalUsers = 0,
+  totalProjects = 0,
+  totalTeams = 0,
+  onCreateProject,
+  onManageUsers,
 }) => {
   const reduceMotion = useReducedMotion();
   const currentHour = new Date().getHours();
-  const timeOfDay = currentHour < 12 ? "morning" : currentHour < 17 ? "afternoon" : "evening";
   const greeting =
     currentHour < 12
       ? "Good morning"
@@ -1462,70 +1592,109 @@ const AdminGreetingCard = ({
     .trim()
     .split(/\s+/)[0];
   const isManager = user?.role === ROLE_MANAGER;
+  const roleLabel = isManager ? "Manager" : "Admin";
+  const statCards = [
+    {
+      key: "users",
+      label: "Users",
+      value: totalUsers,
+      icon: Users2,
+      className: "bg-violet-50 text-violet-700",
+    },
+    {
+      key: "projects",
+      label: "Projects",
+      value: totalProjects,
+      icon: FolderKanban,
+      className: "bg-blue-50 text-blue-700",
+    },
+    {
+      key: "teams",
+      label: "Teams",
+      value: totalTeams,
+      icon: Users2,
+      className: "bg-emerald-50 text-emerald-700",
+    },
+  ];
 
   return (
     <motion.section
-      initial={reduceMotion ? false : { opacity: 0, y: 16, scale: 0.99 }}
+      initial={reduceMotion ? false : { opacity: 0, y: 14, scale: 0.99 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
-      transition={{ duration: 0.55, ease: [0.22, 1, 0.36, 1] }}
-      className="relative isolate overflow-hidden rounded-[28px] border border-blue-100/80 bg-white px-5 py-5 shadow-[0_24px_65px_-42px_rgba(37,99,235,0.65)] sm:px-7"
+      transition={{ duration: 0.42, ease: [0.22, 1, 0.36, 1] }}
+      className="relative isolate overflow-hidden rounded-[28px] border border-blue-100/80 bg-white/86 px-5 py-4 shadow-[0_24px_65px_-44px_rgba(37,99,235,0.58)] backdrop-blur-xl sm:px-6"
     >
-      <GreetingBeachScene timeOfDay={timeOfDay} />
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_8%_0%,rgba(99,102,241,0.13),transparent_32%),radial-gradient(circle_at_92%_0%,rgba(14,165,233,0.12),transparent_34%),linear-gradient(135deg,rgba(255,255,255,0.92),rgba(248,250,252,0.76))]" />
 
-      <div className="relative flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+      <div className="relative flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
         <div className="flex min-w-0 items-center gap-4">
-          <motion.div
-            aria-hidden="true"
-            className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-600 text-white shadow-[0_16px_30px_-14px_rgba(37,99,235,0.9)]"
-            animate={reduceMotion ? undefined : { rotate: [0, 4, -4, 0] }}
-            transition={{ duration: 4.5, repeat: Infinity, ease: "easeInOut" }}
-          >
-            <Sparkles className="h-5 w-5" />
-          </motion.div>
-          <div className="min-w-0 [text-shadow:0_1px_12px_rgba(255,255,255,0.9)]">
+          <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-600 to-blue-600 text-white shadow-[0_18px_34px_-18px_rgba(79,70,229,0.9)]">
+            <Sparkles className="h-7 w-7" />
+          </div>
+          <div className="hidden h-14 w-px bg-slate-200/80 sm:block" />
+          <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
-              <h1 className="text-xl font-semibold tracking-tight text-slate-950 sm:text-2xl">
+              <h1 className="truncate text-2xl font-black tracking-tight text-slate-950 sm:text-3xl">
                 {greeting},{" "}
-                <span className="bg-gradient-to-r from-blue-600 to-violet-600 bg-clip-text font-bold text-transparent">
-                  {firstName}
+                <span className="bg-gradient-to-r from-violet-700 to-blue-600 bg-clip-text text-transparent">
+                  {firstName || roleLabel}
                 </span>
               </h1>
-              <span className="rounded-full border border-blue-200/80 bg-white/80 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.14em] text-blue-700 shadow-sm">
-                {isManager ? "Manager" : "Admin"}
+              <span className="rounded-full border border-violet-100 bg-white/70 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-violet-700">
+                {roleLabel}
               </span>
             </div>
-            <p className="mt-1 inline-flex rounded-lg bg-white/80 px-2 py-1 text-sm font-semibold text-slate-900 shadow-sm backdrop-blur-sm">
-              {isManager
-                ? "Keep delivery moving and your teams aligned today."
-                : "Your workspace overview is ready. Let’s make today count."}
+            <p className="mt-1 text-sm font-semibold text-slate-600 sm:text-base">
+              Manage your projects, teams and workspace from one place.
             </p>
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-3 lg:justify-end">
-          <div className="flex items-center gap-5 rounded-2xl border border-white/90 bg-white/70 px-4 py-2.5 shadow-sm backdrop-blur-sm">
-            <div>
-              <p className="text-lg font-bold leading-none text-slate-900">{openIssues}</p>
-              <p className="mt-1 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
-                Open issues
-              </p>
-            </div>
-            <div className="h-8 w-px bg-slate-200" />
-            <div>
-              <p className="text-lg font-bold leading-none text-slate-900">{activeTeams}</p>
-              <p className="mt-1 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
-                Active teams
-              </p>
-            </div>
+        <div className="flex flex-col gap-3 lg:flex-row lg:flex-wrap lg:items-center xl:justify-end">
+          <div className="grid gap-2 sm:grid-cols-3">
+            {statCards.map((stat) => {
+              const Icon = stat.icon;
+
+              return (
+                <div
+                  key={stat.key}
+                  className="flex min-w-[148px] items-center gap-3 rounded-2xl border border-slate-200/75 bg-white/70 px-3.5 py-2.5 shadow-[0_14px_34px_-30px_rgba(15,23,42,0.42)] backdrop-blur-sm"
+                >
+                  <span className={cn("flex h-10 w-10 shrink-0 items-center justify-center rounded-xl", stat.className)}>
+                    <Icon className="h-5 w-5" />
+                  </span>
+                  <span>
+                    <span className="block text-xl font-black leading-none text-slate-950">
+                      {formatCompactNumber(stat.value)}
+                    </span>
+                    <span className="mt-1 block text-xs font-bold text-slate-500">
+                      {stat.label}
+                    </span>
+                  </span>
+                </div>
+              );
+            })}
           </div>
+
+          <div className="flex flex-col gap-2 sm:flex-row">
           <Button
-            className="h-11 rounded-2xl bg-slate-950 px-5 text-white shadow-[0_14px_28px_-18px_rgba(15,23,42,0.8)] hover:bg-blue-700"
-            onClick={onViewReports}
+            className="h-12 rounded-xl bg-gradient-to-r from-violet-700 to-blue-600 px-5 text-sm font-bold text-white shadow-[0_18px_34px_-20px_rgba(79,70,229,0.88)] hover:from-violet-600 hover:to-blue-500"
+            onClick={onCreateProject}
             type="button"
           >
-            View reports
-            <ArrowUpRight className="h-4 w-4" />
+            <Plus className="h-4.5 w-4.5" />
+            Create Project
           </Button>
+            <Button
+              className="h-12 rounded-xl border-slate-200 bg-white/78 px-5 text-sm font-bold text-slate-900 shadow-[0_16px_34px_-26px_rgba(15,23,42,0.42)] hover:bg-white"
+              onClick={onManageUsers}
+              type="button"
+              variant="outline"
+            >
+              Manage Users
+              <ArrowRight className="h-4 w-4" />
+            </Button>
+          </div>
         </div>
       </div>
     </motion.section>
@@ -1629,15 +1798,6 @@ const DashboardPage = () => {
     () => (Array.isArray(allTeamsData) ? allTeamsData : []),
     [allTeamsData]
   );
-  const summary = analytics.overview?.summary || {};
-  const issueStats = {
-    total: issues.length,
-    open: getOpenIssues(issues).length,
-    closed: getClosedIssues(issues).length,
-    highPriority: getHighPriorityIssues(issues).length,
-  };
-  console.log("Dashboard Open Count", issueStats.open);
-  console.log("Dashboard Closed Count", issueStats.closed);
   const projects = analytics.projects?.projects || [];
   const teams = analytics.teams?.teams || [];
   const activity = analytics.recentActivity?.activity || [];
@@ -1803,6 +1963,60 @@ const DashboardPage = () => {
       .sort((left, right) => right.total - left.total)
       .slice(0, 6);
   }, [bugs]);
+  const userProjectDistributionRows = useMemo(() => {
+    const workByProject = new Map();
+
+    [...issues, ...bugs].forEach((item) => {
+      const projectId = resolveIssueProjectId(item);
+
+      if (!projectId) {
+        return;
+      }
+
+      workByProject.set(projectId, (workByProject.get(projectId) || 0) + 1);
+    });
+
+    return allProjects
+      .map((project) => {
+        const projectId = String(project?._id || project?.id || "");
+        const memberKeys = new Set();
+        const addMember = (member) => {
+          const key = String(member?._id || member?.id || member?.userId || member?.email || member || "").trim();
+
+          if (key) {
+            memberKeys.add(key);
+          }
+        };
+
+        (project?.members || []).forEach(addMember);
+        (project?.projectMembers || []).forEach(addMember);
+        addMember(project?.projectManager || project?.manager);
+        addMember(project?.teamLead);
+        (project?.teams || project?.assignedTeams || []).forEach((team) => {
+          (team?.members || []).forEach(addMember);
+        });
+
+        const memberCount =
+          memberKeys.size ||
+          project?.memberCount ||
+          project?.members?.length ||
+          project?.projectMembers?.length ||
+          0;
+        const name = project?.name || "Untitled project";
+
+        return {
+          key: projectId || name,
+          projectId,
+          name,
+          initials: getInitials(name).slice(0, 3),
+          members: memberCount,
+          work: workByProject.get(projectId) || 0,
+        };
+      })
+      .filter((project) => project.members || project.work)
+      .sort((left, right) => right.members - left.members || right.work - left.work || left.name.localeCompare(right.name))
+      .slice(0, 6);
+  }, [allProjects, bugs, issues]);
   const bugContributionBugs = useMemo(() => {
     if (bugContributionProjectId === "all") {
       return bugs;
@@ -1982,6 +2196,7 @@ const DashboardPage = () => {
       key: "projects",
       title: "Total Projects",
       value: formatCompactNumber(allProjects.length),
+      helper: "Workspace projects",
       icon: FolderKanban,
       iconClassName: "text-blue-600",
       onClick: () => navigate("/projects"),
@@ -1990,6 +2205,7 @@ const DashboardPage = () => {
       key: "teams",
       title: "Total Teams",
       value: formatCompactNumber(allTeams.length),
+      helper: `${formatCompactNumber(users.length)} users`,
       icon: Users2,
       iconClassName: "text-violet-600",
       onClick: () => navigate("/projects?tab=teams"),
@@ -2040,29 +2256,35 @@ const DashboardPage = () => {
     <div className="space-y-6">
       <AdminGreetingCard
         user={user}
-        openIssues={issueStats.open}
-        activeTeams={summary.activeTeams || teams.length}
-        onViewReports={() => navigate("/reports")}
+        totalUsers={users.length}
+        totalProjects={allProjects.length}
+        totalTeams={allTeams.length}
+        onCreateProject={() => navigate("/projects")}
+        onManageUsers={() => navigate("/settings/users")}
       />
+
+      <section className="grid gap-5 xl:grid-cols-2">
+        <UserDistributionCard
+          rows={userDistributionRows}
+          total={users.length}
+          isLoading={isUsersLoading}
+          hasError={Boolean(usersError)}
+          projectRows={userProjectDistributionRows}
+          onManageUsers={(role) =>
+            navigate(role ? `/settings/users?role=${encodeURIComponent(role)}` : "/settings/users")
+          }
+          onViewProjects={(projectId) =>
+            navigate(projectId ? `/projects?project=${encodeURIComponent(projectId)}` : "/projects")
+          }
+        />
+        <AdminQuickActionsCard actions={adminQuickActions} stats={adminQuickStats} />
+      </section>
 
       <ProjectOverviewDashboardPanel
         issues={[...issues, ...bugs]}
         onViewGitActivity={() => navigate("/projects")}
         projects={allProjects}
       />
-
-      <section className="grid gap-5 xl:grid-cols-[1fr_0.95fr]">
-        <UserDistributionCard
-          rows={userDistributionRows}
-          total={users.length}
-          isLoading={isUsersLoading}
-          hasError={Boolean(usersError)}
-          onManageUsers={(role) =>
-            navigate(role ? `/settings/users?role=${encodeURIComponent(role)}` : "/settings/users")
-          }
-        />
-        <AdminQuickActionsCard actions={adminQuickActions} stats={adminQuickStats} />
-      </section>
 
       <section className="space-y-4">
         {bugsError ? (
