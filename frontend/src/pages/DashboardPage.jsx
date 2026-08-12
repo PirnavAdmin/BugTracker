@@ -16,7 +16,6 @@ import {
   RefreshCcw,
   Settings,
   ShieldCheck,
-  Sparkles,
   TimerReset,
   UserPlus,
   Users2,
@@ -95,15 +94,6 @@ const BUG_PRIORITY_META = [
   { key: "Medium", className: "bg-amber-500", tone: "text-amber-700", color: "#F59E0B" },
   { key: "High", className: "bg-orange-500", tone: "text-orange-700", color: "#F97316" },
   { key: "Critical", className: "bg-rose-500", tone: "text-rose-700", color: "#F43F5E" },
-];
-
-const USER_ROLE_DISTRIBUTION_META = [
-  { key: "Admin", label: "Admins", color: "#2563eb" },
-  { key: "Manager", label: "Managers", color: "#0891b2" },
-  { key: "Team Lead", label: "Team Leads", color: "#7c3aed" },
-  { key: "Q/A Lead", label: "Q/A Leads", color: "#ec4899" },
-  { key: "Developer", label: "Developers", color: "#10b981" },
-  { key: "Tester", label: "Testers", color: "#f59e0b" },
 ];
 
 const DASHBOARD_TALL_SCROLL_CLASS =
@@ -1109,229 +1099,20 @@ const PriorityDistribution = ({ rows, total }) => {
   );
 };
 
-const UserDistributionCard = ({
-  rows,
-  total,
-  isLoading,
-  hasError,
-  onManageUsers,
-  onViewProjects,
-  projectRows = [],
-}) => {
-  const [viewMode, setViewMode] = useState("role");
-  let segmentStart = 0;
-  const activeRows = rows.filter((row) => row.count > 0);
-  const donutBackground = activeRows.length
-    ? `conic-gradient(${activeRows
-        .map((row) => {
-          const segmentEnd = segmentStart + (row.count / total) * 360;
-          const segment = `${row.color} ${segmentStart}deg ${segmentEnd}deg`;
-          segmentStart = segmentEnd;
-          return segment;
-        })
-        .join(", ")})`
-    : "conic-gradient(#E2E8F0 0deg 360deg)";
-
-  return (
-    <AnalyticsPanel
-      className="h-full"
-      title="User Distribution"
-      description="Workspace users grouped by active role and project."
-      action={
-        <Button variant="ghost" size="sm" className="group h-8 text-xs font-bold text-violet-700" onClick={() => onManageUsers()}>
-          View all users
-          <ArrowRight className="ml-1.5 h-3.5 w-3.5 transition group-hover:translate-x-0.5" />
-        </Button>
-      }
-    >
-      {isLoading ? (
-        <div className="grid gap-4 md:grid-cols-[180px_minmax(0,1fr)] md:items-center">
-          <Skeleton className="mx-auto h-36 w-36 rounded-full" />
-          <div className="space-y-2">
-            {USER_ROLE_DISTRIBUTION_META.slice(0, 4).map((item) => (
-              <Skeleton key={item.key} className="h-8 rounded-lg" />
-            ))}
-          </div>
-        </div>
-      ) : hasError ? (
-        <AnalyticsEmptyState
-          icon={Users2}
-          title="Unable to load users"
-          description="User distribution will appear once membership data is available."
-        />
-      ) : total ? (
-        <div className="space-y-5">
-          <div className="grid w-full max-w-sm grid-cols-2 overflow-hidden rounded-lg border border-slate-200/80 bg-slate-50/60 p-0.5 shadow-inner">
-            {[
-              { key: "role", label: "By Role" },
-              { key: "project", label: "By Project" },
-            ].map((item) => (
-              <button
-                key={item.key}
-                type="button"
-                onClick={() => setViewMode(item.key)}
-                className={cn(
-                  "rounded-md px-3 py-2 text-xs font-bold transition",
-                  viewMode === item.key
-                    ? "bg-white text-violet-700 shadow-sm"
-                    : "text-slate-500 hover:text-slate-800"
-                )}
-              >
-                {item.label}
-              </button>
-            ))}
-          </div>
-
-          {viewMode === "role" ? (
-            <div className="grid gap-5 md:grid-cols-[220px_minmax(0,1fr)] md:items-center">
-              <div
-                className="relative mx-auto h-44 w-44 shrink-0 rounded-full shadow-[0_16px_34px_-22px_rgba(15,23,42,0.58)]"
-                style={{ background: donutBackground }}
-                role="img"
-                aria-label={`${total} users distributed across ${activeRows.length} roles`}
-              >
-                <div className="absolute inset-[28px] flex flex-col items-center justify-center rounded-full border border-white/90 bg-white text-center shadow-inner dark:border-white/10 dark:bg-slate-950">
-                  <span className="text-3xl font-black leading-none text-slate-950 dark:text-slate-100">
-                    {formatCompactNumber(total)}
-                  </span>
-                  <span className="mt-1 text-[10px] font-black uppercase tracking-wider text-slate-500">
-                    Total Users
-                  </span>
-                </div>
-              </div>
-
-              <div className="min-w-0 overflow-hidden rounded-2xl border border-slate-100/90 bg-white/46">
-                <div className="grid grid-cols-[minmax(0,1fr)_70px_120px] gap-3 border-b border-slate-100 px-3 py-2 text-[10px] font-black uppercase tracking-[0.14em] text-slate-400">
-                  <span>Role</span>
-                  <span className="text-right">Users</span>
-                  <span>Percentage</span>
-                </div>
-                {rows.map((row) => (
-                  <button
-                    key={row.key}
-                    type="button"
-                    onClick={() => onManageUsers(row.key)}
-                    className="grid w-full grid-cols-[minmax(0,1fr)_70px_120px] items-center gap-3 border-b border-slate-100/80 px-3 py-2.5 text-left transition hover:bg-slate-50/80 last:border-b-0"
-                  >
-                    <span className="flex min-w-0 items-center gap-2">
-                      <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: row.color }} />
-                      <span className="truncate text-xs font-bold text-slate-800 dark:text-slate-100">
-                        {row.label}
-                      </span>
-                    </span>
-                    <span className="text-right text-xs font-black text-slate-800 dark:text-slate-200">
-                      {formatCompactNumber(row.count)}
-                    </span>
-                    <span className="flex items-center gap-2">
-                      <span className="w-8 text-right text-[10px] font-bold text-slate-500">
-                        {row.percentage}%
-                      </span>
-                      <span className="h-2 flex-1 overflow-hidden rounded-full bg-slate-100">
-                        <span
-                          className="block h-full rounded-full"
-                          style={{
-                            width: `${Math.max(row.count ? 4 : 0, row.percentage)}%`,
-                            backgroundColor: row.color,
-                          }}
-                        />
-                      </span>
-                    </span>
-                  </button>
-                ))}
-              </div>
-            </div>
-          ) : (
-            <div className="overflow-hidden rounded-2xl border border-slate-100/90 bg-white/46">
-              <div className="grid grid-cols-[minmax(0,1fr)_90px_90px] gap-3 border-b border-slate-100 px-3 py-2 text-[10px] font-black uppercase tracking-[0.14em] text-slate-400">
-                <span>Project</span>
-                <span className="text-right">Members</span>
-                <span className="text-right">Work</span>
-              </div>
-              {projectRows.length ? projectRows.map((project) => (
-                <button
-                  key={project.key}
-                  type="button"
-                  onClick={() => onViewProjects(project.projectId)}
-                  className="grid w-full grid-cols-[minmax(0,1fr)_90px_90px] items-center gap-3 border-b border-slate-100/80 px-3 py-2.5 text-left transition hover:bg-slate-50/80 last:border-b-0"
-                >
-                  <span className="flex min-w-0 items-center gap-3">
-                    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-blue-50 text-[10px] font-black text-blue-700">
-                      {project.initials}
-                    </span>
-                    <span className="truncate text-xs font-bold text-slate-800">
-                      {project.name}
-                    </span>
-                  </span>
-                  <span className="text-right text-xs font-black text-slate-800">
-                    {formatCompactNumber(project.members)}
-                  </span>
-                  <span className="text-right text-xs font-bold text-slate-500">
-                    {formatCompactNumber(project.work)}
-                  </span>
-                </button>
-              )) : (
-                <div className="px-3 py-8 text-center text-sm font-medium text-slate-500">
-                  Project membership appears once projects have assigned users.
-                </div>
-              )}
-            </div>
-          )}
-
-          {projectRows.length ? (
-            <div className="border-t border-slate-100 pt-4">
-              <div className="mb-2 flex items-center justify-between gap-3">
-                <p className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">
-                  User Distribution By Project
-                </p>
-                <Button variant="ghost" size="sm" className="h-7 text-xs font-bold text-violet-700" onClick={() => onViewProjects()}>
-                  View all projects
-                  <ArrowRight className="ml-1.5 h-3.5 w-3.5" />
-                </Button>
-              </div>
-              <div className="grid gap-2 sm:grid-cols-2">
-                {projectRows.slice(0, 4).map((project) => (
-                  <button
-                    key={`summary-${project.key}`}
-                    type="button"
-                    onClick={() => onViewProjects(project.projectId)}
-                    className="flex min-w-0 items-center justify-between gap-3 rounded-xl border border-slate-100 bg-white/54 px-3 py-2 text-left transition hover:border-blue-100 hover:bg-white"
-                  >
-                    <span className="min-w-0">
-                      <span className="block truncate text-xs font-bold text-slate-800">{project.name}</span>
-                      <span className="text-[11px] font-medium text-slate-500">{formatCompactNumber(project.work)} tracked work items</span>
-                    </span>
-                    <span className="text-xs font-black text-slate-800">{formatCompactNumber(project.members)}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-          ) : null}
-        </div>
-      ) : (
-        <AnalyticsEmptyState
-          icon={Users2}
-          title="No users yet"
-          description="Invite workspace members to populate this chart."
-        />
-      )}
-    </AnalyticsPanel>
-  );
-};
-
 const AdminQuickActionsCard = ({ actions = [], stats = [] }) => (
   <AnalyticsPanel
     className="h-full"
     title={
       <span className="flex items-center gap-2">
-        <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-violet-50 text-violet-700">
-          <Zap className="h-4.5 w-4.5" />
+        <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-violet-50 text-violet-700">
+          <Zap className="h-4 w-4" />
         </span>
         Quick Actions
       </span>
     }
     description="Common actions to manage your workspace efficiently."
   >
-    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+    <div className="grid gap-2 sm:grid-cols-3 xl:grid-cols-6">
       {actions.map((action) => {
         const Icon = action.icon;
 
@@ -1340,13 +1121,13 @@ const AdminQuickActionsCard = ({ actions = [], stats = [] }) => (
             key={action.key}
             type="button"
             onClick={action.onClick}
-            className="group flex min-h-[86px] items-center gap-4 rounded-2xl border border-slate-200/70 bg-white/58 px-4 py-3 text-left shadow-[0_14px_34px_-30px_rgba(15,23,42,0.38)] transition-all hover:-translate-y-0.5 hover:border-blue-200 hover:bg-white/92 hover:shadow-[0_18px_44px_-34px_rgba(37,99,235,0.46)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/45 dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10"
+            className="group flex min-h-[62px] items-center gap-2.5 rounded-xl border border-slate-200/70 bg-white/60 px-3 py-2 text-left shadow-[0_12px_28px_-28px_rgba(15,23,42,0.42)] transition-all hover:-translate-y-0.5 hover:border-blue-200 hover:bg-white/92 hover:shadow-[0_16px_34px_-30px_rgba(37,99,235,0.42)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/45 dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10"
           >
-            <span className={cn("flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl transition group-hover:scale-[1.03]", action.className)}>
-              <Icon className="h-5 w-5" />
+            <span className={cn("flex h-9 w-9 shrink-0 items-center justify-center rounded-lg transition group-hover:scale-[1.03]", action.className)}>
+              <Icon className="h-4.5 w-4.5" />
             </span>
             <span className={cn(
-              "truncate text-sm font-bold text-slate-900 dark:text-slate-100",
+              "truncate text-xs font-bold text-slate-900 dark:text-slate-100",
               action.labelClassName
             )}>
               {action.title}
@@ -1355,7 +1136,7 @@ const AdminQuickActionsCard = ({ actions = [], stats = [] }) => (
         );
       })}
     </div>
-    <div className="mt-5 grid grid-cols-1 gap-4 border-t border-slate-200/70 pt-5 sm:grid-cols-2 dark:border-white/10">
+    <div className="mt-3 grid grid-cols-1 gap-2 border-t border-slate-200/70 pt-3 sm:grid-cols-2 dark:border-white/10">
       {stats.map((stat) => {
         const Icon = stat.icon;
 
@@ -1364,17 +1145,17 @@ const AdminQuickActionsCard = ({ actions = [], stats = [] }) => (
             key={stat.key}
             type="button"
             onClick={stat.onClick}
-            className="group flex min-w-0 items-center justify-between gap-4 rounded-2xl border border-slate-200/70 bg-white/58 px-4 py-4 text-left shadow-[0_14px_34px_-30px_rgba(15,23,42,0.38)] transition hover:-translate-y-0.5 hover:border-violet-200 hover:bg-white/90 dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10"
+            className="group flex min-w-0 items-center justify-between gap-3 rounded-xl border border-slate-200/70 bg-white/58 px-3 py-2.5 text-left shadow-[0_12px_28px_-28px_rgba(15,23,42,0.38)] transition hover:-translate-y-0.5 hover:border-violet-200 hover:bg-white/90 dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10"
           >
             <span className="flex min-w-0 items-center gap-3">
-              <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-blue-50 text-blue-700">
-                <Icon className={cn("h-5 w-5", stat.iconClassName)} />
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-blue-50 text-blue-700">
+                <Icon className={cn("h-4.5 w-4.5", stat.iconClassName)} />
               </span>
               <span className="min-w-0">
                 <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-500">
                   {stat.title}
                 </span>
-                <span className="block text-2xl font-black leading-tight text-slate-950 dark:text-slate-100">
+                <span className="block text-xl font-black leading-tight text-slate-950 dark:text-slate-100">
                   {stat.value}
                 </span>
                 {stat.helper ? (
@@ -1622,35 +1403,39 @@ const AdminGreetingCard = ({
       initial={reduceMotion ? false : { opacity: 0, y: 14, scale: 0.99 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
       transition={{ duration: 0.42, ease: [0.22, 1, 0.36, 1] }}
-      className="relative isolate overflow-hidden rounded-[28px] border border-blue-100/80 bg-white/86 px-5 py-4 shadow-[0_24px_65px_-44px_rgba(37,99,235,0.58)] backdrop-blur-xl sm:px-6"
+      className="relative isolate overflow-hidden rounded-2xl border border-blue-100/80 bg-white/86 px-4 py-3 shadow-[0_18px_50px_-38px_rgba(37,99,235,0.58)] backdrop-blur-xl sm:px-5"
     >
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_8%_0%,rgba(99,102,241,0.13),transparent_32%),radial-gradient(circle_at_92%_0%,rgba(14,165,233,0.12),transparent_34%),linear-gradient(135deg,rgba(255,255,255,0.92),rgba(248,250,252,0.76))]" />
 
-      <div className="relative flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
+      <div className="relative flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
         <div className="flex min-w-0 items-center gap-4">
-          <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-600 to-blue-600 text-white shadow-[0_18px_34px_-18px_rgba(79,70,229,0.9)]">
-            <Sparkles className="h-7 w-7" />
-          </div>
-          <div className="hidden h-14 w-px bg-slate-200/80 sm:block" />
+          <UserAvatar
+            user={user}
+            name={user?.name || roleLabel}
+            className="h-12 w-12 shrink-0 border-2 border-white shadow-[0_14px_28px_-18px_rgba(15,23,42,0.48)]"
+            imageClassName="object-cover"
+            fallbackClassName="text-sm font-black"
+          />
+          <div className="hidden h-10 w-px bg-slate-200/80 sm:block" />
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
-              <h1 className="truncate text-2xl font-black tracking-tight text-slate-950 sm:text-3xl">
+              <h1 className="truncate text-xl font-black tracking-tight text-slate-950 sm:text-2xl">
                 {greeting},{" "}
                 <span className="bg-gradient-to-r from-violet-700 to-blue-600 bg-clip-text text-transparent">
                   {firstName || roleLabel}
                 </span>
               </h1>
-              <span className="rounded-full border border-violet-100 bg-white/70 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-violet-700">
+              <span className="rounded-full border border-violet-100 bg-white/70 px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.14em] text-violet-700">
                 {roleLabel}
               </span>
             </div>
-            <p className="mt-1 text-sm font-semibold text-slate-600 sm:text-base">
+            <p className="mt-0.5 text-xs font-semibold text-slate-600 sm:text-sm">
               Manage your projects, teams and workspace from one place.
             </p>
           </div>
         </div>
 
-        <div className="flex flex-col gap-3 lg:flex-row lg:flex-wrap lg:items-center xl:justify-end">
+        <div className="flex flex-col gap-2 lg:flex-row lg:flex-wrap lg:items-center xl:justify-end">
           <div className="grid gap-2 sm:grid-cols-3">
             {statCards.map((stat) => {
               const Icon = stat.icon;
@@ -1658,16 +1443,16 @@ const AdminGreetingCard = ({
               return (
                 <div
                   key={stat.key}
-                  className="flex min-w-[148px] items-center gap-3 rounded-2xl border border-slate-200/75 bg-white/70 px-3.5 py-2.5 shadow-[0_14px_34px_-30px_rgba(15,23,42,0.42)] backdrop-blur-sm"
+                  className="flex min-w-[126px] items-center gap-2.5 rounded-xl border border-slate-200/75 bg-white/70 px-3 py-2 shadow-[0_12px_28px_-26px_rgba(15,23,42,0.42)] backdrop-blur-sm"
                 >
-                  <span className={cn("flex h-10 w-10 shrink-0 items-center justify-center rounded-xl", stat.className)}>
-                    <Icon className="h-5 w-5" />
+                  <span className={cn("flex h-8 w-8 shrink-0 items-center justify-center rounded-lg", stat.className)}>
+                    <Icon className="h-4 w-4" />
                   </span>
                   <span>
-                    <span className="block text-xl font-black leading-none text-slate-950">
+                    <span className="block text-lg font-black leading-none text-slate-950">
                       {formatCompactNumber(stat.value)}
                     </span>
-                    <span className="mt-1 block text-xs font-bold text-slate-500">
+                    <span className="mt-0.5 block text-[11px] font-bold text-slate-500">
                       {stat.label}
                     </span>
                   </span>
@@ -1678,15 +1463,15 @@ const AdminGreetingCard = ({
 
           <div className="flex flex-col gap-2 sm:flex-row">
           <Button
-            className="h-12 rounded-xl bg-gradient-to-r from-violet-700 to-blue-600 px-5 text-sm font-bold text-white shadow-[0_18px_34px_-20px_rgba(79,70,229,0.88)] hover:from-violet-600 hover:to-blue-500"
+            className="h-10 rounded-xl bg-gradient-to-r from-violet-700 to-blue-600 px-4 text-xs font-bold text-white shadow-[0_16px_30px_-20px_rgba(79,70,229,0.88)] hover:from-violet-600 hover:to-blue-500"
             onClick={onCreateProject}
             type="button"
           >
-            <Plus className="h-4.5 w-4.5" />
+            <Plus className="h-4 w-4" />
             Create Project
           </Button>
             <Button
-              className="h-12 rounded-xl border-slate-200 bg-white/78 px-5 text-sm font-bold text-slate-900 shadow-[0_16px_34px_-26px_rgba(15,23,42,0.42)] hover:bg-white"
+              className="h-10 rounded-xl border-slate-200 bg-white/78 px-4 text-xs font-bold text-slate-900 shadow-[0_14px_28px_-24px_rgba(15,23,42,0.42)] hover:bg-white"
               onClick={onManageUsers}
               type="button"
               variant="outline"
@@ -1737,8 +1522,6 @@ const DashboardPage = () => {
   });
   const {
     data: usersData = [],
-    isLoading: isUsersLoading,
-    error: usersError,
   } = useQuery({
     queryKey: ["managed-users", "admin-dashboard-overview"],
     queryFn: fetchManagedUsers,
@@ -1963,60 +1746,6 @@ const DashboardPage = () => {
       .sort((left, right) => right.total - left.total)
       .slice(0, 6);
   }, [bugs]);
-  const userProjectDistributionRows = useMemo(() => {
-    const workByProject = new Map();
-
-    [...issues, ...bugs].forEach((item) => {
-      const projectId = resolveIssueProjectId(item);
-
-      if (!projectId) {
-        return;
-      }
-
-      workByProject.set(projectId, (workByProject.get(projectId) || 0) + 1);
-    });
-
-    return allProjects
-      .map((project) => {
-        const projectId = String(project?._id || project?.id || "");
-        const memberKeys = new Set();
-        const addMember = (member) => {
-          const key = String(member?._id || member?.id || member?.userId || member?.email || member || "").trim();
-
-          if (key) {
-            memberKeys.add(key);
-          }
-        };
-
-        (project?.members || []).forEach(addMember);
-        (project?.projectMembers || []).forEach(addMember);
-        addMember(project?.projectManager || project?.manager);
-        addMember(project?.teamLead);
-        (project?.teams || project?.assignedTeams || []).forEach((team) => {
-          (team?.members || []).forEach(addMember);
-        });
-
-        const memberCount =
-          memberKeys.size ||
-          project?.memberCount ||
-          project?.members?.length ||
-          project?.projectMembers?.length ||
-          0;
-        const name = project?.name || "Untitled project";
-
-        return {
-          key: projectId || name,
-          projectId,
-          name,
-          initials: getInitials(name).slice(0, 3),
-          members: memberCount,
-          work: workByProject.get(projectId) || 0,
-        };
-      })
-      .filter((project) => project.members || project.work)
-      .sort((left, right) => right.members - left.members || right.work - left.work || left.name.localeCompare(right.name))
-      .slice(0, 6);
-  }, [allProjects, bugs, issues]);
   const bugContributionBugs = useMemo(() => {
     if (bugContributionProjectId === "all") {
       return bugs;
@@ -2133,19 +1862,6 @@ const DashboardPage = () => {
       .sort((left, right) => right.open - left.open || right.total - left.total)
       .slice(0, 6);
   }, [taskIssues]);
-  const userDistributionRows = useMemo(() => {
-    const total = users.length;
-
-    return USER_ROLE_DISTRIBUTION_META.map((item) => {
-      const count = users.filter((user) => user.role === item.key).length;
-
-      return {
-        ...item,
-        count,
-        percentage: total ? Math.round((count / total) * 100) : 0,
-      };
-    });
-  }, [users]);
   const adminQuickActions = [
     {
       key: "create-project",
@@ -2263,20 +1979,7 @@ const DashboardPage = () => {
         onManageUsers={() => navigate("/settings/users")}
       />
 
-      <section className="grid gap-5 xl:grid-cols-2">
-        <UserDistributionCard
-          rows={userDistributionRows}
-          total={users.length}
-          isLoading={isUsersLoading}
-          hasError={Boolean(usersError)}
-          projectRows={userProjectDistributionRows}
-          onManageUsers={(role) =>
-            navigate(role ? `/settings/users?role=${encodeURIComponent(role)}` : "/settings/users")
-          }
-          onViewProjects={(projectId) =>
-            navigate(projectId ? `/projects?project=${encodeURIComponent(projectId)}` : "/projects")
-          }
-        />
+      <section>
         <AdminQuickActionsCard actions={adminQuickActions} stats={adminQuickStats} />
       </section>
 
