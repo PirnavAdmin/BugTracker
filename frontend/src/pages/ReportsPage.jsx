@@ -49,7 +49,7 @@ import {
 import { AnimatePresence, motion } from "framer-motion";
 import useAnalytics, { useDeveloperDashboard } from "@/hooks/use-analytics";
 import { useAuth } from "@/hooks/use-auth";
-import { fetchEpics, fetchProjects, fetchSprints } from "@/lib/api";
+import { fetchEpics, fetchIssues, fetchProjects, fetchSprints } from "@/lib/api";
 import {
   BUG_STATUS_OPTIONS,
   BUG_SEVERITY_OPTIONS,
@@ -201,6 +201,15 @@ const resolveUserLabel = (user, fallback = "Unassigned") =>
 const resolveBugTester = (issue) =>
   resolveBugDetails(issue)?.testerOwner || issue?.testerOwner || issue?.reporter || null;
 const resolveBugTesterId = (issue) => resolveUserId(resolveBugTester(issue));
+const getBugReporterId = (issue) => resolveUserId(issue?.reporter);
+const bugBelongsToTester = (issue, testerId) => {
+  const id = String(testerId || "");
+
+  return Boolean(id) && [getBugReporterId(issue), resolveBugTesterId(issue)]
+    .filter(Boolean)
+    .map(String)
+    .includes(id);
+};
 const resolveBugTesterLabel = (issue, fallback = "Unassigned") =>
   resolveUserLabel(resolveBugTester(issue), issue?.testerOwnerName || issue?.reporterName || fallback);
 const resolveStoryCreator = (issue, fallback = "Unassigned") => {
@@ -1125,10 +1134,28 @@ const QaAnalyticsDashboard = ({ user }) => {
     queryFn: fetchProjects,
     staleTime: 60_000,
   });
+  const {
+    data: reportedBugBoardIssues = [],
+    isLoading: reportedBugsLoading,
+    error: reportedBugsError,
+    refetch: refetchReportedBugs,
+  } = useQuery({
+    queryKey: ["issues", "tester-bugs", "analytics", currentUserId],
+    queryFn: () => fetchIssues({ type: ISSUE_TYPES.BUG }),
+    enabled: Boolean(currentUserId),
+    staleTime: 30_000,
+  });
 
   const projectOptions = useMemo(() => projects.filter((project) => {
     if (isQaLead) return true;
-    return getProjectMembers(project).some((member) => String(resolveUserId(member)) === currentUserId);
+    const projectMemberMatch = getProjectMembers(project).some(
+      (member) => String(resolveUserId(member)) === currentUserId
+    );
+    const teamMemberMatch = getProjectTeams(project).some((team) =>
+      (team?.members || []).some((member) => String(resolveUserId(member)) === currentUserId)
+    );
+
+    return projectMemberMatch || teamMemberMatch;
   }), [currentUserId, isQaLead, projects]);
   const testerOptions = useMemo(() => {
     const rows = new Map();
@@ -1147,14 +1174,33 @@ const QaAnalyticsDashboard = ({ user }) => {
     [projectOptions]
   );
 
-  const scopedProjectIds = useMemo(
-    () => new Set(projectOptions.filter((project) =>
-      (filters.projectId === "all" || String(project._id) === String(filters.projectId)) &&
-      (filters.environment === "all" || String(project.environment || project.qaEnvironment || "") === filters.environment)
-    ).map((project) => String(project._id))),
-    [filters.environment, filters.projectId, projectOptions]
+  const getScopedProjectId = (issue) => String(issue.project?._id || issue.project || issue.projectId?._id || issue.projectId || "");
+  const selectedTesterId = isQaLead ? filters.testerId : currentUserId;
+  const bugBoardProjectIds = useMemo(
+    () =>
+      asArray(reportedBugBoardIssues)
+        .filter((issue) => !isDeletedIssue(issue))
+        .filter((issue) => {
+          if (isQaLead && selectedTesterId === "all") {
+            return true;
+          }
+
+          return bugBelongsToTester(issue, selectedTesterId);
+        })
+        .map((issue) => getScopedProjectId(issue))
+        .filter(Boolean),
+    [isQaLead, reportedBugBoardIssues, selectedTesterId]
   );
-  const selectedTesterId = isQaLead ? filters.testerId : "all";
+  const scopedProjectIds = useMemo(
+    () => new Set([
+      ...projectOptions.filter((project) =>
+        (filters.projectId === "all" || String(project._id) === String(filters.projectId)) &&
+        (filters.environment === "all" || String(project.environment || project.qaEnvironment || "") === filters.environment)
+      ).map((project) => String(project._id)),
+      ...(filters.projectId === "all" && filters.environment === "all" ? bugBoardProjectIds : []),
+    ]),
+    [bugBoardProjectIds, filters.environment, filters.projectId, projectOptions]
+  );
   const analyticsBaseFilters = {
     dateFrom: dateRangeStart,
     dateTo: "",
@@ -1177,10 +1223,33 @@ const QaAnalyticsDashboard = ({ user }) => {
   const taskAnalytics = useAnalytics(taskAnalyticsFilters, { includeIssues: true, enabled: Boolean(currentUserId) });
   const bugAnalytics = useAnalytics(bugAnalyticsFilters, { includeIssues: true, enabled: Boolean(currentUserId) });
   const rawTasks = asArray(taskAnalytics.issues?.issues).filter((issue) => !isDeletedIssue(issue));
-  const rawBugs = asArray(bugAnalytics.issues?.issues).filter((issue) => !isDeletedIssue(issue));
-  const getScopedProjectId = (issue) => String(issue.project?._id || issue.project || issue.projectId?._id || issue.projectId || "");
+  const rawAnalyticsBugs = asArray(bugAnalytics.issues?.issues).filter((issue) => !isDeletedIssue(issue));
+  const reportedBoardBugs = asArray(reportedBugBoardIssues)
+    .filter((issue) => !isDeletedIssue(issue))
+    .filter((issue) => {
+      if (isQaLead && selectedTesterId === "all") {
+        return true;
+      }
+
+      return bugBelongsToTester(issue, selectedTesterId);
+    });
+  const rawBugs = reportedBoardBugs.length ? reportedBoardBugs : rawAnalyticsBugs;
   const tasks = rawTasks.filter((issue) => scopedProjectIds.has(getScopedProjectId(issue)));
-  const bugs = rawBugs.filter((issue) => scopedProjectIds.has(getScopedProjectId(issue)));
+  const bugs = rawBugs.filter((issue) => {
+    if (!scopedProjectIds.has(getScopedProjectId(issue))) {
+      return false;
+    }
+
+    if (filters.status !== "all" && getNormalizedBugStatus(issue) !== filters.status) {
+      return false;
+    }
+
+    if (filters.severity !== "all" && getBugSeverityValue(issue) !== filters.severity) {
+      return false;
+    }
+
+    return true;
+  });
   const completedTests = tasks.filter(isClosed);
   const pendingQaBugs = bugs.filter(isReadyForQa);
   const bugsVerified = bugs.filter((bug) => isClosed(bug) && !isRejectedOrInvalid(bug));
@@ -1281,15 +1350,15 @@ const QaAnalyticsDashboard = ({ user }) => {
     ...buildRows.map((row) => ({ id: `build-${row.id}`, title: `${row.pushedBy} pushed build ${row.commit}`, meta: `${row.project.name} · ${row.branch}`, time: row.pushedAt })),
     ...bugs.slice(0, 30).map((bug) => ({ id: bug._id, title: `${getIssueDisplayKey(bug)} ${isClosed(bug) ? "verified" : isReopened(bug) ? "reopened" : "reported"}`, meta: bug.project?.name || "Unknown project", time: bug.updatedAt || bug.createdAt })),
   ].sort((left, right) => new Date(right.time || 0) - new Date(left.time || 0)).slice(0, 8);
-  const error = projectsError || taskAnalytics.error || bugAnalytics.error;
-  const isLoading = projectsLoading || taskAnalytics.isLoading || bugAnalytics.isLoading;
+  const error = projectsError || reportedBugsError || taskAnalytics.error || bugAnalytics.error;
+  const isLoading = projectsLoading || reportedBugsLoading || taskAnalytics.isLoading || bugAnalytics.isLoading;
 
   if (error) {
     return (
       <Card className="border-slate-200 bg-white">
         <CardContent className="flex items-center justify-between gap-3 p-5 text-sm text-rose-700">
           <span>Unable to load QA analytics</span>
-          <Button size="sm" variant="outline" onClick={() => { refetchProjects(); taskAnalytics.results.issues?.refetch?.(); bugAnalytics.results.issues?.refetch?.(); }}>Retry</Button>
+          <Button size="sm" variant="outline" onClick={() => { refetchProjects(); refetchReportedBugs(); taskAnalytics.results.issues?.refetch?.(); bugAnalytics.results.issues?.refetch?.(); }}>Retry</Button>
         </CardContent>
       </Card>
     );
