@@ -19,6 +19,7 @@ import {
 import { useAuth } from "@/hooks/use-auth";
 import {
   ISSUE_TYPES,
+  isIssueOverdue,
 } from "@/lib/issues";
 import {
   canDeleteIssues,
@@ -71,6 +72,10 @@ const TasksPage = () => {
 
     return Object.values(TASK_BOARD_STATUS).includes(value) ? value : "all";
   }, [searchParams]);
+  const taskFilter = useMemo(
+    () => String(searchParams.get("filter") || "all").trim().toLowerCase(),
+    [searchParams]
+  );
 
   const {
     data: projects = [],
@@ -161,11 +166,19 @@ const TasksPage = () => {
   };
 
   const visibleTaskIssues = useMemo(
-    () =>
-      statusFilter === "all"
-        ? activeTaskIssues
-        : activeTaskIssues.filter((issue) => getTaskBoardStatus(issue) === statusFilter),
-    [activeTaskIssues, statusFilter]
+    () => {
+      const statusFiltered =
+        statusFilter === "all"
+          ? activeTaskIssues
+          : activeTaskIssues.filter((issue) => getTaskBoardStatus(issue) === statusFilter);
+
+      if (taskFilter === "overdue") {
+        return statusFiltered.filter((issue) => isIssueOverdue(issue));
+      }
+
+      return statusFiltered;
+    },
+    [activeTaskIssues, statusFilter, taskFilter]
   );
   const isTaskStatusOnlyPayload = (payload = {}) => {
     const keys = Object.keys(payload || {});

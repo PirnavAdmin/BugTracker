@@ -6,6 +6,7 @@ import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
 import {
   Activity,
   AlertTriangle,
+  ArrowRight,
   ArrowUpRight,
   BarChart3,
   Bug,
@@ -13,7 +14,6 @@ import {
   FolderKanban,
   Layers3,
   RefreshCcw,
-  Rocket,
   Settings,
   ShieldCheck,
   Sparkles,
@@ -28,11 +28,9 @@ import {
   ANALYTICS_PANEL_CLASS,
   ANALYTICS_SUBPANEL_CLASS,
   AnalyticsEmptyState,
-  AnalyticsKpiCard,
   AnalyticsPanel,
   AnalyticsSkeletonGrid,
   formatCompactNumber,
-  formatDuration,
 } from "@/components/analytics/analytics-ui";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -175,7 +173,7 @@ const TASK_STATUS_META = [
     helper: "Ready for pickup",
     className: "bg-slate-400",
     icon: Layers3,
-    routeParams: { status: ISSUE_STATUS.TODO, type: ISSUE_TYPES.TASK },
+    routeParams: { status: TASK_BOARD_STATUS.OPEN },
     tone: "blue",
   },
   {
@@ -184,7 +182,7 @@ const TASK_STATUS_META = [
     helper: "Active task work",
     className: "bg-blue-500",
     icon: TimerReset,
-    routeParams: { status: ISSUE_STATUS.IN_PROGRESS, type: ISSUE_TYPES.TASK },
+    routeParams: { status: TASK_BOARD_STATUS.IN_PROGRESS },
     tone: "amber",
   },
   {
@@ -193,7 +191,7 @@ const TASK_STATUS_META = [
     helper: "Completed tasks",
     className: "bg-emerald-500",
     icon: CheckCircle2,
-    routeParams: { statusGroup: "closed", type: ISSUE_TYPES.TASK },
+    routeParams: { status: TASK_BOARD_STATUS.DONE },
     tone: "emerald",
   },
 ];
@@ -334,13 +332,6 @@ const BUG_CONTRIBUTION_COLORS = [
   "#06B6D4",
 ];
 
-const TASK_STATUS_DISTRIBUTION_COLORS = {
-  [TASK_BOARD_STATUS.OPEN]: "#94A3B8",
-  [ISSUE_STATUS.IN_PROGRESS]: "#3B82F6",
-  [ISSUE_STATUS.DONE]: "#10B981",
-  overdue: "#F97316",
-};
-
 const BUG_RESOLVED_STATUSES = [
   ISSUE_STATUS.FIXED,
   ISSUE_STATUS.QA,
@@ -357,6 +348,15 @@ const getBugProjectName = (bug) => bug?.projectId?.name || "Unknown project";
 const getBugAssignee = (bug) =>
   resolveBugDetails(bug)?.developerLead || bug?.assignee || bug?.assignedDeveloperId || null;
 const getBugSeverity = (bug) => resolveBugDetails(bug)?.severity || "";
+const getBugSeverityRank = (bug) => {
+  const severity = String(getBugSeverity(bug) || bug?.priority || "Medium").toLowerCase();
+
+  if (["critical", "blocker", "urgent"].includes(severity)) return 0;
+  if (["high", "major"].includes(severity)) return 1;
+  if (severity === "medium") return 2;
+  if (severity === "low") return 3;
+  return 4;
+};
 const isCriticalBug = (bug) => getCriticalIssues([bug]).length > 0;
 const isOpenBug = (bug) => !BUG_CLOSED_STATUSES.includes(normalizeBugStatusForIssue(bug));
 const isClosedBug = (bug) =>
@@ -863,118 +863,136 @@ const TeamTaskWorkloadCard = ({ row, onOpen }) => {
   );
 };
 
+const TASK_HEALTH_ROW_THEME = {
+  [TASK_BOARD_STATUS.OPEN]: {
+    iconClassName: "border-slate-200 bg-slate-50 text-slate-600",
+    bar: "from-slate-400 to-slate-500",
+  },
+  [ISSUE_STATUS.IN_PROGRESS]: {
+    iconClassName: "border-blue-200 bg-blue-50 text-blue-600",
+    bar: "from-blue-500 to-cyan-400",
+  },
+  [ISSUE_STATUS.DONE]: {
+    iconClassName: "border-emerald-200 bg-emerald-50 text-emerald-600",
+    bar: "from-emerald-500 to-teal-400",
+  },
+  overdue: {
+    iconClassName: "border-rose-200 bg-rose-50 text-rose-600",
+    bar: "from-rose-500 to-orange-400",
+  },
+};
+
+const TaskHealthRow = ({ row, total, onOpen, shouldReduceMotion }) => {
+  const Icon = row.icon;
+  const percentage = total ? Math.round((row.count / total) * 100) : 0;
+  const visualPercentage = row.count ? Math.max(8, Math.min(100, percentage)) : 0;
+  const theme = TASK_HEALTH_ROW_THEME[row.key] || TASK_HEALTH_ROW_THEME[TASK_BOARD_STATUS.OPEN];
+
+  return (
+    <motion.button
+      type="button"
+      onClick={() => onOpen(row.routeParams)}
+      className="group w-full rounded-2xl border border-white/70 bg-white/58 px-4 py-3 text-left shadow-[0_14px_34px_-32px_rgba(15,23,42,0.38)] outline-none backdrop-blur-sm transition-colors duration-200 hover:border-blue-200/80 hover:bg-white/86 hover:shadow-[0_18px_44px_-34px_rgba(37,99,235,0.48)] focus-visible:ring-2 focus-visible:ring-blue-500/55 focus-visible:ring-offset-2 focus-visible:ring-offset-white"
+      whileHover={shouldReduceMotion ? undefined : { y: -2 }}
+      transition={{ duration: 0.18, ease: "easeOut" }}
+    >
+      <div className="flex items-center gap-3">
+        <span className={cn("flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border", theme.iconClassName)}>
+          <Icon className="h-4.5 w-4.5" />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="flex items-center justify-between gap-3">
+            <span className="truncate text-sm font-bold text-slate-950 dark:text-slate-100">
+              {row.label}
+            </span>
+            <span className="flex shrink-0 items-center gap-3">
+              <span className="text-sm font-black text-slate-950 dark:text-slate-100">
+                {formatCompactNumber(row.count)}
+              </span>
+              <span className="w-10 text-right text-xs font-bold text-slate-500">
+                {percentage}%
+              </span>
+              <ArrowRight className="h-3.5 w-3.5 text-slate-400 opacity-0 transition duration-200 group-hover:translate-x-0.5 group-hover:opacity-100 group-focus-visible:translate-x-0.5 group-focus-visible:opacity-100" />
+            </span>
+          </span>
+          <span className="mt-1 block text-xs font-medium text-slate-500">
+            {row.helper}
+          </span>
+        </span>
+      </div>
+      <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-100/90 shadow-inner">
+        <motion.div
+          className={cn("h-full rounded-full bg-gradient-to-r", theme.bar)}
+          initial={shouldReduceMotion ? false : { width: 0 }}
+          animate={{ width: `${visualPercentage}%` }}
+          transition={{ duration: 0.65, ease: "easeOut" }}
+        />
+      </div>
+    </motion.button>
+  );
+};
+
 const TaskStatusDistributionPanel = ({ rows = [], total = 0, overdue = 0, onOpen }) => {
-  const chartRows = rows
+  const shouldReduceMotion = useReducedMotion();
+  const healthRows = rows
+    .filter((row) =>
+      [TASK_BOARD_STATUS.OPEN, ISSUE_STATUS.IN_PROGRESS, ISSUE_STATUS.DONE].includes(row.key)
+    )
     .map((row) => ({
       ...row,
-      value: row.count,
-      color: TASK_STATUS_DISTRIBUTION_COLORS[row.key] || "#64748B",
+      count: row.count || 0,
     }))
-    .concat(
-      overdue > 0
-        ? [
-            {
-              key: "overdue",
-              label: "Overdue",
-              helper: "Need attention now",
-              count: overdue,
-              value: overdue,
-              color: TASK_STATUS_DISTRIBUTION_COLORS.overdue,
-              routeParams: { type: ISSUE_TYPES.TASK, filter: "overdue" },
-            },
-          ]
-        : []
-    );
-  const totalSignals = chartRows.reduce((sum, row) => sum + row.value, 0);
-  const pieSize = 280;
+    .concat([
+      {
+        key: "overdue",
+        label: "Overdue",
+        helper: "Need attention now",
+        count: overdue || 0,
+        icon: AlertTriangle,
+        routeParams: { filter: "overdue" },
+      },
+    ]);
 
   return (
     <AnalyticsPanel
-      className="h-full"
-      title="Task Status"
-      description="Task workload mix across To Do, In Progress, Done, and overdue tasks."
+      className="h-full overflow-hidden"
+      title="Task Health"
+      description="Current workload and delivery pressure across your team's assigned work."
       action={
         <Badge className="border-white/60 bg-white/72 text-slate-600">
-          {total || 0} total
+          {formatCompactNumber(total || 0)} total tasks
         </Badge>
       }
     >
-      {chartRows.length ? (
-        <div className="grid min-h-[420px] gap-5 lg:grid-cols-[0.92fr_1.08fr] lg:items-center">
-          <div className="flex min-h-[320px] flex-col items-center justify-center">
-            <div className="relative h-[300px] w-full max-w-[320px]">
-              <PieChart width={pieSize} height={pieSize}>
-                <Pie
-                  data={chartRows}
-                  dataKey="value"
-                  nameKey="label"
-                  cx={pieSize / 2}
-                  cy={pieSize / 2}
-                  innerRadius={0}
-                  outerRadius={118}
-                  paddingAngle={2}
-                  stroke="rgba(255,255,255,0.88)"
-                  strokeWidth={2}
-                >
-                  {chartRows.map((entry) => (
-                    <Cell key={entry.key} fill={entry.color} />
-                  ))}
-                </Pie>
-                <Tooltip
-                  formatter={(value, _name, item) => [
-                    `${value} tasks`,
-                    item?.payload?.label || "Tasks",
-                  ]}
-                  contentStyle={{
-                    borderRadius: 18,
-                    border: "1px solid rgba(226,232,240,0.86)",
-                    boxShadow: "0 18px 40px -28px rgba(15,23,42,0.42)",
-                  }}
-                />
-              </PieChart>
-            </div>
-            <p className="mt-2 text-center text-xs font-medium text-slate-500">
-              Task status distribution across active workload.
-            </p>
+      {total || overdue ? (
+        <motion.div
+          className="space-y-3"
+          initial={shouldReduceMotion ? false : { opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.32, ease: "easeOut" }}
+        >
+          {healthRows.map((row) => (
+            <TaskHealthRow
+              key={row.key}
+              row={row}
+              total={total || 0}
+              onOpen={onOpen}
+              shouldReduceMotion={shouldReduceMotion}
+            />
+          ))}
+          <div className="flex justify-end pt-1">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="group h-8 px-2 text-xs font-bold text-blue-700"
+              onClick={() => onOpen()}
+            >
+              View Tasks
+              <ArrowRight className="ml-1.5 h-3.5 w-3.5 transition duration-200 group-hover:translate-x-0.5" />
+            </Button>
           </div>
-
-          <div className="grid gap-4">
-            {chartRows.map((row) => {
-              const percentage = totalSignals ? Math.round((row.value / totalSignals) * 100) : 0;
-
-              return (
-                <button
-                  key={row.key}
-                  type="button"
-                  onClick={() => onOpen(row.routeParams)}
-                  className="grid w-full grid-cols-[minmax(0,1fr)_64px_52px] items-center gap-3 rounded-[24px] border border-white/70 bg-white/58 px-5 py-4 text-left shadow-[0_14px_34px_-30px_rgba(15,23,42,0.34)] backdrop-blur-sm transition hover:bg-white/82"
-                >
-                  <span className="flex min-w-0 items-center gap-3">
-                    <span
-                      className="h-4 w-4 shrink-0 rounded-full"
-                      style={{ backgroundColor: row.color }}
-                    />
-                    <span className="min-w-0">
-                      <span className="block truncate text-[17px] font-semibold text-slate-900">
-                        {row.label}
-                      </span>
-                      <span className="block text-sm text-slate-500">{row.helper}</span>
-                    </span>
-                  </span>
-                  <span className="text-right text-[17px] font-semibold text-slate-800">
-                    {row.count}
-                  </span>
-                  <span className="text-right text-sm font-semibold text-slate-400">
-                    {percentage}%
-                  </span>
-                </button>
-              );
-            })}
-            <p className="px-2 text-xs font-medium text-slate-500">
-              Labels below the chart show To Do, In Progress, Done, and Overdue counts.
-            </p>
-          </div>
-        </div>
+        </motion.div>
       ) : (
         <AnalyticsEmptyState
           icon={Layers3}
@@ -1294,12 +1312,17 @@ const RecentCriticalBugs = ({ bugs, onOpen, onNavigate }) => (
 );
 
 const TriageBoardWidget = ({ bugs, onOpen, onNavigate }) => {
+  const shouldReduceMotion = useReducedMotion();
   const triageBugs = useMemo(() => {
     return bugs.filter(bug => {
       const status = normalizeBugStatusForIssue(bug);
       const developer = resolveBugDetails(bug)?.developerLead || bug?.assignee;
       return [ISSUE_STATUS.NEW, ISSUE_STATUS.TRIAGED, ISSUE_STATUS.OPEN].includes(status) || !developer;
-    }).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    }).sort(
+      (a, b) =>
+        getBugSeverityRank(a) - getBugSeverityRank(b) ||
+        new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
+    );
   }, [bugs]);
 
   const metrics = useMemo(() => {
@@ -1309,10 +1332,37 @@ const TriageBoardWidget = ({ bugs, onOpen, onNavigate }) => {
     return { incoming, unassigned, awaitingReview };
   }, [bugs]);
 
-  const displayBugs = triageBugs.slice(0, 7);
+  const displayBugs = triageBugs.slice(0, 6);
+  const metricCards = [
+    {
+      key: "incoming",
+      label: "Incoming",
+      value: metrics.incoming,
+      helper: "New bugs",
+      className: "border-blue-100 bg-blue-50/55 text-blue-700",
+      valueClassName: "text-blue-950",
+    },
+    {
+      key: "unassigned",
+      label: "Unassigned",
+      value: metrics.unassigned,
+      helper: "Need ownership",
+      className: "border-amber-100 bg-amber-50/55 text-amber-700",
+      valueClassName: "text-amber-950",
+    },
+    {
+      key: "review",
+      label: "Review",
+      value: metrics.awaitingReview,
+      helper: "Being triaged",
+      className: "border-violet-100 bg-violet-50/55 text-violet-700",
+      valueClassName: "text-violet-950",
+    },
+  ];
 
   return (
     <AnalyticsPanel
+      className="h-full"
       title="Triage Board"
       description="Bugs requiring review and assignment."
       action={
@@ -1321,32 +1371,44 @@ const TriageBoardWidget = ({ bugs, onOpen, onNavigate }) => {
         </Button>
       }
     >
-      <div className="grid grid-cols-3 gap-2 mb-3">
-        <div className="rounded-xl bg-blue-50/50 p-2 text-center border border-blue-100/50">
-          <p className="text-[9px] font-bold uppercase tracking-wider text-blue-600">Incoming</p>
-          <p className="text-lg font-bold text-blue-900">{metrics.incoming}</p>
+      <motion.div
+        className="space-y-3"
+        initial={shouldReduceMotion ? false : { opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.32, delay: 0.04, ease: "easeOut" }}
+      >
+        <div className="grid grid-cols-3 gap-2">
+          {metricCards.map((metric) => (
+            <div
+              key={metric.key}
+              className={cn("rounded-2xl border px-3 py-2.5 text-center shadow-[0_12px_30px_-28px_rgba(15,23,42,0.42)]", metric.className)}
+            >
+              <p className="text-[9px] font-black uppercase tracking-[0.16em]">{metric.label}</p>
+              <p className={cn("mt-1 text-2xl font-black leading-none", metric.valueClassName)}>
+                {formatCompactNumber(metric.value)}
+              </p>
+              <p className="mt-1 text-[11px] font-semibold text-slate-500">{metric.helper}</p>
+            </div>
+          ))}
         </div>
-        <div className="rounded-xl bg-amber-50/50 p-2 text-center border border-amber-100/50">
-          <p className="text-[9px] font-bold uppercase tracking-wider text-amber-600">Unassigned</p>
-          <p className="text-lg font-bold text-amber-900">{metrics.unassigned}</p>
-        </div>
-        <div className="rounded-xl bg-violet-50/50 p-2 text-center border border-violet-100/50">
-          <p className="text-[9px] font-bold uppercase tracking-wider text-violet-600">Review</p>
-          <p className="text-lg font-bold text-violet-900">{metrics.awaitingReview}</p>
-        </div>
-      </div>
 
       <div className="space-y-2">
         {displayBugs.length ? displayBugs.map(bug => {
           const severity = getBugSeverity(bug);
-          const severityVariant = severity === "Critical" || severity === "Blocker" ? "danger" : severity === "Major" ? "warning" : "secondary";
+          const severityVariant =
+            ["Critical", "Blocker", "Urgent"].includes(severity)
+              ? "danger"
+              : ["High", "Major"].includes(severity)
+                ? "warning"
+                : "secondary";
           const description = bug.description || bug.title || "No description added.";
+          const status = normalizeBugStatusForIssue(bug);
 
           return (
             <button
               key={bug._id}
               onClick={() => onOpen(bug)}
-              className="grid w-full grid-cols-[86px_minmax(0,1fr)_auto] items-center gap-3 rounded-lg border border-slate-100 bg-white/50 px-3 py-2 text-left transition-colors hover:bg-slate-50"
+              className="group grid w-full grid-cols-[78px_minmax(0,1fr)_auto] items-center gap-3 rounded-2xl border border-slate-100/90 bg-white/56 px-3 py-2.5 text-left shadow-[0_12px_30px_-30px_rgba(15,23,42,0.36)] transition duration-200 hover:-translate-y-0.5 hover:border-blue-100 hover:bg-white/88 hover:shadow-[0_16px_38px_-32px_rgba(37,99,235,0.42)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/50"
             >
               <span className="font-mono text-[11px] font-bold text-slate-500">{getIssueDisplayKey(bug)}</span>
               <span className="min-w-0">
@@ -1357,9 +1419,14 @@ const TriageBoardWidget = ({ bugs, onOpen, onNavigate }) => {
                   {description}
                 </span>
               </span>
-              <Badge variant={severityVariant} className="h-5 px-1.5 text-[9px] font-bold uppercase tracking-wider">
-                {severity || "Medium"}
-              </Badge>
+              <span className="flex shrink-0 flex-col items-end gap-1">
+                <Badge variant={severityVariant} className="h-5 px-1.5 text-[9px] font-bold uppercase tracking-wider">
+                  {severity || "Medium"}
+                </Badge>
+                <Badge variant={getIssueStatusVariant(status)} className="h-5 px-1.5 text-[9px] font-bold uppercase tracking-wider">
+                  {getIssueStatusLabel(status)}
+                </Badge>
+              </span>
             </button>
           );
         }) : (
@@ -1371,6 +1438,7 @@ const TriageBoardWidget = ({ bugs, onOpen, onNavigate }) => {
           />
         )}
       </div>
+      </motion.div>
     </AnalyticsPanel>
   );
 };
@@ -1570,7 +1638,6 @@ const DashboardPage = () => {
   };
   console.log("Dashboard Open Count", issueStats.open);
   console.log("Dashboard Closed Count", issueStats.closed);
-  const trends = analytics.overview?.trends || {};
   const projects = analytics.projects?.projects || [];
   const teams = analytics.teams?.teams || [];
   const activity = analytics.recentActivity?.activity || [];
@@ -1631,7 +1698,7 @@ const DashboardPage = () => {
       }
     });
 
-    navigate(`/issues${searchParams.toString() ? `?${searchParams}` : ""}`);
+    navigate(`/tasks${searchParams.toString() ? `?${searchParams}` : ""}`);
   };
   const bugMetrics = useMemo(() => {
     const openBugs = bugs.filter(isOpenBug);
@@ -1953,93 +2020,6 @@ const DashboardPage = () => {
       })),
     [bugMetrics]
   );
-  const taskKpiCards = taskStatusRows.map((item) => ({
-    key: item.key,
-    title: item.label,
-    value: formatCompactNumber(item.count),
-    helper: item.helper,
-    icon: item.icon,
-    tone: item.tone,
-    onClick: () => navigateToTasks(item.routeParams),
-  }));
-  taskKpiCards.push({
-    key: "overdue-tasks",
-    title: "Overdue Tasks",
-    value: formatCompactNumber(overdueTaskCount),
-    helper: "Need attention now",
-    icon: AlertTriangle,
-    tone: "rose",
-    onClick: () => navigateToTasks({ type: ISSUE_TYPES.TASK, filter: "overdue" }),
-  });
-  const kpiCards = [
-    {
-      key: "total",
-      title: "Total Issues",
-      value: formatCompactNumber(issueStats.total),
-      helper: "Tracked work",
-      icon: Layers3,
-      tone: "blue",
-      trend: trends.totalIssues,
-      onClick: () => navigateToIssues(),
-    },
-    {
-      key: "open",
-      title: "Open Issues",
-      value: formatCompactNumber(issueStats.open),
-      helper: "Active workload",
-      icon: AlertTriangle,
-      tone: "amber",
-      trend: trends.openIssues,
-      onClick: () => navigateToIssues({ filter: "open" }),
-    },
-    {
-      key: "closed",
-      title: "Closed Issues",
-      value: formatCompactNumber(issueStats.closed),
-      helper: "Resolved work",
-      icon: CheckCircle2,
-      tone: "emerald",
-      trend: trends.closedIssues,
-      onClick: () => navigateToIssues({ filter: "closed" }),
-    },
-    {
-      key: "priority",
-      title: "High Priority",
-      value: formatCompactNumber(issueStats.highPriority),
-      helper: "High / critical / urgent",
-      icon: ShieldCheck,
-      tone: "rose",
-      trend: trends.highPriorityIssues,
-      onClick: () => navigateToIssues({ priorityGroup: "high" }),
-    },
-    {
-      key: "teams",
-      title: "Active Teams",
-      value: formatCompactNumber(summary.activeTeams),
-      helper: "Teams with workload",
-      icon: Users2,
-      tone: "cyan",
-      trend: {
-        direction: "flat",
-        label: `${teams.length} in reports`,
-      },
-      onClick: () => navigate("/projects?tab=teams"),
-    },
-    {
-      key: "rate",
-      title: "Resolution Rate",
-      value: `${summary.resolutionRate || 0}%`,
-      helper: "Closed / total",
-      icon: Rocket,
-      tone: "violet",
-      trend: {
-        direction: "flat",
-        label: `${formatDuration(summary.avgResolutionTimeMs)} avg`,
-      },
-      onClick: () => navigate("/reports"),
-    },
-  ];
-
   if (analytics.isLoading || isIssuesLoading || isProjectsCountLoading || isTeamsCountLoading) {
     return <DashboardLoading />;
   }
@@ -2084,20 +2064,6 @@ const DashboardPage = () => {
         <AdminQuickActionsCard actions={adminQuickActions} stats={adminQuickStats} />
       </section>
 
-      <section className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
-        {taskKpiCards.map((card) => (
-          <AnalyticsKpiCard
-            key={card.key}
-            title={card.title}
-            value={card.value}
-            icon={card.icon}
-            tone={card.tone}
-            helper={card.helper}
-            onClick={card.onClick}
-          />
-        ))}
-      </section>
-
       <section className="space-y-4">
         {bugsError ? (
           <Card className={ANALYTICS_PANEL_CLASS}>
@@ -2112,7 +2078,7 @@ const DashboardPage = () => {
             <div className="grid gap-5 lg:grid-cols-2">
               <TaskStatusDistributionPanel
                 rows={taskStatusRows}
-                total={issueStats.total}
+                total={taskIssues.length}
                 overdue={overdueTaskCount}
                 onOpen={navigateToTasks}
               />
