@@ -2065,7 +2065,11 @@ const DashboardPage = () => {
         onViewReports={() => navigate("/reports")}
       />
 
-      <ProjectOverviewDashboardPanel issues={[...issues, ...bugs]} projects={allProjects} />
+      <ProjectOverviewDashboardPanel
+        issues={[...issues, ...bugs]}
+        onViewGitActivity={() => navigate("/projects")}
+        projects={allProjects}
+      />
 
       <section className="grid gap-5 xl:grid-cols-[1fr_0.95fr]">
         <UserDistributionCard

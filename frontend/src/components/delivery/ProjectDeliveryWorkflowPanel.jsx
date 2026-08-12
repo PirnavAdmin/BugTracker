@@ -529,66 +529,238 @@ export const ProjectTestSetupSummary = ({ onOpenSetup, project }) => {
   );
 };
 
-export const ProjectOverviewDashboardPanel = ({ issues = [], projects = [] }) => {
+const isGitConnected = (project = {}) => {
+  const repository = getRepositorySummary(project);
+  const normalizedStatus = String(repository.status || "").toLowerCase();
+
+  return Boolean(repository.url || repository.name || normalizedStatus.includes("connected"));
+};
+
+const getProjectQaStatus = ({ metrics, project }) => {
+  const activity = getLatestGitActivity(project);
+
+  if (!isGitConnected(project)) {
+    return "Git not connected";
+  }
+
+  if (metrics.criticalBugs > 0) {
+    return "Critical attention";
+  }
+
+  if (metrics.failedQa > 0) {
+    return "QA rework";
+  }
+
+  if (metrics.pendingQa > 0) {
+    return "Waiting for QA";
+  }
+
+  if (String(activity.qaStatus || "").toLowerCase().includes("test")) {
+    return "Testing";
+  }
+
+  if (hasRecordedPush(activity)) {
+    return "Active";
+  }
+
+  return "No recent activity";
+};
+
+const getProjectStatusTone = (status = "") => {
+  const normalized = String(status).toLowerCase();
+
+  if (normalized.includes("critical") || normalized.includes("rework") || normalized.includes("fail")) {
+    return "border-rose-200 bg-rose-50 text-rose-700";
+  }
+
+  if (normalized.includes("waiting")) {
+    return "border-amber-200 bg-amber-50 text-amber-700";
+  }
+
+  if (normalized.includes("testing") || normalized.includes("active")) {
+    return "border-blue-200 bg-blue-50 text-blue-700";
+  }
+
+  if (normalized.includes("not connected")) {
+    return "border-slate-200 bg-slate-100 text-slate-600";
+  }
+
+  return "border-emerald-200 bg-emerald-50 text-emerald-700";
+};
+
+export const ProjectOverviewDashboardPanel = ({ issues = [], onViewGitActivity, projects = [] }) => {
   const activeProjects = projects.filter((project) => project.status !== "Completed");
-  const totals = projects.reduce(
-    (summary, project) => {
+  const projectRows = activeProjects
+    .map((project) => {
       const metrics = getProjectDeliveryMetrics({ project, issues });
+      const activity = getLatestGitActivity(project);
+      const repository = getRepositorySummary(project);
+      const modules = activity.modulesChanged.length
+        ? activity.modulesChanged
+        : normalizeDeliveryModules(project);
+      const connected = isGitConnected(project);
+      const status = getProjectQaStatus({ metrics, project });
 
       return {
-        openBugs: summary.openBugs + metrics.openBugs,
-        criticalBugs: summary.criticalBugs + metrics.criticalBugs,
-        completedTasks: summary.completedTasks + metrics.completedTasks,
-        pendingQa: summary.pendingQa + metrics.pendingQa,
-        failedQa: summary.failedQa + metrics.failedQa,
-        readyForRelease: summary.readyForRelease + (metrics.readyForRelease ? 1 : 0),
+        activity,
+        connected,
+        metrics,
+        modules,
+        project,
+        repository,
+        status,
+      };
+    })
+    .sort(
+      (left, right) =>
+        new Date(right.activity.pushedAt || right.project.updatedAt || 0).getTime() -
+        new Date(left.activity.pushedAt || left.project.updatedAt || 0).getTime()
+    );
+  const latestPush = projectRows.find((row) => hasRecordedPush(row.activity)) || null;
+  const todayKey = new Date().toDateString();
+  const totals = projectRows.reduce(
+    (summary, project) => {
+      return {
+        criticalBugs: summary.criticalBugs + project.metrics.criticalBugs,
+        failedQa: summary.failedQa + project.metrics.failedQa,
+        gitConnected: summary.gitConnected + (project.connected ? 1 : 0),
+        openBugs: summary.openBugs + project.metrics.openBugs,
+        pendingQa: summary.pendingQa + project.metrics.pendingQa,
+        pushesToday:
+          summary.pushesToday +
+          (project.activity.pushedAt && new Date(project.activity.pushedAt).toDateString() === todayKey ? 1 : 0),
+        recentActive: summary.recentActive + (hasRecordedPush(project.activity) ? 1 : 0),
+        testing:
+          summary.testing +
+          (String(project.activity.qaStatus || "").toLowerCase().includes("test") ? 1 : 0),
       };
     },
-    { openBugs: 0, criticalBugs: 0, completedTasks: 0, pendingQa: 0, failedQa: 0, readyForRelease: 0 }
+    { criticalBugs: 0, failedQa: 0, gitConnected: 0, openBugs: 0, pendingQa: 0, pushesToday: 0, recentActive: 0, testing: 0 }
   );
 
   return (
     <Card className="rounded-[24px] border-white/70 bg-white/86 shadow-[0_20px_56px_-36px_rgba(15,23,42,0.38)]">
       <CardContent className="p-5">
-        <div className="flex items-center justify-between gap-3">
-          <div>
-            <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-violet-600">Project Overview</p>
-            <h2 className="mt-1 text-lg font-semibold text-slate-950">Delivery Health</h2>
-          </div>
-          <Layers3 className="h-5 w-5 text-violet-500" />
-        </div>
-        <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-          <MetricPill label="Active Projects" value={activeProjects.length} tone="blue" />
-          <MetricPill label="Open Bugs" value={totals.openBugs} tone="amber" />
-          <MetricPill label="Critical Bugs" value={totals.criticalBugs} tone="rose" />
-          <MetricPill label="Completed Tasks" value={totals.completedTasks} tone="emerald" />
-          <MetricPill label="Pending QA" value={totals.pendingQa} tone="blue" />
-          <MetricPill label="Ready Release" value={totals.readyForRelease} tone="emerald" />
-        </div>
-        <div className="mt-4 space-y-2">
-          {projects.slice(0, 4).map((project) => {
-            const metrics = getProjectDeliveryMetrics({ project, issues });
-            const activity = getLatestGitActivity(project);
+        <div className="grid gap-5 xl:grid-cols-2">
+          <section className="rounded-2xl border border-blue-100/80 bg-blue-50/28 p-4">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-blue-600">Git Activity</p>
+                <h2 className="mt-1 text-lg font-semibold text-slate-950">Recent code changes across connected projects.</h2>
+              </div>
+              <GitBranch className="h-5 w-5 text-blue-500" />
+            </div>
 
-            return (
-              <div className="rounded-2xl border border-slate-200/80 bg-slate-50/70 p-3" key={project._id || project.id}>
-                <div className="flex items-center justify-between gap-3">
-                  <span className="min-w-0 truncate text-sm font-semibold text-slate-900">{project.name}</span>
-                  <span className="text-xs font-bold text-slate-500">{activity.qaStatus}</span>
+            <div className="mt-4 grid gap-2 sm:grid-cols-2">
+              <MetricPill label="Git Connected" value={totals.gitConnected} tone="blue" />
+              <MetricPill label="Pushes Today" value={totals.pushesToday} tone="emerald" />
+              <MetricPill label="Waiting for QA" value={totals.pendingQa} tone="amber" />
+              <MetricPill label="Testing" value={totals.testing} tone="blue" />
+            </div>
+
+            {latestPush ? (
+              <div className="mt-4 rounded-2xl border border-white/80 bg-white/88 p-3 shadow-sm">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-slate-500">Latest Push</p>
+                    <p className="mt-1 truncate text-sm font-semibold text-slate-950">{latestPush.project.name}</p>
+                    <p className="mt-1 truncate text-xs font-semibold text-slate-600">
+                      {latestPush.activity.pushedByName} · {latestPush.activity.branch}
+                    </p>
+                  </div>
+                  <Badge className={cn("shrink-0 rounded-full border px-2.5 py-1", getActivityStatusTone(latestPush.activity.qaStatus))} variant="outline">
+                    {getActivityStatusLabel(latestPush.activity.qaStatus)}
+                  </Badge>
                 </div>
-                <div className="mt-2 flex flex-wrap gap-1.5 text-xs">
-                  <span className="rounded-full bg-white px-2 py-1 text-slate-600">{metrics.pendingQa} pending QA</span>
-                  <span className="rounded-full bg-white px-2 py-1 text-slate-600">{metrics.failedQa} failed QA</span>
-                  <span className="rounded-full bg-white px-2 py-1 text-slate-600">{normalizeDeliveryModules(project).length} modules</span>
+                <p className="mt-2 line-clamp-2 text-sm font-medium text-slate-800">
+                  {latestPush.activity.commitMessage}
+                </p>
+                <div className="mt-3 flex flex-wrap gap-1.5 text-xs">
+                  <span className="rounded-full bg-slate-50 px-2 py-1 font-semibold text-slate-600">
+                    {getCommitShortSha(latestPush.activity.commitSha) || "No SHA"}
+                  </span>
+                  <span className="rounded-full bg-slate-50 px-2 py-1 font-semibold text-slate-600">
+                    {getFilesChangedCount(latestPush.activity)} files changed
+                  </span>
+                  {(latestPush.modules.length ? latestPush.modules : ["No modules detected"]).slice(0, 3).map((module) => (
+                    <span className="rounded-full bg-cyan-50 px-2 py-1 font-semibold text-cyan-700" key={module}>
+                      {module}
+                    </span>
+                  ))}
+                  <span className="rounded-full bg-slate-50 px-2 py-1 font-semibold text-slate-600">
+                    {formatActivityTime(latestPush.activity.pushedAt)}
+                  </span>
                 </div>
               </div>
-            );
-          })}
-          {!projects.length && (
-            <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-5 text-center text-sm text-slate-500">
-              Project delivery data appears once projects are created.
+            ) : (
+              <div className="mt-4 rounded-2xl border border-dashed border-blue-200 bg-white/70 p-5 text-center">
+                <GitBranch className="mx-auto h-7 w-7 text-blue-400" />
+                <p className="mt-2 text-sm font-semibold text-slate-900">No recent Git activity</p>
+                <p className="mt-1 text-xs text-slate-500">Git pushes will appear here when connected projects receive code changes.</p>
+              </div>
+            )}
+
+            <Button className="mt-4 h-9 rounded-xl" type="button" variant="outline" onClick={onViewGitActivity}>
+              View Git Activity
+            </Button>
+          </section>
+
+          <section className="rounded-2xl border border-slate-200/80 bg-slate-50/50 p-4">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-violet-600">Project Health</p>
+                <h2 className="mt-1 text-lg font-semibold text-slate-950">Current health of active projects.</h2>
+              </div>
+              <Layers3 className="h-5 w-5 text-violet-500" />
             </div>
-          )}
+
+            <div className="mt-4 grid gap-2 sm:grid-cols-2">
+              <MetricPill label="Active Projects" value={activeProjects.length} tone="blue" />
+              <MetricPill label="Waiting for QA" value={totals.pendingQa} tone="amber" />
+              <MetricPill label="Critical Bugs" value={totals.criticalBugs} tone="rose" />
+              <MetricPill label="QA Rework" value={totals.failedQa} tone="rose" />
+            </div>
+
+            <div className="mt-4 space-y-2">
+              {projectRows.slice(0, 5).map((row) => (
+                <div className="rounded-2xl border border-white/80 bg-white/86 px-3 py-2.5 shadow-sm" key={row.project._id || row.project.id}>
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-semibold text-slate-950">{row.project.name}</p>
+                      <p className={cn("mt-1 text-xs font-semibold", row.connected ? "text-emerald-700" : "text-slate-500")}>
+                        {row.connected ? "Git Connected" : "Git not connected"}
+                      </p>
+                    </div>
+                    <Badge className={cn("shrink-0 rounded-full border px-2.5 py-1", getProjectStatusTone(row.status))} variant="outline">
+                      {row.status}
+                    </Badge>
+                  </div>
+                  <div className="mt-2 flex flex-wrap gap-1.5 text-xs">
+                    {row.metrics.pendingQa ? (
+                      <span className="rounded-full bg-amber-50 px-2 py-1 font-semibold text-amber-700">
+                        {row.metrics.pendingQa} pending QA
+                      </span>
+                    ) : null}
+                    {row.metrics.criticalBugs ? (
+                      <span className="rounded-full bg-rose-50 px-2 py-1 font-semibold text-rose-700">
+                        {row.metrics.criticalBugs} critical
+                      </span>
+                    ) : null}
+                    {hasRecordedPush(row.activity) ? (
+                      <span className="rounded-full bg-blue-50 px-2 py-1 font-semibold text-blue-700">
+                        Recent push {formatActivityClock(row.activity.pushedAt)}
+                      </span>
+                    ) : null}
+                  </div>
+                </div>
+              ))}
+              {!projectRows.length && (
+                <div className="rounded-2xl border border-dashed border-slate-200 bg-white/70 p-5 text-center text-sm text-slate-500">
+                  Project health appears once active projects are created.
+                </div>
+              )}
+            </div>
+          </section>
         </div>
       </CardContent>
     </Card>
