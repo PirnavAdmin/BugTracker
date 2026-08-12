@@ -13,6 +13,7 @@ import {
   ClipboardList,
   Flame,
   FolderKanban,
+  GitBranch,
   ListTodo,
   PauseCircle,
   RefreshCcw,
@@ -68,7 +69,7 @@ import {
 import IssueDetailsDialog from "@/components/issues/IssueDetailsDialog";
 import NotificationCard from "@/components/dashboard/NotificationCard";
 import GreetingBeachScene from "@/components/dashboard/GreetingBeachScene";
-import { LatestGitActivityCard } from "@/components/delivery/ProjectDeliveryWorkflowPanel";
+import { getLatestGitActivity, normalizeDeliveryModules } from "@/lib/delivery-workflow";
 import EmptyState from "@/components/shared/EmptyState";
 import { Button } from "@/components/ui/button";
 import {
@@ -89,7 +90,9 @@ import { Skeleton } from "@/components/ui/skeleton";
 
 const TABS = [
   { id: "tasks", label: "Tasks", Icon: ClipboardList },
-  { id: "bugs", label: "Bugs / Issues", Icon: Bug },
+  { id: "bugs", label: "Bugs", Icon: Bug },
+  { id: "stories", label: "Stories", Icon: FolderKanban },
+  { id: "all", label: "All", Icon: CircleDotDashed },
 ];
 
 const defaultFilters = createIssueListFilters({
@@ -459,6 +462,38 @@ const activityText = (entry) => {
   return "updated";
 };
 
+const getActivitySummary = (entry) => {
+  const issue = entry?.issue;
+  const key = issue ? getIssueDisplayKey(issue) : "";
+  const status = issue ? getStatusLabel(issue) : "";
+
+  if (entry?.eventType === "BUG_STATUS_CHANGED") {
+    return {
+      title: `${entry.actor?.name || "You"} moved ${key || "a bug"} to ${status || "a new status"}`,
+      detail: issue?.title || entry.meta?.title || "Bug status changed",
+    };
+  }
+
+  if (entry?.eventType === "ISSUE_CREATED") {
+    return {
+      title: `${entry.actor?.name || "You"} created ${key || "a work item"}`,
+      detail: issue?.title || entry.meta?.title || "New work item",
+    };
+  }
+
+  if (entry?.eventType === "COMMENT_CREATED") {
+    return {
+      title: `${entry.actor?.name || "You"} commented on ${key || "a work item"}`,
+      detail: issue?.title || entry.meta?.title || "New comment",
+    };
+  }
+
+  return {
+    title: `${entry.actor?.name || "You"} updated ${key || "a work item"}`,
+    detail: issue?.title || entry.meta?.title || "Work item updated",
+  };
+};
+
 
 const SprintProgressWidget = ({ metrics, isLoading }) => {
   const percentage = metrics?.percentage || 0;
@@ -524,6 +559,184 @@ const StatCard = ({ label, value, helper, Icon, className }) => (
       </div>
     </CardContent>
   </Card>
+);
+
+const shortSha = (value) => String(value || "").slice(0, 7) || "-";
+const formatCompactDuration = (value) => {
+  const ms = Number(value) || 0;
+
+  if (ms <= 0) {
+    return "-";
+  }
+
+  const hours = Math.floor(ms / 3600000);
+  const minutes = Math.round((ms % 3600000) / 60000);
+
+  return hours ? `${hours}h ${minutes}m` : `${minutes}m`;
+};
+const getQaHandoffStatus = (issues = []) => {
+  if (issues.some((issue) => [ISSUE_STATUS.REOPEN, ISSUE_STATUS.REJECTED, ISSUE_STATUS.BLOCKED].includes(getDisplayStatus(issue)))) {
+    return "QA Rework";
+  }
+
+  if (issues.some((issue) => [ISSUE_STATUS.READY_FOR_QA, ISSUE_STATUS.QA, ISSUE_STATUS.FIXED, ISSUE_STATUS.TESTING].includes(getDisplayStatus(issue)))) {
+    return "Waiting for QA";
+  }
+
+  if (issues.length && issues.every(isIssueClosed)) {
+    return "QA Passed";
+  }
+
+  return "In Development";
+};
+const getQaStatusTone = (status) => {
+  if (status === "QA Rework") return "border-amber-200 bg-amber-50 text-amber-700";
+  if (status === "QA Passed") return "border-emerald-200 bg-emerald-50 text-emerald-700";
+  if (status === "Waiting for QA") return "border-cyan-200 bg-cyan-50 text-cyan-700";
+  return "border-slate-200 bg-slate-50 text-slate-600";
+};
+
+const DeveloperLatestPushCard = ({ project }) => {
+  const activity = getLatestGitActivity(project);
+  const filesChanged = activity.filesChanged.length || Number(activity.filesChangedCount || 0);
+  const modules = activity.modulesChanged.length
+    ? activity.modulesChanged
+    : normalizeDeliveryModules(project).slice(0, 3);
+  const qaStatus = activity.qaStatus || "Waiting for QA";
+
+  return (
+    <Card className="rounded-2xl border-blue-100/80 bg-white/90 shadow-[0_18px_46px_-36px_rgba(37,99,235,0.45)]">
+      <CardContent className="p-4">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-blue-600">Latest Push</p>
+            <h3 className="mt-1 truncate text-base font-semibold text-slate-950">{activity.projectName}</h3>
+          </div>
+          <Pill className={getQaStatusTone(qaStatus)}>{qaStatus}</Pill>
+        </div>
+        <div className="mt-4 space-y-3">
+          <div>
+            <p className="truncate text-sm font-semibold text-slate-950">{activity.pushedByName}</p>
+            <p className="mt-1 flex items-center gap-1.5 text-sm font-semibold text-slate-600">
+              <GitBranch className="h-3.5 w-3.5 text-blue-500" />
+              {activity.branch} · {shortSha(activity.commitSha)}
+            </p>
+          </div>
+          <div className="rounded-xl bg-blue-50/70 px-3 py-2">
+            <p className="text-xs font-bold uppercase tracking-[0.1em] text-blue-700">Commit Message</p>
+            <p className="mt-1 line-clamp-2 text-sm font-semibold text-slate-950">{activity.commitMessage}</p>
+          </div>
+          <div className="grid gap-2 sm:grid-cols-2">
+            <div className="rounded-xl bg-slate-50 px-3 py-2">
+              <p className="text-[11px] font-bold uppercase tracking-[0.1em] text-slate-500">Files</p>
+              <p className="mt-1 text-sm font-semibold text-slate-950">{filesChanged} changed</p>
+            </div>
+            <div className="rounded-xl bg-slate-50 px-3 py-2">
+              <p className="text-[11px] font-bold uppercase tracking-[0.1em] text-slate-500">Push Time</p>
+              <p className="mt-1 text-sm font-semibold text-slate-950">{activity.pushedAt ? formatDateTime(activity.pushedAt) : "-"}</p>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            {(modules.length ? modules : ["No module changes detected"]).map((module) => (
+              <span className="rounded-full border border-cyan-100 bg-cyan-50 px-2.5 py-1 text-xs font-semibold text-cyan-700" key={module}>
+                {module}
+              </span>
+            ))}
+          </div>
+          <p className="truncate text-xs font-medium text-slate-400">{activity.repository}</p>
+        </div>
+      </CardContent>
+    </Card>
+  );
+};
+
+const QaFeedbackCard = ({ latestProject, issues = [], onViewFeedback }) => {
+  const latestActivity = getLatestGitActivity(latestProject);
+  const projectId = getProjectId(latestProject);
+  const projectIssues = issues.filter((issue) => resolveIssueProjectId(issue) === projectId);
+  const qaReturned = projectIssues.filter((issue) => [ISSUE_STATUS.REOPEN, ISSUE_STATUS.REJECTED, ISSUE_STATUS.BLOCKED].includes(getDisplayStatus(issue)));
+  const qaWaiting = projectIssues.filter((issue) => [ISSUE_STATUS.READY_FOR_QA, ISSUE_STATUS.QA, ISSUE_STATUS.FIXED, ISSUE_STATUS.TESTING].includes(getDisplayStatus(issue)));
+  const qaPassed = projectIssues.filter((issue) => isIssueClosed(issue));
+  const highSeverity = qaReturned.filter(isCriticalIssue).length;
+  const status = qaReturned.length ? "QA Rework" : qaWaiting.length ? "Waiting for QA" : qaPassed.length ? "QA Passed" : "In Development";
+
+  return (
+    <Card className="rounded-2xl border-amber-100/80 bg-white/90 shadow-[0_18px_46px_-36px_rgba(245,158,11,0.38)]">
+      <CardHeader className="border-b border-slate-200/80 pb-3">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <CardTitle className="text-base">QA Feedback</CardTitle>
+            <CardDescription>Latest build result and tester follow-up.</CardDescription>
+          </div>
+          <Pill className={getQaStatusTone(status)}>{status}</Pill>
+        </div>
+      </CardHeader>
+      <CardContent className="grid gap-3 p-4 md:grid-cols-[1fr_auto] md:items-center">
+        <div className="min-w-0">
+          <p className="text-sm font-semibold text-slate-950">
+            Latest build {shortSha(latestActivity.commitSha)} · {latestActivity.branch}
+          </p>
+          <p className="mt-1 text-sm text-slate-600">
+            {qaWaiting.length} waiting for QA · {qaPassed.length} passed · {qaReturned.length} returned
+          </p>
+          <p className="mt-1 text-xs font-semibold text-amber-700">
+            {qaReturned.length ? `${qaReturned.length} issue${qaReturned.length === 1 ? "" : "s"} need rework${highSeverity ? ` · ${highSeverity} high severity` : ""}` : "No QA rework currently blocking this build."}
+          </p>
+        </div>
+        <Button className="h-9 rounded-xl" type="button" variant="outline" onClick={onViewFeedback}>
+          View QA Feedback
+        </Button>
+      </CardContent>
+    </Card>
+  );
+};
+
+const DevelopmentHealthPanel = ({ bugIssues = [], taskIssues = [], projects = [] }) => {
+  const commits = projects.filter((project) => project.latestGitActivity?.commitSha).length;
+  const completedTasks = taskIssues.filter(isIssueClosed).length;
+  const qaReturned = bugIssues.filter((issue) => [ISSUE_STATUS.REOPEN, ISSUE_STATUS.REJECTED, ISSUE_STATUS.BLOCKED].includes(getDisplayStatus(issue))).length;
+  const qaPassed = bugIssues.filter(isIssueClosed).length;
+  const qaTested = qaPassed + qaReturned;
+  const readyForQa = bugIssues.filter((issue) => [ISSUE_STATUS.READY_FOR_QA, ISSUE_STATUS.QA, ISSUE_STATUS.FIXED, ISSUE_STATUS.TESTING].includes(getDisplayStatus(issue))).length;
+
+  return (
+    <Card className="rounded-2xl border-emerald-100/80 bg-white/90 shadow-[0_18px_46px_-36px_rgba(16,185,129,0.35)]">
+      <CardHeader className="border-b border-slate-200/80 pb-3">
+        <CardTitle className="text-base">Development Health</CardTitle>
+        <CardDescription>Small delivery loop snapshot for your current work.</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4 p-4">
+        <div className="grid gap-2 sm:grid-cols-4">
+          <MiniHealthStat label="Commits" value={commits} helper="latest pushes" />
+          <MiniHealthStat label="Tasks" value={`${completedTasks}/${taskIssues.length}`} helper="completed" />
+          <MiniHealthStat label="QA Pass Rate" value={`${qaTested ? Math.round((qaPassed / qaTested) * 100) : 0}%`} helper="tested bugs" />
+          <MiniHealthStat label="Bug Reopen" value={`${bugIssues.length ? Math.round((qaReturned / bugIssues.length) * 100) : 0}%`} helper="current rework" />
+        </div>
+        <div className="grid gap-2 text-sm sm:grid-cols-5">
+          {[
+            ["Commits", commits],
+            ["Builds", commits],
+            ["QA Tested", qaTested + readyForQa],
+            ["Passed", qaPassed],
+            ["Returned", qaReturned],
+          ].map(([label, value]) => (
+            <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-center" key={label}>
+              <p className="text-lg font-semibold text-slate-950">{value}</p>
+              <p className="text-[11px] font-bold uppercase tracking-[0.1em] text-slate-500">{label}</p>
+            </div>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
+  );
+};
+
+const MiniHealthStat = ({ label, value, helper }) => (
+  <div className="rounded-xl bg-slate-50 px-3 py-2">
+    <p className="text-[11px] font-bold uppercase tracking-[0.1em] text-slate-500">{label}</p>
+    <p className="mt-1 text-xl font-semibold text-slate-950">{value}</p>
+    <p className="text-xs text-slate-500">{helper}</p>
+  </div>
 );
 
 const BugStatusAnalytics = ({ issues = [] }) => {
@@ -677,6 +890,56 @@ const BugStatusAnalytics = ({ issues = [] }) => {
   );
 };
 
+const DeveloperBugHealth = ({ issues = [] }) => {
+  const open = issues.filter((issue) => [ISSUE_STATUS.NEW, ISSUE_STATUS.TRIAGED, ISSUE_STATUS.OPEN, ISSUE_STATUS.ASSIGNED].includes(getDisplayStatus(issue))).length;
+  const inProgress = issues.filter((issue) => getDisplayStatus(issue) === ISSUE_STATUS.IN_PROGRESS).length;
+  const reopened = issues.filter((issue) => getDisplayStatus(issue) === ISSUE_STATUS.REOPEN).length;
+  const resolved = issues.filter((issue) => [ISSUE_STATUS.READY_FOR_QA, ISSUE_STATUS.QA, ISSUE_STATUS.FIXED, ISSUE_STATUS.TESTING, ISSUE_STATUS.CLOSED, ISSUE_STATUS.DONE].includes(getDisplayStatus(issue))).length;
+  const highSeverity = issues.filter((issue) => !isIssueClosed(issue) && isCriticalIssue(issue)).length;
+  const resolutionRate = issues.length ? Math.round((resolved / issues.length) * 100) : 0;
+  const resolutionSamples = issues
+    .map((issue) => Number(issue.resolutionTimeMs || 0))
+    .filter((value) => value > 0);
+  const avgResolution = resolutionSamples.length
+    ? resolutionSamples.reduce((sum, value) => sum + value, 0) / resolutionSamples.length
+    : 0;
+
+  return (
+    <Card className="overflow-hidden rounded-2xl border-white/70 bg-white/88 shadow-[0_20px_56px_-36px_rgba(15,23,42,0.38)] backdrop-blur-xl">
+      <CardHeader className="border-b border-slate-200/70 pb-4">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Activity className="h-4 w-4 text-blue-600" />
+              Bug Health
+            </CardTitle>
+            <CardDescription>Actionable QA and resolution state for assigned bugs.</CardDescription>
+          </div>
+          <Pill className={highSeverity ? "border-rose-200 bg-rose-50 text-rose-700" : "border-emerald-200 bg-emerald-50 text-emerald-700"}>
+            {highSeverity ? `${highSeverity} high severity` : "Healthy"}
+          </Pill>
+        </div>
+      </CardHeader>
+      <CardContent className="p-4">
+        {issues.length ? (
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
+            <MiniHealthStat label="Open" value={open} helper="needs action" />
+            <MiniHealthStat label="In Progress" value={inProgress} helper="being fixed" />
+            <MiniHealthStat label="Reopened" value={reopened} helper="QA rework" />
+            <MiniHealthStat label="Resolved" value={resolved} helper="ready/closed" />
+            <MiniHealthStat label="Resolution Rate" value={`${resolutionRate}%`} helper={`${resolved}/${issues.length} bugs`} />
+            <MiniHealthStat label="Avg Resolution" value={formatCompactDuration(avgResolution)} helper="recorded cycle" />
+          </div>
+        ) : (
+          <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-4 text-sm text-slate-500">
+            No assigned bug activity yet.
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+};
+
 const ProjectPanel = ({ projects, issues, onOpenProject }) => {
   const projectCards = useMemo(
     () =>
@@ -693,6 +956,11 @@ const ProjectPanel = ({ projects, issues, onOpenProject }) => {
           const critical = projectIssues.filter(
             (issue) => !isIssueClosed(issue) && isCriticalIssue(issue)
           ).length;
+          const waitingQa = projectIssues.filter((issue) =>
+            [ISSUE_STATUS.READY_FOR_QA, ISSUE_STATUS.QA, ISSUE_STATUS.FIXED, ISSUE_STATUS.TESTING].includes(getDisplayStatus(issue))
+          ).length;
+          const latestActivity = getLatestGitActivity(project);
+          const qaStatus = getQaHandoffStatus(projectIssues);
 
           return {
             ...project,
@@ -700,6 +968,9 @@ const ProjectPanel = ({ projects, issues, onOpenProject }) => {
             completed,
             progress,
             critical,
+            waitingQa,
+            latestActivity,
+            qaStatus,
             total: projectIssues.length,
           };
         })
@@ -713,7 +984,7 @@ const ProjectPanel = ({ projects, issues, onOpenProject }) => {
       <CardHeader className="border-b border-slate-200/80 pb-3">
         <CardTitle className="flex items-center gap-2 text-base">
           <FolderKanban className="h-4 w-4 text-blue-600" />
-          Assigned Projects
+          Project Health
         </CardTitle>
       </CardHeader>
       <CardContent className="max-h-[320px] space-y-3 overflow-x-hidden overflow-y-auto p-3">
@@ -754,6 +1025,15 @@ const ProjectPanel = ({ projects, issues, onOpenProject }) => {
                 ) : (
                   <span>On track</span>
                 )}
+              </div>
+              <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
+                <Pill className={getQaStatusTone(project.qaStatus)}>{project.qaStatus}</Pill>
+                {project.waitingQa ? <span className="font-semibold text-cyan-700">{project.waitingQa} waiting for QA</span> : null}
+                {project.latestActivity.commitSha ? (
+                  <span className="truncate text-slate-500">
+                    {shortSha(project.latestActivity.commitSha)} · {project.latestActivity.branch}
+                  </span>
+                ) : null}
               </div>
             </button>
           ))
@@ -974,6 +1254,7 @@ const ActivityList = ({ activity, compact = false, fallbackIssues = [], onOpenIs
     <div className={cn("space-y-3", compact && "space-y-2")}>
       {entries.map((entry) => {
         const issue = entry.issue;
+        const summary = getActivitySummary(entry);
 
         return (
           <button
@@ -987,10 +1268,10 @@ const ActivityList = ({ activity, compact = false, fallbackIssues = [], onOpenIs
             </span>
             <span className="min-w-0 flex-1">
               <span className="block break-words text-sm font-semibold text-slate-900">
-                {entry.actor?.name || "System"} {activityText(entry)}
+                {summary.title}
               </span>
               <span className="mt-0.5 block truncate text-xs text-slate-500">
-                {issue?.title || entry.meta?.title || "Work item"} -{" "}
+                {summary.detail} -{" "}
                 {entry.createdAt ? formatDateTime(entry.createdAt) : "Recently"}
               </span>
             </span>
@@ -1005,15 +1286,15 @@ const BugBucketPanel = ({ issues, isLoading, onOpenIssue, onPickIssue, onViewAll
   const sortedIssues = useMemo(() => sortAvailableBugQueue(issues), [issues]);
 
   return (
-    <Card className="overflow-hidden border-cyan-100/80 bg-white/94 shadow-[0_28px_80px_-42px_rgba(8,145,178,0.5)] ring-1 ring-cyan-100/70 backdrop-blur-xl">
-      <CardHeader className="border-b border-cyan-100/90 bg-[linear-gradient(135deg,rgba(236,254,255,0.98),rgba(239,246,255,0.94),rgba(255,255,255,0.92))]">
+    <Card className="overflow-hidden border-cyan-100/80 bg-white/94 shadow-[0_18px_46px_-36px_rgba(8,145,178,0.42)] ring-1 ring-cyan-100/70 backdrop-blur-xl">
+      <CardHeader className="border-b border-cyan-100/90 bg-[linear-gradient(135deg,rgba(236,254,255,0.98),rgba(239,246,255,0.94),rgba(255,255,255,0.92))] py-3">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <p className="mb-1 text-[11px] font-bold uppercase tracking-[0.22em] text-cyan-600">
               Primary workflow
             </p>
-            <CardTitle className="flex items-center gap-2 text-2xl tracking-tight text-slate-950">
-              <FolderKanban className="h-6 w-6 text-cyan-600" />
+            <CardTitle className="flex items-center gap-2 text-lg tracking-tight text-slate-950">
+              <FolderKanban className="h-5 w-5 text-cyan-600" />
               Work Queue
             </CardTitle>
             <CardDescription>Pickup-ready work waiting for developer ownership.</CardDescription>
@@ -1034,7 +1315,7 @@ const BugBucketPanel = ({ issues, isLoading, onOpenIssue, onPickIssue, onViewAll
           </div>
         </div>
       </CardHeader>
-      <CardContent className="space-y-4 p-4 sm:p-5">
+      <CardContent className={cn("space-y-4 p-4", !sortedIssues.length && !isLoading && "py-3")}>
         {isLoading ? (
           <div className="space-y-2">
             {Array.from({ length: 5 }).map((_, index) => (
@@ -1135,11 +1416,22 @@ const BugBucketPanel = ({ issues, isLoading, onOpenIssue, onPickIssue, onViewAll
             </p>
           </>
         ) : (
-          <EmptyState
-            title="No work in the queue"
-            description="Unassigned bugs and Stories will appear here when they are added to the developer queue."
-            icon={<FolderKanban className="h-5 w-5" />}
-          />
+          <div className="flex min-h-[116px] flex-col justify-center rounded-2xl border border-dashed border-cyan-100 bg-cyan-50/35 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+            <div>
+              <p className="text-sm font-semibold text-slate-950">0 available</p>
+              <p className="mt-1 text-sm text-slate-500">
+                No unassigned bugs or stories currently waiting for developer ownership.
+              </p>
+            </div>
+            <Button
+              className="mt-3 h-9 rounded-xl sm:mt-0"
+              type="button"
+              variant="outline"
+              onClick={onViewAllBugs}
+            >
+              View Queue
+            </Button>
+          </div>
         )}
       </CardContent>
     </Card>
@@ -1162,17 +1454,18 @@ const WorkTable = ({
       />
     );
   }
-  const tableColumns = type === "bugs" ? bugWorkTableColumns : taskWorkTableColumns;
-  const tableMinWidth = type === "bugs" ? "min-w-[1646px]" : "min-w-[1474px]";
+  const usesBugColumns = type === "bugs" || type === "all";
+  const tableColumns = usesBugColumns ? bugWorkTableColumns : taskWorkTableColumns;
+  const tableMinWidth = usesBugColumns ? "min-w-[1646px]" : "min-w-[1474px]";
 
   return (
     <>
       <div className="hidden">
-        {issues.map((issue) => {
-          const severity = getBugSeverity(issue);
-          const currentBugStatus = getDeveloperVisibleBugStatus(issue);
-          const bugOptions = developerBugTransitions[currentBugStatus] || [];
-          const nextAction = getNextBugAction(issue);
+          {issues.map((issue) => {
+            const severity = getBugSeverity(issue);
+            const currentBugStatus = isBugIssue(issue) ? getDeveloperVisibleBugStatus(issue) : "";
+            const bugOptions = developerBugTransitions[currentBugStatus] || [];
+            const nextAction = isBugIssue(issue) ? getNextBugAction(issue) : null;
 
           return (
             <article
@@ -1282,14 +1575,14 @@ const WorkTable = ({
           </colgroup>
           <thead className="sticky top-0 z-10 border-b border-slate-200 bg-slate-50/95 text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500 backdrop-blur">
           <tr>
-            <th className="px-3 py-2.5">{type === "bugs" ? "Bug ID" : "ID"}</th>
-            <th className="px-3 py-2.5">{type === "bugs" ? "Bug Title" : "Title"}</th>
+            <th className="px-3 py-2.5">{usesBugColumns ? "ID" : "ID"}</th>
+            <th className="px-3 py-2.5">{usesBugColumns ? "Title" : "Title"}</th>
             <th className="px-3 py-2.5">Priority</th>
-            {type === "bugs" ? <th className="px-3 py-2.5">Severity</th> : null}
+            {usesBugColumns ? <th className="px-3 py-2.5">Severity</th> : null}
             <th className="px-3 py-2.5">Status</th>
             <th className="px-3 py-2.5">Team</th>
             <th className="px-3 py-2.5">Assigned</th>
-            {type === "bugs" ? <th className="px-3 py-2.5">Reporter</th> : null}
+            {usesBugColumns ? <th className="px-3 py-2.5">Reporter</th> : null}
             <th className="px-3 py-2.5">Created</th>
             <th className="px-3 py-2.5">Updated</th>
             <th className="px-3 py-2.5 text-right">Actions</th>
@@ -1297,10 +1590,11 @@ const WorkTable = ({
         </thead>
         <tbody className="divide-y divide-slate-200/80">
           {issues.map((issue) => {
+            const rowIsBug = isBugIssue(issue);
             const severity = getBugSeverity(issue);
-            const currentBugStatus = getDeveloperVisibleBugStatus(issue);
+            const currentBugStatus = rowIsBug ? getDeveloperVisibleBugStatus(issue) : "";
             const bugOptions = developerBugTransitions[currentBugStatus] || [];
-            const nextAction = getNextBugAction(issue);
+            const nextAction = rowIsBug ? getNextBugAction(issue) : null;
 
             return (
               <tr
@@ -1334,11 +1628,15 @@ const WorkTable = ({
                     {issue.priority || "Medium"}
                   </Pill>
                 </td>
-                {type === "bugs" ? (
+                {usesBugColumns ? (
                   <td className="px-3 py-2 align-middle">
-                    <Pill className={getBadgeClass(severityStyleMap, severity)}>
-                      {severity}
-                    </Pill>
+                    {rowIsBug ? (
+                      <Pill className={getBadgeClass(severityStyleMap, severity)}>
+                        {severity}
+                      </Pill>
+                    ) : (
+                      <span className="text-xs text-slate-400">-</span>
+                    )}
                   </td>
                 ) : null}
                 <td className="px-3 py-2 align-middle">
@@ -1356,11 +1654,15 @@ const WorkTable = ({
                     {getAssigneeName(issue)}
                   </span>
                 </td>
-                {type === "bugs" ? (
+                {usesBugColumns ? (
                   <td className="px-3 py-2 align-middle">
-                    <span className="block truncate text-slate-600" title={getReporterName(issue)}>
-                      {getReporterName(issue)}
-                    </span>
+                    {rowIsBug ? (
+                      <span className="block truncate text-slate-600" title={getReporterName(issue)}>
+                        {getReporterName(issue)}
+                      </span>
+                    ) : (
+                      <span className="text-xs text-slate-400">-</span>
+                    )}
                   </td>
                 ) : null}
                 <td className="truncate whitespace-nowrap px-3 py-2 align-middle text-slate-500" title={issue.createdAt ? formatDate(issue.createdAt) : "Unknown"}>
@@ -1371,7 +1673,7 @@ const WorkTable = ({
                 </td>
                 <td className="px-3 py-2 align-middle">
                   <div className="flex items-center justify-end gap-2">
-                    {type === "bugs" ? (
+                    {rowIsBug ? (
                       <select
                         aria-label={`Update ${getIssueDisplayKey(issue)} status`}
                         className="h-8 w-[104px] rounded-xl border border-slate-200 bg-white px-2 text-[11px] font-semibold text-slate-700 shadow-sm outline-none transition focus:border-blue-300 focus:ring-2 focus:ring-blue-500/20"
@@ -1550,6 +1852,15 @@ const DeveloperDashboardPage = () => {
         ),
     [allIssues, user?._id]
   );
+  const storyIssues = useMemo(
+    () =>
+      allIssues
+        .filter((issue) => issue?.type === "Story")
+        .filter((issue) =>
+          user?._id ? resolveIssueAssigneeIds(issue).includes(String(user._id)) : true
+        ),
+    [allIssues, user?._id]
+  );
   const sprintProgress = useMemo(
     () => {
       const activeSprintTasks = taskIssues.filter(
@@ -1658,8 +1969,8 @@ const DeveloperDashboardPage = () => {
   });
 
   const workflowIssues = useMemo(
-    () => [...bugIssues, ...taskIssues],
-    [bugIssues, taskIssues]
+    () => [...bugIssues, ...taskIssues, ...storyIssues],
+    [bugIssues, storyIssues, taskIssues]
   );
   const stats = useMemo(() => getIssueStatusMetrics(workflowIssues), [workflowIssues]);
   const normalizedFilters = useMemo(
@@ -1669,7 +1980,14 @@ const DeveloperDashboardPage = () => {
     }),
     [deferredSearch, filters]
   );
-  const activeIssues = activeTab === "bugs" ? bugIssues : taskIssues;
+  const activeIssues =
+    activeTab === "bugs"
+      ? bugIssues
+      : activeTab === "stories"
+        ? storyIssues
+        : activeTab === "all"
+          ? workflowIssues
+          : taskIssues;
   const visibleIssues = useMemo(
     () => sortIssues(filterIssues(activeIssues, normalizedFilters), normalizedFilters.sortBy),
     [activeIssues, normalizedFilters]
@@ -1684,21 +2002,28 @@ const DeveloperDashboardPage = () => {
         .slice(0, 8),
     [workflowIssues]
   );
+  const waitingForQaCount = useMemo(
+    () =>
+      workflowIssues.filter((issue) =>
+        [ISSUE_STATUS.READY_FOR_QA, ISSUE_STATUS.QA, ISSUE_STATUS.FIXED, ISSUE_STATUS.TESTING].includes(getDisplayStatus(issue))
+      ).length,
+    [workflowIssues]
+  );
+  const qaReworkCount = useMemo(
+    () =>
+      workflowIssues.filter((issue) =>
+        [ISSUE_STATUS.REOPEN, ISSUE_STATUS.REJECTED, ISSUE_STATUS.BLOCKED].includes(getDisplayStatus(issue))
+      ).length,
+    [workflowIssues]
+  );
   const statCards = useMemo(
     () => [
       {
-        label: "Total",
-        value: stats.total,
-        helper: `${bugIssues.length} bugs - ${taskIssues.length} tasks`,
+        label: "Open Work",
+        value: stats.open,
+        helper: "Needs developer action",
         Icon: CircleDotDashed,
         className: "bg-blue-500",
-      },
-      {
-        label: "Open",
-        value: stats.open,
-        helper: "Ready or waiting",
-        Icon: AlertTriangle,
-        className: "bg-orange-500",
       },
       {
         label: "In Progress",
@@ -1708,28 +2033,41 @@ const DeveloperDashboardPage = () => {
         className: "bg-violet-500",
       },
       {
-        label: "Closed",
-        value: stats.closed,
-        helper: "Completed work",
+        label: "Waiting for QA",
+        value: waitingForQaCount,
+        helper: "Submitted for testing",
         Icon: CheckCircle2,
-        className: "bg-emerald-500",
+        className: "bg-cyan-500",
       },
       {
-        label: "My Overdue Tasks",
-        value: taskIssues.filter((issue) => isIssueOverdue(issue)).length,
-        helper: "Past due and still open",
-        Icon: AlertTriangle,
+        label: "QA Rework",
+        value: qaReworkCount,
+        helper: "Returned by QA",
+        Icon: RefreshCcw,
+        className: "bg-amber-500",
+      },
+      {
+        label: "Open Bugs",
+        value: bugIssues.length,
+        helper: "Assigned active bugs",
+        Icon: Bug,
         className: "bg-rose-500",
+      },
+      {
+        label: "Completed",
+        value: stats.closed,
+        helper: "Closed work items",
+        Icon: CheckCircle2,
+        className: "bg-emerald-500",
       },
     ],
     [
       bugIssues.length,
+      qaReworkCount,
       stats.closed,
       stats.inProgress,
       stats.open,
-      stats.total,
-      taskIssues,
-      taskIssues.length,
+      waitingForQaCount,
     ]
   );
   const latestDeliveryProject = useMemo(
@@ -1741,38 +2079,33 @@ const DeveloperDashboardPage = () => {
       )[0] || projects[0],
     [projects]
   );
+  const needAttentionCount = qaReworkCount + workflowIssues.filter(isCriticalIssue).length + workflowIssues.filter(isIssueOverdue).length;
   const developmentWorkStats = useMemo(
     () => [
-      { label: "Assigned Projects", value: projects.length, tone: "bg-blue-50 text-blue-700" },
-      { label: "Assigned Tasks", value: taskIssues.length, tone: "bg-slate-100 text-slate-700" },
+      { label: "Active Projects", value: projects.length, tone: "bg-blue-50 text-blue-700" },
+      { label: "Open Tasks", value: taskIssues.filter((issue) => !isIssueClosed(issue)).length, tone: "bg-slate-100 text-slate-700" },
       { label: "Open Bugs", value: bugIssues.length, tone: "bg-rose-50 text-rose-700" },
       {
         label: "Waiting for QA",
-        value: workflowIssues.filter((issue) =>
-          [ISSUE_STATUS.READY_FOR_QA, ISSUE_STATUS.QA, ISSUE_STATUS.FIXED, ISSUE_STATUS.TESTING].includes(
-            isBugIssue(issue) ? normalizeBugStatusForIssue(issue) : issue.status
-          )
-        ).length,
+        value: waitingForQaCount,
         tone: "bg-cyan-50 text-cyan-700",
       },
       {
-        label: "Returned by QA",
-        value: workflowIssues.filter((issue) =>
-          [ISSUE_STATUS.REOPEN, ISSUE_STATUS.REJECTED, ISSUE_STATUS.BLOCKED].includes(
-            isBugIssue(issue) ? normalizeBugStatusForIssue(issue) : issue.status
-          )
-        ).length,
+        label: "QA Rework",
+        value: qaReworkCount,
         tone: "bg-amber-50 text-amber-700",
       },
-      {
-        label: "Pull Requests",
-        value: latestDeliveryProject?.deliveryWorkflow?.pullRequestsOpen || 0,
-        tone: "bg-violet-50 text-violet-700",
-      },
     ],
-    [bugIssues.length, latestDeliveryProject, projects.length, taskIssues.length, workflowIssues]
+    [bugIssues.length, projects.length, qaReworkCount, taskIssues, waitingForQaCount]
   );
-  const activeStatusLabel = activeTab === "bugs" ? "Bugs / Issues" : "Tasks";
+  const activeStatusLabel =
+    activeTab === "bugs"
+      ? "Bugs"
+      : activeTab === "stories"
+        ? "Stories"
+        : activeTab === "all"
+          ? "Work Items"
+          : "Tasks";
   const error = projectsError || issuesError;
   const isLoading = isProjectsLoading || isIssuesLoading;
 
@@ -1882,7 +2215,7 @@ const DeveloperDashboardPage = () => {
             onClick={() => setIsPriorityOpen(true)}
           >
             <Flame className="h-4 w-4" />
-            Priority Queue
+            {needAttentionCount} Need Attention
           </Button>
         </div>
         <div className="relative z-10 w-full sm:w-auto">
@@ -1914,8 +2247,14 @@ const DeveloperDashboardPage = () => {
             </div>
           </CardContent>
         </Card>
-        <LatestGitActivityCard project={latestDeliveryProject} roleLabel="Developer Git Activity" />
+        <DeveloperLatestPushCard project={latestDeliveryProject} />
       </section>
+
+      <QaFeedbackCard
+        latestProject={latestDeliveryProject}
+        issues={workflowIssues}
+        onViewFeedback={() => navigate("/dev/bugs?status=reopened")}
+      />
 
       <BugBucketPanel
         issues={bucketIssues}
@@ -1926,10 +2265,16 @@ const DeveloperDashboardPage = () => {
         onViewAllBugs={() => navigate("/dev/bugs?status=available")}
       />
 
+      <DevelopmentHealthPanel
+        bugIssues={bugIssues}
+        projects={projects}
+        taskIssues={taskIssues}
+      />
+
       <section className="space-y-5">
-          <section className="grid grid-flow-col auto-cols-[minmax(220px,1fr)] gap-3 overflow-x-auto pb-2 md:[grid-template-columns:repeat(5,minmax(0,1fr))] md:gap-4 md:overflow-visible md:pb-0 md:[&>*]:min-w-0 [&>*]:snap-start">
+          <section className="grid grid-flow-col auto-cols-[minmax(220px,1fr)] gap-3 overflow-x-auto pb-2 md:[grid-template-columns:repeat(6,minmax(0,1fr))] md:gap-4 md:overflow-visible md:pb-0 md:[&>*]:min-w-0 [&>*]:snap-start">
             {isLoading
-              ? Array.from({ length: 5 }, (_, index) => (
+              ? Array.from({ length: 6 }, (_, index) => (
                   <Skeleton
                     key={`developer-stat-${index}`}
                     className="h-[132px] w-full rounded-[24px]"
@@ -2187,6 +2532,11 @@ const DeveloperDashboardPage = () => {
                         <p className="mt-0.5 truncate text-xs text-slate-500">
                           {getIssueDisplayKey(issue)} - {formatDateTime(getLastUpdated(issue))}
                         </p>
+                        {isBugIssue(issue) ? (
+                          <p className="mt-1 truncate text-xs text-slate-500">
+                            {getBugSeverity(issue)} severity · Reported by {getReporterName(issue)}
+                          </p>
+                        ) : null}
                       </div>
                       <Pill className={getBadgeClass(statusStyleMap, getDisplayStatus(issue))}>
                         {getStatusLabel(issue)}
@@ -2203,7 +2553,7 @@ const DeveloperDashboardPage = () => {
           </section>
       </section>
 
-      <BugStatusAnalytics issues={bugIssues} />
+      <DeveloperBugHealth issues={bugIssues} />
 
       <Dialog open={isPriorityOpen} onOpenChange={setIsPriorityOpen}>
         <DialogContent className="max-w-6xl border-white/70 bg-white/95 p-5 shadow-[0_30px_90px_-48px_rgba(15,23,42,0.5)] backdrop-blur-xl sm:p-6">
