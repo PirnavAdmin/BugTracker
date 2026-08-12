@@ -35,19 +35,31 @@ pipeline {
                     git checkout dev2
                     git fetch origin
                     git reset --hard origin/dev2
+
                     cp "$ENV_BACKUP" "$ENV_FILE"
                     chmod 600 "$ENV_FILE"
                     rm -f "$ENV_BACKUP"
 
+                    echo "Stopping existing containers..."
                     docker compose down
+
+                    echo "Cleaning unused Docker resources..."
+                    docker system prune -a -f
+
+                    echo "Building Docker images without cache..."
                     docker compose build --no-cache
+
+                    echo "Starting containers..."
                     docker compose up -d --force-recreate
 
                     FRONTEND_PORT=$(grep -E '^FRONTEND_PORT=' .env | tail -n 1 | cut -d= -f2)
                     FRONTEND_PORT=${FRONTEND_PORT:-3000}
 
+                    echo "Checking API health on port ${FRONTEND_PORT}..."
+
                     for attempt in $(seq 1 30); do
                         if curl -fsS "http://localhost:${FRONTEND_PORT}/api/health"; then
+                            echo "API health check passed."
                             exit 0
                         fi
 
@@ -58,7 +70,8 @@ pipeline {
                     docker compose ps
                     docker compose logs --tail=120 backend
                     exit 1
-REMOTE_DEPLOY
+
+                REMOTE_DEPLOY
                 '''
             }
         }
