@@ -1265,6 +1265,9 @@ const QaAnalyticsDashboard = ({ user }) => {
       : "No reported bugs yet";
   const reopenRate = bugsVerified.length ? percent(reopenedBugs.length, bugsVerified.length) : null;
   const falsePositiveRate = bugs.length ? percent(rejectedBugs.length, bugs.length) : null;
+  const completedQaWork = bugsVerified.length + rejectedBugs.length + completedTests.length;
+  const totalQaWork = bugs.length + tasks.length;
+  const qaEfficiency = percent(completedQaWork, totalQaWork);
   const cycleSamples = [...completedTests, ...bugsVerified].map((issue) => toNumber(issue.resolutionTimeMs)).filter((value) => value > 0);
   const avgQaTime = cycleSamples.length ? cycleSamples.reduce((sum, value) => sum + value, 0) / cycleSamples.length : 0;
   const buildRows = projectOptions
@@ -1425,7 +1428,7 @@ const QaAnalyticsDashboard = ({ user }) => {
         <QaMetricCard label="My QA Accuracy" value={qaAccuracyDisplay} helper={qaAccuracyHelper} tone={qaAccuracy !== null && qaAccuracy < 75 ? "amber" : "emerald"} />
         <QaMetricCard label="Reopen Rate" value={reopenRate === null ? "—" : `${reopenRate}%`} helper={reopenRate === null ? "Not enough data" : "Verified bugs reopened"} tone={reopenRate !== null && reopenRate > 20 ? "rose" : "emerald"} />
         <QaMetricCard label="Avg QA Time" value={formatMaybeDuration(avgQaTime)} helper={avgQaTime ? "Average testing cycle" : "No completed QA sessions"} tone="blue" />
-        <QaMetricCard label="Build Coverage" value={buildCoverage === null ? "—" : `${buildCoverage}%`} helper="Builds tested / builds received" tone={buildCoverage !== null && buildCoverage < 70 ? "amber" : "blue"} />
+        <QaMetricCard label="QA Efficiency" value={`${qaEfficiency}%`} helper="Verified/rejected bugs + completed tests" tone={qaEfficiency < 70 ? "amber" : "emerald"} />
       </section>
 
       <section className="grid gap-5 xl:grid-cols-[1.25fr_0.75fr]">
