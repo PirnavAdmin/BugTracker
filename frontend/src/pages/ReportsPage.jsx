@@ -1257,6 +1257,12 @@ const QaAnalyticsDashboard = ({ user }) => {
   const rejectedBugs = bugs.filter(isRejectedOrInvalid);
   const verificationDecisions = bugsVerified.length + reopenedBugs.length + rejectedBugs.length;
   const qaAccuracy = verificationDecisions ? percent(bugsVerified.length, verificationDecisions) : null;
+  const qaAccuracyDisplay = qaAccuracy === null ? (bugs.length ? "0%" : "—") : `${qaAccuracy}%`;
+  const qaAccuracyHelper = verificationDecisions
+    ? `${bugsVerified.length} verified · ${reopenedBugs.length + rejectedBugs.length} rework/invalid`
+    : bugs.length
+      ? "No verification decisions yet"
+      : "No reported bugs yet";
   const reopenRate = bugsVerified.length ? percent(reopenedBugs.length, bugsVerified.length) : null;
   const falsePositiveRate = bugs.length ? percent(rejectedBugs.length, bugs.length) : null;
   const cycleSamples = [...completedTests, ...bugsVerified].map((issue) => toNumber(issue.resolutionTimeMs)).filter((value) => value > 0);
@@ -1416,7 +1422,7 @@ const QaAnalyticsDashboard = ({ user }) => {
         <QaMetricCard label="Pending QA" value={pendingQaBugs.length || "—"} helper="Waiting for verification" tone="amber" onClick={() => navigate("/bugs")} />
         <QaMetricCard label="Bugs Discovered" value={bugs.length || "—"} helper="Bugs reported during testing" tone="blue" />
         <QaMetricCard label="Bugs Verified" value={bugsVerified.length || "—"} helper="Successfully verified" tone="emerald" />
-        <QaMetricCard label="QA Accuracy" value={qaAccuracy === null ? "—" : `${qaAccuracy}%`} helper={qaAccuracy === null ? "Not enough data" : "Correct verification decisions"} tone={qaAccuracy !== null && qaAccuracy < 75 ? "amber" : "emerald"} />
+        <QaMetricCard label="My QA Accuracy" value={qaAccuracyDisplay} helper={qaAccuracyHelper} tone={qaAccuracy !== null && qaAccuracy < 75 ? "amber" : "emerald"} />
         <QaMetricCard label="Reopen Rate" value={reopenRate === null ? "—" : `${reopenRate}%`} helper={reopenRate === null ? "Not enough data" : "Verified bugs reopened"} tone={reopenRate !== null && reopenRate > 20 ? "rose" : "emerald"} />
         <QaMetricCard label="Avg QA Time" value={formatMaybeDuration(avgQaTime)} helper={avgQaTime ? "Average testing cycle" : "No completed QA sessions"} tone="blue" />
         <QaMetricCard label="Build Coverage" value={buildCoverage === null ? "—" : `${buildCoverage}%`} helper="Builds tested / builds received" tone={buildCoverage !== null && buildCoverage < 70 ? "amber" : "blue"} />
@@ -1487,7 +1493,7 @@ const QaAnalyticsDashboard = ({ user }) => {
 
         <AnalyticsPanel title="QA Effectiveness" description="Verification quality and escaped-risk indicators.">
           <div className="grid gap-3 sm:grid-cols-2">
-            <MiniStat label="Verification Accuracy" tone={qaAccuracy !== null && qaAccuracy < 75 ? "amber" : "emerald"} value={qaAccuracy === null ? "—" : `${qaAccuracy}%`} />
+            <MiniStat label="My QA Accuracy" tone={qaAccuracy !== null && qaAccuracy < 75 ? "amber" : "emerald"} value={qaAccuracyDisplay} />
             <MiniStat label="Reopen Rate" tone={reopenRate !== null && reopenRate > 20 ? "rose" : "emerald"} value={reopenRate === null ? "—" : `${reopenRate}%`} />
             <MiniStat label="False Positive Rate" tone={falsePositiveRate !== null && falsePositiveRate > 20 ? "amber" : "blue"} value={falsePositiveRate === null ? "—" : `${falsePositiveRate}%`} />
             <MiniStat label="Defect Detection Rate" tone="blue" value={bugs.length ? `${percent(bugs.length - rejectedBugs.length, bugs.length)}%` : "—"} />
