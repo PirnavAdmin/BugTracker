@@ -385,17 +385,18 @@ const ProjectDeliveryOverview = ({
 
   return (
     <AnalyticsPanel
+      className="[&>div:first-child_h2]:font-semibold"
       title="Project Delivery Overview"
       description="Track project workload, bug pressure, QA activity and delivery health."
       action={
         <div className="flex flex-wrap items-center justify-end gap-2">
-          <Badge className="rounded-full border-slate-200/80 bg-white/72 px-3 py-1 text-xs font-bold text-slate-600 shadow-sm">
+          <Badge className="rounded-full border-slate-200/80 bg-white/72 px-3 py-1 text-xs font-medium text-slate-600 shadow-sm">
             {projects.length} Projects
           </Badge>
           <select
             value={selectedProjectId}
             onChange={(event) => onProjectChange?.(event.target.value)}
-            className="h-8 max-w-[150px] rounded-full border border-white/70 bg-white/78 px-3 text-xs font-bold text-slate-700 shadow-sm outline-none transition focus:border-blue-200 focus:ring-2 focus:ring-blue-500/20"
+            className="h-8 max-w-[150px] rounded-full border border-white/70 bg-white/78 px-3 text-xs font-medium text-slate-700 shadow-sm outline-none transition focus:border-blue-200 focus:ring-2 focus:ring-blue-500/20"
             aria-label="Filter project delivery overview"
           >
             <option value="all">All Projects</option>
@@ -408,7 +409,7 @@ const ProjectDeliveryOverview = ({
           <select
             value={sortBy}
             onChange={(event) => onSortChange?.(event.target.value)}
-            className="h-8 max-w-[118px] rounded-full border border-white/70 bg-white/78 px-3 text-xs font-bold text-slate-700 shadow-sm outline-none transition focus:border-blue-200 focus:ring-2 focus:ring-blue-500/20"
+            className="h-8 max-w-[118px] rounded-full border border-white/70 bg-white/78 px-3 text-xs font-medium text-slate-700 shadow-sm outline-none transition focus:border-blue-200 focus:ring-2 focus:ring-blue-500/20"
             aria-label="Sort project delivery overview"
           >
             <option value="health-asc">Health</option>
@@ -421,7 +422,7 @@ const ProjectDeliveryOverview = ({
     >
       {projects.length ? (
         <div className="space-y-2.5">
-          <div className="grid grid-cols-[minmax(0,1.7fr)_0.56fr_0.56fr_0.6fr_0.54fr_0.86fr] gap-3 px-3 text-[10px] font-black uppercase tracking-[0.14em] text-slate-400 max-md:hidden">
+          <div className="grid grid-cols-[minmax(0,1.7fr)_0.56fr_0.56fr_0.6fr_0.54fr_0.86fr] gap-3 px-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400 max-md:hidden">
             <span>Project</span>
             <span>Bugs</span>
             <span>Open</span>
@@ -446,7 +447,7 @@ const ProjectDeliveryOverview = ({
               >
                 <span className="min-w-0">
                   <span className="flex min-w-0 items-center gap-2">
-                    <span className="truncate text-sm font-extrabold text-slate-950">
+                    <span className="truncate text-sm font-semibold text-slate-950">
                       {project.name}
                     </span>
                     {project.gitActive ? (
@@ -459,22 +460,22 @@ const ProjectDeliveryOverview = ({
                   </span>
                 </span>
 
-                <span className="hidden text-sm font-bold text-slate-800 md:block">
+                <span className="hidden text-sm font-medium text-slate-800 md:block">
                   {formatCompactNumber(project.total)}
                 </span>
-                <span className="hidden text-sm font-bold text-rose-600 md:block">
+                <span className="hidden text-sm font-medium text-rose-600 md:block">
                   {formatCompactNumber(project.open)}
                 </span>
-                <span className="hidden text-sm font-bold text-emerald-700 md:block">
+                <span className="hidden text-sm font-medium text-emerald-700 md:block">
                   {formatCompactNumber(project.closed)}
                 </span>
-                <span className="hidden text-sm font-bold text-cyan-700 md:block">
+                <span className="hidden text-sm font-medium text-cyan-700 md:block">
                   {formatCompactNumber(project.pendingQa)}
                 </span>
 
                 <span className="min-w-0">
                   <span className="flex items-center justify-between gap-2">
-                    <span className={cn("inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-black", health.className)}>
+                    <span className={cn("inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-medium", health.className)}>
                       <HealthIcon className="h-3 w-3" />
                       {health.label}
                     </span>
@@ -489,7 +490,7 @@ const ProjectDeliveryOverview = ({
                         transition={{ delay: 0.08 + index * 0.035, duration: 0.55, ease: "easeOut" }}
                       />
                     </span>
-                    <span className="w-9 text-right text-xs font-black text-slate-700">
+                    <span className="w-9 text-right text-xs font-medium text-slate-700">
                       {project.health}%
                     </span>
                   </span>
@@ -526,11 +527,12 @@ const TopContributors = ({
 
   return (
     <AnalyticsPanel
+      className="[&>div:first-child_h2]:font-semibold"
       title="Top Contributors"
       description="Team members contributing most to tracked bug work."
       action={
         totalContributors ? (
-          <Badge className="rounded-full border-white/70 bg-white/72 px-3 py-1 text-xs font-bold text-slate-600 shadow-sm">
+          <Badge className="rounded-full border-white/70 bg-white/72 px-3 py-1 text-xs font-medium text-slate-600 shadow-sm">
             {totalContributors} contributors
           </Badge>
         ) : null
@@ -551,7 +553,7 @@ const TopContributors = ({
               <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3">
                 <span
                   className={cn(
-                    "flex h-8 w-8 items-center justify-center rounded-full text-xs font-black shadow-sm",
+                    "flex h-8 w-8 items-center justify-center rounded-full text-xs font-semibold shadow-sm",
                     contributor.rank <= 3
                       ? "bg-[linear-gradient(135deg,#2563EB,#7C3AED)] text-white"
                       : "bg-slate-100 text-slate-600"
@@ -565,23 +567,23 @@ const TopContributors = ({
                     name={contributor.name}
                     className="h-9 w-9 border-2 border-white/90 shadow-sm"
                     imageClassName="object-cover"
-                    fallbackClassName="text-xs font-bold"
+                    fallbackClassName="text-xs font-medium"
                   />
                   <span className="min-w-0">
-                    <span className="block truncate text-sm font-extrabold text-slate-950">
+                    <span className="block truncate text-sm font-semibold text-slate-950">
                       {contributor.name}
                     </span>
-                    <span className="mt-0.5 block text-xs font-semibold text-slate-500">
+                    <span className="mt-0.5 block text-xs font-normal text-slate-500">
                       {formatCompactNumber(contributor.score)} contribution score
                     </span>
                   </span>
                 </span>
-                <span className="rounded-full border border-blue-100 bg-blue-50 px-2.5 py-1 text-sm font-black text-blue-700">
+                <span className="rounded-full border border-blue-100 bg-blue-50 px-2.5 py-1 text-sm font-semibold text-blue-700">
                   {contributor.percent}%
                 </span>
               </div>
 
-              <div className="mt-2.5 grid grid-cols-3 gap-1.5 text-[11px] font-bold text-slate-600">
+              <div className="mt-2.5 grid grid-cols-3 gap-1.5 text-[11px] font-medium text-slate-600">
                 <span className="rounded-full bg-emerald-50 px-2 py-1 text-emerald-700">
                   {formatCompactNumber(contributor.resolved)} Resolved
                 </span>
@@ -598,7 +600,7 @@ const TopContributors = ({
           <Button
             type="button"
             variant="outline"
-            className="group mt-1 h-9 w-full justify-between rounded-2xl bg-white/68 text-xs font-bold"
+            className="group mt-1 h-9 w-full justify-between rounded-2xl bg-white/68 text-xs font-medium"
             onClick={onViewAll}
           >
             View All Contributors
@@ -747,21 +749,21 @@ const TeamTaskWorkloadCard = ({ row, onOpen }) => {
     >
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">
-          <p className="truncate text-[15px] font-extrabold leading-5 tracking-tight text-slate-950">
+          <p className="truncate text-[15px] font-semibold leading-5 tracking-tight text-slate-950">
             {row.name}
           </p>
         </div>
-        <div className="flex shrink-0 items-center gap-2 text-xs font-black">
+        <div className="flex shrink-0 items-center gap-2 text-xs font-medium">
           <span className="text-slate-700">{formatCompactNumber(row.total)} tasks</span>
           <span className="text-slate-950">{row.completionRate}%</span>
-          <Badge className={cn("rounded-full border px-1.5 py-0 text-[9px] font-black", stateClassName)}>
+          <Badge className={cn("rounded-full border px-1.5 py-0 text-[9px] font-medium", stateClassName)}>
             {state}
           </Badge>
           <ChevronRight className="h-4 w-4 text-slate-400 transition group-hover:translate-x-0.5 group-hover:text-blue-600" />
         </div>
       </div>
 
-      <p className="mt-0.5 truncate text-[11px] font-semibold leading-4 text-slate-500">
+      <p className="mt-0.5 truncate text-[11px] font-normal leading-4 text-slate-500">
         {formatCompactNumber(row.open)} To Do - {formatCompactNumber(row.inProgress)} In Progress - {formatCompactNumber(row.done)} Done
         {row.overdue ? ` - ${formatCompactNumber(row.overdue)} Overdue` : ""}
       </p>
@@ -789,11 +791,11 @@ const QaBugRiskPanel = ({ metrics = [], riskLevel = "low", onOpen }) => {
 
   return (
     <AnalyticsPanel
-      className="[&>div:first-child]:gap-2 [&>div:first-child]:p-3 [&>div:first-child_h2]:text-[15px] [&>div:first-child_p]:text-xs [&>div:first-child_p]:leading-5 [&>div:last-child]:p-3"
+      className="[&>div:first-child]:gap-2 [&>div:first-child]:p-3 [&>div:first-child_h2]:text-[15px] [&>div:first-child_h2]:font-semibold [&>div:first-child_p]:text-xs [&>div:first-child_p]:leading-5 [&>div:last-child]:p-3"
       title="QA / Bug Risk"
       description="Current QA pressure and high-risk bug signals."
       action={
-        <Badge className={cn("rounded-full border px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.1em]", riskTone[riskLevel])}>
+        <Badge className={cn("rounded-full border px-2 py-0.5 text-[9px] font-medium uppercase tracking-[0.1em]", riskTone[riskLevel])}>
           <span className="mr-1 h-1.5 w-1.5 rounded-full bg-current" />
           {riskLevel} risk
         </Badge>
@@ -820,11 +822,11 @@ const QaBugRiskPanel = ({ metrics = [], riskLevel = "low", onOpen }) => {
             >
               <span className="flex items-center justify-between gap-3">
                 <span className="grid min-w-0 grid-cols-[54px_minmax(0,1fr)] items-center gap-2">
-                  <span className="text-[26px] font-black leading-none text-slate-950">
+                  <span className="text-[26px] font-semibold leading-none text-slate-950">
                     {formatCompactNumber(metric.value)}
                   </span>
                   <span className="min-w-0">
-                    <span className="block truncate text-[14px] font-extrabold leading-5 text-slate-800">
+                    <span className="block truncate text-[14px] font-semibold leading-5 text-slate-800">
                       {metric.label}
                     </span>
                     <span className="block truncate text-[11px] font-medium leading-4 text-slate-500">
@@ -888,7 +890,7 @@ const UpcomingMeetingsPanel = ({ meetings = [], onOpenCalendar, onOpenMeeting })
 
   return (
     <AnalyticsPanel
-      className="[&>div:first-child]:gap-2 [&>div:first-child]:p-3.5 [&>div:first-child_h2]:text-[15px] [&>div:first-child_p]:text-xs [&>div:first-child_p]:leading-5 [&>div:last-child]:p-3"
+      className="[&>div:first-child]:gap-2 [&>div:first-child]:p-3.5 [&>div:first-child_h2]:text-[15px] [&>div:first-child_h2]:font-semibold [&>div:first-child_p]:text-xs [&>div:first-child_p]:leading-5 [&>div:last-child]:p-3"
       title="Upcoming Meetings"
       description="Your next scheduled team meetings."
       action={<CalendarDays className="h-4 w-4 text-blue-600" />}
@@ -915,25 +917,25 @@ const UpcomingMeetingsPanel = ({ meetings = [], onOpenCalendar, onOpenMeeting })
                 className="group grid w-full grid-cols-[64px_minmax(0,1fr)_auto] items-center gap-3 rounded-[16px] border border-white/70 bg-white/64 px-3 py-2.5 text-left shadow-[0_10px_24px_-24px_rgba(15,23,42,0.32)] backdrop-blur-sm transition duration-300 hover:-translate-y-0.5 hover:border-blue-200/90 hover:bg-white/88"
                 onClick={() => onOpenMeeting(meeting)}
               >
-                <span className="text-xs font-black text-blue-700">
+                <span className="text-xs font-medium text-blue-700">
                   {start ? formatTime(start) : "--"}
                 </span>
                 <span className="min-w-0">
-                  <span className="block truncate text-sm font-extrabold text-slate-950">
+                  <span className="block truncate text-sm font-semibold text-slate-950">
                     {meeting.title || "Team meeting"}
                   </span>
-                  <span className="mt-0.5 block truncate text-xs font-semibold text-slate-500">
+                  <span className="mt-0.5 block truncate text-xs font-normal text-slate-500">
                     {getMeetingContextLabel(meeting)} - {(meeting.participants || []).length} participants
                   </span>
                 </span>
                 <span className="flex shrink-0 items-center gap-2">
-                  <Badge className="rounded-full border-blue-100 bg-blue-50 px-2 py-0.5 text-[10px] font-black text-blue-700">
+                  <Badge className="rounded-full border-blue-100 bg-blue-50 px-2 py-0.5 text-[10px] font-medium text-blue-700">
                     {start ? formatRelativeDateLabel(start) : getMeetingStatusLabel(meeting)}
                   </Badge>
                   <Button
                     type="button"
                     size="sm"
-                    className="h-7 rounded-full px-2.5 text-[11px] font-black"
+                    className="h-7 rounded-full px-2.5 text-[11px] font-medium"
                     variant={status === "live" ? "default" : "outline"}
                     onClick={(event) => {
                       event.stopPropagation();
@@ -949,7 +951,7 @@ const UpcomingMeetingsPanel = ({ meetings = [], onOpenCalendar, onOpenMeeting })
           <Button
             type="button"
             variant="ghost"
-            className="group h-8 w-full justify-between rounded-2xl text-xs font-bold text-blue-700"
+            className="group h-8 w-full justify-between rounded-2xl text-xs font-medium text-blue-700"
             onClick={onOpenCalendar}
           >
             View Calendar
@@ -979,7 +981,7 @@ const ProjectDeadlinesPanel = ({ deadlines = [], onOpenProjects, onOpenProject }
 
   return (
     <AnalyticsPanel
-      className="[&>div:first-child]:gap-2 [&>div:first-child]:p-3.5 [&>div:first-child_h2]:text-[15px] [&>div:first-child_p]:text-xs [&>div:first-child_p]:leading-5 [&>div:last-child]:p-3"
+      className="[&>div:first-child]:gap-2 [&>div:first-child]:p-3.5 [&>div:first-child_h2]:text-[15px] [&>div:first-child_h2]:font-semibold [&>div:first-child_p]:text-xs [&>div:first-child_p]:leading-5 [&>div:last-child]:p-3"
       title="Project Deadlines"
       description="Upcoming project deadlines requiring attention."
       action={<Clock className="h-4 w-4 text-violet-600" />}
@@ -1003,18 +1005,18 @@ const ProjectDeadlinesPanel = ({ deadlines = [], onOpenProjects, onOpenProject }
             >
               <span className="flex items-start justify-between gap-3">
                 <span className="min-w-0">
-                  <span className="block truncate text-sm font-extrabold text-slate-950">
+                  <span className="block truncate text-sm font-semibold text-slate-950">
                     {deadline.name}
                   </span>
-                  <span className="mt-0.5 block text-xs font-semibold text-slate-500">
+                  <span className="mt-0.5 block text-xs font-normal text-slate-500">
                     {deadline.deadlineLabel} - {deadline.daysLabel}
                   </span>
                 </span>
                 <span className="flex shrink-0 items-center gap-2">
-                  <span className="text-xs font-black text-slate-800">
+                  <span className="text-xs font-medium text-slate-800">
                     {deadline.progress}% progress
                   </span>
-                  <Badge className={cn("rounded-full border px-2 py-0.5 text-[10px] font-black", deadlineStatusMeta[deadline.status])}>
+                  <Badge className={cn("rounded-full border px-2 py-0.5 text-[10px] font-medium", deadlineStatusMeta[deadline.status])}>
                     {deadline.status}
                   </Badge>
                   <ChevronRight className="h-4 w-4 text-slate-400 transition group-hover:translate-x-0.5 group-hover:text-violet-600" />
@@ -1040,7 +1042,7 @@ const ProjectDeadlinesPanel = ({ deadlines = [], onOpenProjects, onOpenProject }
           <Button
             type="button"
             variant="ghost"
-            className="group h-8 w-full justify-between rounded-2xl text-xs font-bold text-violet-700"
+            className="group h-8 w-full justify-between rounded-2xl text-xs font-medium text-violet-700"
             onClick={onOpenProjects}
           >
             View Projects
@@ -2530,12 +2532,12 @@ const DashboardPage = () => {
 
       <section className="grid items-stretch gap-4 lg:grid-cols-[minmax(0,7fr)_minmax(280px,3fr)]">
         <AnalyticsPanel
-          className="[&>div:first-child]:gap-2 [&>div:first-child]:p-3 [&>div:first-child_h2]:text-[15px] [&>div:first-child_p]:text-xs [&>div:first-child_p]:leading-5 [&>div:last-child]:p-3"
+          className="[&>div:first-child]:gap-2 [&>div:first-child]:p-3 [&>div:first-child_h2]:text-[15px] [&>div:first-child_h2]:font-semibold [&>div:first-child_p]:text-xs [&>div:first-child_p]:leading-5 [&>div:last-child]:p-3"
           title="Team Task Workload"
           description="Current task pressure and completion across teams."
           action={
             teamTaskRows.length ? (
-              <Badge className="border-white/60 bg-white/72 px-2 py-0.5 text-[10px] font-black text-slate-600">
+              <Badge className="border-white/60 bg-white/72 px-2 py-0.5 text-[10px] font-medium text-slate-600">
                 {taskIssues.length} tasks
               </Badge>
             ) : null
@@ -2554,7 +2556,7 @@ const DashboardPage = () => {
                 <Button
                   type="button"
                   variant="outline"
-                  className="group h-8 w-full justify-between rounded-2xl bg-white/68 text-xs font-bold"
+                  className="group h-8 w-full justify-between rounded-2xl bg-white/68 text-xs font-medium"
                   onClick={() => navigate("/teams")}
                 >
                   View All Teams
