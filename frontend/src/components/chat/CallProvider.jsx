@@ -270,6 +270,46 @@ const RemoteMedia = ({
   );
 };
 
+const RemoteAudioSink = ({ stream, muted }) => {
+  const audioRef = useRef(null);
+
+  useEffect(() => {
+    const audio = audioRef.current;
+
+    if (!audio) {
+      return undefined;
+    }
+
+    const playAudio = () => {
+      audio.muted = muted;
+      audio.play?.().catch((playError) => {
+        callLog("minimized remote audio autoplay blocked", playError?.message || playError);
+      });
+    };
+
+    if (audio.srcObject !== stream) {
+      audio.srcObject = stream || null;
+    }
+
+    playAudio();
+    audio.addEventListener("loadedmetadata", playAudio);
+    audio.addEventListener("canplay", playAudio);
+    stream?.addEventListener?.("addtrack", playAudio);
+    stream?.addEventListener?.("removetrack", playAudio);
+
+    return () => {
+      audio.removeEventListener("loadedmetadata", playAudio);
+      audio.removeEventListener("canplay", playAudio);
+      stream?.removeEventListener?.("addtrack", playAudio);
+      stream?.removeEventListener?.("removetrack", playAudio);
+      audio.pause?.();
+      audio.srcObject = null;
+    };
+  }, [muted, stream]);
+
+  return <audio ref={audioRef} autoPlay playsInline className="hidden" />;
+};
+
 const LocalVideo = ({ stream, user, showVideo = true, compact = false }) => {
   const videoRef = useRef(null);
 
@@ -2373,6 +2413,15 @@ export const CallProvider = ({ children }) => {
           </div>
         </div>
       ) : null}
+      {activeCall && isMinimized
+        ? remoteEntries.map(([userId, remoteMedia]) => (
+            <RemoteAudioSink
+              key={`minimized-audio-${userId}`}
+              stream={remoteMedia?.stream || remoteMedia}
+              muted={isSpeakerOff}
+            />
+          ))
+        : null}
       {activeCall && isMinimized ? (
         <div className="fixed bottom-5 right-5 z-[78] w-[320px] max-w-[calc(100vw-2rem)] rounded-3xl border border-white/15 bg-slate-950/95 p-4 text-white shadow-2xl backdrop-blur">
           <div className="flex items-start justify-between gap-3">

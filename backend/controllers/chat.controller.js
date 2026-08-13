@@ -6,6 +6,7 @@ const ChatMeeting = require("../models/ChatMeeting");
 const Conversation = require("../models/Conversation.model");
 const CallLog = require("../models/CallLog.model");
 const Message = require("../models/Message.model");
+const QuickChatHandled = require("../models/QuickChatHandled.model");
 const Project = require("../models/Project");
 const ProjectTeam = require("../models/ProjectTeam");
 const Team = require("../models/Team");
@@ -606,6 +607,53 @@ const serializeChatMeeting = (meeting) => {
   };
 };
 
+const isActionableQuickChatMessage = (message) => {
+  const text = String(message?.message || "").trim().toLowerCase();
+  const metadataType = String(message?.metadata?.type || "").trim().toLowerCase();
+
+  if (!text && !(message?.attachments || []).length) {
+    return false;
+  }
+
+  if (metadataType && metadataType !== "message") {
+    return false;
+  }
+
+  return ![
+    "scheduled a chat meeting",
+    "updated a chat meeting",
+    "cancelled a chat meeting",
+    "joined the call",
+    "left the call",
+    "ended the call",
+    "started a call",
+  ].some((systemText) => text.includes(systemText));
+};
+
+const serializeQuickChatItem = ({ conversation, message }) => {
+  if (!conversation || !message) {
+    return null;
+  }
+
+  const sender =
+    typeof message.senderId === "object" && message.senderId !== null
+      ? message.senderId
+      : null;
+
+  return {
+    _id: objectIdString(message._id),
+    messageId: objectIdString(message._id),
+    conversationId: objectIdString(conversation._id || message.conversationId),
+    conversation: serializeConversation(conversation),
+    sender,
+    lastMessage: message.message || ((message.attachments || []).length ? "Attachment" : ""),
+    lastMessageAt: message.createdAt,
+    createdAt: message.createdAt,
+    updatedAt: message.updatedAt,
+    attachments: message.attachments || [],
+  };
+};
+
 const getConversationMeetingParticipants = async (conversation, workspaceId) => {
   const participantIds = uniqueObjectIds(conversation?.participants || []);
 
@@ -667,6 +715,179 @@ const getConversations = asyncHandler(async (req, res) => {
         })
       )
       .filter(Boolean),
+  });
+});
+
+const getActiveQuickChatMessages = asyncHandler(async (req, res) => {
+  ensureChatAccess(req, res);
+
+  await ensureWorkspaceChannelsForUser(req.user);
+
+  const workspaceId = normalizeWorkspaceId(req.user.workspaceId);
+  const conversations = await populateConversation(
+    Conversation.find({
+      workspaceId,
+      participants: req.user._id,
+    }).sort({ lastMessageAt: -1, updatedAt: -1 })
+  ).lean();
+  const conversationsById = new Map(
+    conversations.map((conversation) => [objectIdString(conversation._id), conversation])
+  );
+  const conversationIds = conversations.map((conversation) => conversation._id);
+
+  if (!conversationIds.length) {
+    res.status(200).json({ messages: [], count: 0 });
+    return;
+  }
+
+  const handledRows = await QuickChatHandled.find({
+    workspaceId,
+    userId: req.user._id,
+    conversationId: {
+      $in: conversationIds,
+    },
+  })
+    .select("messageId")
+    .lean();
+  const handledMessageIds = new Set(
+    handledRows.map((row) => objectIdString(row.messageId))
+  );
+  const candidateMessages = await Message.find({
+    conversationId: {
+      $in: conversationIds,
+    },
+    senderId: {
+      $ne: req.user._id,
+    },
+    deleted: false,
+  })
+    .sort({ createdAt: -1 })
+    .limit(120)
+    .populate("senderId", userSelect)
+    .lean();
+  const latestByConversation = new Map();
+
+  candidateMessages.forEach((message) => {
+    const conversationId = objectIdString(message.conversationId);
+
+    if (
+      latestByConversation.has(conversationId) ||
+      handledMessageIds.has(objectIdString(message._id)) ||
+      !isActionableQuickChatMessage(message)
+    ) {
+      return;
+    }
+
+    latestByConversation.set(conversationId, message);
+  });
+
+  const messages = Array.from(latestByConversation.entries())
+    .map(([conversationId, message]) =>
+      serializeQuickChatItem({
+        conversation: conversationsById.get(conversationId),
+        message,
+      })
+    )
+    .filter(Boolean)
+    .sort(
+      (left, right) =>
+        new Date(right.lastMessageAt || 0).getTime() -
+        new Date(left.lastMessageAt || 0).getTime()
+    )
+    .slice(0, 12);
+
+  res.status(200).json({
+    messages,
+    count: messages.length,
+  });
+});
+
+const handleQuickChatMessage = asyncHandler(async (req, res) => {
+  ensureChatAccess(req, res);
+
+  const conversationId = req.body?.conversationId || req.params.conversationId;
+  const messageId = req.body?.messageId || req.params.messageId;
+  const repliedWithMessageId = req.body?.repliedWithMessageId || null;
+
+  if (!isValidObjectId(conversationId) || !isValidObjectId(messageId)) {
+    res.status(400);
+    throw new Error("Invalid quick chat message");
+  }
+
+  const workspaceId = normalizeWorkspaceId(req.user.workspaceId);
+  const conversation = await Conversation.findOne({
+    _id: conversationId,
+    workspaceId,
+    participants: req.user._id,
+  })
+    .select("_id workspaceId participants")
+    .lean();
+
+  if (!conversation) {
+    res.status(404);
+    throw new Error("Conversation not found or inaccessible");
+  }
+
+  const message = await Message.findOne({
+    _id: messageId,
+    conversationId: conversation._id,
+    deleted: false,
+  })
+    .select("_id senderId conversationId message metadata attachments")
+    .lean();
+
+  if (!message || objectIdString(message.senderId) === objectIdString(req.user._id)) {
+    res.status(404);
+    throw new Error("Quick chat message not found");
+  }
+
+  const handled = await QuickChatHandled.findOneAndUpdate(
+    {
+      workspaceId,
+      messageId: message._id,
+      userId: req.user._id,
+    },
+    {
+      $set: {
+        workspaceId,
+        conversationId: conversation._id,
+        messageId: message._id,
+        userId: req.user._id,
+        repliedWithMessageId: isValidObjectId(repliedWithMessageId)
+          ? repliedWithMessageId
+          : null,
+        handledAt: new Date(),
+      },
+    },
+    {
+      new: true,
+      upsert: true,
+      setDefaultsOnInsert: true,
+    }
+  ).lean();
+
+  try {
+    const { emitToUser } = require("../socket");
+    if (typeof emitToUser === "function") {
+      emitToUser(req.user._id, "quick_chat:handled", {
+        conversationId: objectIdString(conversation._id),
+        messageId: objectIdString(message._id),
+        handledAt: handled.handledAt,
+      });
+    }
+  } catch (error) {
+    console.error("[quick-chat] Unable to emit handled event", error);
+  }
+
+  res.status(200).json({
+    handled: {
+      _id: objectIdString(handled._id),
+      conversationId: objectIdString(handled.conversationId),
+      messageId: objectIdString(handled.messageId),
+      userId: objectIdString(handled.userId),
+      repliedWithMessageId: objectIdString(handled.repliedWithMessageId),
+      handledAt: handled.handledAt,
+    },
   });
 });
 
@@ -1664,9 +1885,11 @@ module.exports = {
   getConversationById,
   getConversations,
   getCallLogs,
+  getActiveQuickChatMessages,
   getAllMeetings,
   getMeetings,
   getMessages,
+  handleQuickChatMessage,
   loadConversationForUser,
   markConversationSeen,
   deleteMeeting,

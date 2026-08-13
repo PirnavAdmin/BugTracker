@@ -6,11 +6,13 @@ const {
   deleteMeeting,
   createMessage,
   getCallLogs,
+  getActiveQuickChatMessages,
   getAllMeetings,
   getConversationById,
   getConversations,
   getMeetings,
   getMessages,
+  handleQuickChatMessage,
   removeConversationParticipant,
   scheduleMeeting,
   searchUsers,
@@ -23,6 +25,8 @@ const { protect } = require("../middleware/authMiddleware");
 const router = express.Router();
 
 router.get("/conversations", protect, getConversations);
+router.get("/quick-chat/active", protect, getActiveQuickChatMessages);
+router.post("/quick-chat/handle", protect, handleQuickChatMessage);
 router.post("/conversations", protect, createConversation);
 router.post("/conversations/:id/participants", protect, addConversationParticipants);
 router.delete("/conversations/:id/participants/:userId", protect, removeConversationParticipant);

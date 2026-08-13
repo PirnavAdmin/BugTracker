@@ -1157,6 +1157,16 @@ export const sendChatMessage = async (payload) => {
   return response.data?.message || response.data;
 };
 
+export const fetchActiveQuickChatMessages = async () => {
+  const response = await api.get("/chat/quick-chat/active");
+  return response.data?.messages || [];
+};
+
+export const handleQuickChatMessage = async (payload) => {
+  const response = await api.post("/chat/quick-chat/handle", payload);
+  return response.data?.handled || response.data;
+};
+
 export const fetchChatCallLogs = async (conversationId) => {
   const response = await api.get("/chat/calls", {
     params: buildParams({

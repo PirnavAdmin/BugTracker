@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { AnimatePresence, motion, useReducedMotion, useScroll, useTransform } from "framer-motion";
 import {
@@ -26,11 +26,13 @@ import {
 } from "lucide-react";
 import {
   fetchAllChatMeetings,
+  fetchActiveQuickChatMessages,
   fetchBugs,
   fetchIssues,
   fetchManagedUsers,
   fetchProjects,
   fetchTeams,
+  handleQuickChatMessage as persistQuickChatHandled,
 } from "@/lib/api";
 import useAnalytics from "@/hooks/use-analytics";
 import {
@@ -1385,7 +1387,7 @@ const formatQuickChatTime = (value) => {
 
 const AdminQuickActionsCard = ({
   actions = [],
-  conversations = [],
+  quickChatItems = [],
   onlineUsers = [],
   currentUserId = "",
   onOpenChat,
@@ -1398,8 +1400,8 @@ const AdminQuickActionsCard = ({
   const [sendingReplyId, setSendingReplyId] = useState("");
   const [replyErrors, setReplyErrors] = useState({});
   const [handledConversationUntil, setHandledConversationUntil] = useState(() => new Map());
-  const isHandledConversation = (conversation = {}) => {
-    const conversationId = getEntityId(conversation);
+  const isHandledConversation = (item = {}) => {
+    const conversationId = getEntityId(item.conversationId || item.conversation);
     const handledUntil = handledConversationUntil.get(conversationId);
 
     if (!handledUntil) {
@@ -1407,17 +1409,18 @@ const AdminQuickActionsCard = ({
     }
 
     const latestTime = new Date(
-      conversation.lastMessageAt || conversation.updatedAt || conversation.createdAt || 0
+      item.lastMessageAt || item.updatedAt || item.createdAt || 0
     ).getTime();
 
     return latestTime <= handledUntil;
   };
-  const recentMessages = conversations
-    .filter((conversation) => conversation.lastMessage || conversation.unreadCount)
-    .filter((conversation) => !isHandledConversation(conversation))
+  const recentMessages = quickChatItems
+    .filter((item) => item.messageId || item._id)
+    .filter((item) => item.lastMessage || item.unreadCount)
+    .filter((item) => !isHandledConversation(item))
     .slice(0, 8);
   const visibleUnreadCount = recentMessages.reduce(
-    (total, conversation) => total + Number(conversation.unreadCount || 0),
+    (total, item) => total + Number(item.unreadCount || 1),
     0
   );
 
@@ -1449,18 +1452,19 @@ const AdminQuickActionsCard = ({
     setReplyText("");
     setReplyErrors({});
   };
-  const submitReply = async (conversation) => {
-    const conversationId = getEntityId(conversation);
+  const submitReply = async (item) => {
+    const conversationId = getEntityId(item.conversationId || item.conversation);
+    const messageId = getEntityId(item.messageId || item._id);
     const text = replyText.trim();
 
-    if (!conversationId || !text || sendingReplyId) {
+    if (!conversationId || !messageId || !text || sendingReplyId) {
       return;
     }
 
     setSendingReplyId(conversationId);
     setReplyErrors((current) => ({ ...current, [conversationId]: "" }));
 
-    const sentMessage = await onSendReply?.({ conversationId, message: text });
+    const sentMessage = await onSendReply?.({ conversationId, messageId, message: text });
 
     if (sentMessage) {
       const handledThrough =
@@ -1582,12 +1586,14 @@ const AdminQuickActionsCard = ({
             className="mt-3 flex snap-x gap-2.5 overflow-x-auto scroll-smooth pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
           >
             <AnimatePresence initial={false}>
-            {recentMessages.map((conversation) => {
-              const conversationId = getEntityId(conversation);
+            {recentMessages.map((item) => {
+              const conversation = item.conversation || item;
+              const conversationId = getEntityId(item.conversationId || conversation);
+              const messageId = getEntityId(item.messageId || item._id);
               const title = getDashboardConversationName(conversation, currentUserId);
               const peer = getConversationPeer(conversation, currentUserId);
-              const avatarUser = conversation.type === "direct" ? peer : conversation.createdBy;
-              const isUnread = Number(conversation.unreadCount || 0) > 0;
+              const avatarUser = item.sender || (conversation.type === "direct" ? peer : conversation.createdBy);
+              const isUnread = Number(item.unreadCount || 1) > 0;
               const isOnline =
                 conversation.type === "direct" && onlineUsers.includes(getEntityId(peer));
               const isReplying = activeReplyId === conversationId;
@@ -1595,7 +1601,7 @@ const AdminQuickActionsCard = ({
 
               return (
                 <motion.div
-                  key={conversationId}
+                  key={messageId}
                   layout
                   initial={{ opacity: 0, y: 8 }}
                   animate={{ opacity: 1, y: 0 }}
@@ -1628,11 +1634,11 @@ const AdminQuickActionsCard = ({
                           {title}
                         </span>
                         <span className="shrink-0 text-[11px] text-slate-400">
-                          {formatQuickChatTime(conversation.lastMessageAt || conversation.updatedAt)}
+                          {formatQuickChatTime(item.lastMessageAt || item.updatedAt)}
                         </span>
                       </span>
                       <span className="mt-1 line-clamp-2 min-h-[32px] text-xs leading-4 text-slate-500">
-                        {conversation.lastMessage || "No recent message"}
+                        {item.lastMessage || "No recent message"}
                       </span>
                     </span>
                   </span>
@@ -1666,7 +1672,7 @@ const AdminQuickActionsCard = ({
                           onKeyDown={(event) => {
                             if (event.key === "Enter" && !event.shiftKey) {
                               event.preventDefault();
-                              submitReply(conversation);
+                              submitReply(item);
                             }
                           }}
                           placeholder="Type your reply..."
@@ -1690,7 +1696,7 @@ const AdminQuickActionsCard = ({
                             <Button
                               type="button"
                               className="h-7 rounded-full px-3 text-xs font-medium"
-                              onClick={() => submitReply(conversation)}
+                              onClick={() => submitReply(item)}
                               disabled={!replyText.trim() || isSending}
                             >
                               {isSending ? "Sending..." : "Send"}
@@ -2045,11 +2051,13 @@ const DashboardLoading = () => (
 
 const DashboardPage = () => {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [deliveryProjectId, setDeliveryProjectId] = useState("all");
   const [deliverySort, setDeliverySort] = useState("health-asc");
   const { user } = useAuth();
   const analytics = useAnalytics();
   const chatConversations = useChatStore((state) => state.conversations);
+  const chatMessagesByConversation = useChatStore((state) => state.messagesByConversation);
   const chatOnlineUsers = useChatStore((state) => state.onlineUsers);
   const hasLoadedChatConversations = useChatStore(
     (state) => state.hasLoadedConversations
@@ -2112,6 +2120,15 @@ const DashboardPage = () => {
     queryKey: ["chat-meetings", "admin-dashboard-upcoming"],
     queryFn: () => fetchAllChatMeetings(),
     enabled: Boolean(user?._id),
+  });
+  const {
+    data: activeQuickChatData = [],
+  } = useQuery({
+    queryKey: ["chat", "quick-chat", "active", user?._id],
+    queryFn: fetchActiveQuickChatMessages,
+    enabled: Boolean(user?._id),
+    staleTime: 0,
+    refetchOnMount: "always",
   });
   const issues = useMemo(
     () => (Array.isArray(issuesData) ? issuesData : []),
@@ -2730,17 +2747,77 @@ const DashboardPage = () => {
       onClick: () => navigate("/settings/users"),
     },
   ];
-  const quickChatConversations = useMemo(
-    () =>
-      [...chatConversations]
-        .filter((conversation) => !conversation.isArchived)
+  const quickChatItems = useMemo(() => {
+    const itemsByMessageId = new Map();
+    const conversationsById = new Map(
+      chatConversations.map((conversation) => [getEntityId(conversation), conversation])
+    );
+    const addItem = (item) => {
+      const messageId = getEntityId(item.messageId || item._id);
+
+      if (!messageId || itemsByMessageId.has(messageId)) {
+        return;
+      }
+
+      itemsByMessageId.set(messageId, item);
+    };
+
+    (Array.isArray(activeQuickChatData) ? activeQuickChatData : []).forEach(addItem);
+
+    Object.entries(chatMessagesByConversation || {}).forEach(([conversationId, messages]) => {
+      const conversation = conversationsById.get(conversationId);
+
+      if (!conversation || conversation.isArchived || !Array.isArray(messages)) {
+        return;
+      }
+
+      const latestIncoming = [...messages]
+        .filter((message) => {
+          const senderId = getEntityId(message.senderId);
+          const metadataType = String(message?.metadata?.type || "").trim().toLowerCase();
+          return (
+            senderId &&
+            senderId !== getEntityId(user) &&
+            !message.deleted &&
+            (!metadataType || metadataType === "message") &&
+            (String(message.message || "").trim() || (message.attachments || []).length)
+          );
+        })
         .sort(
           (left, right) =>
-            new Date(right.lastMessageAt || right.updatedAt || right.createdAt || 0).getTime() -
-            new Date(left.lastMessageAt || left.updatedAt || left.createdAt || 0).getTime()
-        ),
-    [chatConversations]
-  );
+            new Date(right.createdAt || 0).getTime() -
+            new Date(left.createdAt || 0).getTime()
+        )[0];
+
+      if (!latestIncoming) {
+        return;
+      }
+
+      addItem({
+        _id: getEntityId(latestIncoming),
+        messageId: getEntityId(latestIncoming),
+        conversationId,
+        conversation,
+        sender:
+          typeof latestIncoming.senderId === "object" ? latestIncoming.senderId : null,
+        lastMessage:
+          latestIncoming.message ||
+          ((latestIncoming.attachments || []).length ? "Attachment" : ""),
+        lastMessageAt: latestIncoming.createdAt,
+        createdAt: latestIncoming.createdAt,
+        updatedAt: latestIncoming.updatedAt,
+        unreadCount: conversation.unreadCount || 1,
+      });
+    });
+
+    return Array.from(itemsByMessageId.values())
+      .sort(
+        (left, right) =>
+          new Date(right.lastMessageAt || right.createdAt || 0).getTime() -
+          new Date(left.lastMessageAt || left.createdAt || 0).getTime()
+      )
+      .slice(0, 12);
+  }, [activeQuickChatData, chatConversations, chatMessagesByConversation, user]);
   const recentCriticalBugs = useMemo(
     () =>
       bugs
@@ -2796,7 +2873,7 @@ const DashboardPage = () => {
       <section>
         <AdminQuickActionsCard
           actions={adminQuickActions}
-          conversations={quickChatConversations}
+          quickChatItems={quickChatItems}
           onlineUsers={chatOnlineUsers}
           currentUserId={getEntityId(user)}
           onOpenChat={(conversationId = "") =>
@@ -2806,13 +2883,34 @@ const DashboardPage = () => {
                 : "/chat"
             )
           }
-          onSendReply={({ conversationId, message }) =>
-            sendChatMessage({
+          onSendReply={async ({ conversationId, messageId, message }) => {
+            const sentMessage = await sendChatMessage({
               conversationId,
               message,
               currentUser: user,
-            })
-          }
+            });
+
+            if (!sentMessage) {
+              return false;
+            }
+
+            await persistQuickChatHandled({
+              conversationId,
+              messageId,
+              repliedWithMessageId: getEntityId(sentMessage),
+            });
+            queryClient.setQueryData(
+              ["chat", "quick-chat", "active", user?._id],
+              (current = []) =>
+                (Array.isArray(current) ? current : []).filter(
+                  (item) => getEntityId(item.messageId || item._id) !== messageId
+                )
+            );
+            queryClient.invalidateQueries({
+              queryKey: ["chat", "quick-chat", "active", user?._id],
+            });
+            return sentMessage;
+          }}
         />
       </section>
 
