@@ -56,7 +56,7 @@ import {
   resolveIssueTeamId,
 } from "@/lib/issues";
 import { TASK_BOARD_STATUS, getTaskBoardStatus } from "@/components/tasks/taskBoardStatus";
-import { cn, formatDateTime, getInitials } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 
 const statusTone = {
   TODO: "bg-slate-400",
@@ -75,20 +75,6 @@ const statusTone = {
   DEFERRED: "bg-teal-500",
 };
 
-const activityIcon = {
-  created: Layers3,
-  closed: CheckCircle2,
-  assigned: Users2,
-  critical: AlertTriangle,
-};
-
-const activityTone = {
-  created: "border-blue-200 bg-blue-50 text-blue-700",
-  closed: "border-emerald-200 bg-emerald-50 text-emerald-700",
-  assigned: "border-violet-200 bg-violet-50 text-violet-700",
-  critical: "border-rose-200 bg-rose-50 text-rose-700",
-};
-
 const BUG_PRIORITY_META = [
   { key: "Low", className: "bg-emerald-500", tone: "text-emerald-700", color: "#10B981" },
   { key: "Medium", className: "bg-amber-500", tone: "text-amber-700", color: "#F59E0B" },
@@ -98,59 +84,6 @@ const BUG_PRIORITY_META = [
 
 const DASHBOARD_TALL_SCROLL_CLASS =
   "dashboard-scrollbar h-[calc(100svh-var(--app-navbar-height)-6.5rem)] min-h-[560px] space-y-3 overflow-y-scroll overscroll-auto pr-2 [scrollbar-gutter:stable]";
-
-const DASHBOARD_SPLIT_PANEL_SCROLL_CLASS =
-  "dashboard-scrollbar h-[620px] min-h-[620px] space-y-3 overflow-y-scroll overscroll-auto pr-2 [scrollbar-gutter:stable]";
-
-const getScrollableAncestor = (element) => {
-  let current = element?.parentElement || null;
-
-  while (current) {
-    const style = window.getComputedStyle(current);
-    const canScrollY =
-      /(auto|scroll|overlay)/.test(style.overflowY) &&
-      current.scrollHeight > current.clientHeight + 1;
-
-    if (canScrollY) {
-      return current;
-    }
-
-    current = current.parentElement;
-  }
-
-  return null;
-};
-
-const forwardWheelToAncestor = (event) => {
-  const container = event.currentTarget;
-
-  if (!(container instanceof HTMLElement)) {
-    return;
-  }
-
-  const maxScrollTop = container.scrollHeight - container.clientHeight;
-  const direction = Math.sign(event.deltaY);
-  const atTop = container.scrollTop <= 0;
-  const atBottom = container.scrollTop >= maxScrollTop - 1;
-  const cannotScroll = maxScrollTop <= 1;
-  const shouldForward =
-    cannotScroll || (direction < 0 && atTop) || (direction > 0 && atBottom);
-
-  if (!shouldForward) {
-    return;
-  }
-
-  const ancestor = getScrollableAncestor(container);
-
-  if (ancestor) {
-    event.preventDefault();
-    ancestor.scrollTop += event.deltaY;
-    return;
-  }
-
-  event.preventDefault();
-  window.scrollBy({ top: event.deltaY, left: 0, behavior: "auto" });
-};
 
 const TASK_STATUS_META = [
   {
@@ -768,43 +701,142 @@ const LiquidBugStatusCard = ({ row, fillPercent = 0, onOpen }) => {
 };
 
 const TeamTaskWorkloadCard = ({ row, onOpen }) => {
-  const fillPercent = Math.max(5, Math.min(100, row.completionRate || 0));
+  const shouldReduceMotion = useReducedMotion();
+  const fillPercent = Math.max(0, Math.min(100, row.completionRate || 0));
+  const state =
+    row.overdue > 0 || row.openRate >= 45
+      ? "At Risk"
+      : row.openRate >= 25 || row.inProgress > row.done
+        ? "Attention"
+        : "Healthy";
+  const stateClassName =
+    state === "Healthy"
+      ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+      : state === "At Risk"
+        ? "border-rose-200 bg-rose-50 text-rose-700"
+        : "border-amber-200 bg-amber-50 text-amber-700";
+  const barClassName =
+    state === "Healthy"
+      ? "bg-emerald-500"
+      : state === "At Risk"
+        ? "bg-rose-500"
+        : "bg-amber-500";
 
   return (
-    <button
+    <motion.button
       type="button"
       onClick={() => onOpen(row.teamId ? { teamId: row.teamId } : {})}
-      className="group relative min-h-[96px] w-full overflow-hidden rounded-[24px] border border-white/75 bg-white/58 px-5 py-3.5 text-left shadow-[0_18px_44px_-34px_rgba(79,70,229,0.55)] backdrop-blur-xl transition duration-300 hover:-translate-y-0.5 hover:border-violet-200/90 hover:bg-white/72 hover:shadow-[0_24px_58px_-36px_rgba(124,58,237,0.62)] dark:border-slate-800/70 dark:bg-slate-950/70"
+      initial={shouldReduceMotion ? false : { opacity: 0, y: 10 }}
+      animate={shouldReduceMotion ? undefined : { opacity: 1, y: 0 }}
+      whileHover={shouldReduceMotion ? undefined : { y: -2 }}
+      transition={{ duration: 0.24, ease: "easeOut" }}
+      className="group w-full rounded-[20px] border border-white/72 bg-white/66 px-4 py-3 text-left shadow-[0_14px_34px_-32px_rgba(15,23,42,0.34)] backdrop-blur-sm transition-colors duration-300 hover:border-blue-200/90 hover:bg-white/88 hover:shadow-[0_20px_46px_-34px_rgba(37,99,235,0.34)]"
     >
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_0%,rgba(255,255,255,0.92),transparent_30%),radial-gradient(circle_at_84%_20%,rgba(147,197,253,0.25),transparent_36%),radial-gradient(circle_at_52%_92%,rgba(168,85,247,0.28),transparent_42%)]" />
-      <div className="pointer-events-none absolute inset-x-0 bottom-0 h-10 overflow-hidden">
-        <div
-          className="absolute inset-x-0 bottom-0 h-full opacity-90 transition-all duration-700"
-          style={{
-            transform: `translateY(${100 - fillPercent}%)`,
-            background:
-              "linear-gradient(180deg, rgba(216,180,254,0.35) 0%, rgba(168,85,247,0.62) 48%, rgba(79,70,229,0.72) 100%)",
-          }}
-        />
-        <div className="absolute -left-8 -right-8 top-0 h-5 bg-[radial-gradient(ellipse_at_20%_90%,rgba(255,255,255,0.82),transparent_38%),linear-gradient(90deg,rgba(196,181,253,0.58),rgba(125,211,252,0.42),rgba(168,85,247,0.5))] opacity-80 [clip-path:polygon(0_52%,12%_44%,26%_50%,42%_38%,58%_44%,74%_30%,88%_42%,100%_34%,100%_100%,0_100%)] transition-transform duration-700 group-hover:translate-x-2" />
-      </div>
-
-      <div className="relative z-10 grid grid-cols-[minmax(0,1fr)_88px] items-center gap-4">
+      <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="truncate text-[15px] font-semibold tracking-tight text-slate-800 dark:text-slate-100">
+          <p className="truncate text-sm font-extrabold tracking-tight text-slate-950">
             {row.name}
           </p>
-          <p className="mt-2 truncate text-[11px] font-medium uppercase tracking-[0.12em] text-slate-600 dark:text-slate-300">
-            {row.open} OPEN - {row.inProgress} IN PROGRESS - {row.done} DONE
+          <p className="mt-1 text-xs font-semibold text-slate-500">
+            {formatCompactNumber(row.open)} To Do - {formatCompactNumber(row.inProgress)} In Progress - {formatCompactNumber(row.done)} Done
+            {row.overdue ? ` - ${formatCompactNumber(row.overdue)} Overdue` : ""}
           </p>
         </div>
-        <div className="relative flex h-[72px] w-[82px] shrink-0 flex-col items-center justify-center rounded-[26px] border border-white/80 bg-white/48 text-slate-700 shadow-[inset_0_1px_10px_rgba(255,255,255,0.78),0_12px_34px_-22px_rgba(99,102,241,0.72)] backdrop-blur-xl dark:border-white/10 dark:bg-white/10 dark:text-slate-100">
-          <span className="text-[2rem] font-semibold leading-none">{row.total}</span>
-          <span className="my-1 h-px w-11 bg-slate-300/80" />
-          <span className="text-[15px] font-semibold leading-none">{row.completionRate}%</span>
+        <div className="flex shrink-0 items-center gap-2">
+          <Badge className={cn("rounded-full border px-2 py-0.5 text-[10px] font-black", stateClassName)}>
+            {state}
+          </Badge>
+          <ChevronRight className="h-4 w-4 text-slate-400 transition group-hover:translate-x-0.5 group-hover:text-blue-600" />
         </div>
       </div>
-    </button>
+
+      <div className="mt-3 flex items-center justify-between gap-3">
+        <span className="text-xs font-black text-slate-700">
+          {formatCompactNumber(row.total)} tasks
+        </span>
+        <span className="text-xs font-black text-slate-900">
+          {row.completionRate}% completion
+        </span>
+      </div>
+      <div className="mt-2 h-2 overflow-hidden rounded-full bg-slate-200/90 shadow-inner">
+        <motion.div
+          className={cn("h-full rounded-full", barClassName)}
+          initial={shouldReduceMotion ? false : { width: 0 }}
+          animate={{ width: `${fillPercent}%` }}
+          transition={{ duration: 0.65, ease: "easeOut" }}
+        />
+      </div>
+    </motion.button>
+  );
+};
+
+const riskTone = {
+  low: "border-emerald-200 bg-emerald-50 text-emerald-700",
+  moderate: "border-amber-200 bg-amber-50 text-amber-700",
+  high: "border-rose-200 bg-rose-50 text-rose-700",
+};
+
+const QaBugRiskPanel = ({ metrics = [], riskLevel = "low", onOpen }) => {
+  const shouldReduceMotion = useReducedMotion();
+  const maxValue = Math.max(...metrics.map((metric) => metric.value || 0), 1);
+
+  return (
+    <AnalyticsPanel
+      title="QA / Bug Risk"
+      description="Current QA pressure and high-risk bug signals."
+      action={
+        <Badge className={cn("rounded-full border px-3 py-1 text-[10px] font-black uppercase tracking-[0.12em]", riskTone[riskLevel])}>
+          <span className="mr-1.5 h-2 w-2 rounded-full bg-current" />
+          {riskLevel} risk
+        </Badge>
+      }
+    >
+      <motion.div
+        className="space-y-3"
+        initial={shouldReduceMotion ? false : { opacity: 0, y: 10 }}
+        animate={shouldReduceMotion ? undefined : { opacity: 1, y: 0 }}
+        transition={{ duration: 0.28, ease: "easeOut" }}
+      >
+        {metrics.map((metric, index) => {
+          const width = metric.value ? Math.max(8, Math.round((metric.value / maxValue) * 100)) : 0;
+
+          return (
+            <motion.button
+              key={metric.key}
+              type="button"
+              initial={shouldReduceMotion ? false : { opacity: 0, y: 8 }}
+              animate={shouldReduceMotion ? undefined : { opacity: 1, y: 0 }}
+              transition={{ delay: index * 0.04, duration: 0.24, ease: "easeOut" }}
+              className="group w-full rounded-[18px] border border-white/72 bg-white/66 px-3 py-3 text-left shadow-[0_12px_28px_-26px_rgba(15,23,42,0.34)] backdrop-blur-sm transition duration-300 hover:border-blue-200/90 hover:bg-white/88"
+              onClick={() => onOpen(metric.routeParams)}
+            >
+              <span className="flex items-start justify-between gap-3">
+                <span className="min-w-0">
+                  <span className="block text-2xl font-black leading-none text-slate-950">
+                    {formatCompactNumber(metric.value)}
+                  </span>
+                  <span className="mt-1 block text-sm font-extrabold text-slate-800">
+                    {metric.label}
+                  </span>
+                  <span className="mt-0.5 block text-xs font-medium text-slate-500">
+                    {metric.helper}
+                  </span>
+                </span>
+                <ChevronRight className="mt-1 h-4 w-4 text-slate-400 transition group-hover:translate-x-0.5 group-hover:text-blue-600" />
+              </span>
+              <span className="mt-3 block h-2 overflow-hidden rounded-full bg-slate-200/90 shadow-inner">
+                <motion.span
+                  className={cn("block h-full rounded-full", metric.barClassName)}
+                  initial={shouldReduceMotion ? false : { width: 0 }}
+                  animate={{ width: `${width}%` }}
+                  transition={{ delay: 0.08 + index * 0.04, duration: 0.58, ease: "easeOut" }}
+                />
+              </span>
+            </motion.button>
+          );
+        })}
+      </motion.div>
+    </AnalyticsPanel>
   );
 };
 
@@ -1543,7 +1575,6 @@ const DashboardPage = () => {
   );
   const projects = analytics.projects?.projects || [];
   const teams = analytics.teams?.teams || [];
-  const activity = analytics.recentActivity?.activity || [];
   const highestWorkloadTeam = teams[0] || null;
   const taskStatusRows = useMemo(() => {
     const total = taskIssues.length;
@@ -1623,6 +1654,11 @@ const DashboardPage = () => {
         ISSUE_STATUS.QA,
       ].includes(normalizeBugStatusForIssue(bug))
     );
+    const qaReworkBugs = bugs.filter(
+      (bug) =>
+        normalizeBugStatusForIssue(bug) === ISSUE_STATUS.REJECTED ||
+        normalizeBugStatusForIssue(bug) === ISSUE_STATUS.REOPEN
+    );
     const closedBugs = bugs.filter(isClosedBug);
     const thisWeek = countBetween(bugs, (bug) => bug.createdAt, weekStart);
     const previousWeek = countBetween(bugs, (bug) => bug.createdAt, previousWeekStart, weekStart);
@@ -1653,6 +1689,7 @@ const DashboardPage = () => {
       assigned: assignedBugs.length,
       inProgress: inProgressBugs.length,
       readyForQa: readyForQaBugs.length,
+      qaRework: qaReworkBugs.length,
       closed: closedBugs.length,
       thisWeek,
       previousWeek,
@@ -1900,6 +1937,7 @@ const DashboardPage = () => {
         open: 0,
         inProgress: 0,
         done: 0,
+        overdue: 0,
       };
       const status = getTaskBoardStatus(issue);
 
@@ -1907,14 +1945,70 @@ const DashboardPage = () => {
       row.open += status === TASK_BOARD_STATUS.OPEN ? 1 : 0;
       row.inProgress += status === ISSUE_STATUS.IN_PROGRESS ? 1 : 0;
       row.done += status === ISSUE_STATUS.DONE ? 1 : 0;
+      row.overdue += isIssueOverdue(issue) ? 1 : 0;
       row.completionRate = row.total ? Math.round((row.done / row.total) * 100) : 0;
+      row.openRate = row.total ? Math.round(((row.open + row.inProgress) / row.total) * 100) : 0;
       rowsByTeam.set(rowKey, row);
     });
 
-    return Array.from(rowsByTeam.values())
-      .sort((left, right) => right.open - left.open || right.total - left.total)
-      .slice(0, 6);
+    return Array.from(rowsByTeam.values()).sort(
+      (left, right) =>
+        right.overdue - left.overdue ||
+        right.open + right.inProgress - (left.open + left.inProgress) ||
+        right.total - left.total
+    );
   }, [taskIssues]);
+  const qaBugRiskMetrics = useMemo(
+    () => [
+      {
+        key: "pending-qa",
+        label: "Pending QA",
+        helper: "Awaiting verification",
+        value: bugMetrics.readyForQa,
+        barClassName: "bg-cyan-500",
+        routeParams: { view: "readyqa" },
+      },
+      {
+        key: "critical",
+        label: "Critical Bugs",
+        helper: "High-risk issues",
+        value: bugMetrics.critical,
+        barClassName: "bg-rose-500",
+        routeParams: { filter: "critical" },
+      },
+      {
+        key: "reopened",
+        label: "Reopened",
+        helper: "Returned by QA",
+        value: bugMetrics.reopened,
+        barClassName: "bg-amber-500",
+        routeParams: { view: "reopen" },
+      },
+      {
+        key: "qa-rework",
+        label: "QA Rework",
+        helper: "Needs retesting",
+        value: bugMetrics.qaRework,
+        barClassName: "bg-violet-500",
+        routeParams: { status: ISSUE_STATUS.REJECTED },
+      },
+    ],
+    [bugMetrics.critical, bugMetrics.qaRework, bugMetrics.readyForQa, bugMetrics.reopened]
+  );
+  const qaBugRiskLevel = useMemo(() => {
+    const pressure = bugMetrics.readyForQa + bugMetrics.critical * 2 + bugMetrics.reopened + bugMetrics.qaRework;
+    const pressureRate = bugMetrics.total ? pressure / bugMetrics.total : 0;
+
+    if (bugMetrics.critical >= 10 || pressureRate >= 0.35) {
+      return "high";
+    }
+
+    if (bugMetrics.critical > 0 || pressureRate >= 0.16) {
+      return "moderate";
+    }
+
+    return "low";
+  }, [bugMetrics.critical, bugMetrics.qaRework, bugMetrics.readyForQa, bugMetrics.reopened, bugMetrics.total]);
   const adminQuickActions = [
     {
       key: "create-project",
@@ -2129,10 +2223,10 @@ const DashboardPage = () => {
         />
       </section>
 
-      <section className="grid gap-5 xl:grid-cols-[1fr_1.12fr]">
+      <section className="grid items-stretch gap-5 lg:grid-cols-[minmax(0,7fr)_minmax(280px,3fr)]">
         <AnalyticsPanel
           title="Team Task Workload"
-          description="Compact active task pressure by team."
+          description="Current task pressure and completion across teams."
           action={
             teamTaskRows.length ? (
               <Badge className="border-white/60 bg-white/72 text-slate-600">
@@ -2142,17 +2236,25 @@ const DashboardPage = () => {
           }
         >
           {teamTaskRows.length ? (
-            <div
-              className={DASHBOARD_SPLIT_PANEL_SCROLL_CLASS}
-              onWheelCapture={forwardWheelToAncestor}
-            >
-              {teamTaskRows.map((row) => (
+            <div className="space-y-3">
+              {teamTaskRows.slice(0, 6).map((row) => (
                 <TeamTaskWorkloadCard
                   key={row.teamId || row.name}
                   row={row}
                   onOpen={navigateToIssues}
                 />
               ))}
+              {teamTaskRows.length > 6 ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="group h-9 w-full justify-between rounded-2xl bg-white/68 text-xs font-bold"
+                  onClick={() => navigate("/teams")}
+                >
+                  View All Teams
+                  <ArrowRight className="h-4 w-4 transition group-hover:translate-x-0.5" />
+                </Button>
+              ) : null}
             </div>
           ) : (
             <AnalyticsEmptyState
@@ -2163,82 +2265,14 @@ const DashboardPage = () => {
           )}
         </AnalyticsPanel>
 
-        <AnalyticsPanel
-          title="Live Activity Feed"
-          description="Recently created issues, resolved tickets, assignments, and critical alerts."
-          className="scroll-mt-28"
-          action={
-            <Button
-              type="button"
-              variant="outline"
-              className="rounded-full border-white/60 bg-white/72 text-slate-700 shadow-sm"
-              onClick={() => navigate("/issues")}
-            >
-              View all
-            </Button>
-          }
-        >
-          <div
-            id="dashboard-activity"
-            className={DASHBOARD_SPLIT_PANEL_SCROLL_CLASS}
-            onWheelCapture={forwardWheelToAncestor}
-          >
-            {activity.length ? (
-              activity.slice(0, 8).map((item) => {
-                const Icon = activityIcon[item.activityType] || Activity;
+        <QaBugRiskPanel
+          metrics={qaBugRiskMetrics}
+          riskLevel={qaBugRiskLevel}
+          onOpen={navigateToBugs}
+        />
+      </section>
 
-                return (
-                  <button
-                    key={`${item.activityType}-${item._id}`}
-                    type="button"
-                    onClick={() => navigateToIssues({ search: item.issueId })}
-                    className={cn(
-                      ANALYTICS_SUBPANEL_CLASS,
-                      "flex w-full items-start gap-3 px-3 py-2 text-left"
-                    )}
-                  >
-                    <span
-                      className={cn(
-                        "flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border shadow-sm",
-                        activityTone[item.activityType] || activityTone.created
-                      )}
-                    >
-                      <Icon className="h-4 w-4" />
-                    </span>
-                    <span className="min-w-0 flex-1">
-                      <span className="flex flex-wrap items-center gap-2">
-                        <span className="truncate text-sm font-semibold text-slate-950 dark:text-slate-100">
-                          {item.title}
-                        </span>
-                        <Badge variant={item.priority === "High" ? "danger" : "secondary"}>
-                          {item.priority}
-                        </Badge>
-                      </span>
-                      <span className="mt-1 block text-sm text-slate-500">
-                        {item.activityLabel} in {item.project?.name || "Unknown project"}
-                      </span>
-                      <span className="mt-1 block text-xs text-slate-400">
-                        {formatDateTime(item.activityAt)}
-                      </span>
-                    </span>
-                    {item.assignee ? (
-                      <span className="hidden h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white/76 text-xs font-semibold text-slate-600 shadow-sm sm:flex">
-                        {getInitials(item.assignee.name)}
-                      </span>
-                    ) : null}
-                  </button>
-                );
-              })
-            ) : (
-              <AnalyticsEmptyState
-                icon={Activity}
-                title="No live activity yet"
-                description="Recent issue movement will appear here as work changes."
-              />
-            )}
-          </div>
-        </AnalyticsPanel>
-
+      <section className="grid gap-5 xl:grid-cols-[1fr_1.12fr]">
         <AnalyticsPanel
           title="Active Workload"
           description="Team delivery pressure signals."
