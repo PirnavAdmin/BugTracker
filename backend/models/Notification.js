@@ -17,7 +17,7 @@ const notificationSchema = new Schema(
     },
     type: {
       type: String,
-      enum: ["assignment", "status_change", "team_queue", "sprint", "meeting", "other"],
+      enum: ["assignment", "status_change", "team_queue", "sprint", "meeting", "git_push", "other"],
       default: "other",
     },
     relatedId: {

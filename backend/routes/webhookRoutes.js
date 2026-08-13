@@ -1,5 +1,6 @@
 const express = require("express");
 const Project = require("../models/Project");
+const { notifyGitPushEvent } = require("../services/notificationService");
 const { decryptGitToken } = require("../utils/gitTokenCrypto");
 const { normalizeWorkspaceId } = require("../utils/workspace");
 
@@ -201,6 +202,20 @@ router.post("/github", async (req, res) => {
   };
 
   await project.save();
+
+  if (eventName === "push") {
+    try {
+      await notifyGitPushEvent({
+        project,
+        branch,
+        commitSha: latestCommitHash,
+        commitMessage: latestCommitMessage,
+        pushedByName: project.latestGitActivity?.pushedByName,
+      });
+    } catch (error) {
+      console.error("[webhookRoutes] Error creating Git push notifications:", error);
+    }
+  }
 
   req.app.get("io")?.to?.(`workspace:${normalizeWorkspaceId(project.workspaceId)}`)?.emit?.(
     "project_git_webhook_received",

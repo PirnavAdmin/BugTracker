@@ -1,10 +1,12 @@
 const Notification = require("../models/Notification");
 const User = require("../models/User");
 const TeamMember = require("../models/TeamMember");
+const ProjectMember = require("../models/ProjectMember");
 const ProjectTeam = require("../models/ProjectTeam");
 const {
   ROLE_ADMIN,
   ROLE_DEVELOPER,
+  ROLE_MANAGER,
   ROLE_QA_LEAD,
   ROLE_TEAM_LEAD,
   ROLE_TESTER,
@@ -13,6 +15,20 @@ const { BUG_STATUS } = require("../utils/bugLifecycle");
 
 const TESTER_NOTIFICATION_ROLES = [ROLE_TESTER, ROLE_QA_LEAD];
 const DEVELOPER_QUEUE_NOTIFICATION_ROLES = [ROLE_DEVELOPER, ROLE_TEAM_LEAD];
+const GIT_PUSH_NOTIFICATION_ROLES = [
+  ROLE_DEVELOPER,
+  ROLE_TEAM_LEAD,
+  ROLE_TESTER,
+  ROLE_QA_LEAD,
+  ROLE_MANAGER,
+];
+const GIT_PUSH_PROJECT_MEMBER_ROLES = [
+  "Developer",
+  "Tester",
+  "Q/A Lead",
+  "Team Lead",
+  "Manager",
+];
 
 const getUserRoleMap = async (userIds = []) => {
   const uniqueUserIds = Array.from(
@@ -71,6 +87,91 @@ const getTestersForProject = async (projectId) => {
   }).select("_id").lean();
 
   return testers.map((t) => t._id);
+};
+
+const addIdToSet = (set, value) => {
+  const id = String(value?._id || value || "").trim();
+
+  if (id) {
+    set.add(id);
+  }
+};
+
+const truncateText = (value = "", maxLength = 90) => {
+  const text = String(value || "").replace(/\s+/g, " ").trim();
+
+  if (text.length <= maxLength) {
+    return text;
+  }
+
+  return `${text.slice(0, maxLength - 3)}...`;
+};
+
+/**
+ * Finds project stakeholders who should know when the linked Git repo receives a push.
+ */
+const getGitPushRecipientsForProject = async (project) => {
+  const projectId = project?._id || project;
+
+  if (!projectId) {
+    return [];
+  }
+
+  const explicitRecipientIds = new Set();
+  addIdToSet(explicitRecipientIds, project.manager);
+  addIdToSet(explicitRecipientIds, project.projectManager);
+  addIdToSet(explicitRecipientIds, project.qaLead);
+  addIdToSet(explicitRecipientIds, project.teamLead);
+
+  const projectMembers = await ProjectMember.find({
+    projectId,
+    role: { $in: GIT_PUSH_PROJECT_MEMBER_ROLES },
+  })
+    .select("userId")
+    .lean();
+
+  for (const member of projectMembers) {
+    addIdToSet(explicitRecipientIds, member.userId);
+  }
+
+  const projectTeams = await ProjectTeam.find({ projectId }).select("teamId").lean();
+  const teamIds = new Set();
+
+  for (const projectTeam of projectTeams) {
+    addIdToSet(teamIds, projectTeam.teamId);
+  }
+
+  for (const teamId of project.attachedTeams || []) {
+    addIdToSet(teamIds, teamId);
+  }
+
+  for (const teamId of project.teamIds || []) {
+    addIdToSet(teamIds, teamId);
+  }
+
+  const teamMembers = teamIds.size
+    ? await TeamMember.find({ teamId: { $in: Array.from(teamIds) } }).select("userId").lean()
+    : [];
+  const teamUserIds = Array.from(
+    new Set(teamMembers.map((member) => String(member.userId || "")).filter(Boolean))
+  );
+
+  const teamStakeholders = teamUserIds.length
+    ? await User.find({
+        _id: { $in: teamUserIds },
+        role: { $in: GIT_PUSH_NOTIFICATION_ROLES },
+      })
+        .select("_id")
+        .lean()
+    : [];
+
+  const recipientIds = new Set(explicitRecipientIds);
+
+  for (const user of teamStakeholders) {
+    addIdToSet(recipientIds, user._id);
+  }
+
+  return Array.from(recipientIds);
 };
 
 /**
@@ -319,8 +420,53 @@ const notifySprintEvent = async ({
   }
 };
 
+const notifyGitPushEvent = async ({
+  project,
+  branch,
+  commitSha,
+  commitMessage,
+  pushedByName,
+}) => {
+  if (!project?._id) {
+    return [];
+  }
+
+  const recipients = await getGitPushRecipientsForProject(project);
+
+  if (!recipients.length) {
+    return [];
+  }
+
+  const projectName = project.name || "Project";
+  const shortSha = String(commitSha || "").slice(0, 7);
+  const pushSource = pushedByName ? ` by ${pushedByName}` : "";
+  const commitSummary = truncateText(commitMessage || "Git push received");
+  const commitSuffix = shortSha ? ` (${shortSha})` : "";
+  const branchSuffix = branch ? ` on ${branch}` : "";
+  const text = `${projectName}: Git push${branchSuffix}${pushSource}. ${commitSummary}${commitSuffix}`;
+  const notifications = [];
+
+  for (const recipientId of recipients) {
+    const notification = await createNotification({
+      recipientId,
+      text,
+      type: "git_push",
+      relatedId: project._id,
+      onModel: "Project",
+      link: "/dashboard",
+    });
+
+    if (notification) {
+      notifications.push(notification);
+    }
+  }
+
+  return notifications;
+};
+
 module.exports = {
   createNotification,
+  notifyGitPushEvent,
   notifyIssueEvent,
   notifySprintEvent,
 };
