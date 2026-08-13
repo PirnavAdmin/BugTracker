@@ -204,6 +204,14 @@ const taskStatusOptions = [
   { value: ISSUE_STATUS.DONE, label: "Done" },
 ];
 
+const inactiveOverviewStatuses = new Set([
+  ISSUE_STATUS.DONE,
+  ISSUE_STATUS.CLOSED,
+  ISSUE_STATUS.RESOLVED,
+  ISSUE_STATUS.REJECTED,
+  ISSUE_STATUS.DEFERRED,
+]);
+
 const BUG_STATUS_ANALYTICS = [
   {
     key: "open",
@@ -268,6 +276,17 @@ const getStatusLabel = (issue) =>
     : getIssueStatusLabel(issue.status);
 
 const isTaskWorkItem = (issue) => ["Task", "Sub-task"].includes(issue?.type);
+
+const isWorkOverviewActiveIssue = (issue) => {
+  const status = isBugIssue(issue) ? normalizeBugStatusForIssue(issue) : issue?.status;
+
+  return !inactiveOverviewStatuses.has(
+    String(status || "")
+      .trim()
+      .toUpperCase()
+      .replace(/[\s-]+/g, "_")
+  );
+};
 
 const getBadgeClass = (map, key, fallback) =>
   map[key] || fallback || "border-slate-200 bg-slate-100 text-slate-700";
@@ -1446,11 +1465,35 @@ const WorkTable = ({
   updatingId,
 }) => {
   if (!issues.length) {
+    const emptyCopyByType = {
+      bugs: {
+        title: "No active bugs at present",
+        description: "Assigned bugs that still need developer action will appear here.",
+        icon: <Bug className="h-5 w-5" />,
+      },
+      stories: {
+        title: "No active stories at present",
+        description: "Assigned stories that are still moving will appear here.",
+        icon: <FolderKanban className="h-5 w-5" />,
+      },
+      all: {
+        title: "No active work at present",
+        description: "Tasks, bugs, and stories that still need action will appear here.",
+        icon: <CircleDotDashed className="h-5 w-5" />,
+      },
+      tasks: {
+        title: "No active tasks at present",
+        description: "Assigned tasks that are not done will appear here.",
+        icon: <ListTodo className="h-5 w-5" />,
+      },
+    };
+    const emptyCopy = emptyCopyByType[type] || emptyCopyByType.tasks;
+
     return (
       <EmptyState
-        title={type === "bugs" ? "No bugs match this view" : "No tasks match this view"}
-        description="Adjust filters or switch tabs to review another part of your queue."
-        icon={type === "bugs" ? <Bug className="h-5 w-5" /> : <ListTodo className="h-5 w-5" />}
+        title={emptyCopy.title}
+        description={emptyCopy.description}
+        icon={emptyCopy.icon}
       />
     );
   }
@@ -1861,6 +1904,50 @@ const DeveloperDashboardPage = () => {
         ),
     [allIssues, user?._id]
   );
+  const activeBugIssues = useMemo(
+    () => bugIssues.filter(isWorkOverviewActiveIssue),
+    [bugIssues]
+  );
+  const activeTaskIssues = useMemo(
+    () => taskIssues.filter(isWorkOverviewActiveIssue),
+    [taskIssues]
+  );
+  const activeStoryIssues = useMemo(
+    () => storyIssues.filter(isWorkOverviewActiveIssue),
+    [storyIssues]
+  );
+  const activeWorkOverviewIssues = useMemo(
+    () => [...activeBugIssues, ...activeTaskIssues, ...activeStoryIssues],
+    [activeBugIssues, activeStoryIssues, activeTaskIssues]
+  );
+  const workOverviewCounts = useMemo(
+    () => ({
+      bugs: activeBugIssues.length,
+      tasks: activeTaskIssues.length,
+      stories: activeStoryIssues.length,
+      all: activeBugIssues.length + activeTaskIssues.length + activeStoryIssues.length,
+    }),
+    [activeBugIssues.length, activeStoryIssues.length, activeTaskIssues.length]
+  );
+  const preferredWorkOverviewTab = useMemo(
+    () => {
+      if (!workOverviewCounts.all) {
+        return "tasks";
+      }
+
+      return [
+        { id: "bugs", count: workOverviewCounts.bugs },
+        { id: "tasks", count: workOverviewCounts.tasks },
+        { id: "stories", count: workOverviewCounts.stories },
+      ].sort((left, right) => right.count - left.count)[0]?.id || "tasks";
+    },
+    [
+      workOverviewCounts.all,
+      workOverviewCounts.bugs,
+      workOverviewCounts.stories,
+      workOverviewCounts.tasks,
+    ]
+  );
   const sprintProgress = useMemo(
     () => {
       const activeSprintTasks = taskIssues.filter(
@@ -1973,6 +2060,9 @@ const DeveloperDashboardPage = () => {
     [bugIssues, storyIssues, taskIssues]
   );
   const stats = useMemo(() => getIssueStatusMetrics(workflowIssues), [workflowIssues]);
+  useEffect(() => {
+    setActiveTab(preferredWorkOverviewTab);
+  }, [preferredWorkOverviewTab]);
   const normalizedFilters = useMemo(
     () => ({
       ...filters,
@@ -1982,12 +2072,12 @@ const DeveloperDashboardPage = () => {
   );
   const activeIssues =
     activeTab === "bugs"
-      ? bugIssues
+      ? activeBugIssues
       : activeTab === "stories"
-        ? storyIssues
+        ? activeStoryIssues
         : activeTab === "all"
-          ? workflowIssues
-          : taskIssues;
+          ? activeWorkOverviewIssues
+          : activeTaskIssues;
   const visibleIssues = useMemo(
     () => sortIssues(filterIssues(activeIssues, normalizedFilters), normalizedFilters.sortBy),
     [activeIssues, normalizedFilters]
@@ -2291,7 +2381,9 @@ const DeveloperDashboardPage = () => {
                     Work Overview
                   </CardTitle>
                   <CardDescription>
-                    {visibleIssues.length} {activeStatusLabel.toLowerCase()} in the current view
+                    {visibleIssues.length
+                      ? `${visibleIssues.length} active ${activeStatusLabel.toLowerCase()} in the current view`
+                      : `No active ${activeStatusLabel.toLowerCase()} at present`}
                   </CardDescription>
                 </div>
 
@@ -2299,12 +2391,13 @@ const DeveloperDashboardPage = () => {
                   <div className="grid grid-cols-2 gap-1 rounded-[22px] border border-white/80 bg-slate-100/80 p-1 shadow-inner sm:w-auto">
                     {TABS.map(({ id, label, Icon }) => {
                       const active = activeTab === id;
+                      const count = workOverviewCounts[id] || 0;
 
                       return (
                         <button
                           key={id}
                           className={cn(
-                            "inline-flex h-11 items-center justify-center gap-2 rounded-[18px] px-4 text-sm font-semibold transition-all duration-300",
+                            "relative inline-flex h-11 items-center justify-center gap-2 rounded-[18px] px-4 pr-7 text-sm font-semibold transition-all duration-300",
                             active
                               ? "bg-[linear-gradient(90deg,#2563EB_0%,#7C3AED_55%,#0891B2_100%)] text-white shadow-[0_14px_28px_-18px_rgba(37,99,235,0.8)]"
                               : "text-slate-600 hover:bg-white/80 hover:text-slate-950"
@@ -2320,6 +2413,19 @@ const DeveloperDashboardPage = () => {
                         >
                           <Icon className="h-4 w-4" />
                           {label}
+                          <span
+                            className={cn(
+                              "absolute right-1.5 top-1.5 flex h-5 min-w-5 items-center justify-center rounded-full px-1 text-[10px] font-extrabold leading-none shadow-sm",
+                              active
+                                ? "bg-white text-blue-700"
+                                : count
+                                  ? "bg-rose-500 text-white"
+                                  : "bg-slate-200 text-slate-500"
+                            )}
+                            aria-label={`${count} active ${label.toLowerCase()}`}
+                          >
+                            {count > 99 ? "99+" : count}
+                          </span>
                         </button>
                       );
                     })}
