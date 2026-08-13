@@ -1551,19 +1551,24 @@ const AdminQuickActionsCard = ({
               key={stat.key}
               type="button"
               onClick={stat.onClick}
-              className="group flex min-w-[128px] items-center gap-2 rounded-xl border border-slate-200/70 bg-white/62 px-3 py-2 text-left shadow-[0_10px_24px_-24px_rgba(15,23,42,0.38)] transition-all duration-200 hover:-translate-y-0.5 hover:border-blue-200 hover:bg-white/92 hover:shadow-[0_14px_30px_-26px_rgba(37,99,235,0.38)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/45 dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10"
+              aria-label={`Open ${stat.label}`}
+              title={`Open ${stat.label}`}
+              className="group flex min-w-[128px] items-center justify-between gap-2 rounded-xl border border-slate-200/70 bg-white/62 px-3 py-2 text-left shadow-[0_10px_24px_-24px_rgba(15,23,42,0.38)] transition-all duration-200 hover:-translate-y-0.5 hover:border-blue-200 hover:bg-white/92 hover:shadow-[0_14px_30px_-26px_rgba(37,99,235,0.38)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/45 dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10"
             >
-              <span className={cn("flex h-8 w-8 shrink-0 items-center justify-center rounded-lg", stat.className)}>
-                <Icon className="h-4 w-4" />
-              </span>
-              <span className="min-w-0">
-                <span className="block text-sm font-semibold leading-4 text-slate-950">
-                  {formatCompactNumber(stat.value)}
+              <span className="flex min-w-0 items-center gap-2">
+                <span className={cn("flex h-8 w-8 shrink-0 items-center justify-center rounded-lg", stat.className)}>
+                  <Icon className="h-4 w-4" />
                 </span>
-                <span className="block truncate text-[11px] font-medium text-slate-500">
-                  {stat.label}
+                <span className="min-w-0">
+                  <span className="block text-sm font-semibold leading-4 text-slate-950">
+                    {formatCompactNumber(stat.value)}
+                  </span>
+                  <span className="block truncate text-[11px] font-medium text-slate-500">
+                    {stat.label}
+                  </span>
                 </span>
               </span>
+              <ArrowRight className="h-3.5 w-3.5 shrink-0 text-slate-400 transition group-hover:translate-x-0.5 group-hover:text-blue-600" />
             </button>
           );
         })}
