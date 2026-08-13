@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
-import { motion, useReducedMotion, useScroll, useTransform } from "framer-motion";
+import { AnimatePresence, motion, useReducedMotion, useScroll, useTransform } from "framer-motion";
 import {
   Activity,
   AlertTriangle,
@@ -15,7 +15,6 @@ import {
   Clock,
   FolderKanban,
   Layers3,
-  MessageCircle,
   Plus,
   RefreshCcw,
   Settings,
@@ -45,6 +44,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Textarea } from "@/components/ui/textarea";
 import UserAvatar from "@/components/shared/UserAvatar";
 import { ProjectOverviewDashboardPanel } from "@/components/delivery/ProjectDeliveryWorkflowPanel";
 import { useAuth } from "@/hooks/use-auth";
@@ -514,10 +514,17 @@ const ProjectDeliveryOverview = ({
 };
 
 const rankBadge = (rank) => {
-  if (rank === 1) return "1";
-  if (rank === 2) return "2";
-  if (rank === 3) return "3";
+  if (rank === 1) return "🥇";
+  if (rank === 2) return "🥈";
+  if (rank === 3) return "🥉";
   return String(rank);
+};
+
+const rankBadgeTone = (rank) => {
+  if (rank === 1) return "border-amber-200 bg-amber-50 text-amber-700";
+  if (rank === 2) return "border-slate-200 bg-slate-50 text-slate-600";
+  if (rank === 3) return "border-orange-200 bg-orange-50 text-orange-700";
+  return "border-slate-100 bg-slate-100 text-slate-600";
 };
 
 const TopContributors = ({
@@ -556,10 +563,9 @@ const TopContributors = ({
               <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3">
                 <span
                   className={cn(
-                    "flex h-8 w-8 items-center justify-center rounded-full text-xs font-semibold shadow-sm",
-                    contributor.rank <= 3
-                      ? "bg-[linear-gradient(135deg,#2563EB,#7C3AED)] text-white"
-                      : "bg-slate-100 text-slate-600"
+                    "flex h-8 w-8 items-center justify-center rounded-full border text-xs font-semibold shadow-sm",
+                    contributor.rank <= 3 ? "text-base" : "",
+                    rankBadgeTone(contributor.rank)
                   )}
                 >
                   {rankBadge(contributor.rank)}
@@ -581,8 +587,22 @@ const TopContributors = ({
                     </span>
                   </span>
                 </span>
-                <span className="rounded-full border border-blue-100 bg-blue-50 px-2.5 py-1 text-sm font-semibold text-blue-700">
-                  {contributor.percent}%
+                <span className="flex shrink-0 flex-col items-end gap-1">
+                  <span className="rounded-full border border-blue-100 bg-blue-50 px-2.5 py-1 text-sm font-semibold text-blue-700">
+                    {contributor.percent}%
+                  </span>
+                  {contributor.rankMovement ? (
+                    <span
+                      className={cn(
+                        "text-[10px] font-medium",
+                        contributor.rankMovement > 0 ? "text-emerald-600" : "text-rose-600"
+                      )}
+                    >
+                      {contributor.rankMovement > 0
+                        ? `↑ Up ${contributor.rankMovement}`
+                        : `↓ Down ${Math.abs(contributor.rankMovement)}`}
+                    </span>
+                  ) : null}
                 </span>
               </div>
 
@@ -1366,15 +1386,47 @@ const formatQuickChatTime = (value) => {
 const AdminQuickActionsCard = ({
   actions = [],
   conversations = [],
-  unreadCount = 0,
   onlineUsers = [],
   currentUserId = "",
   onOpenChat,
+  onSendReply,
 }) => {
   const carouselRef = useRef(null);
+  const replyInputRef = useRef(null);
+  const [activeReplyId, setActiveReplyId] = useState("");
+  const [replyText, setReplyText] = useState("");
+  const [sendingReplyId, setSendingReplyId] = useState("");
+  const [replyErrors, setReplyErrors] = useState({});
+  const [handledConversationUntil, setHandledConversationUntil] = useState(() => new Map());
+  const isHandledConversation = (conversation = {}) => {
+    const conversationId = getEntityId(conversation);
+    const handledUntil = handledConversationUntil.get(conversationId);
+
+    if (!handledUntil) {
+      return false;
+    }
+
+    const latestTime = new Date(
+      conversation.lastMessageAt || conversation.updatedAt || conversation.createdAt || 0
+    ).getTime();
+
+    return latestTime <= handledUntil;
+  };
   const recentMessages = conversations
     .filter((conversation) => conversation.lastMessage || conversation.unreadCount)
+    .filter((conversation) => !isHandledConversation(conversation))
     .slice(0, 8);
+  const visibleUnreadCount = recentMessages.reduce(
+    (total, conversation) => total + Number(conversation.unreadCount || 0),
+    0
+  );
+
+  useEffect(() => {
+    if (activeReplyId) {
+      window.setTimeout(() => replyInputRef.current?.focus(), 40);
+    }
+  }, [activeReplyId]);
+
   const scrollCarousel = (direction) => {
     const target = carouselRef.current;
 
@@ -1386,6 +1438,48 @@ const AdminQuickActionsCard = ({
       left: direction * Math.max(260, target.clientWidth * 0.72),
       behavior: "smooth",
     });
+  };
+  const openReplyComposer = (conversationId) => {
+    setActiveReplyId(conversationId);
+    setReplyText("");
+    setReplyErrors({});
+  };
+  const closeReplyComposer = () => {
+    setActiveReplyId("");
+    setReplyText("");
+    setReplyErrors({});
+  };
+  const submitReply = async (conversation) => {
+    const conversationId = getEntityId(conversation);
+    const text = replyText.trim();
+
+    if (!conversationId || !text || sendingReplyId) {
+      return;
+    }
+
+    setSendingReplyId(conversationId);
+    setReplyErrors((current) => ({ ...current, [conversationId]: "" }));
+
+    const sentMessage = await onSendReply?.({ conversationId, message: text });
+
+    if (sentMessage) {
+      const handledThrough =
+        new Date(sentMessage.createdAt || Date.now()).getTime() + 1000;
+      setHandledConversationUntil((current) => {
+        const next = new Map(current);
+        next.set(conversationId, handledThrough);
+        return next;
+      });
+      setActiveReplyId("");
+      setReplyText("");
+    } else {
+      setReplyErrors((current) => ({
+        ...current,
+        [conversationId]: "Failed to send",
+      }));
+    }
+
+    setSendingReplyId("");
   };
 
   return (
@@ -1438,7 +1532,11 @@ const AdminQuickActionsCard = ({
               </span>
             </div>
             <p className="mt-0.5 text-xs text-slate-500">
-              {unreadCount ? `${formatCompactNumber(unreadCount)} new messages` : "No new messages"}
+              {visibleUnreadCount
+                ? `${formatCompactNumber(visibleUnreadCount)} new messages`
+                : recentMessages.length
+                  ? `${formatCompactNumber(recentMessages.length)} messages need attention`
+                  : "No messages need your attention"}
             </p>
           </div>
 
@@ -1478,10 +1576,12 @@ const AdminQuickActionsCard = ({
         </div>
 
         {recentMessages.length ? (
-          <div
+          <motion.div
             ref={carouselRef}
+            layout
             className="mt-3 flex snap-x gap-2.5 overflow-x-auto scroll-smooth pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
           >
+            <AnimatePresence initial={false}>
             {recentMessages.map((conversation) => {
               const conversationId = getEntityId(conversation);
               const title = getDashboardConversationName(conversation, currentUserId);
@@ -1490,15 +1590,21 @@ const AdminQuickActionsCard = ({
               const isUnread = Number(conversation.unreadCount || 0) > 0;
               const isOnline =
                 conversation.type === "direct" && onlineUsers.includes(getEntityId(peer));
+              const isReplying = activeReplyId === conversationId;
+              const isSending = sendingReplyId === conversationId;
 
               return (
-                <button
+                <motion.div
                   key={conversationId}
-                  type="button"
-                  onClick={() => onOpenChat(conversationId)}
+                  layout
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -8 }}
+                  transition={{ duration: 0.24, ease: "easeOut" }}
                   className={cn(
                     "group relative min-w-full snap-start rounded-2xl border bg-white/68 p-3 text-left shadow-[0_12px_28px_-26px_rgba(15,23,42,0.36)] transition-all duration-200 hover:-translate-y-0.5 hover:border-blue-200 hover:bg-white/94 sm:min-w-[calc(50%-0.3125rem)] lg:min-w-[calc(33.333%-0.4375rem)] 2xl:min-w-[calc(25%-0.5rem)]",
-                    isUnread ? "border-blue-200/90" : "border-slate-200/70"
+                    isUnread ? "border-blue-200/90" : "border-slate-200/70",
+                    isReplying ? "border-violet-200 bg-white/95 shadow-[0_16px_34px_-28px_rgba(124,58,237,0.36)]" : ""
                   )}
                 >
                   {isUnread ? (
@@ -1534,27 +1640,78 @@ const AdminQuickActionsCard = ({
                     <Badge className="rounded-full border-blue-100 bg-blue-50 px-2 py-0.5 text-[10px] font-medium text-blue-700">
                       {getDashboardChatBadge(conversation)}
                     </Badge>
-                    <span
+                    <button
+                      type="button"
                       className="inline-flex items-center text-xs font-medium text-violet-700 transition group-hover:translate-x-0.5"
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        onOpenChat(conversationId);
-                      }}
+                      onClick={() => openReplyComposer(conversationId)}
                     >
                       Reply
                       <ArrowRight className="ml-1 h-3.5 w-3.5" />
-                    </span>
+                    </button>
                   </span>
-                </button>
+                  <AnimatePresence initial={false}>
+                    {isReplying ? (
+                      <motion.div
+                        layout
+                        initial={{ opacity: 0, height: 0, y: -4 }}
+                        animate={{ opacity: 1, height: "auto", y: 0 }}
+                        exit={{ opacity: 0, height: 0, y: -4 }}
+                        transition={{ duration: 0.24, ease: "easeOut" }}
+                        className="mt-3 overflow-hidden"
+                      >
+                        <Textarea
+                          ref={replyInputRef}
+                          value={replyText}
+                          onChange={(event) => setReplyText(event.target.value)}
+                          onKeyDown={(event) => {
+                            if (event.key === "Enter" && !event.shiftKey) {
+                              event.preventDefault();
+                              submitReply(conversation);
+                            }
+                          }}
+                          placeholder="Type your reply..."
+                          className="min-h-[68px] resize-none rounded-xl border-slate-200 bg-white/86 text-xs leading-5 shadow-inner focus-visible:ring-violet-500/25"
+                          disabled={isSending}
+                        />
+                        <div className="mt-2 flex items-center justify-between gap-2">
+                          <span className="text-[11px] text-rose-500">
+                            {replyErrors[conversationId] || ""}
+                          </span>
+                          <span className="flex items-center gap-2">
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              className="h-7 rounded-full px-2.5 text-xs font-medium"
+                              onClick={closeReplyComposer}
+                              disabled={isSending}
+                            >
+                              Cancel
+                            </Button>
+                            <Button
+                              type="button"
+                              className="h-7 rounded-full px-3 text-xs font-medium"
+                              onClick={() => submitReply(conversation)}
+                              disabled={!replyText.trim() || isSending}
+                            >
+                              {isSending ? "Sending..." : "Send"}
+                              <ArrowRight className="ml-1 h-3.5 w-3.5" />
+                            </Button>
+                          </span>
+                        </div>
+                      </motion.div>
+                    ) : null}
+                  </AnimatePresence>
+                </motion.div>
               );
             })}
-          </div>
+            </AnimatePresence>
+          </motion.div>
         ) : (
           <AnalyticsEmptyState
             className="min-h-[124px] py-5"
-            icon={MessageCircle}
-            title="No recent messages"
-            description="Recent workspace conversations will appear here."
+            icon={CheckCircle2}
+            title="You're all caught up"
+            description="No messages need your attention."
           />
         )}
       </div>
@@ -1898,6 +2055,7 @@ const DashboardPage = () => {
     (state) => state.hasLoadedConversations
   );
   const loadChatConversations = useChatStore((state) => state.loadConversations);
+  const sendChatMessage = useChatStore((state) => state.sendMessage);
   const setChatCurrentUserId = useChatStore((state) => state.setCurrentUserId);
 
   useEffect(() => {
@@ -2329,65 +2487,81 @@ const DashboardPage = () => {
       .slice(0, 6);
   }, [allProjects, bugs, deliveryProjectId, deliverySort]);
   const bugContributorRows = useMemo(() => {
-    const rowsByContributor = new Map();
+    const buildContributorRows = (bugList) => {
+      const rowsByContributor = new Map();
 
-    bugs.forEach((bug) => {
-      const assignee = getBugAssignee(bug);
-      const rawId = String(assignee?._id || assignee?.id || "").trim();
-      const rawEmail = String(assignee?.email || "").trim().toLowerCase();
-      const rawName = String(assignee?.name || assignee?.fullName || "").trim();
-      const matchedUser =
-        (rawId && userLookup.byId.get(rawId)) ||
-        (rawEmail && userLookup.byEmail.get(rawEmail)) ||
-        (rawName && userLookup.byName.get(rawName.toLowerCase())) ||
-        assignee ||
-        null;
-      const resolvedId = String(matchedUser?._id || matchedUser?.id || rawId).trim();
-      const resolvedEmail = String(matchedUser?.email || rawEmail).trim().toLowerCase();
-      const resolvedName = String(
-        matchedUser?.name || matchedUser?.fullName || rawName || "Unassigned"
-      ).trim();
-      const rowKey = resolvedId || resolvedEmail || resolvedName.toLowerCase();
+      bugList.forEach((bug) => {
+        const assignee = getBugAssignee(bug);
+        const rawId = String(assignee?._id || assignee?.id || "").trim();
+        const rawEmail = String(assignee?.email || "").trim().toLowerCase();
+        const rawName = String(assignee?.name || assignee?.fullName || "").trim();
+        const matchedUser =
+          (rawId && userLookup.byId.get(rawId)) ||
+          (rawEmail && userLookup.byEmail.get(rawEmail)) ||
+          (rawName && userLookup.byName.get(rawName.toLowerCase())) ||
+          assignee ||
+          null;
+        const resolvedId = String(matchedUser?._id || matchedUser?.id || rawId).trim();
+        const resolvedEmail = String(matchedUser?.email || rawEmail).trim().toLowerCase();
+        const resolvedName = String(
+          matchedUser?.name || matchedUser?.fullName || rawName || "Unassigned"
+        ).trim();
+        const rowKey = resolvedId || resolvedEmail || resolvedName.toLowerCase();
 
-      if (!rowKey) {
-        return;
-      }
+        if (!rowKey) {
+          return;
+        }
 
-      const row = rowsByContributor.get(rowKey) || {
-        userKey: rowKey,
-        userId: resolvedId,
-        name: resolvedName,
-        open: 0,
-        resolved: 0,
-        critical: 0,
-        total: 0,
-        score: 0,
-        user: matchedUser,
-      };
+        const row = rowsByContributor.get(rowKey) || {
+          userKey: rowKey,
+          userId: resolvedId,
+          name: resolvedName,
+          open: 0,
+          resolved: 0,
+          critical: 0,
+          total: 0,
+          score: 0,
+          user: matchedUser,
+        };
 
-      row.total += 1;
-      row.open += isOpenBug(bug) ? 1 : 0;
-      row.resolved += isResolvedBug(bug) ? 1 : 0;
-      row.critical += isCriticalBug(bug) ? 1 : 0;
-      row.score = row.open + row.resolved + row.critical;
-      row.user = matchedUser || row.user;
-      rowsByContributor.set(rowKey, row);
+        row.total += 1;
+        row.open += isOpenBug(bug) ? 1 : 0;
+        row.resolved += isResolvedBug(bug) ? 1 : 0;
+        row.critical += isCriticalBug(bug) ? 1 : 0;
+        row.score = row.open + row.resolved + row.critical;
+        row.user = matchedUser || row.user;
+        rowsByContributor.set(rowKey, row);
+      });
+
+      return Array.from(rowsByContributor.values())
+        .filter((row) => row.name !== "Unassigned")
+        .sort(
+          (left, right) =>
+            right.score - left.score ||
+            right.resolved - left.resolved ||
+            right.open - left.open ||
+            left.name.localeCompare(right.name)
+        );
+    };
+
+    const recentWindowStart = new Date();
+    recentWindowStart.setDate(recentWindowStart.getDate() - 7);
+    const historicalBugs = bugs.filter((bug) => {
+      const activityDate = new Date(bug.updatedAt || bug.createdAt || 0);
+      return activityDate < recentWindowStart;
     });
-
-    const rows = Array.from(rowsByContributor.values())
-      .filter((row) => row.name !== "Unassigned")
-      .sort(
-        (left, right) =>
-          right.score - left.score ||
-          right.resolved - left.resolved ||
-          right.open - left.open ||
-          left.name.localeCompare(right.name)
-      );
+    const rows = buildContributorRows(bugs);
+    const previousRankByContributor = new Map(
+      buildContributorRows(historicalBugs).map((row, index) => [row.userKey, index + 1])
+    );
     const totalScore = rows.reduce((sum, row) => sum + row.score, 0);
 
     return rows.slice(0, 6).map((row, index) => ({
       ...row,
       rank: index + 1,
+      rankMovement: previousRankByContributor.has(row.userKey)
+        ? previousRankByContributor.get(row.userKey) - (index + 1)
+        : 0,
       shortName: row.name.split(" ")[0] || row.name,
       percent: totalScore ? Math.round((row.score / totalScore) * 100) : 0,
     }));
@@ -2567,14 +2741,6 @@ const DashboardPage = () => {
         ),
     [chatConversations]
   );
-  const quickChatUnreadCount = useMemo(
-    () =>
-      quickChatConversations.reduce(
-        (total, conversation) => total + Number(conversation.unreadCount || 0),
-        0
-      ),
-    [quickChatConversations]
-  );
   const recentCriticalBugs = useMemo(
     () =>
       bugs
@@ -2631,7 +2797,6 @@ const DashboardPage = () => {
         <AdminQuickActionsCard
           actions={adminQuickActions}
           conversations={quickChatConversations}
-          unreadCount={quickChatUnreadCount}
           onlineUsers={chatOnlineUsers}
           currentUserId={getEntityId(user)}
           onOpenChat={(conversationId = "") =>
@@ -2640,6 +2805,13 @@ const DashboardPage = () => {
                 ? `/chat?conversation=${encodeURIComponent(conversationId)}`
                 : "/chat"
             )
+          }
+          onSendReply={({ conversationId, message }) =>
+            sendChatMessage({
+              conversationId,
+              message,
+              currentUser: user,
+            })
           }
         />
       </section>

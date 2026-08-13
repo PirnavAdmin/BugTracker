@@ -400,7 +400,7 @@ export const useChatStore = create((set, get) => ({
     const text = String(message || "").trim();
 
     if (!conversationId || (!text && !attachments.length)) {
-      return;
+      return false;
     }
 
     const tempId = `temp-${Date.now()}-${Math.random().toString(36).slice(2)}`;
@@ -436,19 +436,37 @@ export const useChatStore = create((set, get) => ({
     const socket = getChatSocket();
 
     if (socket?.connected) {
-      socket.emit(
-        "send_message",
-        {
-          conversationId,
-          message: text,
-          attachments,
-          tempId,
-        },
-        (response) => {
-          if (!response?.ok) {
-            get().markMessageFailed(conversationId, tempId);
+      return new Promise((resolve) => {
+        let didResolve = false;
+        const finish = (value) => {
+          if (didResolve) {
             return;
           }
+
+          didResolve = true;
+          resolve(value);
+        };
+        const timeoutId = window.setTimeout(() => {
+          get().markMessageFailed(conversationId, tempId);
+          finish(false);
+        }, 12000);
+
+        socket.emit(
+          "send_message",
+          {
+            conversationId,
+            message: text,
+            attachments,
+            tempId,
+          },
+          (response) => {
+            window.clearTimeout(timeoutId);
+
+            if (!response?.ok) {
+              get().markMessageFailed(conversationId, tempId);
+              finish(false);
+              return;
+            }
 
             get().receiveMessage({
               conversationId,
@@ -456,9 +474,10 @@ export const useChatStore = create((set, get) => ({
               message: response.message,
               tempId,
             });
-        }
-      );
-      return;
+            finish(response.message || true);
+          }
+        );
+      });
     }
 
     try {
@@ -472,8 +491,10 @@ export const useChatStore = create((set, get) => ({
         message: createdMessage,
         tempId,
       });
+      return createdMessage || true;
     } catch {
       get().markMessageFailed(conversationId, tempId);
+      return false;
     }
   },
 
