@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { motion, useReducedMotion, useScroll, useTransform } from "framer-motion";
@@ -10,10 +10,12 @@ import {
   Bug,
   CalendarDays,
   CheckCircle2,
+  ChevronLeft,
   ChevronRight,
   Clock,
   FolderKanban,
   Layers3,
+  MessageCircle,
   Plus,
   RefreshCcw,
   Settings,
@@ -46,6 +48,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import UserAvatar from "@/components/shared/UserAvatar";
 import { ProjectOverviewDashboardPanel } from "@/components/delivery/ProjectDeliveryWorkflowPanel";
 import { useAuth } from "@/hooks/use-auth";
+import { useChatStore } from "@/lib/chatStore";
 import { ROLE_MANAGER } from "@/lib/roles";
 import {
   ISSUE_STATUS,
@@ -1311,79 +1314,253 @@ const PriorityDistribution = ({ rows, total }) => {
   );
 };
 
-const AdminQuickActionsCard = ({ actions = [], stats = [] }) => (
-  <AnalyticsPanel
-    className="h-full"
-    title={
-      <span className="flex items-center gap-2">
-        <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-violet-50 text-violet-700">
-          <Zap className="h-4 w-4" />
-        </span>
-        Quick Actions
-      </span>
+const getEntityId = (value) => String(value?._id || value?.id || value || "");
+
+const getConversationPeer = (conversation = {}, currentUserId = "") =>
+  (conversation.participants || []).find(
+    (participant) => getEntityId(participant) !== String(currentUserId)
+  );
+
+const getDashboardConversationName = (conversation = {}, currentUserId = "") => {
+  if (conversation.type === "direct") {
+    return getConversationPeer(conversation, currentUserId)?.name || "Direct message";
+  }
+
+  return conversation.name || conversation.projectId?.name || conversation.teamId?.name || "Group chat";
+};
+
+const getDashboardChatBadge = (conversation = {}) => {
+  const text = `${conversation.lastMessage || ""} ${conversation.name || ""}`.toLowerCase();
+
+  if (text.includes("qa") || text.includes("test")) return "QA Update";
+  if (text.includes("fix") || text.includes("bug")) return "Bug Fix";
+  if (text.includes("review") || text.includes("pr ")) return "Review";
+  if (conversation.channelType === "project") return "Project";
+  if (conversation.channelType === "team") return "Team";
+  if (conversation.type === "direct") return "Direct";
+  return "Admin";
+};
+
+const formatQuickChatTime = (value) => {
+  const date = value ? new Date(value) : null;
+
+  if (!date || Number.isNaN(date.getTime())) {
+    return "Just now";
+  }
+
+  const diffMs = Date.now() - date.getTime();
+  const diffMinutes = Math.max(0, Math.floor(diffMs / 60000));
+
+  if (diffMinutes < 1) return "Just now";
+  if (diffMinutes < 60) return `${diffMinutes}m ago`;
+
+  const diffHours = Math.floor(diffMinutes / 60);
+  if (diffHours < 24) return `${diffHours}h ago`;
+
+  const diffDays = Math.floor(diffHours / 24);
+  if (diffDays < 7) return `${diffDays}d ago`;
+
+  return formatDate(date);
+};
+
+const AdminQuickActionsCard = ({
+  actions = [],
+  conversations = [],
+  unreadCount = 0,
+  onlineUsers = [],
+  currentUserId = "",
+  onOpenChat,
+}) => {
+  const carouselRef = useRef(null);
+  const recentMessages = conversations
+    .filter((conversation) => conversation.lastMessage || conversation.unreadCount)
+    .slice(0, 8);
+  const scrollCarousel = (direction) => {
+    const target = carouselRef.current;
+
+    if (!target) {
+      return;
     }
-    description="Common actions to manage your workspace efficiently."
-  >
-    <div className="grid gap-2 sm:grid-cols-3 xl:grid-cols-6">
-      {actions.map((action) => {
-        const Icon = action.icon;
 
-        return (
-          <button
-            key={action.key}
-            type="button"
-            onClick={action.onClick}
-            className="group flex min-h-[62px] items-center gap-2.5 rounded-xl border border-slate-200/70 bg-white/60 px-3 py-2 text-left shadow-[0_12px_28px_-28px_rgba(15,23,42,0.42)] transition-all hover:-translate-y-0.5 hover:border-blue-200 hover:bg-white/92 hover:shadow-[0_16px_34px_-30px_rgba(37,99,235,0.42)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/45 dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10"
-          >
-            <span className={cn("flex h-9 w-9 shrink-0 items-center justify-center rounded-lg transition group-hover:scale-[1.03]", action.className)}>
-              <Icon className="h-4.5 w-4.5" />
-            </span>
-            <span className={cn(
-              "truncate text-xs font-bold text-slate-900 dark:text-slate-100",
-              action.labelClassName
-            )}>
-              {action.title}
-            </span>
-          </button>
-        );
-      })}
-    </div>
-    <div className="mt-3 grid grid-cols-1 gap-2 border-t border-slate-200/70 pt-3 sm:grid-cols-2 dark:border-white/10">
-      {stats.map((stat) => {
-        const Icon = stat.icon;
+    target.scrollBy({
+      left: direction * Math.max(260, target.clientWidth * 0.72),
+      behavior: "smooth",
+    });
+  };
 
-        return (
-          <button
-            key={stat.key}
-            type="button"
-            onClick={stat.onClick}
-            className="group flex min-w-0 items-center justify-between gap-3 rounded-xl border border-slate-200/70 bg-white/58 px-3 py-2.5 text-left shadow-[0_12px_28px_-28px_rgba(15,23,42,0.38)] transition hover:-translate-y-0.5 hover:border-violet-200 hover:bg-white/90 dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10"
-          >
-            <span className="flex min-w-0 items-center gap-3">
-              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-blue-50 text-blue-700">
-                <Icon className={cn("h-4.5 w-4.5", stat.iconClassName)} />
+  return (
+    <AnalyticsPanel
+      className="[&>div:first-child]:p-3.5 [&>div:first-child_h2]:text-base [&>div:first-child_h2]:font-semibold [&>div:last-child]:space-y-3 [&>div:last-child]:p-3.5"
+      title={
+        <span className="flex items-center gap-2">
+          <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-violet-50 text-violet-700">
+            <Zap className="h-3.5 w-3.5" />
+          </span>
+          Quick Actions
+        </span>
+      }
+    >
+      <div className="flex gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        {actions.map((action) => {
+          const Icon = action.icon;
+
+          return (
+            <button
+              key={action.key}
+              type="button"
+              onClick={action.onClick}
+              className="group flex min-w-[154px] items-center gap-2 rounded-xl border border-slate-200/70 bg-white/62 px-3 py-2 text-left shadow-[0_10px_24px_-24px_rgba(15,23,42,0.38)] transition-all duration-200 hover:-translate-y-0.5 hover:border-blue-200 hover:bg-white/92 hover:shadow-[0_14px_30px_-26px_rgba(37,99,235,0.38)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/45 dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10"
+            >
+              <span className={cn("flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition group-hover:scale-[1.02]", action.className)}>
+                <Icon className="h-4 w-4" />
               </span>
-              <span className="min-w-0">
-                <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-500">
-                  {stat.title}
-                </span>
-                <span className="block text-xl font-black leading-tight text-slate-950 dark:text-slate-100">
-                  {stat.value}
-                </span>
-                {stat.helper ? (
-                  <span className="mt-1 block truncate text-xs font-semibold text-emerald-600">
-                    {stat.helper}
+              <span className={cn(
+                "truncate text-xs font-medium text-slate-900 dark:text-slate-100",
+                action.labelClassName
+              )}>
+                {action.title}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+
+      <div className="rounded-[18px] border border-slate-200/70 bg-white/52 p-3 shadow-[0_12px_32px_-30px_rgba(15,23,42,0.36)] dark:border-white/10 dark:bg-white/5">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <div className="flex items-center gap-2">
+              <h3 className="text-sm font-semibold text-slate-950 dark:text-slate-100">
+                Quick Chat
+              </h3>
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-100 bg-emerald-50 px-2 py-0.5 text-[10px] font-medium text-emerald-700">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                Online
+              </span>
+            </div>
+            <p className="mt-0.5 text-xs text-slate-500">
+              {unreadCount ? `${formatCompactNumber(unreadCount)} new messages` : "No new messages"}
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              className="h-8 w-8 rounded-full bg-white/72"
+              onClick={() => scrollCarousel(-1)}
+              disabled={!recentMessages.length}
+              aria-label="Previous messages"
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              className="h-8 w-8 rounded-full bg-white/72"
+              onClick={() => scrollCarousel(1)}
+              disabled={!recentMessages.length}
+              aria-label="Next messages"
+            >
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              className="group h-8 rounded-full px-2.5 text-xs font-medium text-blue-700"
+              onClick={() => onOpenChat()}
+            >
+              View All Messages
+              <ArrowRight className="ml-1 h-3.5 w-3.5 transition group-hover:translate-x-0.5" />
+            </Button>
+          </div>
+        </div>
+
+        {recentMessages.length ? (
+          <div
+            ref={carouselRef}
+            className="mt-3 flex snap-x gap-2.5 overflow-x-auto scroll-smooth pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          >
+            {recentMessages.map((conversation) => {
+              const conversationId = getEntityId(conversation);
+              const title = getDashboardConversationName(conversation, currentUserId);
+              const peer = getConversationPeer(conversation, currentUserId);
+              const avatarUser = conversation.type === "direct" ? peer : conversation.createdBy;
+              const isUnread = Number(conversation.unreadCount || 0) > 0;
+              const isOnline =
+                conversation.type === "direct" && onlineUsers.includes(getEntityId(peer));
+
+              return (
+                <button
+                  key={conversationId}
+                  type="button"
+                  onClick={() => onOpenChat(conversationId)}
+                  className={cn(
+                    "group relative min-w-full snap-start rounded-2xl border bg-white/68 p-3 text-left shadow-[0_12px_28px_-26px_rgba(15,23,42,0.36)] transition-all duration-200 hover:-translate-y-0.5 hover:border-blue-200 hover:bg-white/94 sm:min-w-[calc(50%-0.3125rem)] lg:min-w-[calc(33.333%-0.4375rem)] 2xl:min-w-[calc(25%-0.5rem)]",
+                    isUnread ? "border-blue-200/90" : "border-slate-200/70"
+                  )}
+                >
+                  {isUnread ? (
+                    <span className="absolute right-3 top-3 h-2 w-2 rounded-full bg-blue-500 shadow-[0_0_0_4px_rgba(59,130,246,0.12)]" />
+                  ) : null}
+                  <span className="flex items-start gap-2.5">
+                    <span className="relative shrink-0">
+                      <UserAvatar
+                        user={avatarUser}
+                        name={title}
+                        className="h-9 w-9 rounded-xl border border-white/90 shadow-sm"
+                        fallbackClassName="text-xs font-medium"
+                      />
+                      {isOnline ? (
+                        <span className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-white bg-emerald-500" />
+                      ) : null}
+                    </span>
+                    <span className="min-w-0 flex-1 pr-2">
+                      <span className="flex min-w-0 items-center gap-2">
+                        <span className="truncate text-sm font-semibold text-slate-950">
+                          {title}
+                        </span>
+                        <span className="shrink-0 text-[11px] text-slate-400">
+                          {formatQuickChatTime(conversation.lastMessageAt || conversation.updatedAt)}
+                        </span>
+                      </span>
+                      <span className="mt-1 line-clamp-2 min-h-[32px] text-xs leading-4 text-slate-500">
+                        {conversation.lastMessage || "No recent message"}
+                      </span>
+                    </span>
                   </span>
-                ) : null}
-              </span>
-            </span>
-            <ArrowRight className="h-4 w-4 shrink-0 text-slate-400 transition group-hover:translate-x-0.5" />
-          </button>
-        );
-      })}
-    </div>
-  </AnalyticsPanel>
-);
+                  <span className="mt-2.5 flex items-center justify-between gap-2">
+                    <Badge className="rounded-full border-blue-100 bg-blue-50 px-2 py-0.5 text-[10px] font-medium text-blue-700">
+                      {getDashboardChatBadge(conversation)}
+                    </Badge>
+                    <span
+                      className="inline-flex items-center text-xs font-medium text-violet-700 transition group-hover:translate-x-0.5"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        onOpenChat(conversationId);
+                      }}
+                    >
+                      Reply
+                      <ArrowRight className="ml-1 h-3.5 w-3.5" />
+                    </span>
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        ) : (
+          <AnalyticsEmptyState
+            className="min-h-[124px] py-5"
+            icon={MessageCircle}
+            title="No recent messages"
+            description="Recent workspace conversations will appear here."
+          />
+        )}
+      </div>
+    </AnalyticsPanel>
+  );
+};
 
 const RecentCriticalBugs = ({ bugs, onOpen, onNavigate }) => (
   <AnalyticsPanel
@@ -1715,6 +1892,24 @@ const DashboardPage = () => {
   const [deliverySort, setDeliverySort] = useState("health-asc");
   const { user } = useAuth();
   const analytics = useAnalytics();
+  const chatConversations = useChatStore((state) => state.conversations);
+  const chatOnlineUsers = useChatStore((state) => state.onlineUsers);
+  const hasLoadedChatConversations = useChatStore(
+    (state) => state.hasLoadedConversations
+  );
+  const loadChatConversations = useChatStore((state) => state.loadConversations);
+  const setChatCurrentUserId = useChatStore((state) => state.setCurrentUserId);
+
+  useEffect(() => {
+    setChatCurrentUserId(getEntityId(user));
+  }, [setChatCurrentUserId, user]);
+
+  useEffect(() => {
+    if (user?._id && !hasLoadedChatConversations) {
+      loadChatConversations().catch(() => {});
+    }
+  }, [hasLoadedChatConversations, loadChatConversations, user?._id]);
+
   const {
     data: issuesData = [],
     isLoading: isIssuesLoading,
@@ -2361,26 +2556,25 @@ const DashboardPage = () => {
       onClick: () => navigate("/settings/users"),
     },
   ];
-  const adminQuickStats = [
-    {
-      key: "projects",
-      title: "Total Projects",
-      value: formatCompactNumber(allProjects.length),
-      helper: "Workspace projects",
-      icon: FolderKanban,
-      iconClassName: "text-blue-600",
-      onClick: () => navigate("/projects"),
-    },
-    {
-      key: "teams",
-      title: "Total Teams",
-      value: formatCompactNumber(allTeams.length),
-      helper: `${formatCompactNumber(users.length)} users`,
-      icon: Users2,
-      iconClassName: "text-violet-600",
-      onClick: () => navigate("/projects?tab=teams"),
-    },
-  ];
+  const quickChatConversations = useMemo(
+    () =>
+      [...chatConversations]
+        .filter((conversation) => !conversation.isArchived)
+        .sort(
+          (left, right) =>
+            new Date(right.lastMessageAt || right.updatedAt || right.createdAt || 0).getTime() -
+            new Date(left.lastMessageAt || left.updatedAt || left.createdAt || 0).getTime()
+        ),
+    [chatConversations]
+  );
+  const quickChatUnreadCount = useMemo(
+    () =>
+      quickChatConversations.reduce(
+        (total, conversation) => total + Number(conversation.unreadCount || 0),
+        0
+      ),
+    [quickChatConversations]
+  );
   const recentCriticalBugs = useMemo(
     () =>
       bugs
@@ -2434,7 +2628,20 @@ const DashboardPage = () => {
       />
 
       <section>
-        <AdminQuickActionsCard actions={adminQuickActions} stats={adminQuickStats} />
+        <AdminQuickActionsCard
+          actions={adminQuickActions}
+          conversations={quickChatConversations}
+          unreadCount={quickChatUnreadCount}
+          onlineUsers={chatOnlineUsers}
+          currentUserId={getEntityId(user)}
+          onOpenChat={(conversationId = "") =>
+            navigate(
+              conversationId
+                ? `/chat?conversation=${encodeURIComponent(conversationId)}`
+                : "/chat"
+            )
+          }
+        />
       </section>
 
       <ProjectOverviewDashboardPanel
