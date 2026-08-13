@@ -15,7 +15,6 @@ import {
   Clock,
   FolderKanban,
   Layers3,
-  Plus,
   RefreshCcw,
   Settings,
   ShieldCheck,
@@ -1409,6 +1408,7 @@ const formatQuickChatTime = (value) => {
 
 const AdminQuickActionsCard = ({
   actions = [],
+  stats = [],
   quickChatItems = [],
   onlineUsers = [],
   currentUserId = "",
@@ -1539,6 +1539,30 @@ const AdminQuickActionsCard = ({
                 action.labelClassName
               )}>
                 {action.title}
+              </span>
+            </button>
+          );
+        })}
+        {stats.map((stat) => {
+          const Icon = stat.icon;
+
+          return (
+            <button
+              key={stat.key}
+              type="button"
+              onClick={stat.onClick}
+              className="group flex min-w-[128px] items-center gap-2 rounded-xl border border-slate-200/70 bg-white/62 px-3 py-2 text-left shadow-[0_10px_24px_-24px_rgba(15,23,42,0.38)] transition-all duration-200 hover:-translate-y-0.5 hover:border-blue-200 hover:bg-white/92 hover:shadow-[0_14px_30px_-26px_rgba(37,99,235,0.38)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/45 dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10"
+            >
+              <span className={cn("flex h-8 w-8 shrink-0 items-center justify-center rounded-lg", stat.className)}>
+                <Icon className="h-4 w-4" />
+              </span>
+              <span className="min-w-0">
+                <span className="block text-sm font-semibold leading-4 text-slate-950">
+                  {formatCompactNumber(stat.value)}
+                </span>
+                <span className="block truncate text-[11px] font-medium text-slate-500">
+                  {stat.label}
+                </span>
               </span>
             </button>
           );
@@ -1929,10 +1953,6 @@ const TriageBoardWidget = ({ bugs, onOpen, onNavigate }) => {
 
 const AdminGreetingCard = ({
   user,
-  totalUsers = 0,
-  totalProjects = 0,
-  totalTeams = 0,
-  onCreateProject,
   onManageUsers,
 }) => {
   const reduceMotion = useReducedMotion();
@@ -1948,29 +1968,6 @@ const AdminGreetingCard = ({
     .split(/\s+/)[0];
   const isManager = user?.role === ROLE_MANAGER;
   const roleLabel = isManager ? "Manager" : "Admin";
-  const statCards = [
-    {
-      key: "users",
-      label: "Users",
-      value: totalUsers,
-      icon: Users2,
-      className: "bg-violet-50 text-violet-700",
-    },
-    {
-      key: "projects",
-      label: "Projects",
-      value: totalProjects,
-      icon: FolderKanban,
-      className: "bg-blue-50 text-blue-700",
-    },
-    {
-      key: "teams",
-      label: "Teams",
-      value: totalTeams,
-      icon: Users2,
-      className: "bg-emerald-50 text-emerald-700",
-    },
-  ];
 
   return (
     <motion.section
@@ -2009,52 +2006,15 @@ const AdminGreetingCard = ({
           </div>
         </div>
 
-        <div className="flex flex-col gap-2 lg:flex-row lg:flex-wrap lg:items-center xl:justify-end">
-          <div className="grid gap-2 sm:grid-cols-3">
-            {statCards.map((stat) => {
-              const Icon = stat.icon;
-
-              return (
-                <div
-                  key={stat.key}
-                  className="flex min-w-[126px] items-center gap-2.5 rounded-xl border border-slate-200/75 bg-white/70 px-3 py-2 shadow-[0_12px_28px_-26px_rgba(15,23,42,0.42)] backdrop-blur-sm"
-                >
-                  <span className={cn("flex h-8 w-8 shrink-0 items-center justify-center rounded-lg", stat.className)}>
-                    <Icon className="h-4 w-4" />
-                  </span>
-                  <span>
-                    <span className="block text-lg font-black leading-none text-slate-950">
-                      {formatCompactNumber(stat.value)}
-                    </span>
-                    <span className="mt-0.5 block text-[11px] font-bold text-slate-500">
-                      {stat.label}
-                    </span>
-                  </span>
-                </div>
-              );
-            })}
-          </div>
-
-          <div className="flex flex-col gap-2 sm:flex-row">
-          <Button
-            className="h-10 rounded-xl bg-gradient-to-r from-violet-700 to-blue-600 px-4 text-xs font-bold text-white shadow-[0_16px_30px_-20px_rgba(79,70,229,0.88)] hover:from-violet-600 hover:to-blue-500"
-            onClick={onCreateProject}
-            type="button"
-          >
-            <Plus className="h-4 w-4" />
-            Create Project
-          </Button>
-            <Button
-              className="h-10 rounded-xl border-slate-200 bg-white/78 px-4 text-xs font-bold text-slate-900 shadow-[0_14px_28px_-24px_rgba(15,23,42,0.42)] hover:bg-white"
-              onClick={onManageUsers}
-              type="button"
-              variant="outline"
-            >
-              Manage Users
-              <ArrowRight className="h-4 w-4" />
-            </Button>
-          </div>
-        </div>
+        <Button
+          className="h-10 shrink-0 rounded-xl border-slate-200 bg-white/78 px-4 text-xs font-bold text-slate-900 shadow-[0_14px_28px_-24px_rgba(15,23,42,0.42)] hover:bg-white"
+          onClick={onManageUsers}
+          type="button"
+          variant="outline"
+        >
+          Manage Users
+          <ArrowRight className="h-4 w-4" />
+        </Button>
       </div>
     </motion.section>
   );
@@ -2769,6 +2729,32 @@ const DashboardPage = () => {
       onClick: () => navigate("/settings/users"),
     },
   ];
+  const adminQuickStats = [
+    {
+      key: "users-count",
+      label: "Users",
+      value: users.length,
+      icon: Users2,
+      className: "bg-violet-50 text-violet-700",
+      onClick: () => navigate("/settings/users"),
+    },
+    {
+      key: "projects-count",
+      label: "Projects",
+      value: allProjects.length,
+      icon: FolderKanban,
+      className: "bg-blue-50 text-blue-700",
+      onClick: () => navigate("/projects"),
+    },
+    {
+      key: "teams-count",
+      label: "Teams",
+      value: allTeams.length,
+      icon: Users2,
+      className: "bg-emerald-50 text-emerald-700",
+      onClick: () => navigate("/projects?tab=teams"),
+    },
+  ];
   const quickChatItems = useMemo(() => {
     const itemsByMessageId = new Map();
     const conversationsById = new Map(
@@ -2896,16 +2882,13 @@ const DashboardPage = () => {
     <div className="space-y-6">
       <AdminGreetingCard
         user={user}
-        totalUsers={users.length}
-        totalProjects={allProjects.length}
-        totalTeams={allTeams.length}
-        onCreateProject={() => navigate("/projects")}
         onManageUsers={() => navigate("/settings/users")}
       />
 
       <section>
         <AdminQuickActionsCard
           actions={adminQuickActions}
+          stats={adminQuickStats}
           quickChatItems={quickChatItems}
           onlineUsers={chatOnlineUsers}
           currentUserId={getEntityId(user)}
