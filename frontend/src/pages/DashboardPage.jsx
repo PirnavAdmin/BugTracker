@@ -2,7 +2,6 @@ import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { motion, useReducedMotion, useScroll, useTransform } from "framer-motion";
-import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
 import {
   Activity,
   AlertTriangle,
@@ -10,6 +9,7 @@ import {
   BarChart3,
   Bug,
   CheckCircle2,
+  ChevronRight,
   FolderKanban,
   Layers3,
   Plus,
@@ -300,27 +300,10 @@ const BUG_LIQUID_THEME = {
   },
 };
 
-const PROJECT_CONTRIBUTION_COLORS = [
-  "#60A5FA",
-  "#8B5CF6",
-  "#22D3EE",
-  "#38BDF8",
-  "#6366F1",
-  "#14B8A6",
-];
-
-const BUG_CONTRIBUTION_COLORS = [
-  "#3B82F6",
-  "#6366F1",
-  "#14B8A6",
-  "#FBBF24",
-  "#8B5CF6",
-  "#06B6D4",
-];
-
 const BUG_RESOLVED_STATUSES = [
   ISSUE_STATUS.FIXED,
   ISSUE_STATUS.QA,
+  ISSUE_STATUS.DONE,
   ISSUE_STATUS.CLOSED,
 ];
 
@@ -416,294 +399,270 @@ const buildTrend = (current, previous, suffix = "vs last week") => {
   };
 };
 
-const ProjectContributionPanel = ({ projects = [], total = 0, onOpen }) => {
-  const chartRows = projects.map((project, index) => ({
-    ...project,
-    value: project.total,
-    color: PROJECT_CONTRIBUTION_COLORS[index % PROJECT_CONTRIBUTION_COLORS.length],
-  }));
-  const totalContributions = total || chartRows.reduce((sum, project) => sum + project.total, 0);
-  const pieSize = 280;
+const projectHealthMeta = {
+  healthy: {
+    label: "Healthy",
+    className: "border-emerald-200 bg-emerald-50 text-emerald-700",
+    barClassName: "bg-emerald-500",
+    Icon: CheckCircle2,
+  },
+  attention: {
+    label: "Attention",
+    className: "border-amber-200 bg-amber-50 text-amber-700",
+    barClassName: "bg-amber-500",
+    Icon: AlertTriangle,
+  },
+  critical: {
+    label: "Critical",
+    className: "border-rose-200 bg-rose-50 text-rose-700",
+    barClassName: "bg-rose-500",
+    Icon: AlertTriangle,
+  },
+  qa: {
+    label: "Waiting for QA",
+    className: "border-cyan-200 bg-cyan-50 text-cyan-700",
+    barClassName: "bg-cyan-500",
+    Icon: ShieldCheck,
+  },
+};
+
+const ProjectDeliveryOverview = ({
+  projects = [],
+  projectOptions = [],
+  selectedProjectId = "all",
+  sortBy = "health-asc",
+  onProjectChange,
+  onSortChange,
+  onOpen,
+}) => {
+  const shouldReduceMotion = useReducedMotion();
 
   return (
     <AnalyticsPanel
-      title="Project Contribution"
-      description="Track user contributions across multiple projects."
+      title="Project Delivery Overview"
+      description="Track project workload, bug pressure, QA activity and delivery health."
       action={
-        projects.length ? (
-          <Badge className="rounded-full border-slate-200/80 bg-white/62 px-3.5 py-1 text-xs font-bold text-slate-600 shadow-sm">
-            {projects.length} projects
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          <Badge className="rounded-full border-slate-200/80 bg-white/72 px-3 py-1 text-xs font-bold text-slate-600 shadow-sm">
+            {projects.length} Projects
           </Badge>
-        ) : null
+          <select
+            value={selectedProjectId}
+            onChange={(event) => onProjectChange?.(event.target.value)}
+            className="h-8 max-w-[150px] rounded-full border border-white/70 bg-white/78 px-3 text-xs font-bold text-slate-700 shadow-sm outline-none transition focus:border-blue-200 focus:ring-2 focus:ring-blue-500/20"
+            aria-label="Filter project delivery overview"
+          >
+            <option value="all">All Projects</option>
+            {projectOptions.map((project) => (
+              <option key={project.projectId} value={project.projectId}>
+                {project.name}
+              </option>
+            ))}
+          </select>
+          <select
+            value={sortBy}
+            onChange={(event) => onSortChange?.(event.target.value)}
+            className="h-8 max-w-[118px] rounded-full border border-white/70 bg-white/78 px-3 text-xs font-bold text-slate-700 shadow-sm outline-none transition focus:border-blue-200 focus:ring-2 focus:ring-blue-500/20"
+            aria-label="Sort project delivery overview"
+          >
+            <option value="health-asc">Health</option>
+            <option value="open-desc">Open Bugs</option>
+            <option value="bugs-desc">Total Bugs</option>
+            <option value="qa-desc">QA</option>
+          </select>
+        </div>
       }
     >
       {projects.length ? (
-        <div className="grid min-h-[340px] gap-5 lg:grid-cols-[0.92fr_1.08fr] lg:items-center">
-          <div className="flex min-h-[280px] flex-col items-center justify-center">
-            <div className="flex justify-center">
-              <PieChart width={pieSize} height={pieSize}>
-                <Pie
-                  data={chartRows}
-                  dataKey="value"
-                  nameKey="name"
-                  cx={pieSize / 2}
-                  cy={pieSize / 2}
-                  innerRadius={0}
-                  outerRadius={118}
-                  paddingAngle={2}
-                  stroke="rgba(255,255,255,0.84)"
-                  strokeWidth={2}
-                >
-                  {chartRows.map((entry) => (
-                    <Cell key={entry.projectId || entry.name} fill={entry.color} />
-                  ))}
-                </Pie>
-                <Tooltip
-                  formatter={(value, _name, item) => [
-                    `${value} contributions`,
-                    item?.payload?.name || "Project",
-                  ]}
-                  contentStyle={{
-                    borderRadius: 18,
-                    border: "1px solid rgba(226,232,240,0.86)",
-                    boxShadow: "0 18px 40px -28px rgba(15,23,42,0.42)",
-                  }}
-                />
-              </PieChart>
-            </div>
-            <p className="mt-2 text-center text-xs font-medium text-slate-500">
-              Project contribution distribution across tracked bug work.
-            </p>
+        <div className="space-y-2.5">
+          <div className="grid grid-cols-[minmax(0,1.7fr)_0.56fr_0.56fr_0.6fr_0.54fr_0.86fr] gap-3 px-3 text-[10px] font-black uppercase tracking-[0.14em] text-slate-400 max-md:hidden">
+            <span>Project</span>
+            <span>Bugs</span>
+            <span>Open</span>
+            <span>Closed</span>
+            <span>QA</span>
+            <span>Health</span>
           </div>
 
-          <div className="grid gap-4">
-            {chartRows.map((project) => {
-              const percentage = totalContributions
-                ? Math.round((project.total / totalContributions) * 100)
-                : 0;
+          {projects.map((project, index) => {
+            const health = projectHealthMeta[project.healthState] || projectHealthMeta.attention;
+            const HealthIcon = health.Icon;
 
-              return (
-                <button
-                  key={project.projectId || project.name}
-                  type="button"
-                  onClick={() => onOpen(project)}
-                  className="grid w-full grid-cols-[minmax(0,1fr)_74px_56px] items-center gap-3 rounded-[24px] border border-white/70 bg-white/58 px-5 py-4 text-left shadow-[0_14px_34px_-30px_rgba(15,23,42,0.34)] backdrop-blur-sm transition hover:bg-white/82"
-                >
-                  <span className="flex min-w-0 items-center gap-3">
-                    <span
-                      className="h-4 w-4 shrink-0 rounded-full"
-                      style={{ backgroundColor: project.color }}
-                    />
-                    <span className="min-w-0">
-                      <span className="block truncate text-[17px] font-semibold text-slate-900">
-                        {project.name}
-                      </span>
-                      <span className="block text-sm text-slate-500">
-                        {project.open} open / {project.closed} closed
-                      </span>
+            return (
+              <motion.button
+                key={project.projectId || project.name}
+                type="button"
+                initial={shouldReduceMotion ? false : { opacity: 0, y: 10 }}
+                animate={shouldReduceMotion ? undefined : { opacity: 1, y: 0 }}
+                transition={{ delay: index * 0.035, duration: 0.28, ease: "easeOut" }}
+                onClick={() => onOpen(project)}
+                className="group grid w-full gap-3 rounded-[20px] border border-white/72 bg-white/66 px-3 py-3 text-left shadow-[0_14px_34px_-32px_rgba(15,23,42,0.34)] backdrop-blur-sm transition duration-300 hover:-translate-y-0.5 hover:border-blue-200/90 hover:bg-white/88 hover:shadow-[0_20px_46px_-34px_rgba(37,99,235,0.36)] md:grid-cols-[minmax(0,1.7fr)_0.56fr_0.56fr_0.6fr_0.54fr_0.86fr] md:items-center"
+              >
+                <span className="min-w-0">
+                  <span className="flex min-w-0 items-center gap-2">
+                    <span className="truncate text-sm font-extrabold text-slate-950">
+                      {project.name}
+                    </span>
+                    {project.gitActive ? (
+                      <span className="h-2 w-2 shrink-0 rounded-full bg-emerald-500 shadow-[0_0_0_4px_rgba(16,185,129,0.12)]" title="Git activity available" />
+                    ) : null}
+                  </span>
+                  <span className="mt-0.5 block text-xs font-medium text-slate-500">
+                    {formatCompactNumber(project.open)} open - {formatCompactNumber(project.closed)} closed
+                    {project.pendingQa ? ` - ${formatCompactNumber(project.pendingQa)} QA` : ""}
+                  </span>
+                </span>
+
+                <span className="hidden text-sm font-bold text-slate-800 md:block">
+                  {formatCompactNumber(project.total)}
+                </span>
+                <span className="hidden text-sm font-bold text-rose-600 md:block">
+                  {formatCompactNumber(project.open)}
+                </span>
+                <span className="hidden text-sm font-bold text-emerald-700 md:block">
+                  {formatCompactNumber(project.closed)}
+                </span>
+                <span className="hidden text-sm font-bold text-cyan-700 md:block">
+                  {formatCompactNumber(project.pendingQa)}
+                </span>
+
+                <span className="min-w-0">
+                  <span className="flex items-center justify-between gap-2">
+                    <span className={cn("inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-black", health.className)}>
+                      <HealthIcon className="h-3 w-3" />
+                      {health.label}
+                    </span>
+                    <ChevronRight className="h-4 w-4 text-slate-400 transition group-hover:translate-x-0.5 group-hover:text-blue-600" />
+                  </span>
+                  <span className="mt-2 flex items-center gap-2">
+                    <span className="h-1.5 flex-1 overflow-hidden rounded-full bg-slate-200">
+                      <motion.span
+                        className={cn("block h-full rounded-full", health.barClassName)}
+                        initial={shouldReduceMotion ? false : { width: 0 }}
+                        animate={{ width: `${project.health}%` }}
+                        transition={{ delay: 0.08 + index * 0.035, duration: 0.55, ease: "easeOut" }}
+                      />
+                    </span>
+                    <span className="w-9 text-right text-xs font-black text-slate-700">
+                      {project.health}%
                     </span>
                   </span>
-                  <span className="text-right text-[17px] font-semibold text-slate-800">
-                    {project.total}
-                  </span>
-                  <span className="text-right text-sm font-semibold text-slate-400">
-                    {percentage}%
-                  </span>
-                </button>
-              );
-            })}
-          </div>
+                </span>
+              </motion.button>
+            );
+          })}
         </div>
       ) : (
         <AnalyticsEmptyState
           icon={FolderKanban}
-          title="No project contribution data yet"
-          description="Project contribution insights appear once bugs are linked."
+          title="No project delivery data yet"
+          description="Project delivery insight appears once projects or bugs are available."
         />
       )}
     </AnalyticsPanel>
   );
 };
 
-const BugContributionTracker = ({
+const rankBadge = (rank) => {
+  if (rank === 1) return "1";
+  if (rank === 2) return "2";
+  if (rank === 3) return "3";
+  return String(rank);
+};
+
+const TopContributors = ({
   contributors = [],
-  totalBugs = 0,
-  projectOptions = [],
-  selectedProjectId = "all",
-  onProjectChange,
+  totalContributors = 0,
   onOpen,
+  onViewAll,
 }) => {
-  const chartRows = contributors.map((contributor, index) => ({
-    ...contributor,
-    value: contributor.score,
-    color: BUG_CONTRIBUTION_COLORS[index % BUG_CONTRIBUTION_COLORS.length],
-  }));
-  const pieSize = 260;
+  const shouldReduceMotion = useReducedMotion();
 
   return (
     <AnalyticsPanel
-      title="Bug Contribution Tracker"
-      description="Team member contributions to bugs, based on opened, resolved, and critical bugs."
+      title="Top Contributors"
+      description="Team members contributing most to tracked bug work."
       action={
-        chartRows.length || projectOptions.length ? (
-          <div className="flex flex-wrap items-center justify-end gap-2">
-            <select
-              value={selectedProjectId}
-              onChange={(event) => onProjectChange?.(event.target.value)}
-              className="h-8 max-w-[190px] rounded-full border border-white/70 bg-white/78 px-3 text-sm font-medium text-slate-700 shadow-sm outline-none transition focus:border-blue-200 focus:ring-2 focus:ring-blue-500/20 dark:border-white/10 dark:bg-slate-950/70 dark:text-slate-100"
-              aria-label="Filter bug contributions by project"
-            >
-              <option value="all">All projects</option>
-              {projectOptions.map((project) => (
-                <option key={project.projectId} value={project.projectId}>
-                  {project.name}
-                </option>
-              ))}
-            </select>
-            <Badge className="rounded-full border-white/70 bg-white/72 px-3.5 py-1 text-sm font-semibold text-slate-600 shadow-sm">
-              <Bug className="mr-1.5 h-3.5 w-3.5 text-orange-500" />
-              {formatCompactNumber(totalBugs)} bugs
-            </Badge>
-          </div>
+        totalContributors ? (
+          <Badge className="rounded-full border-white/70 bg-white/72 px-3 py-1 text-xs font-bold text-slate-600 shadow-sm">
+            {totalContributors} contributors
+          </Badge>
         ) : null
       }
     >
-      {chartRows.length ? (
-        <div className="grid gap-4 xl:grid-cols-[1.6fr_0.78fr]">
-          <div className="grid gap-3">
-            <div className="grid gap-3">
-              {chartRows.map((contributor) => (
-                <button
-                  key={contributor.userKey}
-                  type="button"
-                  onClick={() => onOpen(contributor)}
-                  className="group relative overflow-hidden rounded-[24px] border border-white/80 bg-white/72 px-4 py-3 text-left shadow-[0_18px_42px_-34px_rgba(56,189,248,0.42)] backdrop-blur-xl transition duration-300 hover:-translate-y-0.5 hover:border-sky-200/90 hover:bg-white/84"
+      {contributors.length ? (
+        <div className="space-y-2.5">
+          {contributors.map((contributor, index) => (
+            <motion.button
+              key={contributor.userKey}
+              type="button"
+              initial={shouldReduceMotion ? false : { opacity: 0, y: 10 }}
+              animate={shouldReduceMotion ? undefined : { opacity: 1, y: 0 }}
+              transition={{ delay: index * 0.045, duration: 0.26, ease: "easeOut" }}
+              onClick={() => onOpen(contributor)}
+              className="group w-full rounded-[20px] border border-white/72 bg-white/66 p-3 text-left shadow-[0_14px_34px_-32px_rgba(15,23,42,0.34)] backdrop-blur-sm transition duration-300 hover:border-blue-200/90 hover:bg-white/88"
+            >
+              <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3">
+                <span
+                  className={cn(
+                    "flex h-8 w-8 items-center justify-center rounded-full text-xs font-black shadow-sm",
+                    contributor.rank <= 3
+                      ? "bg-[linear-gradient(135deg,#2563EB,#7C3AED)] text-white"
+                      : "bg-slate-100 text-slate-600"
+                  )}
                 >
-                  <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_0%,rgba(255,255,255,0.96),transparent_34%),radial-gradient(circle_at_86%_14%,rgba(96,165,250,0.18),transparent_34%),radial-gradient(circle_at_50%_100%,rgba(34,211,238,0.18),transparent_42%)]" />
-                  <div className="relative z-10 grid gap-3 md:grid-cols-[auto_minmax(0,1fr)_auto] md:items-center">
-                    <div className="flex items-start gap-3">
-                      <div className="relative">
-                        <UserAvatar
-                          user={contributor.user}
-                          name={contributor.name}
-                          className="h-14 w-14 border-2 border-white/90 shadow-[0_16px_30px_-18px_rgba(15,23,42,0.28)]"
-                          imageClassName="object-cover"
-                          fallbackClassName="text-base font-semibold"
-                        />
-                        <span
-                          className="absolute -bottom-1 -right-1 flex h-6 w-6 items-center justify-center rounded-full border-2 border-white text-white shadow-sm"
-                          style={{ backgroundColor: contributor.color }}
-                        >
-                          <Bug className="h-3.5 w-3.5" />
-                        </span>
-                      </div>
-                      <div className="min-w-0">
-                        <p className="truncate text-[22px] font-semibold tracking-tight text-slate-900">
-                          {contributor.name}
-                        </p>
-                        <p className="mt-1 text-[11px] font-medium uppercase tracking-[0.2em] text-slate-400">
-                          Contribution score {contributor.score}
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="grid gap-2 sm:grid-cols-3 md:grid-cols-3">
-                      <div className="flex items-center justify-between gap-3 rounded-2xl border border-white/70 bg-white/64 px-3 py-2 text-sm text-slate-700">
-                        <span className="flex items-center gap-2">
-                          <span className="h-2.5 w-2.5 rounded-full bg-blue-500" />
-                          Open
-                        </span>
-                        <span className="font-semibold text-slate-900">{contributor.open}</span>
-                      </div>
-                      <div className="flex items-center justify-between gap-3 rounded-2xl border border-white/70 bg-white/64 px-3 py-2 text-sm text-slate-700">
-                        <span className="flex items-center gap-2">
-                          <span className="h-2.5 w-2.5 rounded-full bg-emerald-500" />
-                          Resolved
-                        </span>
-                        <span className="font-semibold text-slate-900">{contributor.resolved}</span>
-                      </div>
-                      <div className="flex items-center justify-between gap-3 rounded-2xl border border-white/70 bg-white/64 px-3 py-2 text-sm text-slate-700">
-                        <span className="flex items-center gap-2">
-                          <span className="h-2.5 w-2.5 rounded-full bg-rose-500" />
-                          Critical
-                        </span>
-                        <span className="font-semibold text-slate-900">{contributor.critical}</span>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center justify-between md:justify-end">
-                      <div className="rounded-full border border-white/80 bg-white/75 px-3 py-1.5 text-right shadow-sm">
-                        <p className="text-base font-semibold leading-none text-slate-900">
-                          {contributor.percent}%
-                        </p>
-                        <p className="mt-0.5 text-[10px] font-medium uppercase tracking-[0.16em] text-slate-500">
-                          Share
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="rounded-[28px] border border-white/80 bg-[radial-gradient(circle_at_18%_0%,rgba(255,255,255,0.96),transparent_34%),radial-gradient(circle_at_100%_0%,rgba(56,189,248,0.16),transparent_32%),linear-gradient(180deg,rgba(255,255,255,0.84),rgba(240,249,255,0.9))] p-4 shadow-[0_22px_58px_-38px_rgba(56,189,248,0.4)] backdrop-blur-xl">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <p className="text-xl font-semibold tracking-tight text-slate-900">
-                  Bug Contributions %
-                </p>
-                <p className="mt-1 text-sm text-slate-500">
-                  Share of tracked bug work across the top contributors.
-                </p>
-              </div>
-            </div>
-
-            <div className="mt-3 flex justify-center">
-              <PieChart width={pieSize} height={pieSize}>
-                  <Pie
-                    data={chartRows}
-                    dataKey="value"
-                    nameKey="name"
-                    cx={pieSize / 2}
-                    cy={pieSize / 2}
-                    innerRadius={0}
-                    outerRadius={110}
-                    paddingAngle={2}
-                    stroke="rgba(255,255,255,0.82)"
-                    strokeWidth={2}
-                    labelLine={false}
-                  >
-                    {chartRows.map((entry) => (
-                      <Cell key={entry.userKey} fill={entry.color} />
-                    ))}
-                  </Pie>
-                  <Tooltip
-                    formatter={(value, _name, item) => {
-                      const contributor = item?.payload;
-
-                      return [
-                        `${contributor?.open || 0}/${contributor?.resolved || 0}/${contributor?.critical || 0}`,
-                        `${contributor?.name || "Contributor"} (${contributor?.percent || 0}%)`,
-                      ];
-                    }}
-                    contentStyle={{
-                      borderRadius: 18,
-                      border: "1px solid rgba(226,232,240,0.86)",
-                      boxShadow: "0 18px 40px -28px rgba(15,23,42,0.42)",
-                    }}
+                  {rankBadge(contributor.rank)}
+                </span>
+                <span className="flex min-w-0 items-center gap-2.5">
+                  <UserAvatar
+                    user={contributor.user}
+                    name={contributor.name}
+                    className="h-9 w-9 border-2 border-white/90 shadow-sm"
+                    imageClassName="object-cover"
+                    fallbackClassName="text-xs font-bold"
                   />
-                </PieChart>
-            </div>
-            <p className="mt-3 text-center text-xs font-medium text-slate-500">
-              Hover chart slices to see contributor names and bug counts.
-            </p>
-          </div>
+                  <span className="min-w-0">
+                    <span className="block truncate text-sm font-extrabold text-slate-950">
+                      {contributor.name}
+                    </span>
+                    <span className="mt-0.5 block text-xs font-semibold text-slate-500">
+                      {formatCompactNumber(contributor.score)} contribution score
+                    </span>
+                  </span>
+                </span>
+                <span className="rounded-full border border-blue-100 bg-blue-50 px-2.5 py-1 text-sm font-black text-blue-700">
+                  {contributor.percent}%
+                </span>
+              </div>
+
+              <div className="mt-2.5 grid grid-cols-3 gap-1.5 text-[11px] font-bold text-slate-600">
+                <span className="rounded-full bg-emerald-50 px-2 py-1 text-emerald-700">
+                  {formatCompactNumber(contributor.resolved)} Resolved
+                </span>
+                <span className="rounded-full bg-blue-50 px-2 py-1 text-blue-700">
+                  {formatCompactNumber(contributor.open)} Open
+                </span>
+                <span className="rounded-full bg-rose-50 px-2 py-1 text-rose-700">
+                  {formatCompactNumber(contributor.critical)} Critical
+                </span>
+              </div>
+            </motion.button>
+          ))}
+
+          <Button
+            type="button"
+            variant="outline"
+            className="group mt-1 h-9 w-full justify-between rounded-2xl bg-white/68 text-xs font-bold"
+            onClick={onViewAll}
+          >
+            View All Contributors
+            <ArrowRight className="h-4 w-4 transition group-hover:translate-x-0.5" />
+          </Button>
         </div>
       ) : (
         <AnalyticsEmptyState
           icon={Users2}
-          title="No bug contribution data yet"
+          title="No contributors yet"
           description="Contributor insights appear once bugs are assigned to team members."
         />
       )}
@@ -1499,7 +1458,8 @@ const DashboardLoading = () => (
 
 const DashboardPage = () => {
   const navigate = useNavigate();
-  const [bugContributionProjectId, setBugContributionProjectId] = useState("all");
+  const [deliveryProjectId, setDeliveryProjectId] = useState("all");
+  const [deliverySort, setDeliverySort] = useState("health-asc");
   const { user } = useAuth();
   const analytics = useAnalytics();
   const {
@@ -1704,6 +1664,20 @@ const DashboardPage = () => {
   const bugContributionProjectOptions = useMemo(() => {
     const rowsByProject = new Map();
 
+    allProjects.forEach((project) => {
+      const projectId = String(project?._id || project?.id || project?.name || "").trim();
+
+      if (!projectId) {
+        return;
+      }
+
+      rowsByProject.set(projectId, {
+        projectId,
+        name: project.name || "Untitled project",
+        total: 0,
+      });
+    });
+
     bugs.forEach((bug) => {
       const projectId = resolveIssueProjectId(bug) || getBugProjectName(bug);
       const row = rowsByProject.get(projectId) || {
@@ -1719,48 +1693,106 @@ const DashboardPage = () => {
     return Array.from(rowsByProject.values()).sort(
       (left, right) => right.total - left.total || left.name.localeCompare(right.name)
     );
-  }, [bugs]);
-  const bugProjectRows = useMemo(() => {
+  }, [allProjects, bugs]);
+  const projectDeliveryRows = useMemo(() => {
     const rowsByProject = new Map();
+
+    allProjects.forEach((project) => {
+      const projectId = String(project?._id || project?.id || project?.name || "").trim();
+
+      if (!projectId) {
+        return;
+      }
+
+      rowsByProject.set(projectId, {
+        projectId,
+        name: project.name || "Untitled project",
+        project,
+        total: 0,
+        open: 0,
+        closed: 0,
+        pendingQa: 0,
+        critical: 0,
+        gitActive: Boolean(
+          project.latestGitActivity?.commitSha ||
+            project.latestGitActivity?.pushedAt ||
+            project.git?.status?.connectionStatus === "Connected"
+        ),
+      });
+    });
 
     bugs.forEach((bug) => {
       const projectId = resolveIssueProjectId(bug) || getBugProjectName(bug);
       const row = rowsByProject.get(projectId) || {
         projectId,
         name: getBugProjectName(bug),
+        project: null,
         total: 0,
         open: 0,
         closed: 0,
+        pendingQa: 0,
         critical: 0,
+        gitActive: false,
       };
+      const status = normalizeBugStatusForIssue(bug);
 
       row.total += 1;
-      row.open += isOpenBug(bug) ? 1 : 0;
-      row.closed += BUG_CLOSED_STATUSES.includes(normalizeBugStatusForIssue(bug)) ? 1 : 0;
+      row.closed += isResolvedBug(bug) || isClosedBug(bug) ? 1 : 0;
+      row.open += isResolvedBug(bug) || isClosedBug(bug) ? 0 : 1;
+      row.pendingQa += [
+        ISSUE_STATUS.READY_FOR_QA,
+        ISSUE_STATUS.FIXED,
+        ISSUE_STATUS.TESTING,
+        ISSUE_STATUS.QA,
+      ].includes(status)
+        ? 1
+        : 0;
       row.critical += isCriticalBug(bug) ? 1 : 0;
-      row.resolutionRate = row.total ? Math.round((row.closed / row.total) * 100) : 0;
       rowsByProject.set(projectId, row);
     });
 
     return Array.from(rowsByProject.values())
-      .sort((left, right) => right.total - left.total)
+      .map((row) => {
+        const health = row.total ? Math.round((row.closed / row.total) * 100) : 100;
+        const openRate = row.total ? row.open / row.total : 0;
+        const criticalRate = row.total ? row.critical / row.total : 0;
+        const healthState =
+          row.pendingQa > 0 && health >= 55
+            ? "qa"
+            : health >= 80 && row.critical === 0
+              ? "healthy"
+              : health < 45 || criticalRate >= 0.18 || openRate >= 0.55
+                ? "critical"
+                : "attention";
+
+        return {
+          ...row,
+          health,
+          healthState,
+        };
+      })
+      .filter((row) => deliveryProjectId === "all" || row.projectId === deliveryProjectId)
+      .sort((left, right) => {
+        if (deliverySort === "open-desc") {
+          return right.open - left.open || left.name.localeCompare(right.name);
+        }
+
+        if (deliverySort === "bugs-desc") {
+          return right.total - left.total || left.name.localeCompare(right.name);
+        }
+
+        if (deliverySort === "qa-desc") {
+          return right.pendingQa - left.pendingQa || left.name.localeCompare(right.name);
+        }
+
+        return left.health - right.health || right.open - left.open || left.name.localeCompare(right.name);
+      })
       .slice(0, 6);
-  }, [bugs]);
-  const bugContributionBugs = useMemo(() => {
-    if (bugContributionProjectId === "all") {
-      return bugs;
-    }
-
-    return bugs.filter((bug) => {
-      const projectId = resolveIssueProjectId(bug) || getBugProjectName(bug);
-
-      return projectId === bugContributionProjectId;
-    });
-  }, [bugContributionProjectId, bugs]);
+  }, [allProjects, bugs, deliveryProjectId, deliverySort]);
   const bugContributorRows = useMemo(() => {
     const rowsByContributor = new Map();
 
-    bugContributionBugs.forEach((bug) => {
+    bugs.forEach((bug) => {
       const assignee = getBugAssignee(bug);
       const rawId = String(assignee?._id || assignee?.id || "").trim();
       const rawEmail = String(assignee?.email || "").trim().toLowerCase();
@@ -1811,16 +1843,37 @@ const DashboardPage = () => {
           right.resolved - left.resolved ||
           right.open - left.open ||
           left.name.localeCompare(right.name)
-      )
-      .slice(0, 6);
+      );
     const totalScore = rows.reduce((sum, row) => sum + row.score, 0);
 
-    return rows.map((row) => ({
+    return rows.slice(0, 6).map((row, index) => ({
       ...row,
+      rank: index + 1,
       shortName: row.name.split(" ")[0] || row.name,
       percent: totalScore ? Math.round((row.score / totalScore) * 100) : 0,
     }));
-  }, [bugContributionBugs, userLookup]);
+  }, [bugs, userLookup]);
+  const totalBugContributorCount = useMemo(() => {
+    const contributorKeys = new Set();
+
+    bugs.forEach((bug) => {
+      const assignee = getBugAssignee(bug);
+      const key = String(
+        assignee?._id ||
+          assignee?.id ||
+          assignee?.email ||
+          assignee?.name ||
+          assignee?.fullName ||
+          ""
+      ).trim();
+
+      if (key && key !== "Unassigned") {
+        contributorKeys.add(key);
+      }
+    });
+
+    return contributorKeys.size;
+  }, [bugs]);
   const priorityRows = useMemo(
     () =>
       BUG_PRIORITY_META.map((item) => {
@@ -2036,22 +2089,32 @@ const DashboardPage = () => {
               </section>
             </div>
 
-            <section>
-              <ProjectContributionPanel
-                projects={bugProjectRows}
-                total={bugMetrics.total}
+            <section className="grid items-stretch gap-5 lg:grid-cols-[minmax(0,7fr)_minmax(280px,3fr)]">
+              <ProjectDeliveryOverview
+                projects={projectDeliveryRows}
+                projectOptions={bugContributionProjectOptions}
+                selectedProjectId={deliveryProjectId}
+                sortBy={deliverySort}
+                onProjectChange={setDeliveryProjectId}
+                onSortChange={setDeliverySort}
                 onOpen={(selectedProject) =>
-                  navigateToBugs({
-                    projectId:
-                      selectedProject.projectId === selectedProject.name
-                        ? ""
-                        : selectedProject.projectId,
-                    project:
-                      selectedProject.projectId === selectedProject.name
-                        ? selectedProject.name
-                        : "",
+                  navigate(`/projects?projectId=${encodeURIComponent(selectedProject.projectId)}`, {
+                    state: { selectedProjectId: selectedProject.projectId },
                   })
                 }
+              />
+
+              <TopContributors
+                contributors={bugContributorRows}
+                totalContributors={totalBugContributorCount}
+                onOpen={(contributor) =>
+                  navigateToBugs(
+                    contributor.userId
+                      ? { developerId: contributor.userId }
+                      : { search: contributor.name }
+                  )
+                }
+                onViewAll={() => navigateToBugs()}
               />
             </section>
           </>
@@ -2063,23 +2126,6 @@ const DashboardPage = () => {
           bugs={recentCriticalBugs}
           onOpen={(bug) => navigateToBugs(getBugDetailRouteParams(bug))}
           onNavigate={() => navigateToBugs({ filter: "critical" })}
-        />
-      </section>
-
-      <section>
-        <BugContributionTracker
-          contributors={bugContributorRows}
-          totalBugs={bugContributionBugs.length}
-          projectOptions={bugContributionProjectOptions}
-          selectedProjectId={bugContributionProjectId}
-          onProjectChange={setBugContributionProjectId}
-          onOpen={(contributor) =>
-            navigateToBugs(
-              contributor.userId
-                ? { developerId: contributor.userId }
-                : { search: contributor.name }
-            )
-          }
         />
       </section>
 

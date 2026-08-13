@@ -495,6 +495,17 @@ const ProjectsPage = () => {
     setActiveTab(requestedTab === "teams" ? "teams" : "projects");
   }, [location.search]);
 
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const requestedProjectId =
+      params.get("projectId") || location.state?.selectedProjectId || "";
+
+    if (requestedProjectId) {
+      setActiveTab("projects");
+      setSelectedProjectId(requestedProjectId);
+    }
+  }, [location.search, location.state?.selectedProjectId]);
+
   const showToast = (type, message) => {
     setToast({
       id: Date.now(),
