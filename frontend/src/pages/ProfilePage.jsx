@@ -17,6 +17,7 @@ import {
   ArrowRight,
   Edit2,
   Download,
+  FileText,
   Camera,
 } from "lucide-react";
 import { Link } from "react-router-dom";
@@ -358,6 +359,15 @@ const ProfilePage = () => {
               >
                 <Download className="h-4 w-4" />
                 Download APK
+              </Button>
+              <Button asChild variant="outline" size="sm">
+                <a
+                  href="/docs/technology-stack-and-deployment.md"
+                  download="CureCode-Technology-Stack-and-Deployment.md"
+                >
+                  <FileText className="h-4 w-4" />
+                  Tech Doc
+                </a>
               </Button>
             </div>
           </CardContent>
