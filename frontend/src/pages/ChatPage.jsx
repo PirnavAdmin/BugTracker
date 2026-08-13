@@ -78,6 +78,13 @@ const ChatPage = () => {
     () => new URLSearchParams(location.search).get("conversation") || "",
     [location.search]
   );
+  const queryModule = useMemo(
+    () =>
+      new URLSearchParams(location.search).get("module") ||
+      location.state?.activeModule ||
+      "",
+    [location.search, location.state?.activeModule]
+  );
 
   const activeConversation = useMemo(
     () =>
@@ -161,6 +168,14 @@ const ChatPage = () => {
   useEffect(() => {
     refreshMeetings().catch(() => {});
   }, [refreshMeetings]);
+
+  useEffect(() => {
+    const availableModules = ["chats", "meetings", "pinned", "files", "starred", "archives"];
+
+    if (availableModules.includes(queryModule) && activeModule !== queryModule) {
+      setActiveModule(queryModule);
+    }
+  }, [activeModule, queryModule]);
 
   useEffect(() => {
     if (activeModule !== "chats") {

@@ -8,8 +8,10 @@ import {
   ArrowRight,
   BarChart3,
   Bug,
+  CalendarDays,
   CheckCircle2,
   ChevronRight,
+  Clock,
   FolderKanban,
   Layers3,
   Plus,
@@ -21,11 +23,17 @@ import {
   Users2,
   Zap,
 } from "lucide-react";
-import { fetchBugs, fetchIssues, fetchManagedUsers, fetchProjects, fetchTeams } from "@/lib/api";
+import {
+  fetchAllChatMeetings,
+  fetchBugs,
+  fetchIssues,
+  fetchManagedUsers,
+  fetchProjects,
+  fetchTeams,
+} from "@/lib/api";
 import useAnalytics from "@/hooks/use-analytics";
 import {
   ANALYTICS_PANEL_CLASS,
-  ANALYTICS_SUBPANEL_CLASS,
   AnalyticsEmptyState,
   AnalyticsPanel,
   AnalyticsSkeletonGrid,
@@ -36,7 +44,6 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import UserAvatar from "@/components/shared/UserAvatar";
-import WeeklyTaskCompletionTrend from "@/components/dashboard/WeeklyTaskCompletionTrend";
 import { ProjectOverviewDashboardPanel } from "@/components/delivery/ProjectDeliveryWorkflowPanel";
 import { useAuth } from "@/hooks/use-auth";
 import { ROLE_MANAGER } from "@/lib/roles";
@@ -56,7 +63,13 @@ import {
   resolveIssueTeamId,
 } from "@/lib/issues";
 import { TASK_BOARD_STATUS, getTaskBoardStatus } from "@/components/tasks/taskBoardStatus";
-import { cn } from "@/lib/utils";
+import {
+  cn,
+  formatDate,
+  formatRelativeDateLabel,
+  formatTime,
+} from "@/lib/utils";
+import { getMeetingStatus, getMeetingStatusLabel } from "@/lib/chat-meetings";
 
 const statusTone = {
   TODO: "bg-slate-400",
@@ -730,35 +743,29 @@ const TeamTaskWorkloadCard = ({ row, onOpen }) => {
       animate={shouldReduceMotion ? undefined : { opacity: 1, y: 0 }}
       whileHover={shouldReduceMotion ? undefined : { y: -2 }}
       transition={{ duration: 0.24, ease: "easeOut" }}
-      className="group w-full rounded-[20px] border border-white/72 bg-white/66 px-4 py-3 text-left shadow-[0_14px_34px_-32px_rgba(15,23,42,0.34)] backdrop-blur-sm transition-colors duration-300 hover:border-blue-200/90 hover:bg-white/88 hover:shadow-[0_20px_46px_-34px_rgba(37,99,235,0.34)]"
+      className="group w-full rounded-[17px] border border-white/72 bg-white/66 px-3.5 py-2.5 text-left shadow-[0_10px_28px_-26px_rgba(15,23,42,0.32)] backdrop-blur-sm transition-colors duration-300 hover:border-blue-200/90 hover:bg-white/88 hover:shadow-[0_16px_36px_-30px_rgba(37,99,235,0.32)]"
     >
-      <div className="flex items-start justify-between gap-3">
+      <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">
-          <p className="truncate text-sm font-extrabold tracking-tight text-slate-950">
+          <p className="truncate text-[15px] font-extrabold leading-5 tracking-tight text-slate-950">
             {row.name}
           </p>
-          <p className="mt-1 text-xs font-semibold text-slate-500">
-            {formatCompactNumber(row.open)} To Do - {formatCompactNumber(row.inProgress)} In Progress - {formatCompactNumber(row.done)} Done
-            {row.overdue ? ` - ${formatCompactNumber(row.overdue)} Overdue` : ""}
-          </p>
         </div>
-        <div className="flex shrink-0 items-center gap-2">
-          <Badge className={cn("rounded-full border px-2 py-0.5 text-[10px] font-black", stateClassName)}>
+        <div className="flex shrink-0 items-center gap-2 text-xs font-black">
+          <span className="text-slate-700">{formatCompactNumber(row.total)} tasks</span>
+          <span className="text-slate-950">{row.completionRate}%</span>
+          <Badge className={cn("rounded-full border px-1.5 py-0 text-[9px] font-black", stateClassName)}>
             {state}
           </Badge>
           <ChevronRight className="h-4 w-4 text-slate-400 transition group-hover:translate-x-0.5 group-hover:text-blue-600" />
         </div>
       </div>
 
-      <div className="mt-3 flex items-center justify-between gap-3">
-        <span className="text-xs font-black text-slate-700">
-          {formatCompactNumber(row.total)} tasks
-        </span>
-        <span className="text-xs font-black text-slate-900">
-          {row.completionRate}% completion
-        </span>
-      </div>
-      <div className="mt-2 h-2 overflow-hidden rounded-full bg-slate-200/90 shadow-inner">
+      <p className="mt-0.5 truncate text-[11px] font-semibold leading-4 text-slate-500">
+        {formatCompactNumber(row.open)} To Do - {formatCompactNumber(row.inProgress)} In Progress - {formatCompactNumber(row.done)} Done
+        {row.overdue ? ` - ${formatCompactNumber(row.overdue)} Overdue` : ""}
+      </p>
+      <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-slate-200/90 shadow-inner">
         <motion.div
           className={cn("h-full rounded-full", barClassName)}
           initial={shouldReduceMotion ? false : { width: 0 }}
@@ -782,17 +789,18 @@ const QaBugRiskPanel = ({ metrics = [], riskLevel = "low", onOpen }) => {
 
   return (
     <AnalyticsPanel
+      className="[&>div:first-child]:gap-2 [&>div:first-child]:p-3 [&>div:first-child_h2]:text-[15px] [&>div:first-child_p]:text-xs [&>div:first-child_p]:leading-5 [&>div:last-child]:p-3"
       title="QA / Bug Risk"
       description="Current QA pressure and high-risk bug signals."
       action={
-        <Badge className={cn("rounded-full border px-3 py-1 text-[10px] font-black uppercase tracking-[0.12em]", riskTone[riskLevel])}>
-          <span className="mr-1.5 h-2 w-2 rounded-full bg-current" />
+        <Badge className={cn("rounded-full border px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.1em]", riskTone[riskLevel])}>
+          <span className="mr-1 h-1.5 w-1.5 rounded-full bg-current" />
           {riskLevel} risk
         </Badge>
       }
     >
       <motion.div
-        className="space-y-3"
+        className="space-y-2"
         initial={shouldReduceMotion ? false : { opacity: 0, y: 10 }}
         animate={shouldReduceMotion ? undefined : { opacity: 1, y: 0 }}
         transition={{ duration: 0.28, ease: "easeOut" }}
@@ -807,24 +815,26 @@ const QaBugRiskPanel = ({ metrics = [], riskLevel = "low", onOpen }) => {
               initial={shouldReduceMotion ? false : { opacity: 0, y: 8 }}
               animate={shouldReduceMotion ? undefined : { opacity: 1, y: 0 }}
               transition={{ delay: index * 0.04, duration: 0.24, ease: "easeOut" }}
-              className="group w-full rounded-[18px] border border-white/72 bg-white/66 px-3 py-3 text-left shadow-[0_12px_28px_-26px_rgba(15,23,42,0.34)] backdrop-blur-sm transition duration-300 hover:border-blue-200/90 hover:bg-white/88"
+              className="group w-full rounded-[16px] border border-white/72 bg-white/66 px-3 py-2.5 text-left shadow-[0_10px_24px_-24px_rgba(15,23,42,0.32)] backdrop-blur-sm transition duration-300 hover:border-blue-200/90 hover:bg-white/88"
               onClick={() => onOpen(metric.routeParams)}
             >
-              <span className="flex items-start justify-between gap-3">
-                <span className="min-w-0">
-                  <span className="block text-2xl font-black leading-none text-slate-950">
+              <span className="flex items-center justify-between gap-3">
+                <span className="grid min-w-0 grid-cols-[54px_minmax(0,1fr)] items-center gap-2">
+                  <span className="text-[26px] font-black leading-none text-slate-950">
                     {formatCompactNumber(metric.value)}
                   </span>
-                  <span className="mt-1 block text-sm font-extrabold text-slate-800">
-                    {metric.label}
-                  </span>
-                  <span className="mt-0.5 block text-xs font-medium text-slate-500">
-                    {metric.helper}
+                  <span className="min-w-0">
+                    <span className="block truncate text-[14px] font-extrabold leading-5 text-slate-800">
+                      {metric.label}
+                    </span>
+                    <span className="block truncate text-[11px] font-medium leading-4 text-slate-500">
+                      {metric.helper}
+                    </span>
                   </span>
                 </span>
-                <ChevronRight className="mt-1 h-4 w-4 text-slate-400 transition group-hover:translate-x-0.5 group-hover:text-blue-600" />
+                <ChevronRight className="h-4 w-4 shrink-0 text-slate-400 transition group-hover:translate-x-0.5 group-hover:text-blue-600" />
               </span>
-              <span className="mt-3 block h-2 overflow-hidden rounded-full bg-slate-200/90 shadow-inner">
+              <span className="mt-2 block h-1.5 overflow-hidden rounded-full bg-slate-200/90 shadow-inner">
                 <motion.span
                   className={cn("block h-full rounded-full", metric.barClassName)}
                   initial={shouldReduceMotion ? false : { width: 0 }}
@@ -836,6 +846,215 @@ const QaBugRiskPanel = ({ metrics = [], riskLevel = "low", onOpen }) => {
           );
         })}
       </motion.div>
+    </AnalyticsPanel>
+  );
+};
+
+const getMeetingContextLabel = (meeting = {}) => {
+  const conversation =
+    meeting.conversationId && typeof meeting.conversationId === "object"
+      ? meeting.conversationId
+      : null;
+  const project = conversation?.projectId || meeting.projectId;
+  const team = conversation?.teamId || meeting.teamId;
+
+  return (
+    project?.name ||
+    team?.name ||
+    conversation?.name ||
+    conversation?.title ||
+    "Team meeting"
+  );
+};
+
+const buildChatMeetingPath = (meeting = {}) => {
+  const conversationId = String(meeting?.conversationId?._id || meeting?.conversationId || "");
+  const meetingId = String(meeting?._id || meeting?.id || "");
+  const params = new URLSearchParams({ module: "meetings" });
+
+  if (conversationId) {
+    params.set("conversation", conversationId);
+  }
+
+  if (meetingId) {
+    params.set("meeting", meetingId);
+  }
+
+  return `/chat?${params}`;
+};
+
+const UpcomingMeetingsPanel = ({ meetings = [], onOpenCalendar, onOpenMeeting }) => {
+  const shouldReduceMotion = useReducedMotion();
+
+  return (
+    <AnalyticsPanel
+      className="[&>div:first-child]:gap-2 [&>div:first-child]:p-3.5 [&>div:first-child_h2]:text-[15px] [&>div:first-child_p]:text-xs [&>div:first-child_p]:leading-5 [&>div:last-child]:p-3"
+      title="Upcoming Meetings"
+      description="Your next scheduled team meetings."
+      action={<CalendarDays className="h-4 w-4 text-blue-600" />}
+    >
+      {meetings.length ? (
+        <motion.div
+          className="space-y-2.5"
+          initial={shouldReduceMotion ? false : { opacity: 0, y: 10 }}
+          animate={shouldReduceMotion ? undefined : { opacity: 1, y: 0 }}
+          transition={{ duration: 0.28, ease: "easeOut" }}
+        >
+          {meetings.map((meeting, index) => {
+            const start = meeting.startTime ? new Date(meeting.startTime) : null;
+            const status = getMeetingStatus(meeting);
+            const actionLabel = status === "live" ? "Join" : "View";
+
+            return (
+              <motion.button
+                key={meeting._id || meeting.id}
+                type="button"
+                initial={shouldReduceMotion ? false : { opacity: 0, y: 8 }}
+                animate={shouldReduceMotion ? undefined : { opacity: 1, y: 0 }}
+                transition={{ delay: index * 0.04, duration: 0.24, ease: "easeOut" }}
+                className="group grid w-full grid-cols-[64px_minmax(0,1fr)_auto] items-center gap-3 rounded-[16px] border border-white/70 bg-white/64 px-3 py-2.5 text-left shadow-[0_10px_24px_-24px_rgba(15,23,42,0.32)] backdrop-blur-sm transition duration-300 hover:-translate-y-0.5 hover:border-blue-200/90 hover:bg-white/88"
+                onClick={() => onOpenMeeting(meeting)}
+              >
+                <span className="text-xs font-black text-blue-700">
+                  {start ? formatTime(start) : "--"}
+                </span>
+                <span className="min-w-0">
+                  <span className="block truncate text-sm font-extrabold text-slate-950">
+                    {meeting.title || "Team meeting"}
+                  </span>
+                  <span className="mt-0.5 block truncate text-xs font-semibold text-slate-500">
+                    {getMeetingContextLabel(meeting)} - {(meeting.participants || []).length} participants
+                  </span>
+                </span>
+                <span className="flex shrink-0 items-center gap-2">
+                  <Badge className="rounded-full border-blue-100 bg-blue-50 px-2 py-0.5 text-[10px] font-black text-blue-700">
+                    {start ? formatRelativeDateLabel(start) : getMeetingStatusLabel(meeting)}
+                  </Badge>
+                  <Button
+                    type="button"
+                    size="sm"
+                    className="h-7 rounded-full px-2.5 text-[11px] font-black"
+                    variant={status === "live" ? "default" : "outline"}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      onOpenMeeting(meeting);
+                    }}
+                  >
+                    {actionLabel}
+                  </Button>
+                </span>
+              </motion.button>
+            );
+          })}
+          <Button
+            type="button"
+            variant="ghost"
+            className="group h-8 w-full justify-between rounded-2xl text-xs font-bold text-blue-700"
+            onClick={onOpenCalendar}
+          >
+            View Calendar
+            <ArrowRight className="h-4 w-4 transition group-hover:translate-x-0.5" />
+          </Button>
+        </motion.div>
+      ) : (
+        <AnalyticsEmptyState
+          className="min-h-[190px] py-7"
+          icon={CalendarDays}
+          title="No upcoming meetings"
+          description="Your scheduled meetings will appear here."
+        />
+      )}
+    </AnalyticsPanel>
+  );
+};
+
+const deadlineStatusMeta = {
+  "On Track": "border-emerald-200 bg-emerald-50 text-emerald-700",
+  Attention: "border-amber-200 bg-amber-50 text-amber-700",
+  "At Risk": "border-rose-200 bg-rose-50 text-rose-700",
+};
+
+const ProjectDeadlinesPanel = ({ deadlines = [], onOpenProjects, onOpenProject }) => {
+  const shouldReduceMotion = useReducedMotion();
+
+  return (
+    <AnalyticsPanel
+      className="[&>div:first-child]:gap-2 [&>div:first-child]:p-3.5 [&>div:first-child_h2]:text-[15px] [&>div:first-child_p]:text-xs [&>div:first-child_p]:leading-5 [&>div:last-child]:p-3"
+      title="Project Deadlines"
+      description="Upcoming project deadlines requiring attention."
+      action={<Clock className="h-4 w-4 text-violet-600" />}
+    >
+      {deadlines.length ? (
+        <motion.div
+          className="space-y-2.5"
+          initial={shouldReduceMotion ? false : { opacity: 0, y: 10 }}
+          animate={shouldReduceMotion ? undefined : { opacity: 1, y: 0 }}
+          transition={{ duration: 0.28, ease: "easeOut" }}
+        >
+          {deadlines.map((deadline, index) => (
+            <motion.button
+              key={deadline.projectId}
+              type="button"
+              initial={shouldReduceMotion ? false : { opacity: 0, y: 8 }}
+              animate={shouldReduceMotion ? undefined : { opacity: 1, y: 0 }}
+              transition={{ delay: index * 0.04, duration: 0.24, ease: "easeOut" }}
+              className="group w-full rounded-[16px] border border-white/70 bg-white/64 px-3 py-2.5 text-left shadow-[0_10px_24px_-24px_rgba(15,23,42,0.32)] backdrop-blur-sm transition duration-300 hover:-translate-y-0.5 hover:border-violet-200/90 hover:bg-white/88"
+              onClick={() => onOpenProject(deadline)}
+            >
+              <span className="flex items-start justify-between gap-3">
+                <span className="min-w-0">
+                  <span className="block truncate text-sm font-extrabold text-slate-950">
+                    {deadline.name}
+                  </span>
+                  <span className="mt-0.5 block text-xs font-semibold text-slate-500">
+                    {deadline.deadlineLabel} - {deadline.daysLabel}
+                  </span>
+                </span>
+                <span className="flex shrink-0 items-center gap-2">
+                  <span className="text-xs font-black text-slate-800">
+                    {deadline.progress}% progress
+                  </span>
+                  <Badge className={cn("rounded-full border px-2 py-0.5 text-[10px] font-black", deadlineStatusMeta[deadline.status])}>
+                    {deadline.status}
+                  </Badge>
+                  <ChevronRight className="h-4 w-4 text-slate-400 transition group-hover:translate-x-0.5 group-hover:text-violet-600" />
+                </span>
+              </span>
+              <span className="mt-2 block h-1.5 overflow-hidden rounded-full bg-slate-200/90 shadow-inner">
+                <motion.span
+                  className={cn(
+                    "block h-full rounded-full",
+                    deadline.status === "On Track"
+                      ? "bg-emerald-500"
+                      : deadline.status === "At Risk"
+                        ? "bg-rose-500"
+                        : "bg-amber-500"
+                  )}
+                  initial={shouldReduceMotion ? false : { width: 0 }}
+                  animate={{ width: `${deadline.progress}%` }}
+                  transition={{ delay: 0.08 + index * 0.04, duration: 0.58, ease: "easeOut" }}
+                />
+              </span>
+            </motion.button>
+          ))}
+          <Button
+            type="button"
+            variant="ghost"
+            className="group h-8 w-full justify-between rounded-2xl text-xs font-bold text-violet-700"
+            onClick={onOpenProjects}
+          >
+            View Projects
+            <ArrowRight className="h-4 w-4 transition group-hover:translate-x-0.5" />
+          </Button>
+        </motion.div>
+      ) : (
+        <AnalyticsEmptyState
+          className="min-h-[190px] py-7"
+          icon={FolderKanban}
+          title="No upcoming project deadlines"
+          description="Project deadlines will appear here when configured."
+        />
+      )}
     </AnalyticsPanel>
   );
 };
@@ -1532,6 +1751,13 @@ const DashboardPage = () => {
     queryKey: ["teams", "admin-dashboard-counts"],
     queryFn: () => fetchTeams(),
   });
+  const {
+    data: meetingsData = [],
+  } = useQuery({
+    queryKey: ["chat-meetings", "admin-dashboard-upcoming"],
+    queryFn: () => fetchAllChatMeetings(),
+    enabled: Boolean(user?._id),
+  });
   const issues = useMemo(
     () => (Array.isArray(issuesData) ? issuesData : []),
     [issuesData]
@@ -1541,6 +1767,10 @@ const DashboardPage = () => {
     [issues]
   );
   const bugs = useMemo(() => (Array.isArray(bugsData) ? bugsData : []), [bugsData]);
+  const meetings = useMemo(
+    () => (Array.isArray(meetingsData) ? meetingsData : []),
+    [meetingsData]
+  );
   const users = useMemo(() => (Array.isArray(usersData) ? usersData : []), [usersData]);
   const userLookup = useMemo(() => {
     const byId = new Map();
@@ -1573,9 +1803,18 @@ const DashboardPage = () => {
     () => (Array.isArray(allTeamsData) ? allTeamsData : []),
     [allTeamsData]
   );
-  const projects = analytics.projects?.projects || [];
-  const teams = analytics.teams?.teams || [];
-  const highestWorkloadTeam = teams[0] || null;
+  const upcomingMeetings = useMemo(
+    () =>
+      meetings
+        .filter((meeting) => getMeetingStatus(meeting) !== "completed")
+        .sort(
+          (left, right) =>
+            new Date(left.startTime || left.createdAt || 0).getTime() -
+            new Date(right.startTime || right.createdAt || 0).getTime()
+        )
+        .slice(0, 5),
+    [meetings]
+  );
   const taskStatusRows = useMemo(() => {
     const total = taskIssues.length;
 
@@ -1698,6 +1937,72 @@ const DashboardPage = () => {
       resolvedToday,
     };
   }, [bugs, previousWeekStart, todayStart, weekStart]);
+  const projectDeadlineRows = useMemo(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const projectWorkItems = [...issues, ...bugs];
+
+    return allProjects
+      .map((project) => {
+        const deadline = project.targetDate ? new Date(project.targetDate) : null;
+
+        if (!deadline || Number.isNaN(deadline.getTime())) {
+          return null;
+        }
+
+        const deadlineDay = new Date(deadline);
+        deadlineDay.setHours(0, 0, 0, 0);
+
+        if (deadlineDay < today) {
+          return null;
+        }
+
+        const projectId = String(project?._id || project?.id || "");
+        const items = projectWorkItems.filter(
+          (item) => resolveIssueProjectId(item) === projectId
+        );
+        const completedItems = items.filter((item) =>
+          item.type === ISSUE_TYPES.BUG
+            ? isResolvedBug(item) || isClosedBug(item)
+            : [ISSUE_STATUS.DONE, ISSUE_STATUS.CLOSED, ISSUE_STATUS.RESOLVED].includes(item.status)
+        );
+        const existingProgress = Number(
+          project.progress ?? project.completionRate ?? project.deliveryProgress
+        );
+        const progress = items.length
+          ? Math.round((completedItems.length / items.length) * 100)
+          : Number.isFinite(existingProgress)
+            ? Math.max(0, Math.min(100, Math.round(existingProgress)))
+            : 0;
+        const days = Math.ceil((deadlineDay.getTime() - today.getTime()) / 86400000);
+        const status =
+          progress >= 80
+            ? "On Track"
+            : days <= 7 && progress < 60
+              ? "At Risk"
+              : progress >= 55
+                ? "Attention"
+                : "At Risk";
+
+        return {
+          projectId,
+          name: project.name || "Untitled project",
+          deadline,
+          deadlineLabel: formatDate(deadline),
+          daysLabel: days === 0 ? "Due today" : days === 1 ? "1 day remaining" : `${days} days remaining`,
+          progress,
+          status,
+        };
+      })
+      .filter(Boolean)
+      .sort(
+        (left, right) =>
+          left.deadline.getTime() - right.deadline.getTime() ||
+          left.progress - right.progress ||
+          left.name.localeCompare(right.name)
+      )
+      .slice(0, 5);
+  }, [allProjects, bugs, issues]);
   const bugContributionProjectOptions = useMemo(() => {
     const rowsByProject = new Map();
 
@@ -2223,20 +2528,21 @@ const DashboardPage = () => {
         />
       </section>
 
-      <section className="grid items-stretch gap-5 lg:grid-cols-[minmax(0,7fr)_minmax(280px,3fr)]">
+      <section className="grid items-stretch gap-4 lg:grid-cols-[minmax(0,7fr)_minmax(280px,3fr)]">
         <AnalyticsPanel
+          className="[&>div:first-child]:gap-2 [&>div:first-child]:p-3 [&>div:first-child_h2]:text-[15px] [&>div:first-child_p]:text-xs [&>div:first-child_p]:leading-5 [&>div:last-child]:p-3"
           title="Team Task Workload"
           description="Current task pressure and completion across teams."
           action={
             teamTaskRows.length ? (
-              <Badge className="border-white/60 bg-white/72 text-slate-600">
+              <Badge className="border-white/60 bg-white/72 px-2 py-0.5 text-[10px] font-black text-slate-600">
                 {taskIssues.length} tasks
               </Badge>
             ) : null
           }
         >
           {teamTaskRows.length ? (
-            <div className="space-y-3">
+            <div className="space-y-2">
               {teamTaskRows.slice(0, 6).map((row) => (
                 <TeamTaskWorkloadCard
                   key={row.teamId || row.name}
@@ -2248,7 +2554,7 @@ const DashboardPage = () => {
                 <Button
                   type="button"
                   variant="outline"
-                  className="group h-9 w-full justify-between rounded-2xl bg-white/68 text-xs font-bold"
+                  className="group h-8 w-full justify-between rounded-2xl bg-white/68 text-xs font-bold"
                   onClick={() => navigate("/teams")}
                 >
                   View All Teams
@@ -2272,85 +2578,30 @@ const DashboardPage = () => {
         />
       </section>
 
-      <section className="grid gap-5 xl:grid-cols-[1fr_1.12fr]">
-        <AnalyticsPanel
-          title="Active Workload"
-          description="Team delivery pressure signals."
-        >
-          <div className="space-y-3">
-            {highestWorkloadTeam ? (
-              <div className={cn(ANALYTICS_SUBPANEL_CLASS, "p-3")}>
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <p className="text-sm font-bold text-slate-950 dark:text-slate-100">
-                      {highestWorkloadTeam.name}
-                    </p>
-                    <p className="mt-0.5 text-[10px] font-medium text-slate-500 uppercase">
-                      Top Workload
-                    </p>
-                  </div>
-                  <Badge className="h-5 px-1.5 text-[9px] font-bold border-cyan-100 bg-cyan-50 text-cyan-700">
-                    {highestWorkloadTeam.productivity}% Eff
-                  </Badge>
-                </div>
-                <div className="mt-3 grid grid-cols-3 gap-2">
-                  <div className="rounded-lg bg-slate-50 px-2 py-1.5 border border-slate-100/50 text-center">
-                    <p className="text-[9px] font-bold text-slate-400 uppercase">Total</p>
-                    <p className="text-sm font-bold">{highestWorkloadTeam.totalIssues}</p>
-                  </div>
-                  <div className="rounded-lg bg-amber-50 px-2 py-1.5 border border-amber-100/50 text-center">
-                    <p className="text-[9px] font-bold text-amber-600 uppercase">Open</p>
-                    <p className="text-sm font-bold text-amber-900">
-                      {highestWorkloadTeam.pendingWorkload}
-                    </p>
-                  </div>
-                  <div className="rounded-lg bg-emerald-50 px-2 py-1.5 border border-emerald-100/50 text-center">
-                    <p className="text-[9px] font-bold text-emerald-600 uppercase">Done</p>
-                    <p className="text-sm font-bold text-emerald-900">
-                      {highestWorkloadTeam.closedIssues}
-                    </p>
-                  </div>
-                </div>
-              </div>
-            ) : null}
+      <section className="grid items-stretch gap-5 lg:grid-cols-2">
+        <UpcomingMeetingsPanel
+          meetings={upcomingMeetings}
+          onOpenCalendar={() =>
+            navigate("/chat?module=meetings", {
+              state: { activeModule: "meetings" },
+            })
+          }
+          onOpenMeeting={(meeting) =>
+            navigate(buildChatMeetingPath(meeting), {
+              state: { activeModule: "meetings" },
+            })
+          }
+        />
 
-            {teams.length ? (
-              <div className="space-y-3">
-                {teams.slice(0, 5).map((team) => (
-                  <button
-                    key={team.teamId}
-                    type="button"
-                    className={cn(
-                      ANALYTICS_SUBPANEL_CLASS,
-                      "flex w-full items-center justify-between gap-3 px-3 py-2 text-left"
-                    )}
-                    onClick={() => navigateToIssues({ teamId: team.teamId })}
-                  >
-                    <span className="min-w-0">
-                      <span className="block truncate text-sm font-semibold text-slate-950">
-                        {team.name}
-                      </span>
-                      <span className="mt-1 block text-xs text-slate-500">
-                        {team.assignedIssues || 0} assigned - {team.pendingWorkload || 0} pending
-                      </span>
-                    </span>
-                    <Badge className="border-cyan-200 bg-cyan-50 text-cyan-700">
-                      {team.efficiency ?? team.productivity}% efficiency
-                    </Badge>
-                  </button>
-                ))}
-              </div>
-            ) : (
-              <AnalyticsEmptyState
-                icon={Users2}
-                title="No team workload yet"
-                description="Team workload appears once issues are assigned to teams."
-              />
-            )}
-          </div>
-        </AnalyticsPanel>
-
-        <WeeklyTaskCompletionTrend />
+        <ProjectDeadlinesPanel
+          deadlines={projectDeadlineRows}
+          onOpenProjects={() => navigate("/projects")}
+          onOpenProject={(project) =>
+            navigate(`/projects?projectId=${encodeURIComponent(project.projectId)}`, {
+              state: { selectedProjectId: project.projectId },
+            })
+          }
+        />
       </section>
     </div>
   );
