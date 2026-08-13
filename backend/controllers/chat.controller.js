@@ -625,6 +625,10 @@ const isActionableQuickChatMessage = (message) => {
     "cancelled a chat meeting",
     "joined the call",
     "left the call",
+    "call ended",
+    "missed call",
+    "audio call ended",
+    "video call ended",
     "ended the call",
     "started a call",
   ].some((systemText) => text.includes(systemText));
@@ -651,6 +655,7 @@ const serializeQuickChatItem = ({ conversation, message }) => {
     createdAt: message.createdAt,
     updatedAt: message.updatedAt,
     attachments: message.attachments || [],
+    unreadCount: 1,
   };
 };
 
@@ -760,6 +765,13 @@ const getActiveQuickChatMessages = asyncHandler(async (req, res) => {
       $ne: req.user._id,
     },
     deleted: false,
+    seenBy: {
+      $not: {
+        $elemMatch: {
+          userId: req.user._id,
+        },
+      },
+    },
   })
     .sort({ createdAt: -1 })
     .limit(120)
@@ -865,6 +877,23 @@ const handleQuickChatMessage = asyncHandler(async (req, res) => {
       setDefaultsOnInsert: true,
     }
   ).lean();
+
+  await Message.updateOne(
+    {
+      _id: message._id,
+      "seenBy.userId": {
+        $ne: req.user._id,
+      },
+    },
+    {
+      $push: {
+        seenBy: {
+          userId: req.user._id,
+          seenAt: new Date(),
+        },
+      },
+    }
+  );
 
   try {
     const { emitToUser } = require("../socket");

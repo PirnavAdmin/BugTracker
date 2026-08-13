@@ -1363,6 +1363,28 @@ const getDashboardChatBadge = (conversation = {}) => {
   return "Admin";
 };
 
+const isQuickChatActionableText = (message = "") => {
+  const text = String(message || "").trim().toLowerCase();
+
+  if (!text) {
+    return false;
+  }
+
+  return ![
+    "scheduled a chat meeting",
+    "updated a chat meeting",
+    "cancelled a chat meeting",
+    "joined the call",
+    "left the call",
+    "call ended",
+    "missed call",
+    "audio call ended",
+    "video call ended",
+    "ended the call",
+    "started a call",
+  ].some((systemText) => text.includes(systemText));
+};
+
 const formatQuickChatTime = (value) => {
   const date = value ? new Date(value) : null;
 
@@ -2767,7 +2789,12 @@ const DashboardPage = () => {
     Object.entries(chatMessagesByConversation || {}).forEach(([conversationId, messages]) => {
       const conversation = conversationsById.get(conversationId);
 
-      if (!conversation || conversation.isArchived || !Array.isArray(messages)) {
+      if (
+        !conversation ||
+        conversation.isArchived ||
+        !Number(conversation.unreadCount || 0) ||
+        !Array.isArray(messages)
+      ) {
         return;
       }
 
@@ -2775,12 +2802,18 @@ const DashboardPage = () => {
         .filter((message) => {
           const senderId = getEntityId(message.senderId);
           const metadataType = String(message?.metadata?.type || "").trim().toLowerCase();
+          const text = String(message.message || "").trim();
+          const hasCurrentUserSeen = (message.seenBy || []).some(
+            (entry) => getEntityId(entry.userId) === getEntityId(user)
+          );
+
           return (
             senderId &&
             senderId !== getEntityId(user) &&
             !message.deleted &&
+            !hasCurrentUserSeen &&
             (!metadataType || metadataType === "message") &&
-            (String(message.message || "").trim() || (message.attachments || []).length)
+            (isQuickChatActionableText(text) || (message.attachments || []).length)
           );
         })
         .sort(
