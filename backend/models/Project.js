@@ -486,6 +486,72 @@ const projectSchema = new Schema(
         default: "Waiting for QA",
       },
     },
+    gitActivityHistory: {
+      type: [
+        {
+          commitSha: {
+            type: String,
+            trim: true,
+            default: "",
+          },
+          commitMessage: {
+            type: String,
+            trim: true,
+            default: "",
+          },
+          branch: {
+            type: String,
+            trim: true,
+            default: "",
+          },
+          pushedByName: {
+            type: String,
+            trim: true,
+            default: "",
+          },
+          pushedAt: {
+            type: Date,
+            default: null,
+          },
+          filesChanged: {
+            type: [String],
+            default: [],
+          },
+          additions: {
+            type: Number,
+            default: null,
+          },
+          deletions: {
+            type: Number,
+            default: null,
+          },
+          modulesChanged: {
+            type: [String],
+            default: [],
+          },
+          qaStatus: {
+            type: String,
+            trim: true,
+            default: "Waiting for QA",
+          },
+          event: {
+            type: String,
+            trim: true,
+            default: "push",
+          },
+          deliveryId: {
+            type: String,
+            trim: true,
+            default: "",
+          },
+          recordedAt: {
+            type: Date,
+            default: Date.now,
+          },
+        },
+      ],
+      default: [],
+    },
     manager: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",

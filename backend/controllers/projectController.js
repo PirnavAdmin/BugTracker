@@ -86,6 +86,61 @@ const normalizeNullableNumber = (value) => {
   return Number.isFinite(numeric) ? numeric : null;
 };
 
+const normalizeGitActivityEntry = (activity = {}, fallback = {}) => ({
+  commitSha: normalizeString(activity.commitSha, fallback.commitSha || ""),
+  commitMessage: normalizeString(activity.commitMessage, fallback.commitMessage || ""),
+  branch: normalizeString(activity.branch, fallback.branch || ""),
+  pushedByName: normalizeString(activity.pushedByName, fallback.pushedByName || ""),
+  pushedAt: activity.pushedAt ? new Date(activity.pushedAt) : fallback.pushedAt || null,
+  filesChanged: normalizeStringArray(activity.filesChanged || fallback.filesChanged),
+  additions: normalizeNullableNumber(
+    activity.additions !== undefined ? activity.additions : fallback.additions
+  ),
+  deletions: normalizeNullableNumber(
+    activity.deletions !== undefined ? activity.deletions : fallback.deletions
+  ),
+  modulesChanged: normalizeStringArray(activity.modulesChanged || fallback.modulesChanged),
+  qaStatus: normalizeString(activity.qaStatus, fallback.qaStatus || "Waiting for QA"),
+  event: normalizeString(activity.event, fallback.event || "push"),
+  deliveryId: normalizeString(activity.deliveryId, fallback.deliveryId || ""),
+  recordedAt: activity.recordedAt ? new Date(activity.recordedAt) : fallback.recordedAt || new Date(),
+});
+
+const hasGitActivityEntry = (activity = {}) =>
+  Boolean(
+    normalizeString(activity.commitSha) ||
+      activity.pushedAt ||
+      normalizeString(activity.commitMessage)
+  );
+
+const getGitActivityKey = (activity = {}) =>
+  [normalizeString(activity.commitSha), activity.pushedAt ? new Date(activity.pushedAt).getTime() : ""]
+    .filter(Boolean)
+    .join(":");
+
+const prependGitActivityHistory = (existingHistory = [], entries = []) => {
+  const seen = new Set();
+
+  return [...entries, ...existingHistory]
+    .map((activity) => normalizeGitActivityEntry(activity?.toObject?.() || activity))
+    .filter(hasGitActivityEntry)
+    .filter((activity) => {
+      const key = getGitActivityKey(activity);
+
+      if (!key) {
+        return true;
+      }
+
+      if (seen.has(key)) {
+        return false;
+      }
+
+      seen.add(key);
+      return true;
+    })
+    .sort((left, right) => new Date(right.pushedAt || 0) - new Date(left.pushedAt || 0));
+};
+
 const generateWebhookSecret = () =>
   `cc_${Math.random().toString(36).slice(2, 10)}${Date.now().toString(36)}`;
 
@@ -591,18 +646,21 @@ const buildDeliveryWorkflowPatch = (payload = {}, project = {}) => {
 
   if (Object.prototype.hasOwnProperty.call(payload, "latestGitActivity")) {
     const activity = payload.latestGitActivity || {};
-    patch.latestGitActivity = {
-      commitSha: normalizeString(activity.commitSha),
-      commitMessage: normalizeString(activity.commitMessage),
-      branch: normalizeString(activity.branch),
-      pushedByName: normalizeString(activity.pushedByName),
-      pushedAt: activity.pushedAt ? new Date(activity.pushedAt) : null,
-      filesChanged: normalizeStringArray(activity.filesChanged),
-      additions: normalizeNullableNumber(activity.additions),
-      deletions: normalizeNullableNumber(activity.deletions),
-      modulesChanged: normalizeStringArray(activity.modulesChanged),
-      qaStatus: normalizeString(activity.qaStatus, "Waiting for QA"),
-    };
+    patch.latestGitActivity = normalizeGitActivityEntry(activity);
+
+    if (hasGitActivityEntry(patch.latestGitActivity)) {
+      patch.gitActivityHistory = prependGitActivityHistory(
+        project.gitActivityHistory || [],
+        [patch.latestGitActivity]
+      );
+    }
+  }
+
+  if (Object.prototype.hasOwnProperty.call(payload, "gitActivityHistory")) {
+    patch.gitActivityHistory = prependGitActivityHistory(
+      patch.gitActivityHistory || project.gitActivityHistory || [],
+      payload.gitActivityHistory || []
+    );
   }
 
   return patch;
@@ -1668,13 +1726,24 @@ const syncProjectGitRepository = asyncHandler(async (req, res) => {
     );
 
     project.git = nextGit;
-    project.latestGitActivity = {
+    const syncedActivity = normalizeGitActivityEntry({
       ...(project.latestGitActivity?.toObject?.() || project.latestGitActivity || {}),
       commitSha: result.status.latestCommitHash,
       commitMessage: result.status.latestCommitMessage,
       branch: git.defaultBranch,
       pushedAt: result.status.lastPushTime,
-    };
+      pushedByName: req.user.name || req.user.email || "CureCode",
+      event: "sync",
+    });
+
+    project.latestGitActivity = syncedActivity;
+
+    if (hasGitActivityEntry(syncedActivity)) {
+      project.gitActivityHistory = prependGitActivityHistory(
+        project.gitActivityHistory || [],
+        [syncedActivity]
+      );
+    }
     await project.save();
 
     res.status(200).json({

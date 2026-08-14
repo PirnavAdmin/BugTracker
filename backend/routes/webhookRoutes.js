@@ -94,6 +94,54 @@ const getGitHubCommitStats = async ({ owner, repo, sha, token }) => {
   return data?.stats || null;
 };
 
+const getCommitFiles = (commit = {}) =>
+  Array.from(
+    new Set(
+      [
+        ...(Array.isArray(commit.added) ? commit.added : []),
+        ...(Array.isArray(commit.modified) ? commit.modified : []),
+        ...(Array.isArray(commit.removed) ? commit.removed : []),
+      ].filter(Boolean)
+    )
+  );
+
+const getActivityKey = (activity = {}) =>
+  [normalizeString(activity.commitSha), activity.pushedAt ? new Date(activity.pushedAt).getTime() : ""]
+    .filter(Boolean)
+    .join(":");
+
+const prependGitActivityHistory = (project, activities = []) => {
+  const existingHistory = Array.isArray(project.gitActivityHistory)
+    ? project.gitActivityHistory.map((activity) => activity?.toObject?.() || activity)
+    : [];
+  const seen = new Set();
+
+  project.gitActivityHistory = [...activities, ...existingHistory]
+    .filter((activity) => hasGitActivity(activity))
+    .filter((activity) => {
+      const key = getActivityKey(activity);
+
+      if (!key) {
+        return true;
+      }
+
+      if (seen.has(key)) {
+        return false;
+      }
+
+      seen.add(key);
+      return true;
+    })
+    .sort((left, right) => new Date(right.pushedAt || 0) - new Date(left.pushedAt || 0));
+};
+
+const hasGitActivity = (activity = {}) =>
+  Boolean(
+    normalizeString(activity.commitSha) ||
+      activity.pushedAt ||
+      normalizeString(activity.commitMessage)
+  );
+
 router.post("/github", async (req, res) => {
   const eventName = normalizeString(req.get("x-github-event") || "unknown");
   const deliveryId = normalizeString(req.get("x-github-delivery"));
@@ -150,7 +198,7 @@ router.post("/github", async (req, res) => {
     commitStats = null;
   }
 
-  project.latestGitActivity = {
+  const latestActivity = {
     ...(project.latestGitActivity?.toObject?.() || project.latestGitActivity || {}),
     commitSha: latestCommitHash,
     commitMessage: latestCommitMessage,
@@ -170,7 +218,37 @@ router.post("/github", async (req, res) => {
     ),
     additions: Number.isFinite(Number(commitStats?.additions)) ? Number(commitStats.additions) : addedFiles.size,
     deletions: Number.isFinite(Number(commitStats?.deletions)) ? Number(commitStats.deletions) : removedFiles.size,
+    event: eventName,
+    deliveryId,
+    recordedAt: new Date(),
   };
+  const activityHistoryEntries = (commits.length ? commits : [commit])
+    .filter(Boolean)
+    .map((item) => {
+      const commitSha = normalizeString(item.id || item.sha);
+      const isLatestCommit = commitSha && commitSha === latestCommitHash;
+      const filesChanged = getCommitFiles(item);
+      const commitRemovedFiles = Array.isArray(item.removed) ? item.removed.filter(Boolean).length : 0;
+
+      return {
+        commitSha,
+        commitMessage: normalizeString(item.message || latestCommitMessage),
+        branch,
+        pushedByName: normalizeString(item.author?.username || item.author?.name || payload.sender?.login || payload.pusher?.name),
+        pushedAt: item.timestamp ? new Date(item.timestamp) : pushedAt,
+        filesChanged,
+        additions: isLatestCommit && Number.isFinite(Number(commitStats?.additions)) ? Number(commitStats.additions) : filesChanged.length,
+        deletions: isLatestCommit && Number.isFinite(Number(commitStats?.deletions)) ? Number(commitStats.deletions) : commitRemovedFiles,
+        modulesChanged: [],
+        qaStatus: "Waiting for QA",
+        event: eventName,
+        deliveryId,
+        recordedAt: new Date(),
+      };
+    });
+
+  project.latestGitActivity = latestActivity;
+  prependGitActivityHistory(project, activityHistoryEntries.length ? activityHistoryEntries : [latestActivity]);
 
   project.git = {
     ...(project.git?.toObject?.() || project.git || {}),
