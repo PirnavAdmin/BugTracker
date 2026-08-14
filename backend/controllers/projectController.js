@@ -698,10 +698,13 @@ const buildDeliveryWorkflowPatch = (payload = {}, project = {}) => {
   }
 
   if (Object.prototype.hasOwnProperty.call(payload, "gitActivityHistory")) {
-    const incomingHistory = prependGitActivityHistory(payload.gitActivityHistory || [], []);
+    const existingHistory = project.gitActivityHistory || [];
     patch.gitActivityHistory = patch.gitActivityHistory
-      ? prependGitActivityHistory(incomingHistory, patch.gitActivityHistory)
-      : incomingHistory;
+      ? prependGitActivityHistory(existingHistory, [
+          ...(payload.gitActivityHistory || []),
+          ...patch.gitActivityHistory,
+        ])
+      : prependGitActivityHistory(existingHistory, payload.gitActivityHistory || []);
   }
 
   return patch;

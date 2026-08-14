@@ -1087,7 +1087,9 @@ const ProjectsPage = () => {
       selectedProject.commitHistory,
       selectedProject.commits,
     ];
-    const historicalActivities = activitySources.find((source) => Array.isArray(source)) || [];
+    const historicalActivities = activitySources.flatMap((source) =>
+      Array.isArray(source) ? source : []
+    );
     const latestActivity = selectedProject.latestGitActivity || {};
     const rows = historicalActivities
       .map((activity, index) => ({
@@ -1117,6 +1119,8 @@ const ProjectsPage = () => {
       }
     }
 
+    const seenActivityKeys = new Set();
+
     return rows
       .map((row) => ({
         ...row,
@@ -1124,6 +1128,25 @@ const ProjectsPage = () => {
         modulesChanged: row.modulesChanged?.length ? row.modulesChanged : normalizeDeliveryModules(selectedProject),
         repository,
       }))
+      .filter((row) => {
+        const key = [
+          row.commitSha || "",
+          row.pushedAt ? new Date(row.pushedAt).getTime() : "",
+        ]
+          .filter(Boolean)
+          .join(":");
+
+        if (!key) {
+          return true;
+        }
+
+        if (seenActivityKeys.has(key)) {
+          return false;
+        }
+
+        seenActivityKeys.add(key);
+        return true;
+      })
       .sort(
         (left, right) =>
           new Date(right.pushedAt || 0).getTime() - new Date(left.pushedAt || 0).getTime()
