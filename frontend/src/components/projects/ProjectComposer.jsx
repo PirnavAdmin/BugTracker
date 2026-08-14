@@ -222,6 +222,10 @@ const ProjectComposer = ({
         setError("GitHub Personal Access Token is required.");
         return;
       }
+      if (!deliveryConfig.git.tokenAcknowledged) {
+        setError("Confirm the GitHub Personal Access Token checklist before creating the project.");
+        return;
+      }
     }
     if (!deliveryConfig.deliveryModules.some((module) => module.name.trim())) {
       setError("At least one project module is required.");

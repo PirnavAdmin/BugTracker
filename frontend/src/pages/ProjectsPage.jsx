@@ -1571,6 +1571,10 @@ const ProjectsPage = () => {
       setGitConfigError("GitHub Personal Access Token is required before saving.");
       return;
     }
+    if (!projectDeliveryConfig.git.tokenAcknowledged) {
+      setGitConfigError("Confirm the GitHub Personal Access Token checklist before saving.");
+      return;
+    }
     if (!projectDeliveryConfig.deliveryModules.some((module) => module.name.trim())) {
       setGitConfigError("At least one module is required.");
       return;

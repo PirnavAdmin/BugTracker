@@ -1637,7 +1637,7 @@ const updateProjectDeliveryWorkflow = asyncHandler(async (req, res) => {
       };
 
       const syncedCommitActivities = buildGitActivityEntriesFromGitHubCommits({
-        branch: normalizedGit.git.defaultBranch,
+        branch: git.defaultBranch,
         commits: testResult.commits,
         latestCommitDetails: testResult.latestCommitDetails,
       });

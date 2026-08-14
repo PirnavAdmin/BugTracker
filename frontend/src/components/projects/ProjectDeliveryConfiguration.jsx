@@ -78,6 +78,7 @@ export const createDeliveryConfiguration = () => ({
     defaultBranch: "main",
     token: "",
     tokenConfigured: false,
+    tokenAcknowledged: false,
     webhookEndpoint: buildWebhookEndpoint("GitHub"),
     webhookSecret: `cc_${Math.random().toString(36).slice(2, 10)}`,
     webhookEvents: ["push", "pull_request"],
@@ -161,6 +162,7 @@ export const normalizeProjectDeliveryConfiguration = (project = {}) => {
       defaultBranch: git.defaultBranch || legacyRepository.defaultBranch || "main",
       token: "",
       tokenConfigured: Boolean(git.tokenConfigured),
+      tokenAcknowledged: Boolean(git.tokenConfigured),
       webhookEndpoint: normalizeWebhookEndpoint(
         git.webhookEndpoint || legacyRepository.webhookEndpoint,
         git.provider || legacyRepository.provider || "GitHub"
@@ -262,6 +264,8 @@ const ProjectDeliveryConfiguration = ({
 
   const update = (patch) => onChange?.({ ...config, ...patch });
   const webhookEndpoint = normalizeWebhookEndpoint(config.git.webhookEndpoint, config.git.provider);
+  const tokenReady = Boolean(config.git.tokenConfigured || config.git.token?.trim());
+  const patChecklistComplete = Boolean(config.git.tokenAcknowledged && tokenReady);
   const updateGit = (field, nextValue) => {
     const git = {
       ...config.git,
@@ -465,7 +469,7 @@ const ProjectDeliveryConfiguration = ({
             <Input className={fieldClassName} value={config.git.repositoryUrl} disabled={readOnly} placeholder="https://github.com/company/project" onChange={(event) => updateGit("repositoryUrl", event.target.value)} />
           </label>
           <label className="space-y-1.5">
-            <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">GitHub PAT</span>
+            <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">GitHub PAT *</span>
             <Input
               className={fieldClassName}
               value={config.git.token || ""}
@@ -476,6 +480,24 @@ const ProjectDeliveryConfiguration = ({
             />
           </label>
         </div>
+
+        <label className="mt-3 flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50/80 px-3 py-3 text-sm text-amber-950">
+          <input
+            className="mt-0.5 h-4 w-4 rounded border-amber-300 text-blue-600 focus:ring-blue-500/30"
+            type="checkbox"
+            checked={Boolean(config.git.tokenAcknowledged)}
+            disabled={readOnly}
+            onChange={(event) => updateGit("tokenAcknowledged", event.target.checked)}
+          />
+          <span className="space-y-1">
+            <span className="block font-semibold">
+              I have generated a GitHub Personal Access Token and pasted it above.
+            </span>
+            <span className="block text-xs leading-5 text-amber-800">
+              This is required for new projects before testing, saving, or syncing Git configuration.
+            </span>
+          </span>
+        </label>
 
         <div className="mt-4 grid gap-3 lg:grid-cols-[minmax(0,1fr)_220px]">
           <label className="space-y-1.5">
@@ -505,7 +527,7 @@ const ProjectDeliveryConfiguration = ({
         </div>
 
         <div className="mt-4 flex flex-wrap gap-2">
-          <Button type="button" className="h-9 rounded-xl" disabled={readOnly || isTestingConnection} onClick={() => onTestConnection?.(config)}>
+          <Button type="button" className="h-9 rounded-xl" disabled={readOnly || isTestingConnection || !patChecklistComplete} onClick={() => onTestConnection?.(config)}>
             <ShieldCheck className="h-4 w-4" />
             {isTestingConnection ? "Testing..." : "Test Connection"}
           </Button>
