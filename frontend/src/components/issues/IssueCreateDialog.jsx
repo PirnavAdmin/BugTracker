@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import Select, { components as selectComponents } from "react-select";
+import { LoaderCircle, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -24,6 +25,7 @@ import {
   fetchIssues,
   fetchProjectTeams,
   fetchSprints,
+  generateWorkItemDescription,
   logTeamSelectionDebug,
 } from "@/lib/api";
 import {
@@ -500,6 +502,10 @@ const IssueCreateDialog = ({
   const [assignToSelf, setAssignToSelf] = useState(false);
   const [isSequenceSubmitting, setIsSequenceSubmitting] = useState(false);
   const [error, setError] = useState("");
+  const [aiError, setAiError] = useState("");
+  const [isGeneratingDescription, setIsGeneratingDescription] = useState(false);
+  const [hasGeneratedDescription, setHasGeneratedDescription] = useState(false);
+  const [isReplaceDescriptionConfirmOpen, setIsReplaceDescriptionConfirmOpen] = useState(false);
   const { role, user } = useAuth();
   const canManagePlanningFields = hasAdminPanelAccess(role);
   const currentUserId = resolveUserId(user);
@@ -735,6 +741,7 @@ const IssueCreateDialog = ({
     Boolean(currentUserId) &&
     ["Task", "Sub-task"].includes(formData.type);
   const supportsDescription = isStoryType || formData.type === "Task" || isBugType;
+  const supportsAiDescription = formData.type === "Task" || formData.type === "Sub-task" || isBugType;
   const qaOwnerOptions = useMemo(
     () =>
       projectMemberOptions.filter((option) => option.role === "Tester").length
@@ -798,6 +805,10 @@ const IssueCreateDialog = ({
     setAssignToSelf(false);
     setIsSequenceSubmitting(false);
     setError("");
+    setAiError("");
+    setHasGeneratedDescription(false);
+    setIsGeneratingDescription(false);
+    setIsReplaceDescriptionConfirmOpen(false);
   }, [
     defaultParentStoryId,
     defaultProjectId,
@@ -806,6 +817,54 @@ const IssueCreateDialog = ({
     projects,
     resolvedDefaultType,
   ]);
+
+  const handleGenerateDescription = async ({ forceReplace = false } = {}) => {
+    if (isGeneratingDescription) {
+      return;
+    }
+
+    if (!formData.title.trim()) {
+      setAiError("Add a title first to generate a description.");
+      return;
+    }
+
+    if (formData.description.trim() && !forceReplace) {
+      setAiError("");
+      setIsReplaceDescriptionConfirmOpen(true);
+      return;
+    }
+
+    try {
+      setAiError("");
+      setIsReplaceDescriptionConfirmOpen(false);
+      setIsGeneratingDescription(true);
+
+      const response = await generateWorkItemDescription({
+        title: formData.title.trim(),
+        workItemType: isBugType ? "Bug" : "Task",
+        projectName: selectedProject?.name || "",
+        priority: formData.priority || "",
+      });
+
+      if (!response?.success || typeof response.description !== "string") {
+        throw new Error(response?.message || "Unable to generate description. Please try again.");
+      }
+
+      setFormData((current) => ({
+        ...current,
+        description: response.description,
+      }));
+      setHasGeneratedDescription(true);
+    } catch (generationError) {
+      setAiError(
+        generationError.response?.data?.message ||
+          generationError.message ||
+          "Unable to generate description. Please try again."
+      );
+    } finally {
+      setIsGeneratingDescription(false);
+    }
+  };
 
   useEffect(() => {
     const nextTeamId = availableTeams.some(
@@ -1267,8 +1326,30 @@ const IssueCreateDialog = ({
                 </label>
 
                 {supportsDescription ? (
-                  <label className="block space-y-1.5">
-                    <span className="text-sm font-semibold text-slate-900">Description</span>
+                  <div className="block space-y-1.5">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <span className="text-sm font-semibold text-slate-900">Description</span>
+                      {supportsAiDescription ? (
+                        <Button
+                          className="h-8 rounded-xl border-blue-100 bg-blue-50 px-3 text-xs font-semibold text-blue-700 hover:bg-blue-100"
+                          type="button"
+                          variant="outline"
+                          disabled={isSubmitPending || isGeneratingDescription}
+                          onClick={() => handleGenerateDescription()}
+                        >
+                          {isGeneratingDescription ? (
+                            <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            <Sparkles className="h-3.5 w-3.5" />
+                          )}
+                          {isGeneratingDescription
+                            ? "Generating..."
+                            : hasGeneratedDescription
+                              ? "Regenerate"
+                              : "Generate with AI"}
+                        </Button>
+                      ) : null}
+                    </div>
                     <Textarea
                       className="min-h-[156px] rounded-2xl border-slate-200 text-sm shadow-none focus-visible:border-blue-500 focus-visible:ring-4 focus-visible:ring-blue-500/10"
                       value={formData.description}
@@ -1281,7 +1362,35 @@ const IssueCreateDialog = ({
                       placeholder="Add context, user value, acceptance notes, or scope details"
                       disabled={isSubmitPending}
                     />
-                  </label>
+                    {aiError ? (
+                      <p className="text-xs font-semibold text-rose-600">{aiError}</p>
+                    ) : null}
+                    {isReplaceDescriptionConfirmOpen ? (
+                      <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+                        <span className="font-medium">
+                          Replace the existing description with an AI-generated description?
+                        </span>
+                        <span className="flex items-center gap-2">
+                          <Button
+                            className="h-7 rounded-lg px-2.5 text-xs"
+                            type="button"
+                            variant="ghost"
+                            onClick={() => setIsReplaceDescriptionConfirmOpen(false)}
+                          >
+                            Cancel
+                          </Button>
+                          <Button
+                            className="h-7 rounded-lg px-2.5 text-xs"
+                            type="button"
+                            disabled={isSubmitPending || isGeneratingDescription}
+                            onClick={() => handleGenerateDescription({ forceReplace: true })}
+                          >
+                            Generate
+                          </Button>
+                        </span>
+                      </div>
+                    ) : null}
+                  </div>
                 ) : null}
 
                 {canManagePlanningFields ? (

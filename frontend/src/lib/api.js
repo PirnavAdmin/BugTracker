@@ -572,6 +572,11 @@ export const createIssue = async (payload) => {
   return response.data;
 };
 
+export const generateWorkItemDescription = async (payload) => {
+  const response = await api.post("/ai/generate-work-item-description", payload);
+  return response.data;
+};
+
 const parseDownloadFilename = (contentDisposition = "", fallback = "download.xlsx") => {
   const utf8Match = /filename\*=UTF-8''([^;]+)/i.exec(contentDisposition);
 
