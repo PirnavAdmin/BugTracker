@@ -11,6 +11,8 @@ import {
   CheckCircle2,
   ClipboardList,
   FolderKanban,
+  GitBranch,
+  GitCommit,
   HeartPulse,
   Layers3,
   Link2,
@@ -94,8 +96,13 @@ import {
 } from "@/lib/roles";
 import { getWorkspaceScope } from "@/lib/workspace";
 import { getProjectTeams, resolveUserId } from "@/lib/project-teams";
-import { getInitials } from "@/lib/utils";
+import { cn, getInitials } from "@/lib/utils";
 import { ISSUE_TYPES, normalizeIssueType } from "@/lib/issues";
+import {
+  getLatestGitActivity,
+  getRepositorySummary,
+  normalizeDeliveryModules,
+} from "@/lib/delivery-workflow";
 import {
   TASK_BOARD_COLUMNS,
   getTaskBoardStatus,
@@ -130,6 +137,39 @@ const getProjectInitials = (project) =>
 const getProjectOwnerName = (project) => {
   const owner = project?.projectManager || project?.manager;
   return owner?.name || owner?.email || "Unassigned";
+};
+
+const getCommitShortSha = (sha = "") => String(sha || "").slice(0, 7);
+
+const hasRecordedGitActivity = (activity = {}) =>
+  Boolean(
+    activity.commitSha ||
+      activity.pushedAt ||
+      (activity.commitMessage && activity.commitMessage !== "No pushes recorded yet")
+  );
+
+const getGitActivityDateParts = (value) => {
+  if (!value) {
+    return { date: "Date not recorded", time: "" };
+  }
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return { date: "Date not recorded", time: "" };
+  }
+
+  return {
+    date: date.toLocaleDateString(undefined, {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+    }),
+    time: date.toLocaleTimeString(undefined, {
+      hour: "2-digit",
+      minute: "2-digit",
+    }),
+  };
 };
 
 const formatShortDate = (value) => {
@@ -499,12 +539,19 @@ const ProjectsPage = () => {
     const params = new URLSearchParams(location.search);
     const requestedProjectId =
       params.get("projectId") || location.state?.selectedProjectId || "";
+    const requestedView = params.get("view") || location.state?.projectPanelView || "";
 
     if (requestedProjectId) {
       setActiveTab("projects");
       setSelectedProjectId(requestedProjectId);
     }
-  }, [location.search, location.state?.selectedProjectId]);
+
+    if (requestedView === "git-activity") {
+      setActiveTab("projects");
+      setProjectMode("overview");
+      setProjectPanelView("git-activity");
+    }
+  }, [location.search, location.state?.projectPanelView, location.state?.selectedProjectId]);
 
   const showToast = (type, message) => {
     setToast({
@@ -1025,6 +1072,63 @@ const ProjectsPage = () => {
     () => (Array.isArray(selectedProjectIssuesData) ? selectedProjectIssuesData : []),
     [selectedProjectIssuesData]
   );
+
+  const selectedProjectGitActivityRows = useMemo(() => {
+    if (!selectedProject) {
+      return [];
+    }
+
+    const repository = getRepositorySummary(selectedProject);
+    const activitySources = [
+      selectedProject.gitActivity,
+      selectedProject.gitActivities,
+      selectedProject.gitActivityHistory,
+      selectedProject.gitHistory,
+      selectedProject.commitHistory,
+      selectedProject.commits,
+    ];
+    const historicalActivities = activitySources.find((source) => Array.isArray(source)) || [];
+    const latestActivity = selectedProject.latestGitActivity || {};
+    const rows = historicalActivities
+      .map((activity, index) => ({
+        ...getLatestGitActivity({
+          ...selectedProject,
+          latestGitActivity: activity,
+        }),
+        id: activity._id || activity.id || activity.commitSha || `${activity.pushedAt || "activity"}-${index}`,
+        source: activity,
+      }))
+      .filter((row) => hasRecordedGitActivity(row.source || row));
+
+    if (hasRecordedGitActivity(latestActivity)) {
+      const latestSha = String(latestActivity.commitSha || "");
+      const latestPushedAt = latestActivity.pushedAt ? new Date(latestActivity.pushedAt).getTime() : 0;
+      const alreadyIncluded = rows.some((row) => {
+        const rowPushedAt = row.pushedAt ? new Date(row.pushedAt).getTime() : 0;
+        return latestSha && row.commitSha === latestSha && rowPushedAt === latestPushedAt;
+      });
+
+      if (!alreadyIncluded) {
+        rows.unshift({
+          ...getLatestGitActivity(selectedProject),
+          id: latestActivity.commitSha || latestActivity.pushedAt || "latest-git-activity",
+          source: latestActivity,
+        });
+      }
+    }
+
+    return rows
+      .map((row) => ({
+        ...row,
+        branch: row.branch || repository.defaultBranch,
+        modulesChanged: row.modulesChanged?.length ? row.modulesChanged : normalizeDeliveryModules(selectedProject),
+        repository,
+      }))
+      .sort(
+        (left, right) =>
+          new Date(right.pushedAt || 0).getTime() - new Date(left.pushedAt || 0).getTime()
+      );
+  }, [selectedProject]);
 
   const selectedProjectProgress = useMemo(() => {
     const epicProgressValues = selectedProjectEpics
@@ -2074,6 +2178,7 @@ const ProjectsPage = () => {
                     { id: "tasks", label: "Tasks", detail: "tasks" },
                     { id: "bugs", label: "Bugs", detail: "bugs" },
                     { id: "reports", label: "Reports", path: "/reports" },
+                    { id: "git-activity", label: "Git Activity" },
                     { id: "git", label: "Git Configuration" },
                     { id: "settings", label: "Settings" },
                   ].map(({ id, label, detail, path, action }) => {
@@ -2406,6 +2511,114 @@ const ProjectsPage = () => {
                         </div>
                       )}
                     </div>
+                  </section>
+                ) : null}
+
+                {projectPanelView === "git-activity" ? (
+                  <section className="space-y-4">
+                    <div className="flex flex-col gap-3 border-b border-[#EEF2F7] pb-4 sm:flex-row sm:items-start sm:justify-between">
+                      <div>
+                        <h3 className="text-base font-semibold text-slate-950">
+                          Git Activity
+                        </h3>
+                        <p className="mt-1 text-sm text-slate-500">
+                          Commit history captured for this project's connected repository.
+                        </p>
+                      </div>
+                      <span className="inline-flex h-9 w-fit items-center gap-2 rounded-full border border-blue-100 bg-blue-50 px-3 text-sm font-semibold text-blue-700">
+                        <GitBranch className="h-4 w-4" />
+                        {selectedProjectGitActivityRows.length}{" "}
+                        {selectedProjectGitActivityRows.length === 1 ? "commit" : "commits"}
+                      </span>
+                    </div>
+
+                    {selectedProjectGitActivityRows.length ? (
+                      <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+                        <div className="hidden border-b border-slate-200 bg-slate-50 px-4 py-3 text-[11px] font-bold uppercase tracking-[0.12em] text-slate-500 md:grid md:grid-cols-[170px_120px_minmax(0,1fr)_140px] md:gap-4">
+                          <span>Date</span>
+                          <span>Time</span>
+                          <span>Commit Message</span>
+                          <span>Commit</span>
+                        </div>
+                        <div className="divide-y divide-slate-200">
+                          {selectedProjectGitActivityRows.map((activity) => {
+                            const { date, time } = getGitActivityDateParts(activity.pushedAt);
+                            const shortSha = getCommitShortSha(activity.commitSha);
+
+                            return (
+                              <div
+                                className="grid gap-3 px-4 py-4 md:grid-cols-[170px_120px_minmax(0,1fr)_140px] md:items-center md:gap-4"
+                                key={activity.id}
+                              >
+                                <div className="min-w-0">
+                                  <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-slate-400 md:hidden">
+                                    Date
+                                  </p>
+                                  <p className="text-sm font-semibold text-slate-950">{date}</p>
+                                </div>
+                                <div className="min-w-0">
+                                  <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-slate-400 md:hidden">
+                                    Time
+                                  </p>
+                                  <p className="text-sm font-semibold text-slate-700">{time || "-"}</p>
+                                </div>
+                                <div className="min-w-0">
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700">
+                                      <GitCommit className="h-3.5 w-3.5" />
+                                      {activity.branch || "main"}
+                                    </span>
+                                    {activity.pushedByName ? (
+                                      <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600">
+                                        {activity.pushedByName}
+                                      </span>
+                                    ) : null}
+                                  </div>
+                                  <p className="mt-2 break-words text-sm font-semibold text-slate-950">
+                                    {activity.commitMessage || "No commit message recorded"}
+                                  </p>
+                                  {activity.modulesChanged?.length ? (
+                                    <div className="mt-2 flex flex-wrap gap-1.5">
+                                      {activity.modulesChanged.slice(0, 4).map((module) => (
+                                        <span
+                                          className="rounded-full bg-cyan-50 px-2 py-1 text-xs font-semibold text-cyan-700"
+                                          key={module}
+                                        >
+                                          {module}
+                                        </span>
+                                      ))}
+                                    </div>
+                                  ) : null}
+                                </div>
+                                <div className="min-w-0">
+                                  <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-slate-400 md:hidden">
+                                    Commit
+                                  </p>
+                                  <p
+                                    className={cn(
+                                      "truncate text-sm font-semibold",
+                                      shortSha ? "font-mono text-slate-800" : "text-slate-400"
+                                    )}
+                                  >
+                                    {shortSha || "No SHA"}
+                                  </p>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="rounded-2xl border border-dashed border-blue-200 bg-blue-50/40 px-4 py-8 text-center">
+                        <GitBranch className="mx-auto h-8 w-8 text-blue-500" />
+                        <p className="mt-3 text-sm font-semibold text-slate-950">
+                          No Git activity history yet
+                        </p>
+                        <p className="mt-1 text-sm text-slate-500">
+                          Push history will appear here after the connected repository receives commits.
+                        </p>
+                      </div>
+                    )}
                   </section>
                 ) : null}
 

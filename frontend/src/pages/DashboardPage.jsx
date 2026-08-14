@@ -2937,7 +2937,21 @@ const DashboardPage = () => {
 
       <ProjectOverviewDashboardPanel
         issues={[...issues, ...bugs]}
-        onViewGitActivity={() => navigate("/projects")}
+        onViewGitActivity={(project) => {
+          const projectId = project?._id || project?.id || "";
+          const params = new URLSearchParams({ view: "git-activity" });
+
+          if (projectId) {
+            params.set("projectId", projectId);
+          }
+
+          navigate(`/projects?${params.toString()}`, {
+            state: {
+              selectedProjectId: projectId,
+              projectPanelView: "git-activity",
+            },
+          });
+        }}
         projects={allProjects}
       />
 

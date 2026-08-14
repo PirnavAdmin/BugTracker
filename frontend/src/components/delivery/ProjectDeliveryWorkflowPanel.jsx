@@ -700,7 +700,7 @@ export const ProjectOverviewDashboardPanel = ({ issues = [], onViewGitActivity, 
               </div>
             )}
 
-            <Button className="mt-4 h-9 rounded-xl" type="button" variant="outline" onClick={onViewGitActivity}>
+            <Button className="mt-4 h-9 rounded-xl" type="button" variant="outline" onClick={() => onViewGitActivity?.(latestPush?.project)}>
               View Git Activity
             </Button>
           </section>
