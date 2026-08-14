@@ -5,11 +5,12 @@ const {
 
 const BEDROCK_REGION = "ap-south-1";
 const BEDROCK_MODEL_ID = "global.amazon.nova-2-lite-v1:0";
+const MAX_DESCRIPTION_WORDS = 350;
 const SUPPORTED_WORK_ITEM_TYPES = new Set(["Task", "Bug"]);
 
 const systemPrompt = `You are CureCode AI, an engineering work-item assistant.
 
-Generate a concise, practical description from the information provided.
+Generate a concise, practical software work-item description from the information provided.
 
 Never fabricate technical details.
 
@@ -23,9 +24,19 @@ For Bugs, do not claim a root cause unless the root cause is provided.
 
 For Tasks, describe intended work without inventing implementation details.
 
-For Bugs, describe the reported problem, investigation/fix scope, expected behavior, and testable acceptance criteria.
+For Bugs, naturally describe the reported problem, what should be investigated or fixed, and the expected behavior.
 
-Return only the requested Markdown description.`;
+For Tasks, naturally describe what needs to be implemented and the expected outcome.
+
+Return only one natural-language paragraph.
+
+Do not return Markdown, headings, sections, bullet points, numbered lists, checklists, acceptance criteria sections, or implementation steps.
+
+Do not start with phrases such as "Here is the description".
+
+Keep the description professional, concise, and suitable for a software development work item.
+
+Prefer 100 to 200 words when enough, and never exceed 350 words.`;
 
 let bedrockClient;
 
@@ -60,33 +71,15 @@ const buildUserPrompt = ({ title, workItemType, projectName, priority }) => {
   if (workItemType === "Bug") {
     return `${contextLines.join("\n")}
 
-Generate a concise bug description using exactly these Markdown sections:
-
-## Problem
-
-## Scope
-
-## Expected Behavior
-
-## Acceptance Criteria
-
-Do not fabricate reproduction steps, browser versions, error messages, stack traces, APIs, database changes, HTTP status codes, technical root causes, or implementation details. If the exact root cause is not provided, use wording such as "Investigate the cause of the reported issue."`;
+Generate one concise natural-language paragraph for a Bug. Describe the reported issue, what should be investigated or fixed, and the expected behavior. Do not claim a specific root cause unless it is provided. Do not fabricate reproduction steps, browser versions, error messages, stack traces, APIs, database changes, HTTP status codes, technical root causes, or implementation details. Return only the paragraph, with no Markdown, headings, bullet points, numbered lists, checklists, or section labels.`;
   }
 
   return `${contextLines.join("\n")}
 
-Generate a concise task description using exactly these Markdown sections:
-
-## Objective
-
-## Scope
-
-## Acceptance Criteria
-
-Do not invent exact token expiration times, file sizes, response times, technologies, APIs, database schemas, integrations, exact security mechanisms, effort estimates, dependencies, assignees, or business rules unless explicitly supplied.`;
+Generate one concise natural-language paragraph for a Task. Describe what needs to be implemented and the expected outcome based primarily on the title and supplied context. Do not invent exact token expiration times, file sizes, response times, technologies, APIs, database schemas, integrations, exact security mechanisms, effort estimates, dependencies, assignees, or business rules unless explicitly supplied. Return only the paragraph, with no Markdown, headings, bullet points, numbered lists, checklists, or section labels.`;
 };
 
-const extractMarkdownFromConverseResponse = (response = {}) => {
+const extractTextFromConverseResponse = (response = {}) => {
   const content = response.output?.message?.content;
 
   if (!Array.isArray(content)) {
@@ -98,6 +91,61 @@ const extractMarkdownFromConverseResponse = (response = {}) => {
     .filter(Boolean)
     .join("\n")
     .trim();
+};
+
+const stripMarkdownStructure = (value = "") =>
+  String(value || "")
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .filter((line) => !/^#{1,6}\s+\S+/.test(line))
+    .filter(
+      (line) =>
+        !/^(objective|scope|acceptance criteria|problem|expected behavior|implementation steps|checklist):?$/i.test(
+          line
+        )
+    )
+    .map((line) =>
+      line
+        .replace(/^[-*+]\s+/, "")
+        .replace(/^\d+[.)]\s+/, "")
+        .replace(/[`*_~]/g, "")
+        .trim()
+    )
+    .filter(Boolean)
+    .join(" ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+const removeIncompleteTrailingSentence = (value = "") => {
+  const trimmed = String(value || "").trim();
+
+  if (!trimmed) {
+    return "";
+  }
+
+  if (/[.!?]$/.test(trimmed)) {
+    return trimmed;
+  }
+
+  const lastSentenceEnd = Math.max(
+    trimmed.lastIndexOf("."),
+    trimmed.lastIndexOf("!"),
+    trimmed.lastIndexOf("?")
+  );
+
+  return lastSentenceEnd > 40 ? trimmed.slice(0, lastSentenceEnd + 1).trim() : trimmed;
+};
+
+const enforceDescriptionWordLimit = (value = "", maxWords = MAX_DESCRIPTION_WORDS) => {
+  const paragraph = stripMarkdownStructure(value);
+  const words = paragraph.split(/\s+/).filter(Boolean);
+
+  if (words.length <= maxWords) {
+    return paragraph;
+  }
+
+  return removeIncompleteTrailingSentence(words.slice(0, maxWords).join(" "));
 };
 
 const generateWorkItemDescription = async ({
@@ -139,13 +187,13 @@ const generateWorkItemDescription = async ({
           },
         ],
         inferenceConfig: {
-          maxTokens: 700,
+          maxTokens: 450,
           temperature: 0.2,
           topP: 0.9,
         },
       })
     );
-    const description = extractMarkdownFromConverseResponse(response);
+    const description = enforceDescriptionWordLimit(extractTextFromConverseResponse(response));
 
     if (!description) {
       throw new Error("Empty Bedrock response");
@@ -162,5 +210,7 @@ const generateWorkItemDescription = async ({
 module.exports = {
   BEDROCK_MODEL_ID,
   BEDROCK_REGION,
+  MAX_DESCRIPTION_WORDS,
+  enforceDescriptionWordLimit,
   generateWorkItemDescription,
 };
