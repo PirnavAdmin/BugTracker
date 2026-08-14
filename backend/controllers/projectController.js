@@ -141,6 +141,39 @@ const prependGitActivityHistory = (existingHistory = [], entries = []) => {
     .sort((left, right) => new Date(right.pushedAt || 0) - new Date(left.pushedAt || 0));
 };
 
+const buildGitActivityEntriesFromGitHubCommits = ({
+  branch = "",
+  commits = [],
+  latestCommitDetails = null,
+} = {}) =>
+  (Array.isArray(commits) ? commits : [])
+    .map((commit) => {
+      const commitSha = normalizeString(commit.sha);
+      const isLatestCommit = commitSha && commitSha === normalizeString(latestCommitDetails?.sha);
+      const filesChanged = isLatestCommit && Array.isArray(latestCommitDetails?.files)
+        ? latestCommitDetails.files.map((file) => file?.filename).filter(Boolean)
+        : [];
+
+      return normalizeGitActivityEntry({
+        commitSha,
+        commitMessage: commit.commit?.message || "",
+        branch,
+        pushedByName:
+          commit.author?.login ||
+          commit.commit?.author?.name ||
+          commit.commit?.committer?.name ||
+          "",
+        pushedAt: commit.commit?.author?.date || commit.commit?.committer?.date || null,
+        filesChanged,
+        additions: isLatestCommit ? latestCommitDetails?.stats?.additions : null,
+        deletions: isLatestCommit ? latestCommitDetails?.stats?.deletions : null,
+        modulesChanged: [],
+        qaStatus: "Waiting for QA",
+        event: "sync",
+      });
+    })
+    .filter(hasGitActivityEntry);
+
 const generateWebhookSecret = () =>
   `cc_${Math.random().toString(36).slice(2, 10)}${Date.now().toString(36)}`;
 
@@ -163,6 +196,8 @@ const GITHUB_WEBHOOK_EVENT_LABELS = {
   delete: "Branch Create/Delete",
   tag: "Tag",
 };
+
+const GITHUB_COMMIT_SYNC_LIMIT = 100;
 
 const normalizeWebhookEvents = (value) => {
   const events = normalizeStringArray(value)
@@ -388,6 +423,10 @@ const validateGitHubConfiguration = async ({ git, token }) => {
   const commitDetails = latestCommit.sha
     ? await callGitHubApi({ token, path: `/repos/${owner}/${repo}/commits/${latestCommit.sha}` })
     : null;
+  const branchCommits = await callGitHubApi({
+    token,
+    path: `/repos/${owner}/${repo}/commits?sha=${encodeURIComponent(git.defaultBranch)}&per_page=${GITHUB_COMMIT_SYNC_LIMIT}`,
+  });
   let hooks = [];
   let webhookStatus = "Accessible";
 
@@ -416,6 +455,8 @@ const validateGitHubConfiguration = async ({ git, token }) => {
   return {
     repository,
     branch,
+    commits: Array.isArray(branchCommits) ? branchCommits : [],
+    latestCommitDetails: commitDetails,
     hooks,
     status: {
       connectionStatus: "Connected",
@@ -657,10 +698,10 @@ const buildDeliveryWorkflowPatch = (payload = {}, project = {}) => {
   }
 
   if (Object.prototype.hasOwnProperty.call(payload, "gitActivityHistory")) {
-    patch.gitActivityHistory = prependGitActivityHistory(
-      patch.gitActivityHistory || project.gitActivityHistory || [],
-      payload.gitActivityHistory || []
-    );
+    const incomingHistory = prependGitActivityHistory(payload.gitActivityHistory || [], []);
+    patch.gitActivityHistory = patch.gitActivityHistory
+      ? prependGitActivityHistory(incomingHistory, patch.gitActivityHistory)
+      : incomingHistory;
   }
 
   return patch;
@@ -1262,6 +1303,11 @@ const createProject = asyncHandler(async (req, res) => {
         git: normalizedGit.git,
         token: normalizedGit.token,
       });
+      const syncedCommitActivities = buildGitActivityEntriesFromGitHubCommits({
+        branch: normalizedGit.git.defaultBranch,
+        commits: testResult.commits,
+        latestCommitDetails: testResult.latestCommitDetails,
+      });
 
       createGitPatch = {
         git: appendGitAuditLog(
@@ -1278,6 +1324,12 @@ const createProject = asyncHandler(async (req, res) => {
             message: "Git configuration tested and created.",
           }
         ),
+        ...(syncedCommitActivities.length
+          ? {
+              gitActivityHistory: syncedCommitActivities,
+              latestGitActivity: syncedCommitActivities[0],
+            }
+          : {}),
       };
     } catch (error) {
       res.status(400);
@@ -1312,7 +1364,10 @@ const createProject = asyncHandler(async (req, res) => {
         deliveryModules,
         defaultTestSuites,
         testCases,
-        latestGitActivity,
+        latestGitActivity: createGitPatch.latestGitActivity || latestGitActivity,
+        ...(createGitPatch.gitActivityHistory
+          ? { gitActivityHistory: createGitPatch.gitActivityHistory }
+          : {}),
       },
       {}
     ),
@@ -1577,6 +1632,17 @@ const updateProjectDeliveryWorkflow = asyncHandler(async (req, res) => {
         ...req.body,
         git: nextGit,
       };
+
+      const syncedCommitActivities = buildGitActivityEntriesFromGitHubCommits({
+        branch: normalizedGit.git.defaultBranch,
+        commits: testResult.commits,
+        latestCommitDetails: testResult.latestCommitDetails,
+      });
+
+      if (syncedCommitActivities.length) {
+        requestBody.gitActivityHistory = syncedCommitActivities;
+        requestBody.latestGitActivity = syncedCommitActivities[0];
+      }
     } catch (error) {
       res.status(400);
       throw new Error(`Git connection failed: ${error.message}`);
@@ -1738,10 +1804,19 @@ const syncProjectGitRepository = asyncHandler(async (req, res) => {
 
     project.latestGitActivity = syncedActivity;
 
-    if (hasGitActivityEntry(syncedActivity)) {
+    const syncedCommitActivities = buildGitActivityEntriesFromGitHubCommits({
+      branch: git.defaultBranch,
+      commits: result.commits,
+      latestCommitDetails: result.latestCommitDetails,
+    });
+    const activitiesToStore = syncedCommitActivities.length
+      ? syncedCommitActivities
+      : [syncedActivity];
+
+    if (activitiesToStore.some(hasGitActivityEntry)) {
       project.gitActivityHistory = prependGitActivityHistory(
         project.gitActivityHistory || [],
-        [syncedActivity]
+        activitiesToStore
       );
     }
     await project.save();
