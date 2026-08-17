@@ -401,6 +401,7 @@ module.exports = {
   enforceDescriptionWordLimit,
   generateCodeReview,
   generateWorkItemDescription,
+  getBedrockClient,
   normalizeCodeReviewResult,
   setBedrockClientForTests,
 };
