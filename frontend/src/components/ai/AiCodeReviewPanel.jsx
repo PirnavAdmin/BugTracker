@@ -181,7 +181,13 @@ const ReviewDetailDialog = ({ activity, onOpenChange, onRunAgain, open, review, 
   );
 };
 
-export const AiCodeReviewPanel = ({ activity = {}, className, project }) => {
+export const AiCodeReviewPanel = ({
+  activity = {},
+  className,
+  project,
+  showTitle = true,
+  surface = true,
+}) => {
   const [review, setReview] = useState(activity.aiReview || defaultAiReview);
   const [open, setOpen] = useState(false);
   const [running, setRunning] = useState(false);
@@ -231,14 +237,22 @@ export const AiCodeReviewPanel = ({ activity = {}, className, project }) => {
   };
 
   return (
-    <div className={cn("rounded-2xl border border-blue-100 bg-blue-50/40 px-3 py-3", className)}>
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+    <div
+      className={cn(
+        surface && "rounded-2xl border border-blue-100 bg-blue-50/40 px-3 py-3",
+        !surface && "px-0 py-0",
+        className
+      )}
+    >
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <div className="min-w-0">
-          <p className="inline-flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.14em] text-blue-700">
-            <Sparkles className="h-3.5 w-3.5" />
-            AI Code Review
-          </p>
-          <div className="mt-2 flex flex-wrap items-center gap-2">
+          {showTitle ? (
+            <p className="inline-flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.14em] text-blue-700">
+              <Sparkles className="h-3.5 w-3.5" />
+              AI Code Review
+            </p>
+          ) : null}
+          <div className={cn("flex flex-wrap items-center gap-2", showTitle && "mt-2")}>
             <Badge className="rounded-full bg-white px-2.5 py-1 text-slate-700" variant="outline">
               {viewState.statusLabel}
             </Badge>
@@ -263,7 +277,7 @@ export const AiCodeReviewPanel = ({ activity = {}, className, project }) => {
           </div>
         </div>
 
-        <div className="flex shrink-0 flex-wrap gap-2">
+        <div className="flex shrink-0 flex-col gap-2 sm:flex-row lg:flex-col xl:flex-row">
           {review.status === "COMPLETED" ? (
             <Button className="h-9 rounded-xl" onClick={() => setOpen(true)} type="button" variant="outline">
               <ShieldAlert className="h-4 w-4" />

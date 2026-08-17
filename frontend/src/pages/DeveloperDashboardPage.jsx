@@ -18,6 +18,7 @@ import {
   PauseCircle,
   RefreshCcw,
   Search,
+  Sparkles,
   TimerReset,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
@@ -663,9 +664,42 @@ const DeveloperLatestPushCard = ({ project }) => {
               </span>
             ))}
           </div>
-          <AiCodeReviewPanel activity={activity} project={project} />
           <p className="truncate text-xs font-medium text-slate-400">{activity.repository}</p>
         </div>
+      </CardContent>
+    </Card>
+  );
+};
+
+const DeveloperAiCodeReviewCard = ({ project }) => {
+  const activity = getLatestGitActivity(project);
+  const hasCommit = Boolean(activity.commitSha);
+
+  return (
+    <Card className="rounded-2xl border-blue-100/80 bg-white/90 shadow-[0_18px_46px_-36px_rgba(37,99,235,0.45)]">
+      <CardContent className="flex h-full flex-col p-4">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-blue-600">AI Code Review</p>
+            <h3 className="mt-1 truncate text-base font-semibold text-slate-950">
+              {hasCommit ? activity.projectName : "No commit selected"}
+            </h3>
+            <p className="mt-1 text-sm text-slate-600">
+              {hasCommit ? `${activity.branch} - ${shortSha(activity.commitSha)}` : "Latest push review appears here."}
+            </p>
+          </div>
+          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl border border-blue-100 bg-blue-50 text-blue-600">
+            <Sparkles className="h-5 w-5" />
+          </span>
+        </div>
+
+        <AiCodeReviewPanel
+          activity={activity}
+          className="mt-4 flex-1"
+          project={project}
+          showTitle={false}
+          surface={false}
+        />
       </CardContent>
     </Card>
   );
@@ -2315,7 +2349,7 @@ const DeveloperDashboardPage = () => {
         </div>
       </section>
 
-      <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_420px]">
+      <section className="grid gap-4 xl:grid-cols-3">
         <Card className="rounded-2xl border-blue-100/80 bg-white/90 shadow-[0_18px_46px_-36px_rgba(37,99,235,0.45)]">
           <CardContent className="p-4">
             <div className="flex flex-wrap items-start justify-between gap-3">
@@ -2329,7 +2363,7 @@ const DeveloperDashboardPage = () => {
                 Tasks
               </Button>
             </div>
-            <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+            <div className="mt-4 grid gap-2 sm:grid-cols-2">
               {developmentWorkStats.map((item) => (
                 <div className={cn("rounded-xl px-3 py-2", item.tone)} key={item.label}>
                   <p className="text-[10px] font-bold uppercase tracking-[0.1em]">{item.label}</p>
@@ -2340,6 +2374,7 @@ const DeveloperDashboardPage = () => {
           </CardContent>
         </Card>
         <DeveloperLatestPushCard project={latestDeliveryProject} />
+        <DeveloperAiCodeReviewCard project={latestDeliveryProject} />
       </section>
 
       <QaFeedbackCard
