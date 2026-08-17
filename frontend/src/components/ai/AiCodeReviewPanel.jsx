@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState } from "react";
+import { Component, useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle,
   Bot,
   CheckCircle2,
+  Copy,
   LoaderCircle,
   RefreshCcw,
   ShieldAlert,
@@ -35,6 +36,60 @@ const severityTone = {
 };
 
 const getProjectId = (project = {}) => String(project._id || project.id || project.raw?._id || "");
+const normalizeReview = (review = {}) => ({
+  ...defaultAiReview,
+  ...(review && typeof review === "object" ? review : {}),
+  findings: Array.isArray(review?.findings) ? review.findings : [],
+  testingRecommendations: Array.isArray(review?.testingRecommendations)
+    ? review.testingRecommendations
+    : [],
+  positiveObservations: Array.isArray(review?.positiveObservations)
+    ? review.positiveObservations
+    : [],
+});
+const normalizeActivity = (activity = {}) =>
+  activity && typeof activity === "object" ? activity : {};
+const formatFindingForCopy = (finding = {}) =>
+  [
+    `Severity: ${finding.severity || "SUGGESTION"}`,
+    `Title: ${finding.title || "Review finding"}`,
+    `File: ${finding.file || "Unknown file"}${finding.line ? `:${finding.line}` : ""}`,
+    finding.confidence !== null && finding.confidence !== undefined
+      ? `Confidence: ${finding.confidence}%`
+      : "",
+    finding.description ? `Description: ${finding.description}` : "",
+    finding.recommendation ? `Recommendation: ${finding.recommendation}` : "",
+  ]
+    .filter(Boolean)
+    .join("\n");
+
+class AiCodeReviewErrorBoundary extends Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+
+  componentDidCatch(error) {
+    console.error("[ai-review] render failed", error);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className={cn("rounded-2xl border border-rose-100 bg-rose-50 px-3 py-3 text-sm text-rose-700", this.props.className)}>
+          <p className="font-semibold">AI review could not be displayed.</p>
+          <p className="mt-1 text-xs">Refresh the dashboard or run the review again.</p>
+        </div>
+      );
+    }
+
+    return this.props.children;
+  }
+}
 
 const ReviewScore = ({ review }) => {
   if (review.status !== "COMPLETED") {
@@ -50,6 +105,8 @@ const ReviewScore = ({ review }) => {
 };
 
 const FindingList = ({ findings = [] }) => {
+  const [copiedIndex, setCopiedIndex] = useState(null);
+
   if (!findings.length) {
     return (
       <div className="rounded-2xl border border-emerald-100 bg-emerald-50/70 px-4 py-3 text-sm font-medium text-emerald-800">
@@ -70,9 +127,29 @@ const FindingList = ({ findings = [] }) => {
                 {finding.line ? `:${finding.line}` : ""}
               </p>
             </div>
-            <Badge className={cn("rounded-full border px-2.5 py-1", severityTone[finding.severity] || severityTone.SUGGESTION)} variant="outline">
-              {finding.severity || "SUGGESTION"}
-            </Badge>
+            <div className="flex shrink-0 flex-wrap items-center gap-2">
+              <Badge className={cn("rounded-full border px-2.5 py-1", severityTone[finding.severity] || severityTone.SUGGESTION)} variant="outline">
+                {finding.severity || "SUGGESTION"}
+              </Badge>
+              <Button
+                aria-label={`Copy finding ${index + 1}`}
+                className="h-8 rounded-xl px-2.5 text-xs"
+                onClick={async () => {
+                  try {
+                    await navigator.clipboard?.writeText(formatFindingForCopy(finding));
+                    setCopiedIndex(index);
+                    window.setTimeout(() => setCopiedIndex(null), 1400);
+                  } catch {
+                    setCopiedIndex(null);
+                  }
+                }}
+                type="button"
+                variant="outline"
+              >
+                <Copy className="h-3.5 w-3.5" aria-hidden="true" />
+                {copiedIndex === index ? "Copied" : "Copy"}
+              </Button>
+            </div>
           </div>
           {finding.description ? (
             <p className="mt-3 text-sm leading-6 text-slate-700">{finding.description}</p>
@@ -89,8 +166,10 @@ const FindingList = ({ findings = [] }) => {
 };
 
 const ReviewDetailDialog = ({ activity, onOpenChange, onRunAgain, open, review, running }) => {
-  const counts = getAiFindingCounts(review.findings);
-  const findingTotal = Array.isArray(review.findings) ? review.findings.length : 0;
+  const safeActivity = normalizeActivity(activity);
+  const safeReview = useMemo(() => normalizeReview(review), [review]);
+  const counts = getAiFindingCounts(safeReview.findings);
+  const findingTotal = safeReview.findings.length;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -98,38 +177,38 @@ const ReviewDetailDialog = ({ activity, onOpenChange, onRunAgain, open, review, 
         <div className="border-b border-slate-200 px-6 py-5 sm:px-8">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <Bot className="h-5 w-5 text-blue-600" />
+              <Bot className="h-5 w-5 text-blue-600" aria-hidden="true" />
               AI Code Review
             </DialogTitle>
             <DialogDescription>
-              {activity.branch || "Branch"} - {String(activity.commitSha || "").slice(0, 7) || "No SHA"}
+              {safeActivity.branch || "Branch"} - {String(safeActivity.commitSha || "").slice(0, 7) || "No SHA"}
             </DialogDescription>
           </DialogHeader>
         </div>
 
         <div className="max-h-[calc(88vh-96px)] overflow-y-auto px-6 py-5 sm:px-8">
           <div className="grid gap-3 sm:grid-cols-[auto_1fr_auto] sm:items-center">
-            <ReviewScore review={review} />
+            <ReviewScore review={safeReview} />
             <div className="min-w-0">
-              <Badge className="rounded-full bg-blue-50 px-3 py-1 text-blue-700">{review.rating || AI_REVIEW_STATUS_LABEL[review.status] || "Review"}</Badge>
+              <Badge className="rounded-full bg-blue-50 px-3 py-1 text-blue-700">{safeReview.rating || AI_REVIEW_STATUS_LABEL[safeReview.status] || "Review"}</Badge>
               <p className="mt-2 line-clamp-2 text-sm font-semibold text-slate-950">
-                {activity.commitMessage || "Commit review"}
+                {safeActivity.commitMessage || "Commit review"}
               </p>
-              {review.reviewedAt ? (
+              {safeReview.reviewedAt ? (
                 <p className="mt-1 text-xs font-medium text-slate-500">
-                  Reviewed {formatDateTime(review.reviewedAt)}
+                  Reviewed {formatDateTime(safeReview.reviewedAt)}
                 </p>
               ) : null}
             </div>
-            <Button className="h-9 rounded-xl" disabled={running || !activity.commitSha} onClick={onRunAgain} type="button" variant="outline">
-              {running ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <RefreshCcw className="h-4 w-4" />}
+            <Button className="h-9 rounded-xl" disabled={running || !safeActivity.commitSha} onClick={onRunAgain} type="button" variant="outline">
+              {running ? <LoaderCircle className="h-4 w-4 animate-spin" aria-hidden="true" /> : <RefreshCcw className="h-4 w-4" aria-hidden="true" />}
               Run Again
             </Button>
           </div>
 
-          {review.summary ? (
+          {safeReview.summary ? (
             <p className="mt-5 rounded-2xl border border-blue-100 bg-blue-50/60 px-4 py-3 text-sm leading-6 text-slate-700">
-              {review.summary}
+              {safeReview.summary}
             </p>
           ) : null}
 
@@ -147,14 +226,14 @@ const ReviewDetailDialog = ({ activity, onOpenChange, onRunAgain, open, review, 
               <p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-500">Findings</p>
               <span className="text-xs font-semibold text-slate-500">{findingTotal} total</span>
             </div>
-            <FindingList findings={review.findings} />
+            <FindingList findings={safeReview.findings} />
           </div>
 
-          {review.testingRecommendations?.length ? (
+          {safeReview.testingRecommendations.length ? (
             <div className="mt-5">
               <p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-500">Testing</p>
               <ul className="mt-3 space-y-2">
-                {review.testingRecommendations.map((item, index) => (
+                {safeReview.testingRecommendations.map((item, index) => (
                   <li className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700" key={`${item}-${index}`}>
                     {item}
                   </li>
@@ -163,11 +242,11 @@ const ReviewDetailDialog = ({ activity, onOpenChange, onRunAgain, open, review, 
             </div>
           ) : null}
 
-          {review.positiveObservations?.length ? (
+          {safeReview.positiveObservations.length ? (
             <div className="mt-5">
               <p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-500">Good Signals</p>
               <ul className="mt-3 space-y-2">
-                {review.positiveObservations.map((item, index) => (
+                {safeReview.positiveObservations.map((item, index) => (
                   <li className="rounded-xl border border-emerald-100 bg-emerald-50 px-3 py-2 text-sm text-emerald-800" key={`${item}-${index}`}>
                     {item}
                   </li>
@@ -181,30 +260,32 @@ const ReviewDetailDialog = ({ activity, onOpenChange, onRunAgain, open, review, 
   );
 };
 
-export const AiCodeReviewPanel = ({
+const AiCodeReviewPanelContent = ({
   activity = {},
   className,
   project,
   showTitle = true,
   surface = true,
 }) => {
-  const [review, setReview] = useState(activity.aiReview || defaultAiReview);
+  const safeActivity = normalizeActivity(activity);
+  const [review, setReview] = useState(normalizeReview(safeActivity.aiReview));
   const [open, setOpen] = useState(false);
   const [running, setRunning] = useState(false);
   const [error, setError] = useState("");
   const projectId = getProjectId(project);
-  const commitSha = activity.commitSha || "";
+  const commitSha = safeActivity.commitSha || "";
   const canRun = Boolean(projectId && commitSha);
+  const safeReview = normalizeReview(review);
   const viewState = useMemo(
-    () => getAiReviewViewState({ review, running }),
-    [review, running]
+    () => getAiReviewViewState({ review: safeReview, running }),
+    [safeReview, running]
   );
   const status = viewState.status;
 
   useEffect(() => {
-    setReview(activity.aiReview || defaultAiReview);
+    setReview(normalizeReview(safeActivity.aiReview));
     setError("");
-  }, [activity.aiReview, commitSha]);
+  }, [safeActivity.aiReview, commitSha]);
 
   const handleRunReview = async ({ forceRefresh = false } = {}) => {
     if (!canRun) {
@@ -248,7 +329,7 @@ export const AiCodeReviewPanel = ({
         <div className="min-w-0">
           {showTitle ? (
             <p className="inline-flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.14em] text-blue-700">
-              <Sparkles className="h-3.5 w-3.5" />
+              <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
               AI Code Review
             </p>
           ) : null}
@@ -256,55 +337,61 @@ export const AiCodeReviewPanel = ({
             <Badge className="rounded-full bg-white px-2.5 py-1 text-slate-700" variant="outline">
               {viewState.statusLabel}
             </Badge>
-            {review.status === "COMPLETED" ? (
+            {safeReview.status === "COMPLETED" ? (
               <>
-                <span className="text-sm font-semibold text-slate-950">{viewState.scoreLabel || `${review.score ?? "-"} score`}</span>
+                <span className="text-sm font-semibold text-slate-950">{viewState.scoreLabel || `${safeReview.score ?? "-"} score`}</span>
                 <span className="text-xs font-semibold text-slate-500">{viewState.highRiskCount} high risk</span>
               </>
             ) : null}
-            {review.status === "FAILED" ? (
+            {safeReview.status === "FAILED" ? (
               <span className="inline-flex items-center gap-1 text-xs font-semibold text-rose-700">
-                <AlertTriangle className="h-3.5 w-3.5" />
-                {review.error || error || "Unable to complete review."}
+                <AlertTriangle className="h-3.5 w-3.5" aria-hidden="true" />
+                {safeReview.error || error || "Unable to complete review."}
               </span>
             ) : null}
             {status === "REVIEWING" ? (
               <span className="inline-flex items-center gap-1 text-xs font-semibold text-blue-700">
-                <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
+                <LoaderCircle className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
                 Analyzing changes
               </span>
             ) : null}
           </div>
         </div>
 
-        <div className="flex shrink-0 flex-col gap-2 sm:flex-row lg:flex-col xl:flex-row">
-          {review.status === "COMPLETED" ? (
+        <div className="flex shrink-0 flex-col gap-2 sm:flex-row">
+          {safeReview.status === "COMPLETED" ? (
             <Button className="h-9 rounded-xl" onClick={() => setOpen(true)} type="button" variant="outline">
-              <ShieldAlert className="h-4 w-4" />
+              <ShieldAlert className="h-4 w-4" aria-hidden="true" />
               View AI Review
             </Button>
           ) : null}
           <Button className="h-9 rounded-xl bg-blue-600 text-white hover:bg-blue-700" disabled={!canRun || running} onClick={() => handleRunReview({ forceRefresh: false })} type="button">
-            {running ? <LoaderCircle className="h-4 w-4 animate-spin" /> : review.status === "COMPLETED" ? <RefreshCcw className="h-4 w-4" /> : <CheckCircle2 className="h-4 w-4" />}
+            {running ? <LoaderCircle className="h-4 w-4 animate-spin" aria-hidden="true" /> : safeReview.status === "COMPLETED" ? <RefreshCcw className="h-4 w-4" aria-hidden="true" /> : <CheckCircle2 className="h-4 w-4" aria-hidden="true" />}
             {viewState.buttonLabel}
           </Button>
         </div>
       </div>
 
-      {error && review.status !== "FAILED" ? (
+      {error && safeReview.status !== "FAILED" ? (
         <p className="mt-2 text-xs font-semibold text-rose-700">{error}</p>
       ) : null}
 
       <ReviewDetailDialog
-        activity={activity}
+        activity={safeActivity}
         onOpenChange={setOpen}
         onRunAgain={() => handleRunReview({ forceRefresh: true })}
         open={open}
-        review={review}
+        review={safeReview}
         running={running}
       />
     </div>
   );
 };
+
+export const AiCodeReviewPanel = (props) => (
+  <AiCodeReviewErrorBoundary className={props.className}>
+    <AiCodeReviewPanelContent {...props} />
+  </AiCodeReviewErrorBoundary>
+);
 
 export default AiCodeReviewPanel;

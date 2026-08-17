@@ -671,7 +671,7 @@ const DeveloperLatestPushCard = ({ project }) => {
   );
 };
 
-const DeveloperAiCodeReviewCard = ({ project }) => {
+const DeveloperAiCodeReviewCard = ({ isLoading, project }) => {
   const activity = getLatestGitActivity(project);
   const hasCommit = Boolean(activity.commitSha);
 
@@ -681,25 +681,41 @@ const DeveloperAiCodeReviewCard = ({ project }) => {
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-blue-600">AI Code Review</p>
-            <h3 className="mt-1 truncate text-base font-semibold text-slate-950">
-              {hasCommit ? activity.projectName : "No commit selected"}
-            </h3>
-            <p className="mt-1 text-sm text-slate-600">
-              {hasCommit ? `${activity.branch} - ${shortSha(activity.commitSha)}` : "Latest push review appears here."}
-            </p>
+            {isLoading ? (
+              <div className="mt-2 space-y-2">
+                <Skeleton className="h-5 w-44 rounded-full" />
+                <Skeleton className="h-4 w-28 rounded-full" />
+              </div>
+            ) : (
+              <>
+                <h3 className="mt-1 truncate text-base font-semibold text-slate-950">
+                  {hasCommit ? activity.projectName : "No commit selected"}
+                </h3>
+                <p className="mt-1 text-sm text-slate-600">
+                  {hasCommit ? `${activity.branch} - ${shortSha(activity.commitSha)}` : "Latest push review appears here."}
+                </p>
+              </>
+            )}
           </div>
           <span className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl border border-blue-100 bg-blue-50 text-blue-600">
-            <Sparkles className="h-5 w-5" />
+            <Sparkles className="h-5 w-5" aria-hidden="true" />
           </span>
         </div>
 
-        <AiCodeReviewPanel
-          activity={activity}
-          className="mt-4 flex-1"
-          project={project}
-          showTitle={false}
-          surface={false}
-        />
+        {isLoading ? (
+          <div className="mt-4 space-y-3">
+            <Skeleton className="h-8 w-36 rounded-full" />
+            <Skeleton className="h-9 w-full rounded-xl" />
+          </div>
+        ) : (
+          <AiCodeReviewPanel
+            activity={activity}
+            className="mt-4 flex-1"
+            project={project}
+            showTitle={false}
+            surface={false}
+          />
+        )}
       </CardContent>
     </Card>
   );
@@ -2374,7 +2390,7 @@ const DeveloperDashboardPage = () => {
           </CardContent>
         </Card>
         <DeveloperLatestPushCard project={latestDeliveryProject} />
-        <DeveloperAiCodeReviewCard project={latestDeliveryProject} />
+        <DeveloperAiCodeReviewCard isLoading={isProjectsLoading} project={latestDeliveryProject} />
       </section>
 
       <QaFeedbackCard
