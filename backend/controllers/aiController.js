@@ -67,14 +67,24 @@ const generateWorkItemDescription = asyncHandler(async (req, res) => {
       priority: normalizeOptionalField(req.body.priority),
     });
 
+    if (typeof description !== "string" || !description.trim()) {
+      throw new Error("AI service returned an empty description");
+    }
+
     return res.status(200).json({
       success: true,
-      description,
+      description: description.trim(),
     });
-  } catch {
+  } catch (error) {
+    console.error("[ai] description generation failed", {
+      userId: String(req.user?._id || req.user?.id || ""),
+      workItemType: normalizedWorkItemType,
+      message: error.cause?.message || error.message,
+    });
+
     return res.status(502).json({
       success: false,
-      message: "Unable to generate work item description",
+      message: "Unable to generate description at the moment.",
     });
   }
 });

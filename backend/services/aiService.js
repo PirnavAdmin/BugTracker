@@ -3,8 +3,9 @@ const {
   ConverseCommand,
 } = require("@aws-sdk/client-bedrock-runtime");
 
-const BEDROCK_REGION = "ap-south-1";
-const BEDROCK_MODEL_ID = "global.amazon.nova-2-lite-v1:0";
+const BEDROCK_REGION = process.env.BEDROCK_REGION || "ap-south-1";
+const BEDROCK_MODEL_ID =
+  process.env.BEDROCK_MODEL_ID || "global.amazon.nova-2-lite-v1:0";
 const MAX_DESCRIPTION_WORDS = 350;
 const SUPPORTED_WORK_ITEM_TYPES = new Set(["Task", "Bug"]);
 
@@ -48,6 +49,10 @@ const getBedrockClient = () => {
   }
 
   return bedrockClient;
+};
+
+const setBedrockClientForTests = (client) => {
+  bedrockClient = client;
 };
 
 const normalizeWorkItemType = (value = "Task") => {
@@ -213,4 +218,5 @@ module.exports = {
   MAX_DESCRIPTION_WORDS,
   enforceDescriptionWordLimit,
   generateWorkItemDescription,
+  setBedrockClientForTests,
 };
