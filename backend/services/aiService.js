@@ -158,7 +158,9 @@ const codeReviewSystemPrompt = `You are CureCode AI Code Review, a senior softwa
 
 Review only the provided commit context and diffs. Do not infer unrelated repository behavior.
 
-Focus on correctness, security, validation, error handling, data consistency, regressions, and missing tests.
+Focus on correctness, security, validation, error handling, data consistency, regressions, performance, code quality, testing impact, and release risk.
+
+Produce one comprehensive review that can serve developers, testers, managers, and administrators. Do not produce separate role-specific reviews.
 
 Never invent files, line numbers, APIs, stack traces, credentials, database schemas, or implementation details.
 
@@ -179,9 +181,40 @@ JSON shape:
       "line": number or null,
       "confidence": 0-100,
       "description": "specific issue",
+      "whyItMatters": "technical or product impact",
       "recommendation": "specific recommendation"
     }
   ],
+  "security": [
+    {
+      "severity": "CRITICAL|HIGH|MEDIUM|LOW|SUGGESTION",
+      "title": "short title",
+      "file": "path from diff",
+      "line": number or null,
+      "confidence": 0-100,
+      "description": "specific security issue or empty if none",
+      "whyItMatters": "security impact",
+      "recommendation": "specific recommendation"
+    }
+  ],
+  "performance": [],
+  "codeQuality": [],
+  "regressionRisk": {
+    "level": "low|medium|high|critical",
+    "areas": ["affected feature/module"],
+    "reason": "why regression risk is at this level"
+  },
+  "testing": {
+    "risk": "low|medium|high|critical",
+    "recommendedTests": ["specific QA scenario"],
+    "edgeCases": ["edge case to verify"],
+    "affectedModules": ["module or feature"]
+  },
+  "release": {
+    "readiness": "ready|needs_attention|blocked",
+    "risks": ["release risk"],
+    "recommendations": ["team action"]
+  },
   "testingRecommendations": ["..."],
   "positiveObservations": ["..."]
 }`;
@@ -250,6 +283,47 @@ const normalizeFindingSeverity = (value = "") => {
     : "SUGGESTION";
 };
 
+const normalizeRiskLevel = (value = "", fallback = "low") => {
+  const normalized = String(value || fallback).trim().toLowerCase();
+
+  return ["low", "medium", "high", "critical"].includes(normalized) ? normalized : fallback;
+};
+
+const normalizeReleaseReadiness = (value = "") => {
+  const normalized = String(value || "needs_attention").trim().toLowerCase();
+
+  return ["ready", "needs_attention", "blocked"].includes(normalized)
+    ? normalized
+    : "needs_attention";
+};
+
+const normalizeStringList = (value, limit = 8, maxLength = 300) =>
+  (Array.isArray(value) ? value : [])
+    .map((item) => stripMarkdownStructure(item).slice(0, maxLength))
+    .filter(Boolean)
+    .slice(0, limit);
+
+const normalizeFindingList = (findings = [], limit = 20) =>
+  (Array.isArray(findings) ? findings : []).slice(0, limit).map((finding) => ({
+    severity: normalizeFindingSeverity(finding?.severity),
+    category: String(finding?.category || "").trim().toLowerCase().slice(0, 40),
+    title: String(finding?.title || "").trim().slice(0, 160),
+    file: String(finding?.file || "").trim().slice(0, 260),
+    line:
+      finding?.line === null || finding?.line === undefined || finding?.line === ""
+        ? null
+        : Number.isFinite(Number(finding.line))
+          ? Number(finding.line)
+          : null,
+    confidence: Number.isFinite(Number(finding?.confidence))
+      ? Math.max(0, Math.min(100, Number(finding.confidence)))
+      : null,
+    description: stripMarkdownStructure(finding?.description || "").slice(0, 1000),
+    whyItMatters: stripMarkdownStructure(finding?.whyItMatters || finding?.impact || "").slice(0, 1000),
+    recommendation: stripMarkdownStructure(finding?.recommendation || "").slice(0, 1000),
+    regressionImpact: stripMarkdownStructure(finding?.regressionImpact || "").slice(0, 1000),
+  }));
+
 const normalizeCodeReviewResult = (value) => {
   const parsed = typeof value === "string" ? extractJsonObject(value) : value;
 
@@ -263,41 +337,45 @@ const normalizeCodeReviewResult = (value) => {
     throw new Error("Invalid AI code review score");
   }
 
+  const findings = normalizeFindingList(parsed.findings, 20);
+  const testingRecommendations = normalizeStringList(parsed.testingRecommendations, 8, 300);
+  const affectedModules = normalizeStringList(
+    parsed.testing?.affectedModules || parsed.regressionRisk?.areas,
+    12,
+    160
+  );
+
   return {
     status: "COMPLETED",
     score: Math.round(score),
     rating: String(parsed.rating || "").trim().slice(0, 80) || "Needs Attention",
     summary: stripMarkdownStructure(parsed.summary || "").slice(0, 1200),
-    findings: (Array.isArray(parsed.findings) ? parsed.findings : []).slice(0, 20).map((finding) => ({
-      severity: normalizeFindingSeverity(finding?.severity),
-      title: String(finding?.title || "").trim().slice(0, 160),
-      file: String(finding?.file || "").trim().slice(0, 260),
-      line:
-        finding?.line === null || finding?.line === undefined || finding?.line === ""
-          ? null
-          : Number.isFinite(Number(finding.line))
-            ? Number(finding.line)
-            : null,
-      confidence: Number.isFinite(Number(finding?.confidence))
-        ? Math.max(0, Math.min(100, Number(finding.confidence)))
-        : null,
-      description: stripMarkdownStructure(finding?.description || "").slice(0, 1000),
-      recommendation: stripMarkdownStructure(finding?.recommendation || "").slice(0, 1000),
-    })),
-    testingRecommendations: (Array.isArray(parsed.testingRecommendations)
-      ? parsed.testingRecommendations
-      : []
-    )
-      .map((item) => stripMarkdownStructure(item).slice(0, 300))
-      .filter(Boolean)
-      .slice(0, 8),
-    positiveObservations: (Array.isArray(parsed.positiveObservations)
-      ? parsed.positiveObservations
-      : []
-    )
-      .map((item) => stripMarkdownStructure(item).slice(0, 300))
-      .filter(Boolean)
-      .slice(0, 8),
+    findings,
+    security: normalizeFindingList(parsed.security, 12),
+    performance: normalizeFindingList(parsed.performance, 12),
+    codeQuality: normalizeFindingList(parsed.codeQuality || parsed.code_quality, 12),
+    regressionRisk: {
+      level: normalizeRiskLevel(parsed.regressionRisk?.level),
+      areas: normalizeStringList(parsed.regressionRisk?.areas, 12, 160),
+      reason: stripMarkdownStructure(parsed.regressionRisk?.reason || "").slice(0, 1000),
+    },
+    testing: {
+      risk: normalizeRiskLevel(parsed.testing?.risk),
+      recommendedTests: normalizeStringList(
+        parsed.testing?.recommendedTests || testingRecommendations,
+        12,
+        300
+      ),
+      edgeCases: normalizeStringList(parsed.testing?.edgeCases, 12, 300),
+      affectedModules,
+    },
+    release: {
+      readiness: normalizeReleaseReadiness(parsed.release?.readiness),
+      risks: normalizeStringList(parsed.release?.risks, 12, 300),
+      recommendations: normalizeStringList(parsed.release?.recommendations, 12, 300),
+    },
+    testingRecommendations,
+    positiveObservations: normalizeStringList(parsed.positiveObservations, 8, 300),
   };
 };
 

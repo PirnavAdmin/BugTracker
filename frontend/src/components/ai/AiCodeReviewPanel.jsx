@@ -14,8 +14,12 @@ import {
   AI_REVIEW_STATUS_LABEL,
   defaultAiReview,
   getAiFindingCounts,
+  getAiReviewPerspective,
   getAiReviewViewState,
+  getRoleReviewTitle,
+  normalizeAiReview,
 } from "@/lib/ai-code-review";
+import { useAuth } from "@/hooks/use-auth";
 import { cn, formatDateTime } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -36,17 +40,6 @@ const severityTone = {
 };
 
 const getProjectId = (project = {}) => String(project._id || project.id || project.raw?._id || "");
-const normalizeReview = (review = {}) => ({
-  ...defaultAiReview,
-  ...(review && typeof review === "object" ? review : {}),
-  findings: Array.isArray(review?.findings) ? review.findings : [],
-  testingRecommendations: Array.isArray(review?.testingRecommendations)
-    ? review.testingRecommendations
-    : [],
-  positiveObservations: Array.isArray(review?.positiveObservations)
-    ? review.positiveObservations
-    : [],
-});
 const normalizeActivity = (activity = {}) =>
   activity && typeof activity === "object" ? activity : {};
 const formatFindingForCopy = (finding = {}) =>
@@ -58,7 +51,9 @@ const formatFindingForCopy = (finding = {}) =>
       ? `Confidence: ${finding.confidence}%`
       : "",
     finding.description ? `Description: ${finding.description}` : "",
+    finding.whyItMatters ? `Why it matters: ${finding.whyItMatters}` : "",
     finding.recommendation ? `Recommendation: ${finding.recommendation}` : "",
+    finding.regressionImpact ? `Regression impact: ${finding.regressionImpact}` : "",
   ]
     .filter(Boolean)
     .join("\n");
@@ -104,7 +99,7 @@ const ReviewScore = ({ review }) => {
   );
 };
 
-const FindingList = ({ findings = [] }) => {
+const FindingList = ({ findings = [], showCodeDetails = true }) => {
   const [copiedIndex, setCopiedIndex] = useState(null);
 
   if (!findings.length) {
@@ -122,10 +117,12 @@ const FindingList = ({ findings = [] }) => {
           <div className="flex flex-wrap items-start justify-between gap-2">
             <div className="min-w-0">
               <p className="text-sm font-semibold text-slate-950">{finding.title || "Review finding"}</p>
-              <p className="mt-1 break-all text-xs font-semibold text-slate-500">
-                {finding.file || "Unknown file"}
-                {finding.line ? `:${finding.line}` : ""}
-              </p>
+              {showCodeDetails ? (
+                <p className="mt-1 break-all text-xs font-semibold text-slate-500">
+                  {finding.file || "Unknown file"}
+                  {finding.line ? `:${finding.line}` : ""}
+                </p>
+              ) : null}
             </div>
             <div className="flex shrink-0 flex-wrap items-center gap-2">
               <Badge className={cn("rounded-full border px-2.5 py-1", severityTone[finding.severity] || severityTone.SUGGESTION)} variant="outline">
@@ -154,9 +151,19 @@ const FindingList = ({ findings = [] }) => {
           {finding.description ? (
             <p className="mt-3 text-sm leading-6 text-slate-700">{finding.description}</p>
           ) : null}
+          {finding.whyItMatters ? (
+            <p className="mt-2 text-sm leading-6 text-slate-600">
+              <span className="font-semibold text-slate-900">Why it matters:</span> {finding.whyItMatters}
+            </p>
+          ) : null}
           {finding.recommendation ? (
             <p className="mt-2 text-sm leading-6 text-slate-600">
               <span className="font-semibold text-slate-900">Recommendation:</span> {finding.recommendation}
+            </p>
+          ) : null}
+          {finding.regressionImpact ? (
+            <p className="mt-2 text-sm leading-6 text-slate-600">
+              <span className="font-semibold text-slate-900">Regression impact:</span> {finding.regressionImpact}
             </p>
           ) : null}
         </div>
@@ -165,11 +172,197 @@ const FindingList = ({ findings = [] }) => {
   );
 };
 
-const ReviewDetailDialog = ({ activity, onOpenChange, onRunAgain, open, review, running }) => {
+const RiskBadge = ({ value = "low" }) => (
+  <Badge className="rounded-full bg-slate-50 px-3 py-1 text-slate-700" variant="outline">
+    {String(value || "low").replace(/_/g, " ").toUpperCase()}
+  </Badge>
+);
+
+const SimpleList = ({ emptyText, items = [] }) => {
+  if (!items.length) {
+    return <p className="rounded-xl bg-slate-50 px-3 py-2 text-sm text-slate-500">{emptyText}</p>;
+  }
+
+  return (
+    <ul className="space-y-2">
+      {items.map((item, index) => (
+        <li className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700" key={`${item}-${index}`}>
+          {item}
+        </li>
+      ))}
+    </ul>
+  );
+};
+
+const ReviewSection = ({ children, title }) => (
+  <div className="mt-5">
+    <p className="mb-3 text-xs font-bold uppercase tracking-[0.14em] text-slate-500">{title}</p>
+    {children}
+  </div>
+);
+
+const DeveloperReview = ({ counts, review }) => {
+  const technicalFindings = [
+    ...review.findings,
+    ...review.security,
+    ...review.performance,
+    ...review.codeQuality,
+  ];
+
+  return (
+    <>
+      <div className="mt-4 grid gap-2 sm:grid-cols-5">
+        {["CRITICAL", "HIGH", "MEDIUM", "LOW", "SUGGESTION"].map((severity) => (
+          <div className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-center" key={severity}>
+            <p className="text-lg font-semibold text-slate-950">{counts[severity] || 0}</p>
+            <p className="text-[10px] font-bold uppercase tracking-[0.1em] text-slate-500">{severity}</p>
+          </div>
+        ))}
+      </div>
+
+      <ReviewSection title="Security">
+        <FindingList findings={review.security} />
+      </ReviewSection>
+
+      <ReviewSection title="Performance">
+        <FindingList findings={review.performance} />
+      </ReviewSection>
+
+      <ReviewSection title="Code Quality">
+        <FindingList findings={review.codeQuality.length ? review.codeQuality : review.findings} />
+      </ReviewSection>
+
+      <ReviewSection title="Regression Risk">
+        <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
+          <RiskBadge value={review.regressionRisk.level} />
+          {review.regressionRisk.reason ? (
+            <p className="mt-3 text-sm leading-6 text-slate-700">{review.regressionRisk.reason}</p>
+          ) : null}
+          <div className="mt-3">
+            <SimpleList emptyText="No affected areas identified." items={review.regressionRisk.areas} />
+          </div>
+        </div>
+      </ReviewSection>
+
+      <ReviewSection title="Findings">
+        <FindingList findings={technicalFindings} />
+      </ReviewSection>
+
+      <ReviewSection title="Testing Recommendations">
+        <SimpleList emptyText="No additional developer test recommendations." items={review.testing.recommendedTests} />
+      </ReviewSection>
+    </>
+  );
+};
+
+const TesterReview = ({ review }) => (
+  <>
+    <div className="mt-4 grid gap-2 sm:grid-cols-3">
+      <div className="rounded-xl border border-slate-200 bg-white px-3 py-2">
+        <p className="text-[10px] font-bold uppercase tracking-[0.1em] text-slate-500">QA Risk</p>
+        <p className="mt-2 text-lg font-semibold text-slate-950">{review.testing.risk.toUpperCase()}</p>
+      </div>
+      <div className="rounded-xl border border-slate-200 bg-white px-3 py-2">
+        <p className="text-[10px] font-bold uppercase tracking-[0.1em] text-slate-500">Regression</p>
+        <p className="mt-2 text-lg font-semibold text-slate-950">{review.regressionRisk.level.toUpperCase()}</p>
+      </div>
+      <div className="rounded-xl border border-slate-200 bg-white px-3 py-2">
+        <p className="text-[10px] font-bold uppercase tracking-[0.1em] text-slate-500">Tests</p>
+        <p className="mt-2 text-lg font-semibold text-slate-950">{review.testing.recommendedTests.length}</p>
+      </div>
+    </div>
+
+    <ReviewSection title="Affected Modules">
+      <SimpleList emptyText="No affected modules identified." items={review.testing.affectedModules} />
+    </ReviewSection>
+
+    <ReviewSection title="Recommended Tests">
+      <SimpleList emptyText="No AI-recommended QA scenarios." items={review.testing.recommendedTests} />
+    </ReviewSection>
+
+    <ReviewSection title="Edge Cases">
+      <SimpleList emptyText="No edge cases identified." items={review.testing.edgeCases} />
+    </ReviewSection>
+
+    <ReviewSection title="Regression Areas">
+      <SimpleList emptyText="No regression areas identified." items={review.regressionRisk.areas} />
+    </ReviewSection>
+  </>
+);
+
+const ManagerReview = ({ counts, review }) => {
+  const highRiskCount = (counts.CRITICAL || 0) + (counts.HIGH || 0);
+  const qualityRisk = review.codeQuality.length || counts.MEDIUM || counts.LOW ? "medium" : "low";
+  const securityRisk = review.security.some((finding) => ["CRITICAL", "HIGH"].includes(finding.severity))
+    ? "high"
+    : review.security.length
+      ? "medium"
+      : "low";
+  const topRisks = [
+    ...review.release.risks,
+    ...(review.regressionRisk.reason ? [review.regressionRisk.reason] : []),
+    ...review.findings.slice(0, 2).map((finding) => finding.title).filter(Boolean),
+  ].slice(0, 5);
+
+  return (
+    <>
+      <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+        {[
+          ["Release", review.release.readiness],
+          ["Security", securityRisk],
+          ["Quality", qualityRisk],
+          ["Regression", review.regressionRisk.level],
+        ].map(([label, value]) => (
+          <div className="rounded-xl border border-slate-200 bg-white px-3 py-2" key={label}>
+            <p className="text-[10px] font-bold uppercase tracking-[0.1em] text-slate-500">{label}</p>
+            <p className="mt-2 text-base font-semibold capitalize text-slate-950">{String(value).replace(/_/g, " ")}</p>
+          </div>
+        ))}
+      </div>
+
+      <ReviewSection title="Top Risks">
+        <SimpleList emptyText="No major release risks identified." items={topRisks} />
+      </ReviewSection>
+
+      <ReviewSection title="QA Readiness">
+        <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
+          <RiskBadge value={review.testing.risk} />
+          <p className="mt-3 text-sm text-slate-700">
+            {review.testing.recommendedTests.length
+              ? `${review.testing.recommendedTests.length} AI-recommended QA checks should be executed.`
+              : "No extra AI-recommended QA checks."}
+          </p>
+        </div>
+      </ReviewSection>
+
+      <ReviewSection title="Team Action">
+        <SimpleList
+          emptyText="No team action recommended."
+          items={[
+            highRiskCount ? `Developer: Review ${highRiskCount} critical/high finding${highRiskCount === 1 ? "" : "s"}.` : "Developer: No critical/high findings.",
+            review.testing.recommendedTests.length ? `QA: Execute ${review.testing.recommendedTests.length} recommended tests.` : "QA: Continue normal test flow.",
+            ...review.release.recommendations.map((item) => `Manager: ${item}`),
+          ]}
+        />
+      </ReviewSection>
+    </>
+  );
+};
+
+const ReviewDetailDialog = ({ activity, onOpenChange, onRunAgain, open, review, role, running }) => {
   const safeActivity = normalizeActivity(activity);
-  const safeReview = useMemo(() => normalizeReview(review), [review]);
-  const counts = getAiFindingCounts(safeReview.findings);
-  const findingTotal = safeReview.findings.length;
+  const safeReview = useMemo(() => normalizeAiReview(review), [review]);
+  const allFindings = useMemo(
+    () => [
+      ...safeReview.findings,
+      ...safeReview.security,
+      ...safeReview.performance,
+      ...safeReview.codeQuality,
+    ],
+    [safeReview]
+  );
+  const counts = getAiFindingCounts(allFindings);
+  const perspective = getAiReviewPerspective(role);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -178,7 +371,7 @@ const ReviewDetailDialog = ({ activity, onOpenChange, onRunAgain, open, review, 
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Bot className="h-5 w-5 text-blue-600" aria-hidden="true" />
-              AI Code Review
+              {getRoleReviewTitle(role)}
             </DialogTitle>
             <DialogDescription>
               {safeActivity.branch || "Branch"} - {String(safeActivity.commitSha || "").slice(0, 7) || "No SHA"}
@@ -212,35 +405,13 @@ const ReviewDetailDialog = ({ activity, onOpenChange, onRunAgain, open, review, 
             </p>
           ) : null}
 
-          <div className="mt-4 grid gap-2 sm:grid-cols-5">
-            {["CRITICAL", "HIGH", "MEDIUM", "LOW", "SUGGESTION"].map((severity) => (
-              <div className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-center" key={severity}>
-                <p className="text-lg font-semibold text-slate-950">{counts[severity] || 0}</p>
-                <p className="text-[10px] font-bold uppercase tracking-[0.1em] text-slate-500">{severity}</p>
-              </div>
-            ))}
-          </div>
-
-          <div className="mt-5">
-            <div className="mb-3 flex items-center justify-between gap-3">
-              <p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-500">Findings</p>
-              <span className="text-xs font-semibold text-slate-500">{findingTotal} total</span>
-            </div>
-            <FindingList findings={safeReview.findings} />
-          </div>
-
-          {safeReview.testingRecommendations.length ? (
-            <div className="mt-5">
-              <p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-500">Testing</p>
-              <ul className="mt-3 space-y-2">
-                {safeReview.testingRecommendations.map((item, index) => (
-                  <li className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700" key={`${item}-${index}`}>
-                    {item}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ) : null}
+          {perspective === "tester" ? (
+            <TesterReview review={safeReview} />
+          ) : perspective === "manager" ? (
+            <ManagerReview counts={counts} review={safeReview} />
+          ) : (
+            <DeveloperReview counts={counts} review={safeReview} />
+          )}
 
           {safeReview.positiveObservations.length ? (
             <div className="mt-5">
@@ -268,14 +439,16 @@ const AiCodeReviewPanelContent = ({
   surface = true,
 }) => {
   const safeActivity = normalizeActivity(activity);
-  const [review, setReview] = useState(normalizeReview(safeActivity.aiReview));
+  const { user } = useAuth();
+  const userRole = user?.role || "";
+  const [review, setReview] = useState(normalizeAiReview(safeActivity.aiReview));
   const [open, setOpen] = useState(false);
   const [running, setRunning] = useState(false);
   const [error, setError] = useState("");
   const projectId = getProjectId(project);
   const commitSha = safeActivity.commitSha || "";
   const canRun = Boolean(projectId && commitSha);
-  const safeReview = normalizeReview(review);
+  const safeReview = useMemo(() => normalizeAiReview(review), [review]);
   const viewState = useMemo(
     () => getAiReviewViewState({ review: safeReview, running }),
     [safeReview, running]
@@ -283,7 +456,7 @@ const AiCodeReviewPanelContent = ({
   const status = viewState.status;
 
   useEffect(() => {
-    setReview(normalizeReview(safeActivity.aiReview));
+    setReview(normalizeAiReview(safeActivity.aiReview));
     setError("");
   }, [safeActivity.aiReview, commitSha]);
 
@@ -381,6 +554,7 @@ const AiCodeReviewPanelContent = ({
         onOpenChange={setOpen}
         onRunAgain={() => handleRunReview({ forceRefresh: true })}
         open={open}
+        role={userRole}
         review={safeReview}
         running={running}
       />

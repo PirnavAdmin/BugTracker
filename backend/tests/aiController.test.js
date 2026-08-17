@@ -341,21 +341,31 @@ test("AI code review marks failed state when review generation fails", async () 
 
   assert.ifError(nextError);
   assert.strictEqual(res.statusCode, 502);
-  assert.deepStrictEqual(res.body, {
-    success: false,
-    message: "Unable to complete review.",
-    review: {
-      status: "FAILED",
-      score: null,
-      rating: "",
-      summary: "",
-      findings: [],
-      testingRecommendations: [],
-      positiveObservations: [],
-      reviewedAt: project.latestGitActivity.aiReview.reviewedAt,
-      error: "Unable to complete review.",
-    },
+  assert.strictEqual(res.body.success, false);
+  assert.strictEqual(res.body.message, "Unable to complete review.");
+  assert.strictEqual(res.body.review.status, "FAILED");
+  assert.strictEqual(res.body.review.error, "Unable to complete review.");
+  assert.deepStrictEqual(res.body.review.findings, []);
+  assert.deepStrictEqual(res.body.review.security, []);
+  assert.deepStrictEqual(res.body.review.performance, []);
+  assert.deepStrictEqual(res.body.review.codeQuality, []);
+  assert.deepStrictEqual(res.body.review.regressionRisk, {
+    level: "low",
+    areas: [],
+    reason: "",
   });
+  assert.deepStrictEqual(res.body.review.testing, {
+    risk: "low",
+    recommendedTests: [],
+    edgeCases: [],
+    affectedModules: [],
+  });
+  assert.deepStrictEqual(res.body.review.release, {
+    readiness: "needs_attention",
+    risks: [],
+    recommendations: [],
+  });
+  assert.strictEqual(res.body.review.reviewedAt, project.latestGitActivity.aiReview.reviewedAt);
   assert.strictEqual(project.latestGitActivity.aiReview.status, "FAILED");
   assert.strictEqual(project.saveCount, 2);
 });

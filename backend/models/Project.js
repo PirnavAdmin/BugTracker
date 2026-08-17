@@ -12,11 +12,62 @@ const aiCodeReviewFindingSchema = new Schema(
       default: "",
     },
     title: { type: String, trim: true, default: "" },
+    category: {
+      type: String,
+      trim: true,
+      enum: ["security", "bug", "performance", "quality", "testing", "devops", ""],
+      default: "",
+    },
     file: { type: String, trim: true, default: "" },
     line: { type: Number, default: null },
     confidence: { type: Number, default: null },
     description: { type: String, trim: true, default: "" },
+    whyItMatters: { type: String, trim: true, default: "" },
     recommendation: { type: String, trim: true, default: "" },
+    regressionImpact: { type: String, trim: true, default: "" },
+  },
+  { _id: false }
+);
+
+const aiReviewRiskSchema = new Schema(
+  {
+    level: {
+      type: String,
+      trim: true,
+      enum: ["low", "medium", "high", "critical"],
+      default: "low",
+    },
+    areas: { type: [String], default: [] },
+    reason: { type: String, trim: true, default: "" },
+  },
+  { _id: false }
+);
+
+const aiReviewTestingSchema = new Schema(
+  {
+    risk: {
+      type: String,
+      trim: true,
+      enum: ["low", "medium", "high", "critical"],
+      default: "low",
+    },
+    recommendedTests: { type: [String], default: [] },
+    edgeCases: { type: [String], default: [] },
+    affectedModules: { type: [String], default: [] },
+  },
+  { _id: false }
+);
+
+const aiReviewReleaseSchema = new Schema(
+  {
+    readiness: {
+      type: String,
+      trim: true,
+      enum: ["ready", "needs_attention", "blocked"],
+      default: "needs_attention",
+    },
+    risks: { type: [String], default: [] },
+    recommendations: { type: [String], default: [] },
   },
   { _id: false }
 );
@@ -33,6 +84,30 @@ const aiCodeReviewSchema = new Schema(
     rating: { type: String, trim: true, default: "" },
     summary: { type: String, trim: true, default: "" },
     findings: { type: [aiCodeReviewFindingSchema], default: [] },
+    security: { type: [aiCodeReviewFindingSchema], default: [] },
+    performance: { type: [aiCodeReviewFindingSchema], default: [] },
+    codeQuality: { type: [aiCodeReviewFindingSchema], default: [] },
+    regressionRisk: {
+      type: aiReviewRiskSchema,
+      default: () => ({ level: "low", areas: [], reason: "" }),
+    },
+    testing: {
+      type: aiReviewTestingSchema,
+      default: () => ({
+        risk: "low",
+        recommendedTests: [],
+        edgeCases: [],
+        affectedModules: [],
+      }),
+    },
+    release: {
+      type: aiReviewReleaseSchema,
+      default: () => ({
+        readiness: "needs_attention",
+        risks: [],
+        recommendations: [],
+      }),
+    },
     testingRecommendations: { type: [String], default: [] },
     positiveObservations: { type: [String], default: [] },
     reviewedAt: { type: Date, default: null },

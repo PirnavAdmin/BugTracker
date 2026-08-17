@@ -1,8 +1,11 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
+  getAiReviewPerspective,
   getAiFindingCounts,
   getAiReviewViewState,
+  getRoleReviewTitle,
+  normalizeAiReview,
 } from "../src/lib/ai-code-review.js";
 
 test("AI review view state starts as not reviewed with run action", () => {
@@ -74,4 +77,58 @@ test("AI review finding counts group severities for dashboard widgets", () => {
       SUGGESTION: 2,
     }
   );
+});
+
+test("AI review role perspectives map CureCode roles to presentation modes", () => {
+  assert.equal(getAiReviewPerspective("Developer"), "developer");
+  assert.equal(getAiReviewPerspective("Tester"), "tester");
+  assert.equal(getAiReviewPerspective("Q/A Lead"), "tester");
+  assert.equal(getAiReviewPerspective("Manager"), "manager");
+  assert.equal(getAiReviewPerspective("Admin"), "manager");
+  assert.equal(getRoleReviewTitle("Developer"), "Technical Code Review");
+  assert.equal(getRoleReviewTitle("Tester"), "AI QA Insights");
+  assert.equal(getRoleReviewTitle("Manager"), "AI Release Insight");
+});
+
+test("AI review normalization keeps older review payloads renderable", () => {
+  const review = normalizeAiReview({
+    status: "COMPLETED",
+    score: 85,
+    findings: [{ severity: "HIGH", title: "Fix validation" }],
+    testingRecommendations: ["Run regression test"],
+  });
+
+  assert.equal(review.regressionRisk.level, "low");
+  assert.equal(review.testing.risk, "low");
+  assert.deepEqual(review.testing.recommendedTests, ["Run regression test"]);
+  assert.equal(review.release.readiness, "needs_attention");
+  assert.deepEqual(review.security, []);
+  assert.deepEqual(review.performance, []);
+  assert.deepEqual(review.codeQuality, []);
+});
+
+test("AI review normalization exposes Phase 3 testing and release fields", () => {
+  const review = normalizeAiReview({
+    regressionRisk: {
+      level: "medium",
+      areas: ["AI Review"],
+      reason: "Review rendering changed.",
+    },
+    testing: {
+      risk: "high",
+      recommendedTests: ["Verify tester view"],
+      edgeCases: ["Missing optional fields"],
+      affectedModules: ["Dashboard"],
+    },
+    release: {
+      readiness: "needs_attention",
+      risks: ["Regression testing required"],
+      recommendations: ["Review before release"],
+    },
+  });
+
+  assert.equal(review.regressionRisk.level, "medium");
+  assert.equal(review.testing.risk, "high");
+  assert.deepEqual(review.testing.edgeCases, ["Missing optional fields"]);
+  assert.deepEqual(review.release.risks, ["Regression testing required"]);
 });

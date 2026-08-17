@@ -91,6 +91,18 @@ const normalizeAiReviewState = (review = {}) => {
   const allowedStatus = ["NOT_REVIEWED", "REVIEWING", "COMPLETED", "FAILED"].includes(status)
     ? status
     : "NOT_REVIEWED";
+  const normalizeRiskLevel = (value, fallback = "low") => {
+    const normalized = normalizeString(value || fallback).toLowerCase();
+
+    return ["low", "medium", "high", "critical"].includes(normalized) ? normalized : fallback;
+  };
+  const normalizeReleaseReadiness = (value) => {
+    const normalized = normalizeString(value || "needs_attention").toLowerCase();
+
+    return ["ready", "needs_attention", "blocked"].includes(normalized)
+      ? normalized
+      : "needs_attention";
+  };
 
   return {
     status: allowedStatus,
@@ -98,6 +110,27 @@ const normalizeAiReviewState = (review = {}) => {
     rating: normalizeString(review.rating),
     summary: normalizeString(review.summary),
     findings: Array.isArray(review.findings) ? review.findings : [],
+    security: Array.isArray(review.security) ? review.security : [],
+    performance: Array.isArray(review.performance) ? review.performance : [],
+    codeQuality: Array.isArray(review.codeQuality) ? review.codeQuality : [],
+    regressionRisk: {
+      level: normalizeRiskLevel(review.regressionRisk?.level),
+      areas: normalizeStringArray(review.regressionRisk?.areas),
+      reason: normalizeString(review.regressionRisk?.reason),
+    },
+    testing: {
+      risk: normalizeRiskLevel(review.testing?.risk),
+      recommendedTests: normalizeStringArray(
+        review.testing?.recommendedTests || review.testingRecommendations
+      ),
+      edgeCases: normalizeStringArray(review.testing?.edgeCases),
+      affectedModules: normalizeStringArray(review.testing?.affectedModules),
+    },
+    release: {
+      readiness: normalizeReleaseReadiness(review.release?.readiness),
+      risks: normalizeStringArray(review.release?.risks),
+      recommendations: normalizeStringArray(review.release?.recommendations),
+    },
     testingRecommendations: normalizeStringArray(review.testingRecommendations),
     positiveObservations: normalizeStringArray(review.positiveObservations),
     reviewedAt: review.reviewedAt ? new Date(review.reviewedAt) : null,

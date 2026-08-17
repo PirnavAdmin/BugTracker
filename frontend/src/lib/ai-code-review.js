@@ -13,6 +13,18 @@ export const AI_REVIEW_STATUS_LABEL = {
 };
 
 export const defaultAiReview = { status: AI_REVIEW_STATUS.NOT_REVIEWED };
+export const DEFAULT_REGRESSION_RISK = { level: "low", areas: [], reason: "" };
+export const DEFAULT_TESTING_INSIGHT = {
+  risk: "low",
+  recommendedTests: [],
+  edgeCases: [],
+  affectedModules: [],
+};
+export const DEFAULT_RELEASE_INSIGHT = {
+  readiness: "needs_attention",
+  risks: [],
+  recommendations: [],
+};
 
 export const getAiFindingCounts = (findings = []) =>
   findings.reduce(
@@ -51,4 +63,76 @@ export const getAiReviewViewState = ({ review = defaultAiReview, running = false
     highRiskCount,
     findingCount: Array.isArray(review.findings) ? review.findings.length : 0,
   };
+};
+
+export const normalizeAiReview = (review = {}) => ({
+  ...defaultAiReview,
+  ...(review && typeof review === "object" ? review : {}),
+  findings: Array.isArray(review?.findings) ? review.findings : [],
+  security: Array.isArray(review?.security) ? review.security : [],
+  performance: Array.isArray(review?.performance) ? review.performance : [],
+  codeQuality: Array.isArray(review?.codeQuality) ? review.codeQuality : [],
+  testingRecommendations: Array.isArray(review?.testingRecommendations)
+    ? review.testingRecommendations
+    : [],
+  positiveObservations: Array.isArray(review?.positiveObservations)
+    ? review.positiveObservations
+    : [],
+  regressionRisk: {
+    ...DEFAULT_REGRESSION_RISK,
+    ...(review?.regressionRisk && typeof review.regressionRisk === "object"
+      ? review.regressionRisk
+      : {}),
+  },
+  testing: {
+    ...DEFAULT_TESTING_INSIGHT,
+    ...(review?.testing && typeof review.testing === "object" ? review.testing : {}),
+    recommendedTests: Array.isArray(review?.testing?.recommendedTests)
+      ? review.testing.recommendedTests
+      : Array.isArray(review?.testingRecommendations)
+        ? review.testingRecommendations
+        : [],
+    edgeCases: Array.isArray(review?.testing?.edgeCases) ? review.testing.edgeCases : [],
+    affectedModules: Array.isArray(review?.testing?.affectedModules)
+      ? review.testing.affectedModules
+      : Array.isArray(review?.regressionRisk?.areas)
+        ? review.regressionRisk.areas
+        : [],
+  },
+  release: {
+    ...DEFAULT_RELEASE_INSIGHT,
+    ...(review?.release && typeof review.release === "object" ? review.release : {}),
+    risks: Array.isArray(review?.release?.risks) ? review.release.risks : [],
+    recommendations: Array.isArray(review?.release?.recommendations)
+      ? review.release.recommendations
+      : [],
+  },
+});
+
+export const getAiReviewPerspective = (role = "") => {
+  const normalized = String(role || "").toLowerCase();
+
+  if (normalized === "tester" || normalized === "q/a lead") {
+    return "tester";
+  }
+
+  if (normalized === "admin" || normalized === "manager") {
+    return "manager";
+  }
+
+  return "developer";
+};
+
+export const getRoleReviewTitle = (role = "") => {
+  const perspective = getAiReviewPerspective(role);
+
+  if (perspective === "tester") {
+    return "AI QA Insights";
+  }
+
+  if (perspective === "manager") {
+    return "AI Release Insight";
+  }
+
+  return "Technical Code Review";
 };

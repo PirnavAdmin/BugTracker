@@ -132,6 +132,9 @@ test("AI code review normalization accepts JSON embedded in provider text", () =
   assert.strictEqual(review.findings[0].severity, "HIGH");
   assert.strictEqual(review.findings[0].line, null);
   assert.deepStrictEqual(review.testingRecommendations, ["Add controller coverage."]);
+  assert.strictEqual(review.regressionRisk.level, "low");
+  assert.strictEqual(review.testing.risk, "low");
+  assert.strictEqual(review.release.readiness, "needs_attention");
 });
 
 test("AI code review rejects invalid provider JSON", () => {
@@ -179,4 +182,65 @@ test("Bedrock code review success returns normalized review", async () => {
 
   assert.strictEqual(review.score, 73);
   assert.strictEqual(review.rating, "Needs Attention");
+});
+
+test("AI code review normalization preserves role-aware Phase 3 fields", () => {
+  const review = normalizeCodeReviewResult({
+    score: 82,
+    rating: "Needs Attention",
+    summary: "Review summary.",
+    findings: [
+      {
+        severity: "medium",
+        title: "Add fallback handling",
+        file: "frontend/src/components/ai/AiCodeReviewPanel.jsx",
+        line: null,
+        confidence: 84,
+        description: "Fallback handling needs coverage.",
+        whyItMatters: "A malformed response could break the review panel.",
+        recommendation: "Render a safe fallback.",
+        regressionImpact: "AI review display can regress.",
+      },
+    ],
+    security: [],
+    performance: [],
+    codeQuality: [
+      {
+        severity: "low",
+        title: "Simplify layout",
+        file: "frontend/src/components/ai/AiCodeReviewPanel.jsx",
+        line: 277,
+        confidence: 70,
+        description: "Responsive classes are hard to reason about.",
+        recommendation: "Use one breakpoint pattern.",
+      },
+    ],
+    regressionRisk: {
+      level: "medium",
+      areas: ["AI Review"],
+      reason: "The modal rendering changed by role.",
+    },
+    testing: {
+      risk: "high",
+      recommendedTests: ["Verify developer view", "Verify tester view"],
+      edgeCases: ["Missing optional fields"],
+      affectedModules: ["Developer Dashboard"],
+    },
+    release: {
+      readiness: "needs_attention",
+      risks: ["QA should verify role-specific views."],
+      recommendations: ["Review before release."],
+    },
+    positiveObservations: ["Single review is reused."],
+  });
+
+  assert.strictEqual(review.findings[0].whyItMatters, "A malformed response could break the review panel.");
+  assert.strictEqual(review.findings[0].regressionImpact, "AI review display can regress.");
+  assert.strictEqual(review.codeQuality[0].severity, "LOW");
+  assert.strictEqual(review.regressionRisk.level, "medium");
+  assert.deepStrictEqual(review.testing.recommendedTests, [
+    "Verify developer view",
+    "Verify tester view",
+  ]);
+  assert.strictEqual(review.release.readiness, "needs_attention");
 });
