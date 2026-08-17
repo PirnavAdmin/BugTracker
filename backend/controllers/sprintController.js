@@ -168,6 +168,20 @@ const throwHttpError = (res, status, message, code = "", details = null) => {
   throw createHttpError(status, message, code, details);
 };
 
+const isTransactionUnsupportedError = (error) => {
+  const message = String(error?.message || "");
+
+  return (
+    message.includes("Transaction numbers are only allowed on a replica set member or mongos") ||
+    message.includes("This MongoDB deployment does not support retryable writes")
+  );
+};
+
+const withOptionalSession = (query, session) => (session ? query.session(session) : query);
+
+const saveWithOptionalSession = (document, session) =>
+  document.save(session ? { session } : undefined);
+
 const getSprintScopeLabel = (sprint) => {
   const teamName = sprint?.teamId?.name || sprint?.teamName || "";
   return teamName ? `team ${teamName}` : "project-wide scope";
@@ -879,16 +893,25 @@ const completeSprint = asyncHandler(async (req, res) => {
     throw new Error("Carry-over mode must be BACKLOG, SPRINT, or NEW_SPRINT");
   }
 
-  const session = await mongoose.startSession();
   let completedSprint = null;
   let targetSprintId = "";
   let targetSprintName = "";
   let carriedOverIssueIds = [];
   let closedIssueIds = [];
 
-  try {
-    await session.withTransaction(async () => {
-      const sprintForUpdate = await Sprint.findById(req.params.id).session(session);
+  const runCompletion = async (session = null) => {
+    const result = {
+      completedSprint: null,
+      targetSprintId: "",
+      targetSprintName: "",
+      carriedOverIssueIds: [],
+      closedIssueIds: [],
+    };
+
+    const sprintForUpdate = await withOptionalSession(
+      Sprint.findById(req.params.id),
+      session
+    );
 
       if (!sprintForUpdate) {
         throw createHttpError(404, "Sprint not found");
@@ -898,14 +921,13 @@ const completeSprint = asyncHandler(async (req, res) => {
         throw createHttpError(400, "Only active sprints can be completed");
       }
 
-      const issues = await Issue.find({
-        sprintId: sprintForUpdate._id,
-      })
-        .sort({
+    const issuesQuery = Issue.find({
+      sprintId: sprintForUpdate._id,
+    }).sort({
           planningOrder: 1,
           createdAt: 1,
-        })
-        .session(session);
+    });
+    const issues = await withOptionalSession(issuesQuery, session);
       const autoClosableIssues = issues.filter(isAutoClosableSprintIssue);
       const incompleteIssues = issues.filter(isIncompleteSprintIssue);
       let targetSprint = null;
@@ -918,11 +940,14 @@ const completeSprint = asyncHandler(async (req, res) => {
           );
         }
 
-        targetSprint = await Sprint.findOne({
-          _id: req.body.targetSprintId,
-          projectId: sprintForUpdate.projectId,
-          state: "PLANNED",
-        }).session(session);
+        targetSprint = await withOptionalSession(
+          Sprint.findOne({
+            _id: req.body.targetSprintId,
+            projectId: sprintForUpdate.projectId,
+            state: "PLANNED",
+          }),
+          session
+        );
 
         if (!targetSprint) {
           throw createHttpError(404, "Target sprint not found");
@@ -987,7 +1012,7 @@ const completeSprint = asyncHandler(async (req, res) => {
               createdBy: req.user._id,
             },
           ],
-          { session }
+          session ? { session } : undefined
         ).then((records) => records[0]);
       }
 
@@ -997,8 +1022,8 @@ const completeSprint = asyncHandler(async (req, res) => {
           issue.status = ISSUE_STATUS.CLOSED;
           issue.closedBy = req.user._id;
           issue.closedAt = issue.closedAt || new Date();
-          await issue.save({ session });
-          closedIssueIds.push(String(issue._id));
+          await saveWithOptionalSession(issue, session);
+          result.closedIssueIds.push(String(issue._id));
 
           await recordIssueHistory({
             issueId: issue._id,
@@ -1028,8 +1053,8 @@ const completeSprint = asyncHandler(async (req, res) => {
           issue.sprintId = null;
           issue.planningOrder = nextPlanningOrder;
           nextPlanningOrder += PLANNING_ORDER_INCREMENT;
-          await issue.save({ session });
-          carriedOverIssueIds.push(String(issue._id));
+          await saveWithOptionalSession(issue, session);
+          result.carriedOverIssueIds.push(String(issue._id));
           await recordIssueHistory({
             issueId: issue._id,
             projectId: issue.projectId,
@@ -1048,13 +1073,13 @@ const completeSprint = asyncHandler(async (req, res) => {
       }
 
       if (["SPRINT", "NEW_SPRINT"].includes(carryOverMode) && incompleteIssues.length && targetSprint) {
-        targetSprintId = String(targetSprint._id);
-        targetSprintName = targetSprint.name;
+        result.targetSprintId = String(targetSprint._id);
+        result.targetSprintName = targetSprint.name;
 
         for (const issue of incompleteIssues) {
           issue.sprintId = targetSprint._id;
-          await issue.save({ session });
-          carriedOverIssueIds.push(String(issue._id));
+          await saveWithOptionalSession(issue, session);
+          result.carriedOverIssueIds.push(String(issue._id));
           await recordIssueHistory({
             issueId: issue._id,
             projectId: issue.projectId,
@@ -1103,7 +1128,7 @@ const completeSprint = asyncHandler(async (req, res) => {
         carryOverMode,
       };
 
-      await sprintForUpdate.save({ session });
+      await saveWithOptionalSession(sprintForUpdate, session);
 
       await syncEpicCompletionStatuses({
         projectId: sprintForUpdate.projectId,
@@ -1111,10 +1136,48 @@ const completeSprint = asyncHandler(async (req, res) => {
         session,
       });
 
-      completedSprint = await Sprint.findById(sprintForUpdate._id)
-        .populate("teamId", "name description workspaceId")
-        .session(session);
-    });
+    result.completedSprint = await withOptionalSession(
+      Sprint.findById(sprintForUpdate._id).populate("teamId", "name description workspaceId"),
+      session
+    );
+
+    return result;
+  };
+
+  const applyCompletionResult = (result) => {
+    completedSprint = result.completedSprint;
+    targetSprintId = result.targetSprintId;
+    targetSprintName = result.targetSprintName;
+    carriedOverIssueIds = result.carriedOverIssueIds;
+    closedIssueIds = result.closedIssueIds;
+  };
+
+  const session = await mongoose.startSession();
+
+  try {
+    try {
+      let transactionResult = null;
+
+      await session.withTransaction(async () => {
+        transactionResult = await runCompletion(session);
+      });
+
+      applyCompletionResult(transactionResult);
+    } catch (error) {
+      if (!isTransactionUnsupportedError(error)) {
+        throw error;
+      }
+
+      console.warn(
+        "[sprints] MongoDB transactions unavailable; completing sprint without transaction",
+        {
+          sprintId: String(req.params.id),
+          message: error.message,
+        }
+      );
+
+      applyCompletionResult(await runCompletion(null));
+    }
   } catch (error) {
     if (error?.statusCode) {
       res.status(error.statusCode);
