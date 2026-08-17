@@ -96,6 +96,19 @@ test("rejects missing title", async () => {
   });
 });
 
+test("rejects empty title", async () => {
+  const res = await callController({
+    title: "   ",
+    workItemType: "Task",
+  });
+
+  assert.strictEqual(res.statusCode, 400);
+  assert.deepStrictEqual(res.body, {
+    success: false,
+    message: "Title is required",
+  });
+});
+
 test("rejects unsupported workItemType", async () => {
   const res = await callController({
     title: "Create release notes",
@@ -135,6 +148,21 @@ test("handles Bedrock service failure without exposing raw errors", async () => 
   assert.strictEqual(res.statusCode, 502);
   assert.deepStrictEqual(res.body, {
     success: false,
-    message: "Unable to generate work item description",
+    message: "Unable to generate description at the moment.",
+  });
+});
+
+test("handles empty AI service response as a sanitized failure", async () => {
+  aiService.generateWorkItemDescription = async () => "   ";
+
+  const res = await callController({
+    title: "Generate task description",
+    workItemType: "Task",
+  });
+
+  assert.strictEqual(res.statusCode, 502);
+  assert.deepStrictEqual(res.body, {
+    success: false,
+    message: "Unable to generate description at the moment.",
   });
 });

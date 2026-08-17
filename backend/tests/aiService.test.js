@@ -3,7 +3,13 @@ const assert = require("node:assert");
 const {
   MAX_DESCRIPTION_WORDS,
   enforceDescriptionWordLimit,
+  generateWorkItemDescription,
+  setBedrockClientForTests,
 } = require("../services/aiService");
+
+test.afterEach(() => {
+  setBedrockClientForTests(null);
+});
 
 test("AI description post-processing removes markdown structure", () => {
   const description = enforceDescriptionWordLimit(`# Objective
@@ -35,4 +41,65 @@ test("AI description post-processing caps output at 350 words", () => {
   const wordCount = description.split(/\s+/).filter(Boolean).length;
 
   assert.ok(wordCount <= MAX_DESCRIPTION_WORDS);
+});
+
+test("Bedrock success returns sanitized generated description", async () => {
+  setBedrockClientForTests({
+    send: async () => ({
+      output: {
+        message: {
+          content: [{ text: "## Problem\n\nGenerated bug description." }],
+        },
+      },
+    }),
+  });
+
+  const description = await generateWorkItemDescription({
+    title: "Login fails",
+    workItemType: "Bug",
+  });
+
+  assert.strictEqual(description, "Generated bug description.");
+});
+
+test("empty Bedrock response is sanitized as a generation failure", async () => {
+  setBedrockClientForTests({
+    send: async () => ({
+      output: {
+        message: {
+          content: [],
+        },
+      },
+    }),
+  });
+
+  await assert.rejects(
+    () =>
+      generateWorkItemDescription({
+        title: "Create task",
+        workItemType: "Task",
+      }),
+    /Unable to generate work item description/
+  );
+});
+
+test("Bedrock failure is wrapped without raw provider details", async () => {
+  setBedrockClientForTests({
+    send: async () => {
+      throw new Error("AccessDeniedException: provider detail");
+    },
+  });
+
+  await assert.rejects(
+    () =>
+      generateWorkItemDescription({
+        title: "Create task",
+        workItemType: "Task",
+      }),
+    (error) => {
+      assert.strictEqual(error.message, "Unable to generate work item description");
+      assert.match(error.cause.message, /AccessDeniedException/);
+      return true;
+    }
+  );
 });
