@@ -573,7 +573,7 @@ export const createIssue = async (payload) => {
 };
 
 export const generateWorkItemDescription = async (payload) => {
-  const response = await api.post("/ai/generate-work-item-description", payload);
+  const response = await api.post("/ai/generate-description", payload);
   return response.data;
 };
 
