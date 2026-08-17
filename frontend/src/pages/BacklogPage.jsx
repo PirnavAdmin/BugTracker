@@ -1,6 +1,25 @@
 import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Flag, FolderKanban, Layers3 } from "lucide-react";
+import {
+  BarChart3,
+  BookOpen,
+  CalendarDays,
+  CheckCircle2,
+  ChevronDown,
+  ClipboardList,
+  Filter,
+  Flag,
+  FolderKanban,
+  KanbanSquare,
+  Layers3,
+  List,
+  MoreVertical,
+  Plus,
+  Search,
+  TimerReset,
+  UserRound,
+  Zap,
+} from "lucide-react";
 import {
   completeSprint,
   createEpic,
@@ -23,7 +42,6 @@ import {
   getProjectTeams,
   resolveTeamId,
 } from "@/lib/project-teams";
-import BacklogToolbar from "@/components/backlog/BacklogToolbar";
 import EpicDialog from "@/components/backlog/EpicDialog";
 import IssueDetailsDrawer from "@/components/backlog/IssueDetailsDrawer";
 import IssuePlanningCard from "@/components/backlog/IssuePlanningCard";
@@ -32,11 +50,15 @@ import SprintDialog from "@/components/backlog/SprintDialog";
 import SprintSection from "@/components/backlog/SprintSection";
 import EmptyState from "@/components/shared/EmptyState";
 import ToastNotice from "@/components/shared/ToastNotice";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/hooks/use-auth";
-import { isSprintLocked } from "@/lib/issues";
+import { getSprintLifecycleState, isSprintLocked } from "@/lib/issues";
 import { ROLE_ADMIN } from "@/lib/roles";
+import { cn, formatDate } from "@/lib/utils";
 
 const BACKLOG_PROJECT_FILTER_STORAGE_KEY = "pirnav.backlog.projectId";
 
@@ -278,31 +300,358 @@ const updateBacklogIssueCollections = (data, filters, updater) => {
 };
 
 const BacklogSkeleton = () => (
-  <div className="space-y-4">
-    <Skeleton className="h-[156px] w-full rounded-[32px]" />
-    <Skeleton className="h-16 w-full rounded-[22px]" />
-    <div className="grid gap-4 lg:grid-cols-[minmax(280px,0.4fr)_minmax(0,0.6fr)] xl:h-[calc(100vh-13.75rem)]">
-      <Skeleton className="h-[560px] w-full rounded-[32px]" />
-      <Skeleton className="h-[560px] w-full rounded-[32px]" />
+  <div className="grid gap-4 lg:grid-cols-[238px_minmax(0,1fr)]">
+    <Skeleton className="h-[760px] w-full rounded-[20px]" />
+    <div className="space-y-4">
+      <Skeleton className="h-32 w-full rounded-[20px]" />
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <Skeleton className="h-28 w-full rounded-[18px]" />
+        <Skeleton className="h-28 w-full rounded-[18px]" />
+        <Skeleton className="h-28 w-full rounded-[18px]" />
+        <Skeleton className="h-28 w-full rounded-[18px]" />
+      </div>
+      <div className="grid gap-4 xl:grid-cols-[minmax(360px,0.92fr)_minmax(420px,1.08fr)]">
+        <Skeleton className="h-[560px] w-full rounded-[20px]" />
+        <Skeleton className="h-[560px] w-full rounded-[20px]" />
+      </div>
     </div>
   </div>
 );
 
-const SummaryBadge = ({ label, value }) => (
-  <div className="flex min-h-12 items-center justify-between gap-3 rounded-[18px] border border-white/70 bg-white/78 px-3.5 py-2 shadow-[0_12px_28px_-24px_rgba(15,23,42,0.38)] backdrop-blur-xl">
-    <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
-      {label}
-    </span>
-    <span className="text-lg font-semibold tracking-tight text-slate-950">{value}</span>
+const PLANNING_NAV_ITEMS = [
+  { label: "Overview", icon: BookOpen },
+  { label: "Backlog", icon: ClipboardList, active: true },
+  { label: "Active Sprint", icon: Flag },
+  { label: "Upcoming Sprints", icon: CalendarDays },
+  { label: "Completed Sprints", icon: CheckCircle2 },
+  { label: "Epics", icon: Layers3 },
+  { label: "My Work", icon: UserRound },
+];
+
+const getIssueProgressPercent = (issue) =>
+  Math.max(0, Math.min(100, Number(issue?.storyProgress?.percent || 0)));
+
+const getSprintIssueMetrics = (issues = []) => {
+  const totals = issues.reduce(
+    (metrics, issue) => {
+      const progress = issue?.storyProgress || {};
+
+      metrics.taskCount += Number(progress.taskCount || 0);
+      metrics.completedTaskCount += Number(progress.completedTaskCount || 0);
+      metrics.bugCount += Number(progress.bugCount || 0);
+      metrics.resolvedBugCount += Number(progress.resolvedBugCount || 0);
+      metrics.progressTotal += getIssueProgressPercent(issue);
+      return metrics;
+    },
+    {
+      taskCount: 0,
+      completedTaskCount: 0,
+      bugCount: 0,
+      resolvedBugCount: 0,
+      progressTotal: 0,
+    }
+  );
+  const issueCount = issues.length;
+
+  return {
+    ...totals,
+    issueCount,
+    completionPercent: issueCount ? Math.round(totals.progressTotal / issueCount) : 0,
+  };
+};
+
+const PlanningFilterSelect = ({ label, value, onChange, children, disabled = false }) => (
+  <label className="space-y-1">
+    <span className="text-[11px] font-medium text-slate-500">{label}</span>
+    <select
+      className="field-select h-9 rounded-[8px] border-slate-200 bg-white px-2.5 py-1.5 text-xs shadow-sm disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400"
+      value={value}
+      onChange={(event) => onChange(event.target.value)}
+      disabled={disabled}
+    >
+      {children}
+    </select>
+  </label>
+);
+
+const PlanningSidebar = ({
+  filters,
+  projects = [],
+  teams = [],
+  members = [],
+  epics = [],
+  sprints = [],
+  permissions = {},
+  onChange,
+  onResetFilters,
+  onCreateSprint,
+  onCreateEpic,
+  onAddWorkItem,
+}) => (
+  <aside className="rounded-[20px] border border-white/70 bg-white/88 p-3 shadow-[0_18px_48px_-38px_rgba(15,23,42,0.36)] backdrop-blur-xl lg:sticky lg:top-20 lg:max-h-[calc(100vh-6rem)] lg:overflow-y-auto">
+    <details className="group" open>
+      <summary className="flex cursor-pointer list-none items-center justify-between rounded-[12px] px-1 py-1 lg:pointer-events-none">
+        <span className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-slate-700">
+          <Zap className="h-3.5 w-3.5 text-blue-500" />
+          Planning
+        </span>
+        <ChevronDown className="h-4 w-4 text-slate-400 transition group-open:rotate-180 lg:hidden" />
+      </summary>
+
+      <div className="mt-3 space-y-4">
+        <nav className="space-y-1">
+          {PLANNING_NAV_ITEMS.map(({ label, icon: Icon, active }) => (
+            <button
+              key={label}
+              type="button"
+              className={cn(
+                "flex h-9 w-full items-center gap-2 rounded-[8px] px-2.5 text-left text-sm font-medium transition",
+                active
+                  ? "bg-[linear-gradient(135deg,rgba(79,70,229,0.12),rgba(14,165,233,0.1))] text-blue-700 shadow-sm"
+                  : "text-slate-600 hover:bg-slate-100/80 hover:text-slate-950"
+              )}
+            >
+              <Icon className="h-4 w-4 shrink-0" />
+              <span className="truncate">{label}</span>
+            </button>
+          ))}
+        </nav>
+
+        <div className="border-t border-slate-200/70 pt-4">
+          <div className="mb-3 flex items-center justify-between">
+            <span className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-slate-700">
+              <Filter className="h-3.5 w-3.5 text-blue-500" />
+              Filters
+            </span>
+            <Button type="button" variant="ghost" size="icon" className="h-7 w-7" onClick={onResetFilters}>
+              <TimerReset className="h-3.5 w-3.5" />
+            </Button>
+          </div>
+
+          <div className="space-y-2.5">
+            <PlanningFilterSelect label="Project" value={filters.projectId} onChange={(value) => onChange("projectId", value)}>
+              <option value="">Choose project</option>
+              {projects.map((project) => (
+                <option key={project._id} value={project._id}>
+                  {project.name}
+                </option>
+              ))}
+            </PlanningFilterSelect>
+            <PlanningFilterSelect label="Team" value={filters.teamId} onChange={(value) => onChange("teamId", value)}>
+              <option value="all">All teams</option>
+              {teams.map((team) => (
+                <option key={team._id} value={team._id}>
+                  {team.name}
+                </option>
+              ))}
+            </PlanningFilterSelect>
+            <PlanningFilterSelect label="Assignee" value={filters.assigneeId} onChange={(value) => onChange("assigneeId", value)}>
+              <option value="all">All members</option>
+              {members.map((member) => (
+                <option key={member._id} value={member._id}>
+                  {member.name}
+                </option>
+              ))}
+            </PlanningFilterSelect>
+            <PlanningFilterSelect
+              label="Sprint Scope"
+              value={filters.includeCompletedSprints ? "all" : "active"}
+              onChange={(value) => onChange("includeCompletedSprints", value === "all")}
+            >
+              <option value="active">Planned + active</option>
+              <option value="all">Include completed</option>
+            </PlanningFilterSelect>
+            <PlanningFilterSelect label="Sprint" value={filters.sprintId} onChange={(value) => onChange("sprintId", value)}>
+              <option value="all">All sprints</option>
+              <option value="backlog">Backlog only</option>
+              {sprints.map((sprint) => (
+                <option key={sprint._id} value={sprint._id}>
+                  {sprint.name}
+                </option>
+              ))}
+            </PlanningFilterSelect>
+            <PlanningFilterSelect label="Epic" value={filters.epicId} onChange={(value) => onChange("epicId", value)}>
+              <option value="all">All epics</option>
+              <option value="unassigned">Unassigned epic</option>
+              {epics.map((epic) => (
+                <option key={epic._id} value={epic._id}>
+                  {epic.name}
+                </option>
+              ))}
+            </PlanningFilterSelect>
+            <PlanningFilterSelect label="Priority" value={filters.priority} onChange={(value) => onChange("priority", value)}>
+              <option value="all">All priorities</option>
+              <option value="Critical">Critical</option>
+              <option value="High">High</option>
+              <option value="Medium">Medium</option>
+              <option value="Low">Low</option>
+            </PlanningFilterSelect>
+            <PlanningFilterSelect label="Status" value={filters.status} onChange={(value) => onChange("status", value)}>
+              <option value="all">All statuses</option>
+              <option value="DRAFT">Draft</option>
+              <option value="READY">Ready</option>
+              <option value="SPRINT_BACKLOG">Sprint Backlog</option>
+              <option value="IN_PROGRESS">In Progress</option>
+              <option value="TESTING">Testing</option>
+              <option value="READY_FOR_UAT">Ready for UAT</option>
+              <option value="DONE">Done</option>
+              <option value="CLOSED">Closed</option>
+            </PlanningFilterSelect>
+            <PlanningFilterSelect label="Issue Type" value="STORY" disabled onChange={() => {}}>
+              <option value="STORY">Story items</option>
+            </PlanningFilterSelect>
+            <label className="space-y-1">
+              <span className="text-[11px] font-medium text-slate-500">Created From</span>
+              <Input
+                type="date"
+                className="h-9 rounded-[8px] border-slate-200 bg-white px-2.5 text-xs shadow-sm"
+                value={filters.dateFrom}
+                onChange={(event) => onChange("dateFrom", event.target.value)}
+              />
+            </label>
+            <label className="space-y-1">
+              <span className="text-[11px] font-medium text-slate-500">Created To</span>
+              <Input
+                type="date"
+                className="h-9 rounded-[8px] border-slate-200 bg-white px-2.5 text-xs shadow-sm"
+                value={filters.dateTo}
+                onChange={(event) => onChange("dateTo", event.target.value)}
+              />
+            </label>
+          </div>
+        </div>
+
+        <div className="border-t border-slate-200/70 pt-4">
+          <span className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-700">
+            Quick Actions
+          </span>
+          <div className="mt-3 space-y-2">
+            {permissions.canManageEpics ? (
+              <Button type="button" variant="outline" className="h-9 w-full justify-start rounded-[8px]" onClick={onCreateEpic}>
+                <Plus className="h-4 w-4" />
+                Create Epic
+              </Button>
+            ) : null}
+            {permissions.canManageSprints ? (
+              <Button type="button" variant="outline" className="h-9 w-full justify-start rounded-[8px] border-emerald-100 bg-emerald-50/70 text-emerald-700 hover:bg-emerald-100/70" onClick={onCreateSprint}>
+                <Plus className="h-4 w-4" />
+                Create Sprint
+              </Button>
+            ) : null}
+            <Button type="button" variant="outline" className="h-9 w-full justify-start rounded-[8px] border-blue-100 bg-blue-50/70 text-blue-700 hover:bg-blue-100/70" onClick={onAddWorkItem}>
+              <Plus className="h-4 w-4" />
+              Add Work Item
+            </Button>
+          </div>
+        </div>
+      </div>
+    </details>
+  </aside>
+);
+
+const PlanningHeader = ({
+  filters,
+  permissions = {},
+  selectedEpic = null,
+  onChange,
+  onCreateEpic,
+  onCreateSprint,
+  onEditEpic,
+  onDeleteEpic,
+}) => (
+  <section className="rounded-[20px] border border-white/70 bg-white/88 p-4 shadow-[0_18px_48px_-38px_rgba(15,23,42,0.36)] backdrop-blur-xl">
+    <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
+      <div>
+        <h1 className="text-2xl font-semibold tracking-tight text-slate-950">Planning Hub</h1>
+        <p className="mt-1 text-sm text-slate-600">
+          Prioritize work, organize your backlog and plan successful sprints.
+        </p>
+      </div>
+      <div className="flex flex-wrap items-center gap-2">
+        {permissions.canManageEpics && selectedEpic ? (
+          <>
+            <Button type="button" variant="outline" className="h-9 rounded-[8px]" onClick={onEditEpic}>
+              Edit Epic
+            </Button>
+            <Button type="button" variant="outline" className="h-9 rounded-[8px]" onClick={onDeleteEpic}>
+              Delete Epic
+            </Button>
+          </>
+        ) : null}
+        {permissions.canManageEpics ? (
+          <Button type="button" variant="outline" className="h-9 rounded-[8px]" onClick={onCreateEpic}>
+            <Plus className="h-4 w-4" />
+            Create Epic
+          </Button>
+        ) : null}
+        {permissions.canManageSprints ? (
+          <Button type="button" className="h-9 rounded-[8px]" onClick={onCreateSprint}>
+            <Plus className="h-4 w-4" />
+            Create Sprint
+          </Button>
+        ) : null}
+      </div>
+    </div>
+
+    <div className="mt-4 flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+      <div className="relative max-w-xl flex-1">
+        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+        <Input
+          className="h-10 rounded-[8px] border-slate-200 bg-white pl-9 text-sm shadow-sm"
+          placeholder="Search backlog items, epics, sprints..."
+          value={filters.search}
+          onChange={(event) => onChange("search", event.target.value)}
+        />
+      </div>
+      <div className="flex items-center gap-2">
+        <div className="inline-flex rounded-[8px] border border-slate-200 bg-white p-1 shadow-sm">
+          <Button type="button" size="sm" className="h-8 rounded-[6px] px-3">
+            <List className="h-4 w-4" />
+            List
+          </Button>
+          <Button type="button" size="sm" variant="ghost" className="h-8 rounded-[6px] px-3 text-slate-600">
+            <KanbanSquare className="h-4 w-4" />
+            Board
+          </Button>
+          <Button type="button" size="sm" variant="ghost" className="h-8 rounded-[6px] px-3 text-slate-600">
+            <BarChart3 className="h-4 w-4" />
+            Timeline
+          </Button>
+        </div>
+        <Button type="button" variant="outline" size="icon" className="h-10 w-10 rounded-[8px]">
+          <MoreVertical className="h-4 w-4" />
+        </Button>
+      </div>
+    </div>
+  </section>
+);
+
+const SummaryCard = ({ title, value, detail, icon: Icon, accentClass, progress = null }) => (
+  <div className="rounded-[18px] border border-white/70 bg-white/90 p-4 shadow-[0_16px_42px_-34px_rgba(15,23,42,0.34)] backdrop-blur-xl">
+    <div className="flex items-start justify-between gap-3">
+      <div>
+        <p className="text-sm font-semibold text-slate-600">{title}</p>
+        <p className="mt-2 text-2xl font-semibold tracking-tight text-slate-950">{value}</p>
+        {detail ? <p className="mt-1 text-xs font-medium text-slate-500">{detail}</p> : null}
+      </div>
+      <div className={cn("flex h-11 w-11 items-center justify-center rounded-full", accentClass)}>
+        <Icon className="h-5 w-5" />
+      </div>
+    </div>
+    {progress !== null ? (
+      <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-slate-200">
+        <div className="h-full rounded-full bg-emerald-500" style={{ width: `${progress}%` }} />
+      </div>
+    ) : null}
   </div>
 );
 
-const BacklogSummaryStrip = ({ summary = null, unassignedCount = 0 }) => (
-  <section className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
-    <SummaryBadge label="Backlog" value={summary?.backlogIssueCount || 0} />
-    <SummaryBadge label="Active Sprint" value={summary?.activeSprintCount || 0} />
-    <SummaryBadge label="Planned" value={summary?.plannedSprintCount || 0} />
-    <SummaryBadge label="Unassigned" value={unassignedCount} />
+const PlanningSummary = ({ backlogCount = 0, activeIssueCount = 0, activeProgress = 0, plannedCount = 0, unassignedCount = 0 }) => (
+  <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+    <SummaryCard title="Backlog" value={backlogCount} detail="+ this planning view" icon={Layers3} accentClass="bg-indigo-50 text-indigo-600" />
+    <SummaryCard title="Active Sprint" value={`${activeIssueCount} issues`} detail={`${activeProgress}% completed`} icon={Flag} accentClass="bg-emerald-50 text-emerald-600" progress={activeProgress} />
+    <SummaryCard title="Upcoming Sprints" value={plannedCount} detail="Ready to plan" icon={CalendarDays} accentClass="bg-amber-50 text-amber-600" />
+    <SummaryCard title="Needs Assignment" value={unassignedCount} detail="Unassigned epic" icon={UserRound} accentClass="bg-rose-50 text-rose-600" />
   </section>
 );
 
@@ -637,6 +986,29 @@ const BacklogPage = () => {
     () => allSprints.filter((sprint) => sprint.state === "PLANNED"),
     [allSprints]
   );
+  const activeSprintSection = useMemo(
+    () =>
+      boardState.sprintSections.find(
+        (section) => getSprintLifecycleState(section.sprint) === "ACTIVE"
+      ) || null,
+    [boardState.sprintSections]
+  );
+  const activeSprintMetrics = useMemo(
+    () => getSprintIssueMetrics(activeSprintSection?.issues || []),
+    [activeSprintSection?.issues]
+  );
+  const sprintSectionsForDisplay = useMemo(() => {
+    if (!activeSprintSection) {
+      return boardState.sprintSections;
+    }
+
+    return [
+      activeSprintSection,
+      ...boardState.sprintSections.filter(
+        (section) => String(section.sprint._id) !== String(activeSprintSection.sprint._id)
+      ),
+    ];
+  }, [activeSprintSection, boardState.sprintSections]);
   const planningIssues = useMemo(() => getAllBoardIssues(boardState), [boardState]);
   const unassignedEpicCount = useMemo(
     () => planningIssues.filter((issue) => !issue?.epicId?._id && !issue?.epicId).length,
@@ -1017,40 +1389,44 @@ const BacklogPage = () => {
 
   if (!filters.projectId) {
     return (
-      <div className="space-y-4">
-        <BacklogToolbar
+      <div className="grid gap-4 lg:grid-cols-[238px_minmax(0,1fr)]">
+        <PlanningSidebar
           filters={filters}
           projects={projects}
           teams={availableTeams}
           members={availableMembers}
-          epics={[]}
           permissions={{}}
-          selectedEpic={null}
           onChange={handleFilterChange}
           onResetFilters={handleResetFilters}
-          onCreateSprint={() =>
-            setSprintDialogState({
-              open: true,
-              sprint: null,
-            })
-          }
-          onCreateEpic={() =>
-            setEpicDialogState({
-              open: true,
-              epic: null,
+          onCreateSprint={() => setSprintDialogState({ open: true, sprint: null })}
+          onCreateEpic={() => setEpicDialogState({ open: true, epic: null })}
+          onAddWorkItem={() =>
+            setToast({
+              type: "info",
+              message: "Select a project before adding work to the backlog.",
             })
           }
         />
 
-        <Card className="border-white/70 bg-white/92 shadow-[0_18px_50px_-34px_rgba(15,23,42,0.45)] backdrop-blur">
-          <CardContent className="p-8">
-            <EmptyState
-              title="Select a project backlog"
-              description="Choose a project from the filter bar to load backlog planning. The page now keeps your last valid project selection instead of auto-switching to the first project."
-              icon={<FolderKanban className="h-5 w-5" />}
-            />
-          </CardContent>
-        </Card>
+        <main className="min-w-0 space-y-4">
+          <PlanningHeader
+            filters={filters}
+            permissions={{}}
+            onChange={handleFilterChange}
+            onCreateSprint={() => setSprintDialogState({ open: true, sprint: null })}
+            onCreateEpic={() => setEpicDialogState({ open: true, epic: null })}
+          />
+
+          <Card className="border-white/70 bg-white/92 shadow-[0_18px_50px_-34px_rgba(15,23,42,0.45)] backdrop-blur">
+            <CardContent className="p-8">
+              <EmptyState
+                title="Select a project backlog"
+                description="Choose a project from the Planning filters to load backlog planning. The page keeps your last valid project selection instead of auto-switching to the first project."
+                icon={<FolderKanban className="h-5 w-5" />}
+              />
+            </CardContent>
+          </Card>
+        </main>
 
         <ToastNotice toast={toast} onDismiss={() => setToast(null)} />
       </div>
@@ -1058,8 +1434,8 @@ const BacklogPage = () => {
   }
 
   return (
-    <div className="space-y-4">
-      <BacklogToolbar
+    <div className="grid gap-4 lg:grid-cols-[238px_minmax(0,1fr)]">
+      <PlanningSidebar
         filters={filters}
         projects={projects}
         teams={availableTeams}
@@ -1070,18 +1446,24 @@ const BacklogPage = () => {
         selectedEpic={selectedEpic}
         onChange={handleFilterChange}
         onResetFilters={handleResetFilters}
-        onCreateSprint={() =>
-          setSprintDialogState({
-            open: true,
-            sprint: null,
+        onCreateSprint={() => setSprintDialogState({ open: true, sprint: null })}
+        onCreateEpic={() => setEpicDialogState({ open: true, epic: null })}
+        onAddWorkItem={() =>
+          setToast({
+            type: "info",
+            message: "Use Stories, Tasks, or Bugs to create new work items, then plan them here.",
           })
         }
-        onCreateEpic={() =>
-          setEpicDialogState({
-            open: true,
-            epic: null,
-          })
-        }
+      />
+
+      <main className="min-w-0 space-y-4">
+        <PlanningHeader
+          filters={filters}
+          permissions={permissions}
+          selectedEpic={selectedEpic}
+          onChange={handleFilterChange}
+          onCreateSprint={() => setSprintDialogState({ open: true, sprint: null })}
+          onCreateEpic={() => setEpicDialogState({ open: true, epic: null })}
         onEditEpic={() =>
           setEpicDialogState({
             open: true,
@@ -1111,13 +1493,16 @@ const BacklogPage = () => {
         }}
       />
 
-      <BacklogSummaryStrip
-        summary={backlogData?.summary}
+      <PlanningSummary
+        backlogCount={backlogData?.summary?.backlogIssueCount || boardState.backlogIssues.length}
+        activeIssueCount={activeSprintMetrics.issueCount}
+        activeProgress={activeSprintMetrics.completionPercent}
+        plannedCount={backlogData?.summary?.plannedSprintCount || plannedSprints.length}
         unassignedCount={unassignedEpicCount}
       />
 
-      <div className="grid gap-4 lg:grid-cols-[minmax(280px,0.4fr)_minmax(0,0.6fr)] xl:h-[calc(100vh-14rem)]">
-        <Card className="overflow-hidden border-white/70 bg-white/90 shadow-[0_18px_48px_-36px_rgba(15,23,42,0.42)] backdrop-blur-xl xl:h-full">
+      <div className="grid gap-4 xl:grid-cols-[minmax(360px,0.95fr)_minmax(420px,1.05fr)] xl:h-[calc(100vh-17.5rem)]">
+        <Card className="overflow-hidden rounded-[20px] border-white/70 bg-white/90 shadow-[0_18px_48px_-36px_rgba(15,23,42,0.42)] backdrop-blur-xl xl:h-full">
           <CardContent
             className="flex h-full min-h-0 flex-col p-0"
             onDragOver={(event) => {
@@ -1139,20 +1524,23 @@ const BacklogPage = () => {
             }}
           >
             <div className="border-b border-white/60 px-4 py-3">
-              <div className="inline-flex items-center gap-2 rounded-full border border-white/65 bg-white/68 px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.22em] text-slate-500 shadow-sm backdrop-blur-xl">
-                <Layers3 className="h-3.5 w-3.5" />
-                <span>Backlog</span>
-              </div>
-              <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
+              <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
-                  <p className="text-base font-semibold text-slate-950">Backlog Queue</p>
-                  <p className="mt-0.5 text-sm text-slate-600">
-                    Drag straight into a sprint or use the row picker to schedule work quickly.
+                  <div className="flex items-center gap-2">
+                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-700">
+                      Product Backlog
+                    </p>
+                    <Badge className="h-5 border border-slate-200 bg-slate-100 px-2 text-[11px] text-slate-700 hover:bg-slate-100">
+                      {boardState.backlogIssues.length}
+                    </Badge>
+                  </div>
+                  <p className="mt-1 text-xs text-slate-500">
+                    Drag into a sprint or use a row picker to schedule work.
                   </p>
                 </div>
-                <span className="rounded-full border border-white/65 bg-white/72 px-3 py-1.5 text-xs font-semibold text-slate-600 shadow-sm">
-                  {boardState.backlogIssues.length} work items
-                </span>
+                <Button type="button" variant="outline" size="icon" className="h-8 w-8 rounded-[8px]">
+                  <MoreVertical className="h-4 w-4" />
+                </Button>
               </div>
             </div>
 
@@ -1189,30 +1577,75 @@ const BacklogPage = () => {
           </CardContent>
         </Card>
 
-        <Card className="overflow-hidden border-blue-100/90 bg-[linear-gradient(180deg,rgba(255,255,255,0.94),rgba(239,246,255,0.72))] shadow-[0_24px_60px_-40px_rgba(37,99,235,0.42)] backdrop-blur-xl xl:h-full">
+        <Card className="overflow-hidden rounded-[20px] border-blue-100/90 bg-[linear-gradient(180deg,rgba(255,255,255,0.94),rgba(239,246,255,0.72))] shadow-[0_24px_60px_-40px_rgba(37,99,235,0.42)] backdrop-blur-xl xl:h-full">
           <CardContent className="flex h-full min-h-0 flex-col p-0">
             <div className="border-b border-white/70 px-4 py-3">
-              <div className="inline-flex items-center gap-2 rounded-full border border-white/65 bg-white/68 px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.22em] text-slate-500 shadow-sm backdrop-blur-xl">
-                <Flag className="h-3.5 w-3.5" />
-                <span>Sprint Planning</span>
-              </div>
-              <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
+              <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
-                  <p className="text-base font-semibold text-slate-950">Sprint Planning</p>
-                  <p className="mt-0.5 text-sm text-slate-600">
-                    Sprint scope stays visible while you assign work items, reorder work, and start planning.
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-700">
+                      Active Sprint
+                    </p>
+                    {activeSprintSection ? (
+                      <Badge className="h-5 border border-emerald-200 bg-emerald-50 px-2 text-[11px] text-emerald-700 hover:bg-emerald-50">
+                        In Progress
+                      </Badge>
+                    ) : null}
+                  </div>
+                  <p className="mt-1 text-base font-semibold text-slate-950">
+                    {activeSprintSection?.sprint?.name || "No active sprint"}
                   </p>
+                  {activeSprintSection ? (
+                    <p className="mt-0.5 text-xs text-slate-500">
+                      {activeSprintSection.sprint.startDate ? formatDate(activeSprintSection.sprint.startDate) : "No start date"}
+                      {" - "}
+                      {activeSprintSection.sprint.endDate ? formatDate(activeSprintSection.sprint.endDate) : "No end date"}
+                    </p>
+                  ) : (
+                    <p className="mt-0.5 text-xs text-slate-500">
+                      Start a planned sprint to focus this workspace.
+                    </p>
+                  )}
                 </div>
-                <span className="rounded-full border border-white/65 bg-white/72 px-3 py-1.5 text-xs font-semibold text-slate-600 shadow-sm">
-                  {boardState.sprintSections.length} sprints
-                </span>
+                <Button type="button" variant="outline" size="icon" className="h-8 w-8 rounded-[8px]">
+                  <MoreVertical className="h-4 w-4" />
+                </Button>
               </div>
+              {activeSprintSection ? (
+                <div className="mt-3 grid gap-3 sm:grid-cols-4">
+                  <div>
+                    <p className="text-lg font-semibold text-slate-950">{activeSprintMetrics.issueCount}</p>
+                    <p className="text-xs text-slate-500">Issues</p>
+                  </div>
+                  <div>
+                    <p className="text-lg font-semibold text-slate-950">{activeSprintMetrics.taskCount}</p>
+                    <p className="text-xs text-slate-500">Tasks</p>
+                  </div>
+                  <div>
+                    <p className="text-lg font-semibold text-slate-950">{activeSprintMetrics.bugCount}</p>
+                    <p className="text-xs text-slate-500">Bugs</p>
+                  </div>
+                  <div>
+                    <p className="text-lg font-semibold text-slate-950">{activeSprintMetrics.completionPercent}%</p>
+                    <p className="text-xs text-slate-500">Completed</p>
+                    <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-slate-200">
+                      <div className="h-full rounded-full bg-emerald-500" style={{ width: `${activeSprintMetrics.completionPercent}%` }} />
+                    </div>
+                  </div>
+                </div>
+              ) : null}
+              {activeSprintSection?.sprint?.goal ? (
+                <div className="mt-3 rounded-[12px] bg-white/70 px-3 py-2 text-xs text-slate-600">
+                  <span className="font-semibold text-slate-700">Sprint Goal </span>
+                  {activeSprintSection.sprint.goal}
+                </div>
+              ) : null}
             </div>
 
             <div className="min-h-0 overflow-y-auto p-3">
               <div className="space-y-3">
-                {boardState.sprintSections.length ? (
-                  boardState.sprintSections.map((section) => (
+                {sprintSectionsForDisplay.length ? (
+                  sprintSectionsForDisplay.map((section) => (
                     <SprintSection
                       key={section.sprint._id}
                       sprint={section.sprint}
@@ -1548,6 +1981,7 @@ const BacklogPage = () => {
       />
 
       <ToastNotice toast={toast} onDismiss={() => setToast(null)} />
+      </main>
     </div>
   );
 };
