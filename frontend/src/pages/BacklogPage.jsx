@@ -300,9 +300,9 @@ const updateBacklogIssueCollections = (data, filters, updater) => {
 };
 
 const BacklogSkeleton = () => (
-  <div className="grid h-full min-h-0 w-full gap-4 overflow-hidden lg:grid-cols-[238px_minmax(0,1fr)]">
-    <Skeleton className="hidden h-full w-full rounded-none lg:block" />
-    <div className="min-h-0 space-y-4 overflow-y-auto p-4">
+  <div className="grid w-full gap-4 lg:grid-cols-[238px_minmax(0,1fr)]">
+    <Skeleton className="hidden h-[calc(100vh-6rem)] w-full rounded-none lg:block" />
+    <div className="min-w-0 space-y-4 pr-1">
       <Skeleton className="h-32 w-full rounded-[20px]" />
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <Skeleton className="h-28 w-full rounded-[18px]" />
@@ -388,8 +388,8 @@ const PlanningSidebar = ({
   onCreateEpic,
   onAddWorkItem,
 }) => (
-  <aside className="min-h-0 min-w-0 border-r border-[#EEF2F7] bg-white/72 pr-3">
-    <details className="group sticky top-0 flex h-full min-h-0 flex-col py-3" open>
+  <aside className="min-w-0 border-r border-[#EEF2F7] bg-white/72 pr-3 lg:sticky lg:top-0 lg:h-[calc(100vh-5.5rem)] lg:self-start lg:overflow-hidden">
+    <details className="group flex h-full min-h-0 flex-col py-3" open>
       <summary className="flex cursor-pointer list-none items-center justify-between rounded-lg px-3 py-1 lg:pointer-events-none">
         <span className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-slate-700">
           <Zap className="h-3.5 w-3.5 text-blue-500" />
@@ -1389,7 +1389,7 @@ const BacklogPage = () => {
 
   if (!filters.projectId) {
     return (
-      <div className="grid h-full min-h-0 w-full gap-4 overflow-hidden lg:grid-cols-[238px_minmax(0,1fr)]">
+      <div className="grid w-full gap-4 lg:grid-cols-[238px_minmax(0,1fr)]">
         <PlanningSidebar
           filters={filters}
           projects={projects}
@@ -1408,7 +1408,7 @@ const BacklogPage = () => {
           }
         />
 
-        <main className="min-h-0 min-w-0 space-y-4 overflow-y-auto pr-1">
+        <main className="min-w-0 space-y-4 pr-1">
           <PlanningHeader
             filters={filters}
             permissions={{}}
@@ -1434,7 +1434,7 @@ const BacklogPage = () => {
   }
 
   return (
-    <div className="grid h-full min-h-0 w-full gap-4 overflow-hidden lg:grid-cols-[238px_minmax(0,1fr)]">
+    <div className="grid w-full gap-4 lg:grid-cols-[238px_minmax(0,1fr)]">
       <PlanningSidebar
         filters={filters}
         projects={projects}
@@ -1456,7 +1456,7 @@ const BacklogPage = () => {
         }
       />
 
-      <main className="min-h-0 min-w-0 space-y-4 overflow-y-auto pr-1">
+      <main className="min-w-0 space-y-4 pr-1">
         <PlanningHeader
           filters={filters}
           permissions={permissions}
@@ -1501,10 +1501,10 @@ const BacklogPage = () => {
         unassignedCount={unassignedEpicCount}
       />
 
-      <div className="grid gap-4 xl:grid-cols-[minmax(360px,0.95fr)_minmax(420px,1.05fr)] xl:h-[calc(100vh-17.5rem)]">
-        <Card className="overflow-hidden rounded-[20px] border-white/70 bg-white/90 shadow-[0_18px_48px_-36px_rgba(15,23,42,0.42)] backdrop-blur-xl xl:h-full">
+      <div className="grid items-start gap-4 xl:grid-cols-[minmax(360px,0.95fr)_minmax(420px,1.05fr)]">
+        <Card className="overflow-hidden rounded-[20px] border-white/70 bg-white/90 shadow-[0_18px_48px_-36px_rgba(15,23,42,0.42)] backdrop-blur-xl">
           <CardContent
-            className="flex h-full min-h-0 flex-col p-0"
+            className="flex flex-col p-0"
             onDragOver={(event) => {
               if (!permissions.canReorderIssues) {
                 return;
@@ -1544,7 +1544,7 @@ const BacklogPage = () => {
               </div>
             </div>
 
-            <div className="min-h-0 overflow-y-auto p-2.5">
+            <div className="p-2.5">
               <div className="space-y-2">
                 {boardState.backlogIssues.length ? (
                   boardState.backlogIssues.map((issue) => (
@@ -1577,8 +1577,8 @@ const BacklogPage = () => {
           </CardContent>
         </Card>
 
-        <Card className="overflow-hidden rounded-[20px] border-blue-100/90 bg-[linear-gradient(180deg,rgba(255,255,255,0.94),rgba(239,246,255,0.72))] shadow-[0_24px_60px_-40px_rgba(37,99,235,0.42)] backdrop-blur-xl xl:h-full">
-          <CardContent className="flex h-full min-h-0 flex-col p-0">
+        <Card className="overflow-hidden rounded-[20px] border-blue-100/90 bg-[linear-gradient(180deg,rgba(255,255,255,0.94),rgba(239,246,255,0.72))] shadow-[0_24px_60px_-40px_rgba(37,99,235,0.42)] backdrop-blur-xl">
+          <CardContent className="flex flex-col p-0">
             <div className="border-b border-white/70 px-4 py-3">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
@@ -1642,7 +1642,7 @@ const BacklogPage = () => {
               ) : null}
             </div>
 
-            <div className="min-h-0 overflow-y-auto p-3">
+            <div className="p-3">
               <div className="space-y-3">
                 {sprintSectionsForDisplay.length ? (
                   sprintSectionsForDisplay.map((section) => (
