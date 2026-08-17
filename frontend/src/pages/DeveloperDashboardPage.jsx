@@ -676,11 +676,17 @@ const DeveloperAiCodeReviewCard = ({ isLoading, project }) => {
   const hasCommit = Boolean(activity.commitSha);
 
   return (
-    <Card className="rounded-2xl border-blue-100/80 bg-white/90 shadow-[0_18px_46px_-36px_rgba(37,99,235,0.45)]">
-      <CardContent className="flex h-full flex-col p-4">
+    <Card className="relative overflow-hidden rounded-2xl border-blue-100/80 bg-[linear-gradient(135deg,rgba(255,255,255,0.96),rgba(239,246,255,0.88)_45%,rgba(236,253,245,0.68))] shadow-[0_26px_70px_-42px_rgba(37,99,235,0.68)]">
+      <motion.div
+        aria-hidden="true"
+        animate={{ x: ["-18%", "18%", "-18%"], opacity: [0.35, 0.7, 0.35] }}
+        className="pointer-events-none absolute left-8 top-0 h-px w-2/3 bg-gradient-to-r from-transparent via-cyan-300 to-transparent"
+        transition={{ duration: 5, ease: "easeInOut", repeat: Infinity }}
+      />
+      <CardContent className="relative flex h-full flex-col p-4">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-blue-600">AI Code Review</p>
+            <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-blue-600">AI Code Review</p>
             {isLoading ? (
               <div className="mt-2 space-y-2">
                 <Skeleton className="h-5 w-44 rounded-full" />
@@ -697,9 +703,13 @@ const DeveloperAiCodeReviewCard = ({ isLoading, project }) => {
               </>
             )}
           </div>
-          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl border border-blue-100 bg-blue-50 text-blue-600">
+          <motion.span
+            animate={{ y: [0, -3, 0] }}
+            className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl border border-white/80 bg-white/85 text-blue-600 shadow-[0_12px_30px_-22px_rgba(37,99,235,0.75)]"
+            transition={{ duration: 2.4, ease: "easeInOut", repeat: Infinity }}
+          >
             <Sparkles className="h-5 w-5" aria-hidden="true" />
-          </span>
+          </motion.span>
         </div>
 
         {isLoading ? (
@@ -710,7 +720,8 @@ const DeveloperAiCodeReviewCard = ({ isLoading, project }) => {
         ) : (
           <AiCodeReviewPanel
             activity={activity}
-            className="mt-4 flex-1"
+            className="mt-4"
+            dashboard
             project={project}
             showTitle={false}
             surface={false}
