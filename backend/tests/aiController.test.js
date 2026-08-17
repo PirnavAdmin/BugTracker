@@ -1,6 +1,7 @@
 const { test } = require("node:test");
 const assert = require("node:assert");
 const aiService = require("../services/aiService");
+const aiPolicyService = require("../services/aiPolicyService");
 const githubCommitDiff = require("../utils/githubCommitDiff");
 const Project = require("../models/Project");
 const {
@@ -11,6 +12,8 @@ const { ROLE_ADMIN } = require("../utils/roles");
 
 const originalGenerateWorkItemDescription = aiService.generateWorkItemDescription;
 const originalGenerateCodeReview = aiService.generateCodeReview;
+const originalCheckAIAccess = aiPolicyService.checkAIAccess;
+const originalRecordAIUsage = aiPolicyService.recordAIUsage;
 const originalGetCommitDiffForProject = githubCommitDiff.getCommitDiffForProject;
 const originalProjectFindOne = Project.findOne;
 
@@ -34,7 +37,15 @@ const createResponse = () => {
 };
 
 const callController = async (body) => {
-  const req = { body };
+  const req = {
+    body,
+    user: {
+      _id: "user-1",
+      id: "user-1",
+      role: ROLE_ADMIN,
+      workspaceId: "workspace-1",
+    },
+  };
   const res = createResponse();
 
   await generateWorkItemDescription(req, res, () => {});
@@ -93,8 +104,15 @@ const createProjectDoc = (overrides = {}) => ({
 test.afterEach(() => {
   aiService.generateWorkItemDescription = originalGenerateWorkItemDescription;
   aiService.generateCodeReview = originalGenerateCodeReview;
+  aiPolicyService.checkAIAccess = originalCheckAIAccess;
+  aiPolicyService.recordAIUsage = originalRecordAIUsage;
   githubCommitDiff.getCommitDiffForProject = originalGetCommitDiffForProject;
   Project.findOne = originalProjectFindOne;
+});
+
+test.beforeEach(() => {
+  aiPolicyService.checkAIAccess = async () => ({ allowed: true });
+  aiPolicyService.recordAIUsage = async () => ({ _id: "usage-1" });
 });
 
 test("validates task description generation request", async () => {

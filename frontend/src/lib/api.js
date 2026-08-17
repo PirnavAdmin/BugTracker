@@ -1101,6 +1101,23 @@ export const saveScreenPermissions = async (permissions = {}) => {
   return response.data;
 };
 
+export const fetchAISettings = async () => {
+  const response = await api.get("/settings/ai");
+  return response.data?.settings || {};
+};
+
+export const saveAISettings = async (settings = {}) => {
+  const response = await api.post("/settings/ai", { settings });
+  return response.data;
+};
+
+export const fetchAIUsage = async (filters = {}) => {
+  const response = await api.get("/settings/ai/usage", {
+    params: buildParams(filters),
+  });
+  return response.data?.usage || {};
+};
+
 export const importUsers = async (file) => {
   const formData = new FormData();
   formData.append("file", file);

@@ -32,6 +32,12 @@ const {
   buildWorkspaceSenderResponse,
 } = require("../utils/workspaceSender");
 const { normalizeWorkspaceId } = require("../utils/workspace");
+const {
+  getAIUsageAnalytics,
+  getWorkspaceAISettings,
+  normalizeAISettings,
+  updateWorkspaceAISettings,
+} = require("../services/aiPolicyService");
 
 const MASKED_PASSWORD_PATTERN = /^(?:\*|â€¢|â—|âˆ™){6,}$/u;
 
@@ -204,6 +210,91 @@ const requireScreenPermissionSettingsAccess = (req, res) => {
     throw new Error("Only admins and managers can manage screen permissions");
   }
 };
+
+const requireAISettingsAccess = (req, res) => {
+  if (!hasAdminAccess(req.user?.role)) {
+    res.status(403);
+    throw new Error("Only admins and managers can manage AI settings");
+  }
+};
+
+const assertValidAILimits = (settings = {}, res) => {
+  const limits = settings?.limits || {};
+  const invalidLimit = Object.entries(limits).find(([, value]) => {
+    if (value === "" || value === null || value === undefined) {
+      return false;
+    }
+
+    const numeric = Number(value);
+    return !Number.isFinite(numeric) || numeric < 0;
+  });
+
+  if (invalidLimit) {
+    res.status(400);
+    throw new Error("AI limits must be zero or greater");
+  }
+
+  if (settings.alerts?.thresholds) {
+    const thresholds = Array.isArray(settings.alerts.thresholds)
+      ? settings.alerts.thresholds
+      : [];
+    const invalidThreshold = thresholds.some((value) => {
+      const numeric = Number(value);
+      return !Number.isFinite(numeric) || numeric <= 0 || numeric > 100;
+    });
+
+    if (invalidThreshold) {
+      res.status(400);
+      throw new Error("AI alert thresholds must be numbers from 1 to 100");
+    }
+  }
+};
+
+const getAISettings = asyncHandler(async (req, res) => {
+  requireAISettingsAccess(req, res);
+
+  const workspaceId = normalizeWorkspaceId(req.user.workspaceId);
+  const settings = await getWorkspaceAISettings(workspaceId);
+
+  res.status(200).json({ settings });
+});
+
+const saveAISettings = asyncHandler(async (req, res) => {
+  requireAISettingsAccess(req, res);
+  assertValidAILimits(req.body?.settings || req.body || {}, res);
+
+  const workspaceId = normalizeWorkspaceId(req.user.workspaceId);
+  const settings = await updateWorkspaceAISettings({
+    settings: req.body?.settings || req.body || {},
+    updatedBy: req.user._id,
+    workspaceId,
+  });
+
+  res.status(200).json({
+    message: "AI settings saved.",
+    settings: normalizeAISettings(settings),
+  });
+});
+
+const getAIUsage = asyncHandler(async (req, res) => {
+  requireAISettingsAccess(req, res);
+
+  const workspaceId = normalizeWorkspaceId(req.user.workspaceId);
+  const usage = await getAIUsageAnalytics({
+    workspaceId,
+    filters: {
+      range: req.query.range,
+      startDate: req.query.startDate,
+      endDate: req.query.endDate,
+      feature: req.query.feature,
+      projectId: req.query.projectId,
+      role: req.query.role,
+      userId: req.query.userId,
+    },
+  });
+
+  res.status(200).json({ usage });
+});
 
 const getModuleOwnerships = asyncHandler(async (req, res) => {
   const workspaceId = normalizeWorkspaceId(req.user.workspaceId);
@@ -1309,6 +1400,9 @@ const saveWorkspaceSender = asyncHandler(async (req, res) => {
 });
 
 module.exports = {
+  getAISettings,
+  saveAISettings,
+  getAIUsage,
   getEmailConfig,
   saveEmailConfig,
   testEmailConfig,

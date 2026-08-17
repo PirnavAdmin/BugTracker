@@ -7,6 +7,9 @@ const {
   testEmailConfig,
   getScreenPermissions,
   saveScreenPermissions,
+  getAISettings,
+  saveAISettings,
+  getAIUsage,
   getModuleOwnerships,
   saveModuleOwnerships,
   getWorkspaceSender,
@@ -17,6 +20,9 @@ const {
 const router = express.Router();
 
 router.get("/screen-permissions", protect, getScreenPermissions);
+router.get("/ai", protect, getAISettings);
+router.post("/ai", protect, saveAISettings);
+router.get("/ai/usage", protect, getAIUsage);
 
 router.use(protect, mailSettingsAccess);
 

@@ -463,7 +463,14 @@ const generateCodeReview = async (context = {}) => {
       throw new Error("Empty Bedrock response");
     }
 
-    return normalizeCodeReviewResult(reviewText);
+    const normalizedReview = normalizeCodeReviewResult(reviewText);
+
+    Object.defineProperty(normalizedReview, "__usage", {
+      value: response.usage || {},
+      enumerable: false,
+    });
+
+    return normalizedReview;
   } catch (error) {
     const sanitizedError = new Error("Unable to generate code review");
     sanitizedError.cause = error;

@@ -4,6 +4,8 @@ const Project = require("../models/Project");
 const githubCommitDiff = require("../utils/githubCommitDiff");
 const { buildProjectAccessQuery } = require("../utils/projectRelations");
 const { reviewCodeChanges } = require("../services/aiCodeReviewService");
+const { AI_FEATURES } = require("../constants/aiFeatures");
+const aiPolicyService = require("../services/aiPolicyService");
 
 const MAX_TITLE_LENGTH = 180;
 const MAX_OPTIONAL_FIELD_LENGTH = 120;
@@ -40,6 +42,19 @@ const normalizeOptionalField = (value, maxLength = MAX_OPTIONAL_FIELD_LENGTH) =>
 };
 
 const normalizeCommitSha = (value) => String(value || "").trim();
+
+const getAIUserContext = (req = {}) => ({
+  role: req.user?.role || "",
+  userId: req.user?._id || req.user?.id || null,
+  workspaceId: req.user?.workspaceId,
+});
+
+const sendAIBlockedResponse = (res, access = {}) =>
+  res.status(403).json({
+    success: false,
+    code: access.code || "AI_ACCESS_DENIED",
+    message: access.message || "AI is not available for this request.",
+  });
 
 const normalizeAiReviewForResponse = (review = {}) => ({
   status: review.status || "NOT_REVIEWED",
@@ -149,6 +164,17 @@ const generateWorkItemDescription = asyncHandler(async (req, res) => {
   }
 
   try {
+    const userContext = getAIUserContext(req);
+    const access = await aiPolicyService.checkAIAccess({
+      ...userContext,
+      feature: AI_FEATURES.DESCRIPTION,
+    });
+
+    if (!access.allowed) {
+      return sendAIBlockedResponse(res, access);
+    }
+
+    const startedAt = Date.now();
     const description = await aiService.generateWorkItemDescription({
       title: normalizedTitle,
       workItemType: normalizedWorkItemType,
@@ -159,6 +185,13 @@ const generateWorkItemDescription = asyncHandler(async (req, res) => {
     if (typeof description !== "string" || !description.trim()) {
       throw new Error("AI service returned an empty description");
     }
+
+    await aiPolicyService.recordAIUsage({
+      ...userContext,
+      durationMs: Date.now() - startedAt,
+      feature: AI_FEATURES.DESCRIPTION,
+      status: "SUCCESS",
+    });
 
     return res.status(200).json({
       success: true,
@@ -221,6 +254,17 @@ const reviewCodeForCommit = asyncHandler(async (req, res) => {
     });
   }
 
+  const userContext = getAIUserContext(req);
+  const access = await aiPolicyService.checkAIAccess({
+    ...userContext,
+    feature: AI_FEATURES.CODE_REVIEW,
+    projectId,
+  });
+
+  if (!access.allowed) {
+    return sendAIBlockedResponse(res, access);
+  }
+
   const reviewingState = {
     status: "REVIEWING",
     score: null,
@@ -257,6 +301,7 @@ const reviewCodeForCommit = asyncHandler(async (req, res) => {
   await project.save();
 
   try {
+    const startedAt = Date.now();
     const repository = `${project.git?.repositoryOwner || ""}/${project.git?.repositoryName || ""}`.replace(
       /^\/|\/$/g,
       ""
@@ -291,6 +336,17 @@ const reviewCodeForCommit = asyncHandler(async (req, res) => {
       review: completedReview,
     });
     await project.save();
+    await aiPolicyService.recordAIUsage({
+      ...userContext,
+      commitSha,
+      durationMs: Date.now() - startedAt,
+      feature: AI_FEATURES.CODE_REVIEW,
+      inputTokens: review.__usage?.inputTokens,
+      outputTokens: review.__usage?.outputTokens,
+      projectId,
+      repository,
+      status: "SUCCESS",
+    });
 
     return res.status(200).json({
       success: true,

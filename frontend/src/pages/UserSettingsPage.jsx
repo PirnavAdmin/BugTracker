@@ -20,6 +20,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { useEmailSettings } from "@/hooks/useEmailSettings";
 import { useWorkspaceSender } from "@/hooks/useWorkspaceSender";
 import AdminSettingsLayout from "@/components/settings/AdminSettingsLayout";
+import AISettings from "@/components/settings/AISettings";
 import ChangePasswordSettings from "@/components/settings/ChangePasswordSettings";
 import ImportUsersCSVSettings from "@/components/settings/ImportUsersCSVSettings";
 import InviteUserSettings from "@/components/settings/InviteUserSettings";
@@ -38,6 +39,7 @@ const ADMIN_SETTINGS_ITEMS = [
   { id: "roles", label: "Modify User Role" },
   { id: "screens", label: "Screen Permissions" },
   { id: "ownership", label: "Module Ownership" },
+  { id: "ai", label: "AI Settings" },
   { id: "sender", label: "Workspace Mail Sender" },
   { id: "smtp", label: "SMTP Configuration" },
   { id: "import", label: "Import Users from CSV" },
@@ -838,6 +840,10 @@ const UserSettingsPage = () => {
 
     if (canManageWorkspaceUsers && activeSettingsItem === "screens") {
       return <ScreenPermissionsSettings showToast={showToast} />;
+    }
+
+    if (canManageWorkspaceUsers && activeSettingsItem === "ai") {
+      return <AISettings showToast={showToast} />;
     }
 
     if (activeSettingsItem === "smtp") {
