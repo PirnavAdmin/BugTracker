@@ -1,8 +1,11 @@
 const asyncHandler = require("../utils/asyncHandler");
 const aiService = require("../services/aiService");
+const { reviewCodeChanges } = require("../services/aiCodeReviewService");
 
 const MAX_TITLE_LENGTH = 180;
 const MAX_OPTIONAL_FIELD_LENGTH = 120;
+const MAX_REVIEW_CONTEXT_LENGTH = 4000;
+const MAX_DIFF_LENGTH = 60000;
 const SUPPORTED_WORK_ITEM_TYPES = new Set(["Task", "Bug"]);
 
 const normalizeWorkItemType = (value = "Task") => {
@@ -25,12 +28,12 @@ const sendValidationError = (res, message) =>
     message,
   });
 
-const normalizeOptionalField = (value) => {
+const normalizeOptionalField = (value, maxLength = MAX_OPTIONAL_FIELD_LENGTH) => {
   if (value === undefined || value === null) {
     return "";
   }
 
-  return String(value).trim().slice(0, MAX_OPTIONAL_FIELD_LENGTH);
+  return String(value).trim().slice(0, maxLength);
 };
 
 const generateWorkItemDescription = asyncHandler(async (req, res) => {
@@ -79,6 +82,53 @@ const generateWorkItemDescription = asyncHandler(async (req, res) => {
   }
 });
 
+const reviewCode = asyncHandler(async (req, res) => {
+  const {
+    diff,
+    changedFiles = [],
+    commitMessage = "",
+    projectContext = "",
+    storyContext = "",
+  } = req.body || {};
+
+  if (typeof diff !== "string" || !diff.trim()) {
+    return sendValidationError(res, "Code diff is required");
+  }
+
+  if (diff.length > MAX_DIFF_LENGTH) {
+    return sendValidationError(res, `Code diff must be ${MAX_DIFF_LENGTH} characters or fewer`);
+  }
+
+  if (!Array.isArray(changedFiles)) {
+    return sendValidationError(res, "changedFiles must be an array");
+  }
+
+  if (changedFiles.length > 100) {
+    return sendValidationError(res, "changedFiles cannot contain more than 100 files");
+  }
+
+  try {
+    const review = await reviewCodeChanges({
+      diff: diff.trim(),
+      changedFiles,
+      commitMessage: normalizeOptionalField(commitMessage, 1000),
+      projectContext: normalizeOptionalField(projectContext, MAX_REVIEW_CONTEXT_LENGTH),
+      storyContext: normalizeOptionalField(storyContext, MAX_REVIEW_CONTEXT_LENGTH),
+    });
+
+    return res.status(200).json({
+      success: true,
+      review,
+    });
+  } catch {
+    return res.status(502).json({
+      success: false,
+      message: "Unable to complete AI code review",
+    });
+  }
+});
+
 module.exports = {
   generateWorkItemDescription,
+  reviewCode,
 };
