@@ -388,8 +388,8 @@ const PlanningSidebar = ({
   onCreateEpic,
   onAddWorkItem,
 }) => (
-  <aside className="min-w-0 border-r border-[#EEF2F7] bg-white/72 pr-3 lg:sticky lg:top-0 lg:h-[calc(100vh-5.5rem)] lg:self-start lg:overflow-hidden">
-    <details className="group flex h-full min-h-0 flex-col py-3" open>
+  <aside className="min-w-0 border-r border-[#EEF2F7] bg-white/72 pr-3 lg:sticky lg:top-0 lg:h-[calc(100vh-5.5rem)] lg:self-start lg:overflow-y-scroll lg:[scrollbar-color:rgba(100,116,139,.65)_rgba(226,232,240,.85)] lg:[scrollbar-width:thin] lg:[&::-webkit-scrollbar]:w-2 lg:[&::-webkit-scrollbar-thumb]:rounded-full lg:[&::-webkit-scrollbar-thumb]:bg-slate-400/80 lg:[&::-webkit-scrollbar-track]:bg-slate-100/80">
+    <details className="group py-3" open>
       <summary className="flex cursor-pointer list-none items-center justify-between rounded-lg px-3 py-1 lg:pointer-events-none">
         <span className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-slate-700">
           <Zap className="h-3.5 w-3.5 text-blue-500" />
@@ -398,7 +398,7 @@ const PlanningSidebar = ({
         <ChevronDown className="h-4 w-4 text-slate-400 transition group-open:rotate-180 lg:hidden" />
       </summary>
 
-      <div className="mt-3 min-h-0 flex-1 space-y-4 overflow-y-auto px-3 pb-5">
+      <div className="mt-3 space-y-4 px-3 pb-5">
         <nav className="space-y-1">
           {PLANNING_NAV_ITEMS.map(({ label, icon: Icon, active }) => (
             <button
