@@ -300,9 +300,9 @@ const updateBacklogIssueCollections = (data, filters, updater) => {
 };
 
 const BacklogSkeleton = () => (
-  <div className="grid gap-4 lg:grid-cols-[238px_minmax(0,1fr)]">
-    <Skeleton className="h-[760px] w-full rounded-[20px]" />
-    <div className="space-y-4">
+  <div className="grid h-full min-h-0 w-full gap-4 overflow-hidden lg:grid-cols-[238px_minmax(0,1fr)]">
+    <Skeleton className="hidden h-full w-full rounded-none lg:block" />
+    <div className="min-h-0 space-y-4 overflow-y-auto p-4">
       <Skeleton className="h-32 w-full rounded-[20px]" />
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <Skeleton className="h-28 w-full rounded-[18px]" />
@@ -388,9 +388,9 @@ const PlanningSidebar = ({
   onCreateEpic,
   onAddWorkItem,
 }) => (
-  <aside className="rounded-[20px] border border-white/70 bg-white/88 p-3 shadow-[0_18px_48px_-38px_rgba(15,23,42,0.36)] backdrop-blur-xl lg:sticky lg:top-20 lg:max-h-[calc(100vh-6rem)] lg:overflow-y-auto">
-    <details className="group" open>
-      <summary className="flex cursor-pointer list-none items-center justify-between rounded-[12px] px-1 py-1 lg:pointer-events-none">
+  <aside className="min-h-0 min-w-0 border-r border-[#EEF2F7] bg-white/72 pr-3">
+    <details className="group sticky top-0 flex h-full min-h-0 flex-col py-3" open>
+      <summary className="flex cursor-pointer list-none items-center justify-between rounded-lg px-3 py-1 lg:pointer-events-none">
         <span className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-slate-700">
           <Zap className="h-3.5 w-3.5 text-blue-500" />
           Planning
@@ -398,7 +398,7 @@ const PlanningSidebar = ({
         <ChevronDown className="h-4 w-4 text-slate-400 transition group-open:rotate-180 lg:hidden" />
       </summary>
 
-      <div className="mt-3 space-y-4">
+      <div className="mt-3 min-h-0 flex-1 space-y-4 overflow-y-auto px-3 pb-5">
         <nav className="space-y-1">
           {PLANNING_NAV_ITEMS.map(({ label, icon: Icon, active }) => (
             <button
@@ -1389,7 +1389,7 @@ const BacklogPage = () => {
 
   if (!filters.projectId) {
     return (
-      <div className="grid gap-4 lg:grid-cols-[238px_minmax(0,1fr)]">
+      <div className="grid h-full min-h-0 w-full gap-4 overflow-hidden lg:grid-cols-[238px_minmax(0,1fr)]">
         <PlanningSidebar
           filters={filters}
           projects={projects}
@@ -1408,7 +1408,7 @@ const BacklogPage = () => {
           }
         />
 
-        <main className="min-w-0 space-y-4">
+        <main className="min-h-0 min-w-0 space-y-4 overflow-y-auto pr-1">
           <PlanningHeader
             filters={filters}
             permissions={{}}
@@ -1434,7 +1434,7 @@ const BacklogPage = () => {
   }
 
   return (
-    <div className="grid gap-4 lg:grid-cols-[238px_minmax(0,1fr)]">
+    <div className="grid h-full min-h-0 w-full gap-4 overflow-hidden lg:grid-cols-[238px_minmax(0,1fr)]">
       <PlanningSidebar
         filters={filters}
         projects={projects}
@@ -1456,7 +1456,7 @@ const BacklogPage = () => {
         }
       />
 
-      <main className="min-w-0 space-y-4">
+      <main className="min-h-0 min-w-0 space-y-4 overflow-y-auto pr-1">
         <PlanningHeader
           filters={filters}
           permissions={permissions}
