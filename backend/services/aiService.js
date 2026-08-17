@@ -7,6 +7,7 @@ const BEDROCK_REGION = process.env.BEDROCK_REGION || "ap-south-1";
 const BEDROCK_MODEL_ID =
   process.env.BEDROCK_MODEL_ID || "global.amazon.nova-2-lite-v1:0";
 const MAX_DESCRIPTION_WORDS = 350;
+const MAX_CODE_REVIEW_DIFF_CHARS = 30000;
 const SUPPORTED_WORK_ITEM_TYPES = new Set(["Task", "Bug"]);
 
 const systemPrompt = `You are CureCode AI, an engineering work-item assistant.
@@ -153,6 +154,153 @@ const enforceDescriptionWordLimit = (value = "", maxWords = MAX_DESCRIPTION_WORD
   return removeIncompleteTrailingSentence(words.slice(0, maxWords).join(" "));
 };
 
+const codeReviewSystemPrompt = `You are CureCode AI Code Review, a senior software reviewer.
+
+Review only the provided commit context and diffs. Do not infer unrelated repository behavior.
+
+Focus on correctness, security, validation, error handling, data consistency, regressions, and missing tests.
+
+Never invent files, line numbers, APIs, stack traces, credentials, database schemas, or implementation details.
+
+If a line number is not obvious from the diff hunk, return null for line.
+
+Return only valid JSON. No Markdown. No prose outside JSON.
+
+JSON shape:
+{
+  "score": 0-100,
+  "rating": "Good|Needs Attention|Risky",
+  "summary": "one concise paragraph",
+  "findings": [
+    {
+      "severity": "CRITICAL|HIGH|MEDIUM|LOW|SUGGESTION",
+      "title": "short title",
+      "file": "path from diff",
+      "line": number or null,
+      "confidence": 0-100,
+      "description": "specific issue",
+      "recommendation": "specific recommendation"
+    }
+  ],
+  "testingRecommendations": ["..."],
+  "positiveObservations": ["..."]
+}`;
+
+const buildCodeReviewPrompt = ({
+  projectName = "",
+  repository = "",
+  branch = "",
+  commitSha = "",
+  commitMessage = "",
+  filesChanged = [],
+  modulesChanged = [],
+  diff = {},
+}) => {
+  const files = Array.isArray(diff.files) ? diff.files : [];
+  const diffText = files
+    .map((file) =>
+      [
+        `File: ${file.filename}`,
+        `Status: ${file.status || "modified"}`,
+        `Additions: ${file.additions || 0}`,
+        `Deletions: ${file.deletions || 0}`,
+        file.patch ? `Patch:\n${file.patch}` : "Patch: unavailable",
+        file.patchTruncated ? "Patch was truncated for safety." : "",
+      ]
+        .filter(Boolean)
+        .join("\n")
+    )
+    .join("\n\n---\n\n")
+    .slice(0, MAX_CODE_REVIEW_DIFF_CHARS);
+
+  return `Project: ${projectName || "Unknown"}
+Repository: ${repository || "Unknown"}
+Branch: ${branch || "Unknown"}
+Commit SHA: ${commitSha || "Unknown"}
+Commit message: ${commitMessage || "No message provided"}
+Changed files: ${(filesChanged || []).join(", ") || files.map((file) => file.filename).join(", ") || "Unknown"}
+Modules affected: ${(modulesChanged || []).join(", ") || "Unknown"}
+
+Review the following commit diff and return the JSON object only.
+
+${diffText || "No patch text was available."}`;
+};
+
+const extractJsonObject = (value = "") => {
+  const text = String(value || "").trim();
+  const start = text.indexOf("{");
+  const end = text.lastIndexOf("}");
+
+  if (start === -1 || end === -1 || end <= start) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(text.slice(start, end + 1));
+  } catch {
+    return null;
+  }
+};
+
+const normalizeFindingSeverity = (value = "") => {
+  const normalized = String(value || "").trim().toUpperCase();
+
+  return ["CRITICAL", "HIGH", "MEDIUM", "LOW", "SUGGESTION"].includes(normalized)
+    ? normalized
+    : "SUGGESTION";
+};
+
+const normalizeCodeReviewResult = (value) => {
+  const parsed = typeof value === "string" ? extractJsonObject(value) : value;
+
+  if (!parsed || typeof parsed !== "object") {
+    throw new Error("Invalid AI code review response");
+  }
+
+  const score = Math.max(0, Math.min(100, Number(parsed.score)));
+
+  if (!Number.isFinite(score)) {
+    throw new Error("Invalid AI code review score");
+  }
+
+  return {
+    status: "COMPLETED",
+    score: Math.round(score),
+    rating: String(parsed.rating || "").trim().slice(0, 80) || "Needs Attention",
+    summary: stripMarkdownStructure(parsed.summary || "").slice(0, 1200),
+    findings: (Array.isArray(parsed.findings) ? parsed.findings : []).slice(0, 20).map((finding) => ({
+      severity: normalizeFindingSeverity(finding?.severity),
+      title: String(finding?.title || "").trim().slice(0, 160),
+      file: String(finding?.file || "").trim().slice(0, 260),
+      line:
+        finding?.line === null || finding?.line === undefined || finding?.line === ""
+          ? null
+          : Number.isFinite(Number(finding.line))
+            ? Number(finding.line)
+            : null,
+      confidence: Number.isFinite(Number(finding?.confidence))
+        ? Math.max(0, Math.min(100, Number(finding.confidence)))
+        : null,
+      description: stripMarkdownStructure(finding?.description || "").slice(0, 1000),
+      recommendation: stripMarkdownStructure(finding?.recommendation || "").slice(0, 1000),
+    })),
+    testingRecommendations: (Array.isArray(parsed.testingRecommendations)
+      ? parsed.testingRecommendations
+      : []
+    )
+      .map((item) => stripMarkdownStructure(item).slice(0, 300))
+      .filter(Boolean)
+      .slice(0, 8),
+    positiveObservations: (Array.isArray(parsed.positiveObservations)
+      ? parsed.positiveObservations
+      : []
+    )
+      .map((item) => stripMarkdownStructure(item).slice(0, 300))
+      .filter(Boolean)
+      .slice(0, 8),
+  };
+};
+
 const generateWorkItemDescription = async ({
   title,
   workItemType = "Task",
@@ -212,11 +360,47 @@ const generateWorkItemDescription = async ({
   }
 };
 
+const generateCodeReview = async (context = {}) => {
+  try {
+    const response = await getBedrockClient().send(
+      new ConverseCommand({
+        modelId: BEDROCK_MODEL_ID,
+        system: [{ text: codeReviewSystemPrompt }],
+        messages: [
+          {
+            role: "user",
+            content: [{ text: buildCodeReviewPrompt(context) }],
+          },
+        ],
+        inferenceConfig: {
+          maxTokens: 1800,
+          temperature: 0.1,
+          topP: 0.8,
+        },
+      })
+    );
+    const reviewText = extractTextFromConverseResponse(response);
+
+    if (!reviewText) {
+      throw new Error("Empty Bedrock response");
+    }
+
+    return normalizeCodeReviewResult(reviewText);
+  } catch (error) {
+    const sanitizedError = new Error("Unable to generate code review");
+    sanitizedError.cause = error;
+    throw sanitizedError;
+  }
+};
+
 module.exports = {
   BEDROCK_MODEL_ID,
   BEDROCK_REGION,
+  MAX_CODE_REVIEW_DIFF_CHARS,
   MAX_DESCRIPTION_WORDS,
   enforceDescriptionWordLimit,
+  generateCodeReview,
   generateWorkItemDescription,
+  normalizeCodeReviewResult,
   setBedrockClientForTests,
 };

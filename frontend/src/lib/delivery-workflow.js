@@ -72,6 +72,7 @@ export const getLatestGitActivity = (project = {}) => {
     pushedByUsername: activity.pushedByUsername || activity.pushedByLogin || "",
     pushedAt: activity.pushedAt || project.updatedAt || project.createdAt || null,
     qaStatus: activity.qaStatus || "Waiting for QA",
+    aiReview: activity.aiReview || { status: "NOT_REVIEWED" },
   };
 };
 

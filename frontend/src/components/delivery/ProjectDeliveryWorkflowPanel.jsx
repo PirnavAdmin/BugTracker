@@ -16,6 +16,7 @@ import {
   getRepositorySummary,
   normalizeDeliveryModules,
 } from "@/lib/delivery-workflow";
+import AiCodeReviewPanel from "@/components/ai/AiCodeReviewPanel";
 import { cn, formatDateTime } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -411,6 +412,12 @@ export const QAGitActivityPanel = ({
               </div>
             </div>
 
+            <AiCodeReviewPanel
+              activity={latestActivity}
+              className="mt-5"
+              project={selectedRow?.record || selectedRow?.project}
+            />
+
             <div className="mt-6 border-t border-slate-200 pt-5">
               <Button className="h-11 w-full rounded-xl bg-blue-600 text-white hover:bg-blue-700" onClick={() => onStartTesting?.(selectedRow?.project)} type="button">
                 <Play className="h-4 w-4" />
@@ -478,6 +485,7 @@ export const LatestGitActivityCard = ({ project, roleLabel = "Delivery" }) => {
               </span>
             ))}
           </div>
+          <AiCodeReviewPanel activity={activity} project={project} />
           <div className="flex items-center justify-between rounded-xl bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-600">
             <span>{repository.provider}</span>
             <span>{repository.status}</span>
@@ -691,6 +699,11 @@ export const ProjectOverviewDashboardPanel = ({ issues = [], onViewGitActivity, 
                     {formatActivityTime(latestPush.activity.pushedAt)}
                   </span>
                 </div>
+                <AiCodeReviewPanel
+                  activity={latestPush.activity}
+                  className="mt-3"
+                  project={latestPush.project}
+                />
               </div>
             ) : (
               <div className="mt-4 rounded-2xl border border-dashed border-blue-200 bg-white/70 p-5 text-center">

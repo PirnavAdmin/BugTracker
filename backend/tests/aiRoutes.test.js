@@ -31,3 +31,14 @@ test("AI legacy endpoint remains authenticated and rate limited", () => {
   assert.strictEqual(middlewareNames[1], "aiDescriptionRateLimit");
   assert.strictEqual(typeof route.stack[2].handle, "function");
 });
+
+test("AI code review endpoint is authenticated and rate limited", () => {
+  const route = getRoute("/code-review");
+  const middlewareNames = getMiddlewareNames(route);
+
+  assert.ok(route, "expected /code-review route");
+  assert.strictEqual(route.stack.length, 3);
+  assert.strictEqual(typeof route.stack[0].handle, "function");
+  assert.strictEqual(middlewareNames[1], "aiDescriptionRateLimit");
+  assert.strictEqual(typeof route.stack[2].handle, "function");
+});

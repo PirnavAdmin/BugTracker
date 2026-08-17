@@ -3,6 +3,45 @@ const { normalizeWorkspaceId } = require("../utils/workspace");
 
 const { Schema, model, models } = mongoose;
 
+const aiCodeReviewFindingSchema = new Schema(
+  {
+    severity: {
+      type: String,
+      trim: true,
+      enum: ["CRITICAL", "HIGH", "MEDIUM", "LOW", "SUGGESTION", ""],
+      default: "",
+    },
+    title: { type: String, trim: true, default: "" },
+    file: { type: String, trim: true, default: "" },
+    line: { type: Number, default: null },
+    confidence: { type: Number, default: null },
+    description: { type: String, trim: true, default: "" },
+    recommendation: { type: String, trim: true, default: "" },
+  },
+  { _id: false }
+);
+
+const aiCodeReviewSchema = new Schema(
+  {
+    status: {
+      type: String,
+      trim: true,
+      enum: ["NOT_REVIEWED", "REVIEWING", "COMPLETED", "FAILED"],
+      default: "NOT_REVIEWED",
+    },
+    score: { type: Number, default: null, min: 0, max: 100 },
+    rating: { type: String, trim: true, default: "" },
+    summary: { type: String, trim: true, default: "" },
+    findings: { type: [aiCodeReviewFindingSchema], default: [] },
+    testingRecommendations: { type: [String], default: [] },
+    positiveObservations: { type: [String], default: [] },
+    reviewedAt: { type: Date, default: null },
+    reviewedBy: { type: Schema.Types.ObjectId, ref: "User", default: null },
+    error: { type: String, trim: true, default: "" },
+  },
+  { _id: false }
+);
+
 const projectSchema = new Schema(
   {
     name: {
@@ -485,6 +524,10 @@ const projectSchema = new Schema(
         trim: true,
         default: "Waiting for QA",
       },
+      aiReview: {
+        type: aiCodeReviewSchema,
+        default: () => ({ status: "NOT_REVIEWED" }),
+      },
     },
     gitActivityHistory: {
       type: [
@@ -533,6 +576,10 @@ const projectSchema = new Schema(
             type: String,
             trim: true,
             default: "Waiting for QA",
+          },
+          aiReview: {
+            type: aiCodeReviewSchema,
+            default: () => ({ status: "NOT_REVIEWED" }),
           },
           event: {
             type: String,

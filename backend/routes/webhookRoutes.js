@@ -218,6 +218,9 @@ router.post("/github", async (req, res) => {
     ),
     additions: Number.isFinite(Number(commitStats?.additions)) ? Number(commitStats.additions) : addedFiles.size,
     deletions: Number.isFinite(Number(commitStats?.deletions)) ? Number(commitStats.deletions) : removedFiles.size,
+    aiReview: {
+      status: "NOT_REVIEWED",
+    },
     event: eventName,
     deliveryId,
     recordedAt: new Date(),
@@ -241,6 +244,9 @@ router.post("/github", async (req, res) => {
         deletions: isLatestCommit && Number.isFinite(Number(commitStats?.deletions)) ? Number(commitStats.deletions) : commitRemovedFiles,
         modulesChanged: [],
         qaStatus: "Waiting for QA",
+        aiReview: {
+          status: "NOT_REVIEWED",
+        },
         event: eventName,
         deliveryId,
         recordedAt: new Date(),

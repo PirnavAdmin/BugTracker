@@ -86,6 +86,26 @@ const normalizeNullableNumber = (value) => {
   return Number.isFinite(numeric) ? numeric : null;
 };
 
+const normalizeAiReviewState = (review = {}) => {
+  const status = normalizeString(review.status || "NOT_REVIEWED").toUpperCase();
+  const allowedStatus = ["NOT_REVIEWED", "REVIEWING", "COMPLETED", "FAILED"].includes(status)
+    ? status
+    : "NOT_REVIEWED";
+
+  return {
+    status: allowedStatus,
+    score: normalizeNullableNumber(review.score),
+    rating: normalizeString(review.rating),
+    summary: normalizeString(review.summary),
+    findings: Array.isArray(review.findings) ? review.findings : [],
+    testingRecommendations: normalizeStringArray(review.testingRecommendations),
+    positiveObservations: normalizeStringArray(review.positiveObservations),
+    reviewedAt: review.reviewedAt ? new Date(review.reviewedAt) : null,
+    reviewedBy: review.reviewedBy || null,
+    error: normalizeString(review.error),
+  };
+};
+
 const normalizeGitActivityEntry = (activity = {}, fallback = {}) => ({
   commitSha: normalizeString(activity.commitSha, fallback.commitSha || ""),
   commitMessage: normalizeString(activity.commitMessage, fallback.commitMessage || ""),
@@ -101,6 +121,7 @@ const normalizeGitActivityEntry = (activity = {}, fallback = {}) => ({
   ),
   modulesChanged: normalizeStringArray(activity.modulesChanged || fallback.modulesChanged),
   qaStatus: normalizeString(activity.qaStatus, fallback.qaStatus || "Waiting for QA"),
+  aiReview: normalizeAiReviewState(activity.aiReview || fallback.aiReview || {}),
   event: normalizeString(activity.event, fallback.event || "push"),
   deliveryId: normalizeString(activity.deliveryId, fallback.deliveryId || ""),
   recordedAt: activity.recordedAt ? new Date(activity.recordedAt) : fallback.recordedAt || new Date(),

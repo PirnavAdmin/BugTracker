@@ -69,6 +69,7 @@ import {
 import IssueDetailsDialog from "@/components/issues/IssueDetailsDialog";
 import NotificationCard from "@/components/dashboard/NotificationCard";
 import GreetingBeachScene from "@/components/dashboard/GreetingBeachScene";
+import AiCodeReviewPanel from "@/components/ai/AiCodeReviewPanel";
 import { getLatestGitActivity, normalizeDeliveryModules } from "@/lib/delivery-workflow";
 import EmptyState from "@/components/shared/EmptyState";
 import { Button } from "@/components/ui/button";
@@ -662,6 +663,7 @@ const DeveloperLatestPushCard = ({ project }) => {
               </span>
             ))}
           </div>
+          <AiCodeReviewPanel activity={activity} project={project} />
           <p className="truncate text-xs font-medium text-slate-400">{activity.repository}</p>
         </div>
       </CardContent>

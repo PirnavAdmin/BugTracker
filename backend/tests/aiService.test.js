@@ -4,6 +4,8 @@ const {
   MAX_DESCRIPTION_WORDS,
   enforceDescriptionWordLimit,
   generateWorkItemDescription,
+  generateCodeReview,
+  normalizeCodeReviewResult,
   setBedrockClientForTests,
 } = require("../services/aiService");
 
@@ -102,4 +104,79 @@ test("Bedrock failure is wrapped without raw provider details", async () => {
       return true;
     }
   );
+});
+
+test("AI code review normalization accepts JSON embedded in provider text", () => {
+  const review = normalizeCodeReviewResult(`Here is JSON:
+{
+  "score": 88,
+  "rating": "Good",
+  "summary": "Looks focused.",
+  "findings": [
+    {
+      "severity": "high",
+      "title": "Validate project access",
+      "file": "backend/controllers/aiController.js",
+      "line": null,
+      "confidence": 91,
+      "description": "Missing access checks could expose reviews.",
+      "recommendation": "Use the existing project access query."
+    }
+  ],
+  "testingRecommendations": ["Add controller coverage."],
+  "positiveObservations": ["Reuses the existing AI client."]
+}`);
+
+  assert.strictEqual(review.status, "COMPLETED");
+  assert.strictEqual(review.score, 88);
+  assert.strictEqual(review.findings[0].severity, "HIGH");
+  assert.strictEqual(review.findings[0].line, null);
+  assert.deepStrictEqual(review.testingRecommendations, ["Add controller coverage."]);
+});
+
+test("AI code review rejects invalid provider JSON", () => {
+  assert.throws(() => normalizeCodeReviewResult("not json"), /Invalid AI code review response/);
+  assert.throws(
+    () => normalizeCodeReviewResult({ score: "bad", findings: [] }),
+    /Invalid AI code review score/
+  );
+});
+
+test("Bedrock code review success returns normalized review", async () => {
+  setBedrockClientForTests({
+    send: async () => ({
+      output: {
+        message: {
+          content: [
+            {
+              text: JSON.stringify({
+                score: 73,
+                rating: "Needs Attention",
+                summary: "Review summary.",
+                findings: [],
+                testingRecommendations: [],
+                positiveObservations: [],
+              }),
+            },
+          ],
+        },
+      },
+    }),
+  });
+
+  const review = await generateCodeReview({
+    projectName: "CureCode",
+    commitSha: "abc123",
+    diff: {
+      files: [
+        {
+          filename: "backend/controllers/aiController.js",
+          patch: "@@ -1 +1 @@\n-old\n+new",
+        },
+      ],
+    },
+  });
+
+  assert.strictEqual(review.score, 73);
+  assert.strictEqual(review.rating, "Needs Attention");
 });
