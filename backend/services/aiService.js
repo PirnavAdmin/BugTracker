@@ -213,4 +213,5 @@ module.exports = {
   MAX_DESCRIPTION_WORDS,
   enforceDescriptionWordLimit,
   generateWorkItemDescription,
+  getBedrockClient,
 };
