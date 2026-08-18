@@ -182,6 +182,11 @@ const issueSchema = new Schema(
       required: [true, "Project is required"],
       index: true,
     },
+    tenantId: {
+      type: String,
+      index: true,
+      trim: true,
+    },
     teamId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Team",

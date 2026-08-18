@@ -16,6 +16,11 @@ const teamMemberSchema = new Schema(
       required: [true, "User id is required"],
       index: true,
     },
+    tenantId: {
+      type: String,
+      index: true,
+      trim: true,
+    },
     createdAt: {
       type: Date,
       default: Date.now,

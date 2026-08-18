@@ -67,6 +67,11 @@ const sprintSchema = new Schema(
       index: true,
       default: normalizeWorkspaceId(),
     },
+    tenantId: {
+      type: String,
+      index: true,
+      trim: true,
+    },
     name: {
       type: String,
       required: [true, "Sprint name is required"],
