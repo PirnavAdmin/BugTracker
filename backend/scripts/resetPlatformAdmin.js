@@ -1,9 +1,7 @@
-const dotenv = require("dotenv");
+require("../config/env");
 const mongoose = require("mongoose");
 const connectDB = require("../config/db");
 const { resetInitialPlatformAdmin } = require("../utils/platformBootstrap");
-
-dotenv.config();
 
 const run = async () => {
   try {

@@ -1,5 +1,4 @@
-const path = require("path");
-const dotenv = require("dotenv");
+require("../config/env");
 const mongoose = require("mongoose");
 
 const connectDB = require("../config/db");
@@ -12,10 +11,6 @@ const TeamMember = require("../models/TeamMember");
 const User = require("../models/User");
 const { ensureInitialPlatformAdmin } = require("../utils/platformBootstrap");
 const { normalizeWorkspaceId } = require("../utils/workspace");
-
-dotenv.config({
-  path: path.resolve(__dirname, "../.env"),
-});
 
 const seedAdminUser = async () => {
   try {
