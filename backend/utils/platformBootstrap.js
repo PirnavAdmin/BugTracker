@@ -13,8 +13,8 @@ const getPlatformBootstrapConfig = () => ({
 });
 
 const validateBootstrapPassword = (password = "") => {
-  if (password.length < 12) {
-    return "PLATFORM_ADMIN_PASSWORD must be at least 12 characters long";
+  if (password.length < 8) {
+    return "PLATFORM_ADMIN_PASSWORD must be at least 8 characters long";
   }
 
   if (!passwordHasLetter.test(password) || !passwordHasNumber.test(password)) {
@@ -71,7 +71,49 @@ const ensureInitialPlatformAdmin = async () => {
   return admin;
 };
 
+const resetInitialPlatformAdmin = async () => {
+  const { email, name, password } = getPlatformBootstrapConfig();
+
+  if (!email || !password) {
+    throw new Error("Both PLATFORM_ADMIN_EMAIL and PLATFORM_ADMIN_PASSWORD are required to reset a platform admin");
+  }
+
+  if (!emailRegex.test(email)) {
+    throw new Error("PLATFORM_ADMIN_EMAIL must be a valid email address");
+  }
+
+  const passwordValidationMessage = validateBootstrapPassword(password);
+
+  if (passwordValidationMessage) {
+    throw new Error(passwordValidationMessage);
+  }
+
+  const admin = await PlatformAdmin.findOne({ email }).select("+passwordHash");
+
+  if (admin) {
+    admin.name = name || admin.name;
+    admin.passwordHash = password;
+    admin.role = PLATFORM_ROLES.OWNER;
+    admin.status = "active";
+    await admin.save();
+    await recordPlatformAudit({
+      action: "platform.admin.created",
+      actor: admin,
+      metadata: {
+        source: "reset-script",
+        role: PLATFORM_ROLES.OWNER,
+        refreshed: true,
+      },
+    });
+    return admin;
+  }
+
+  return ensureInitialPlatformAdmin();
+};
+
 module.exports = {
   ensureInitialPlatformAdmin,
   getPlatformBootstrapConfig,
+  resetInitialPlatformAdmin,
+  validateBootstrapPassword,
 };

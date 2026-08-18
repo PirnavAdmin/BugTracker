@@ -114,9 +114,17 @@ the backend or running `npm run seed` in `backend/`:
 ```env
 ```
 
-The password must be at least 12 characters and include at least one letter and
-one number. The bootstrap creates the account only if that platform admin email
-does not already exist. Platform login is available at `/platform/login`.
+The password must be at least 8 characters and include at least one letter and
+one number. The startup bootstrap creates the account only if that platform
+admin email does not already exist. To refresh an existing platform admin from
+the current `.env` values, run:
+
+```bash
+cd backend
+npm run reset:platform-admin
+```
+
+Platform login is available at `/platform/login`.
 
 ## Docker Usage
 
