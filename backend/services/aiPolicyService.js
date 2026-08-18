@@ -306,6 +306,20 @@ const recordAIUsage = async ({
   return usage;
 };
 
+const countCodeReviewRunsForPush = async ({ commitSha = "", projectId, workspaceId } = {}) => {
+  if (!commitSha || !projectId || !workspaceId) {
+    return 0;
+  }
+
+  return AIUsage.countDocuments({
+    workspaceId: normalizeWorkspaceId(workspaceId),
+    projectId,
+    commitSha,
+    feature: AI_FEATURES.CODE_REVIEW,
+    status: "SUCCESS",
+  });
+};
+
 const buildDateRange = (range = "30d") => {
   const now = new Date();
 
@@ -573,6 +587,7 @@ module.exports = {
   AI_MANAGE_ROLES,
   buildDateRange,
   checkAIAccess,
+  countCodeReviewRunsForPush,
   getAIUsageAnalytics,
   getDefaultAISettings,
   getUsageTotals,

@@ -9,7 +9,12 @@ const {
   normalizeAISettings,
   recordAIUsage,
 } = require("../services/aiPolicyService");
-const { ROLE_ADMIN, ROLE_DEVELOPER, ROLE_TESTER } = require("../utils/roles");
+const {
+  ROLE_ADMIN,
+  ROLE_DEVELOPER,
+  ROLE_TEAM_LEAD,
+  ROLE_TESTER,
+} = require("../utils/roles");
 
 const originalAggregate = AIUsage.aggregate;
 const originalCreate = AIUsage.create;
@@ -88,6 +93,36 @@ test("blocks AI access when a role is not allowed for the feature", async () => 
 
   assert.strictEqual(access.allowed, false);
   assert.strictEqual(access.code, "AI_ROLE_NOT_ALLOWED");
+});
+
+test("preserves team lead access in AI code review settings", async () => {
+  const settings = normalizeAISettings({
+    features: {
+      [AI_FEATURES.CODE_REVIEW]: {
+        enabled: true,
+        allowedRoles: [ROLE_ADMIN, ROLE_TEAM_LEAD],
+      },
+    },
+  });
+
+  assert.deepStrictEqual(settings.features[AI_FEATURES.CODE_REVIEW].allowedRoles, [
+    ROLE_ADMIN,
+    ROLE_TEAM_LEAD,
+  ]);
+});
+
+test("allows team leads to use AI code review when configured", async () => {
+  currentSettings = getDefaultAISettings();
+  currentSettings.features[AI_FEATURES.CODE_REVIEW].allowedRoles = [ROLE_TEAM_LEAD];
+
+  const access = await checkAIAccess({
+    feature: AI_FEATURES.CODE_REVIEW,
+    role: ROLE_TEAM_LEAD,
+    userId: "user-1",
+    workspaceId: "workspace-1",
+  });
+
+  assert.strictEqual(access.allowed, true);
 });
 
 test("blocks AI access when request limits are reached", async () => {

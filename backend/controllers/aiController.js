@@ -6,11 +6,13 @@ const { buildProjectAccessQuery } = require("../utils/projectRelations");
 const { reviewCodeChanges } = require("../services/aiCodeReviewService");
 const { AI_FEATURES } = require("../constants/aiFeatures");
 const aiPolicyService = require("../services/aiPolicyService");
+const { hasAdminAccess } = require("../utils/roles");
 
 const MAX_TITLE_LENGTH = 180;
 const MAX_OPTIONAL_FIELD_LENGTH = 120;
 const MAX_REVIEW_CONTEXT_LENGTH = 4000;
 const MAX_DIFF_LENGTH = 60000;
+const MAX_CODE_REVIEW_RUNS_PER_PUSH = 2;
 const SUPPORTED_WORK_ITEM_TYPES = new Set(["Task", "Bug"]);
 
 const normalizeWorkItemType = (value = "Task") => {
@@ -263,6 +265,22 @@ const reviewCodeForCommit = asyncHandler(async (req, res) => {
 
   if (!access.allowed) {
     return sendAIBlockedResponse(res, access);
+  }
+
+  if (!hasAdminAccess(req.user?.role)) {
+    const reviewRunsForPush = await aiPolicyService.countCodeReviewRunsForPush({
+      commitSha,
+      projectId,
+      workspaceId: userContext.workspaceId,
+    });
+
+    if (reviewRunsForPush >= MAX_CODE_REVIEW_RUNS_PER_PUSH) {
+      return res.status(429).json({
+        success: false,
+        code: "AI_CODE_REVIEW_PUSH_LIMIT_REACHED",
+        message: "AI Code Review can be generated only twice for this push.",
+      });
+    }
   }
 
   const reviewingState = {

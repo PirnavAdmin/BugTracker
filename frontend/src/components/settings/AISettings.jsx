@@ -45,8 +45,45 @@ const LIMIT_LABELS = {
   monthlyBudget: "Monthly budget",
 };
 
+const USD_TO_INR_RATE = 95.7;
+const CURRENCY_OPTIONS = [
+  { value: "USD", label: "USD" },
+  { value: "INR", label: "INR" },
+];
+
 const formatNumber = (value) => Number(value || 0).toLocaleString();
-const formatCost = (value) => `$${Number(value || 0).toFixed(4)}`;
+const isBudgetLimit = (key) => key.toLowerCase().includes("budget");
+const convertUsdCost = (value, currency) => {
+  const amount = Number(value || 0);
+  return currency === "INR" ? amount * USD_TO_INR_RATE : amount;
+};
+const formatCurrency = (value, currency) =>
+  new Intl.NumberFormat(currency === "INR" ? "en-IN" : "en-US", {
+    style: "currency",
+    currency,
+    minimumFractionDigits: currency === "INR" ? 2 : 4,
+    maximumFractionDigits: currency === "INR" ? 2 : 4,
+  }).format(convertUsdCost(value, currency));
+const formatLimitValue = (key, value, currency) => {
+  if (value === "" || value === null || value === undefined) {
+    return "";
+  }
+
+  if (!isBudgetLimit(key) || currency === "USD") {
+    return value;
+  }
+
+  return Number((Number(value || 0) * USD_TO_INR_RATE).toFixed(2));
+};
+const parseLimitValue = (key, value, currency) => {
+  if (value === "" || value === null || value === undefined) {
+    return "";
+  }
+
+  return isBudgetLimit(key) && currency === "INR"
+    ? Number(value) / USD_TO_INR_RATE
+    : value;
+};
 
 const cloneSettings = (settings = {}) => ({
   ...settings,
@@ -93,6 +130,7 @@ const EmptyRows = ({ message }) => (
 const AISettings = ({ showToast }) => {
   const queryClient = useQueryClient();
   const [draftSettings, setDraftSettings] = useState(null);
+  const [currency, setCurrency] = useState("INR");
   const [range, setRange] = useState("30d");
   const [usageFilters, setUsageFilters] = useState({
     feature: "all",
@@ -325,17 +363,46 @@ const AISettings = ({ showToast }) => {
         </section>
 
         <section>
-          <h3 className="mb-3 font-semibold text-slate-950">Limits</h3>
+          <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h3 className="font-semibold text-slate-950">Limits</h3>
+              <p className="mt-1 text-sm text-slate-500">
+                Budget values are saved in USD and displayed in {currency}.
+              </p>
+            </div>
+            <div className="inline-flex rounded-xl border border-slate-200 bg-slate-50 p-1">
+              {CURRENCY_OPTIONS.map((option) => (
+                <button
+                  key={option.value}
+                  className={cn(
+                    "h-8 rounded-lg px-3 text-xs font-bold transition",
+                    currency === option.value
+                      ? "bg-blue-600 text-white shadow-sm"
+                      : "text-slate-600 hover:bg-white"
+                  )}
+                  type="button"
+                  onClick={() => setCurrency(option.value)}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+          </div>
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
             {Object.entries(LIMIT_LABELS).map(([key, label]) => (
               <label key={key} className="block rounded-xl border border-slate-200 bg-white p-4">
-                <span className="text-sm font-semibold text-slate-600">{label}</span>
+                <span className="text-sm font-semibold text-slate-600">
+                  {label}
+                  {isBudgetLimit(key) ? ` (${currency})` : ""}
+                </span>
                 <input
                   type="number"
                   min="0"
-                  step={key.toLowerCase().includes("budget") ? "0.01" : "1"}
-                  value={draftSettings.limits?.[key] ?? ""}
-                  onChange={(event) => updateLimit(key, event.target.value)}
+                  step={isBudgetLimit(key) ? "0.01" : "1"}
+                  value={formatLimitValue(key, draftSettings.limits?.[key], currency)}
+                  onChange={(event) =>
+                    updateLimit(key, parseLimitValue(key, event.target.value, currency))
+                  }
                   className="mt-2 h-11 w-full rounded-xl border border-slate-200 px-3 text-sm outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
                 />
               </label>
@@ -363,9 +430,28 @@ const AISettings = ({ showToast }) => {
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h3 className="font-semibold text-slate-950">Usage & Cost</h3>
-              <p className="text-sm text-slate-600">Successful AI calls are counted after Bedrock returns.</p>
+              <p className="text-sm text-slate-600">
+                Successful AI calls are counted after Bedrock returns. Costs are shown in {currency}.
+              </p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
+              <div className="inline-flex rounded-xl border border-slate-200 bg-slate-50 p-1">
+                {CURRENCY_OPTIONS.map((option) => (
+                  <button
+                    key={option.value}
+                    className={cn(
+                      "h-8 rounded-lg px-3 text-xs font-bold transition",
+                      currency === option.value
+                        ? "bg-blue-600 text-white shadow-sm"
+                        : "text-slate-600 hover:bg-white"
+                    )}
+                    type="button"
+                    onClick={() => setCurrency(option.value)}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
               <select
                 value={range}
                 onChange={(event) => setRange(event.target.value)}
@@ -458,8 +544,8 @@ const AISettings = ({ showToast }) => {
               ) : null}
 
               <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-6">
-                <StatTile label="AI spend this month" value={formatCost(thisMonth.estimatedCost)} tone="green" />
-                <StatTile label="AI spend today" value={formatCost(today.estimatedCost)} tone="amber" />
+                <StatTile label="AI spend this month" value={formatCurrency(thisMonth.estimatedCost, currency)} tone="green" />
+                <StatTile label="AI spend today" value={formatCurrency(today.estimatedCost, currency)} tone="amber" />
                 <StatTile label="AI requests" value={formatNumber(summary.requests)} />
                 <StatTile label="Input tokens" value={formatNumber(summary.inputTokens)} tone="slate" />
                 <StatTile label="Output tokens" value={formatNumber(summary.outputTokens)} tone="slate" />
@@ -479,7 +565,7 @@ const AISettings = ({ showToast }) => {
                       </Badge>
                     </div>
                     <p className="mt-3 text-sm text-slate-600">
-                      {formatCost(item.data.spent)} / {formatCost(item.data.budget)} spent
+                      {formatCurrency(item.data.spent, currency)} / {formatCurrency(item.data.budget, currency)} spent
                     </p>
                     <div className="mt-3 h-2 rounded-full bg-slate-100">
                       <div
@@ -491,7 +577,7 @@ const AISettings = ({ showToast }) => {
                       />
                     </div>
                     <p className="mt-2 text-sm text-slate-500">
-                      Remaining: {formatCost(item.data.remaining)}
+                      Remaining: {formatCurrency(item.data.remaining, currency)}
                     </p>
                   </div>
                 ))}
@@ -502,8 +588,8 @@ const AISettings = ({ showToast }) => {
                 <div className="grid gap-3 md:grid-cols-4">
                   <StatTile label="Total reviews" value={formatNumber(codeReviewAnalytics.totalReviews)} />
                   <StatTile label="Average score" value={codeReviewAnalytics.averageScore ?? "Not tracked"} tone="slate" />
-                  <StatTile label="Estimated cost" value={formatCost(codeReviewAnalytics.estimatedCost)} tone="green" />
-                  <StatTile label="Avg cost / review" value={formatCost(codeReviewAnalytics.averageCostPerReview)} tone="amber" />
+                  <StatTile label="Estimated cost" value={formatCurrency(codeReviewAnalytics.estimatedCost, currency)} tone="green" />
+                  <StatTile label="Avg cost / review" value={formatCurrency(codeReviewAnalytics.averageCostPerReview, currency)} tone="amber" />
                 </div>
               </div>
 
@@ -519,7 +605,7 @@ const AISettings = ({ showToast }) => {
                         <div key={row.feature} className="text-sm">
                           <div className="flex justify-between gap-3">
                             <span className="font-medium text-slate-700">{row.label}</span>
-                            <span className="text-slate-500">{formatCost(row.estimatedCost)}</span>
+                            <span className="text-slate-500">{formatCurrency(row.estimatedCost, currency)}</span>
                           </div>
                           <p className="mt-1 text-xs text-slate-500">
                             {formatNumber(row.requests)} requests - {formatNumber(row.totalTokens)} tokens - {Number(row.percentageOfCost || 0).toFixed(1)}%
@@ -557,7 +643,7 @@ const AISettings = ({ showToast }) => {
                         <div key={row._id || "none"} className="flex justify-between gap-3">
                           <span className="truncate text-slate-700">{row.name || row._id || "No project"}</span>
                           <span className="shrink-0 text-slate-500">
-                            {formatNumber(row.requests)} - {formatNumber(row.totalTokens)} - {formatCost(row.estimatedCost)}
+                            {formatNumber(row.requests)} - {formatNumber(row.totalTokens)} - {formatCurrency(row.estimatedCost, currency)}
                           </span>
                         </div>
                       ))}
@@ -588,7 +674,7 @@ const AISettings = ({ showToast }) => {
                             {row.name || row._id || "Unknown user"} {row.role ? `(${row.role})` : ""}
                           </span>
                           <span className="shrink-0 text-slate-500">
-                            {formatNumber(row.requests)} - {formatNumber(row.totalTokens)} - {formatCost(row.estimatedCost)}
+                            {formatNumber(row.requests)} - {formatNumber(row.totalTokens)} - {formatCurrency(row.estimatedCost, currency)}
                           </span>
                         </div>
                       ))}

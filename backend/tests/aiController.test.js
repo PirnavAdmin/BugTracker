@@ -4,18 +4,23 @@ const aiService = require("../services/aiService");
 const aiPolicyService = require("../services/aiPolicyService");
 const githubCommitDiff = require("../utils/githubCommitDiff");
 const Project = require("../models/Project");
+const ProjectMember = require("../models/ProjectMember");
+const TeamMember = require("../models/TeamMember");
 const {
   generateWorkItemDescription,
   reviewCodeForCommit,
 } = require("../controllers/aiController");
-const { ROLE_ADMIN } = require("../utils/roles");
+const { ROLE_ADMIN, ROLE_DEVELOPER } = require("../utils/roles");
 
 const originalGenerateWorkItemDescription = aiService.generateWorkItemDescription;
 const originalGenerateCodeReview = aiService.generateCodeReview;
 const originalCheckAIAccess = aiPolicyService.checkAIAccess;
 const originalRecordAIUsage = aiPolicyService.recordAIUsage;
+const originalCountCodeReviewRunsForPush = aiPolicyService.countCodeReviewRunsForPush;
 const originalGetCommitDiffForProject = githubCommitDiff.getCommitDiffForProject;
 const originalProjectFindOne = Project.findOne;
+const originalProjectMemberFind = ProjectMember.find;
+const originalTeamMemberFind = TeamMember.find;
 
 const createResponse = () => {
   let body;
@@ -53,7 +58,7 @@ const callController = async (body) => {
   return res;
 };
 
-const callReviewController = async (body, project) => {
+const callReviewController = async (body, project, userOverrides = {}) => {
   const req = {
     body,
     user: {
@@ -61,6 +66,7 @@ const callReviewController = async (body, project) => {
       id: "user-1",
       role: ROLE_ADMIN,
       workspaceId: "workspace-1",
+      ...userOverrides,
     },
   };
   const res = createResponse();
@@ -106,13 +112,23 @@ test.afterEach(() => {
   aiService.generateCodeReview = originalGenerateCodeReview;
   aiPolicyService.checkAIAccess = originalCheckAIAccess;
   aiPolicyService.recordAIUsage = originalRecordAIUsage;
+  aiPolicyService.countCodeReviewRunsForPush = originalCountCodeReviewRunsForPush;
   githubCommitDiff.getCommitDiffForProject = originalGetCommitDiffForProject;
   Project.findOne = originalProjectFindOne;
+  ProjectMember.find = originalProjectMemberFind;
+  TeamMember.find = originalTeamMemberFind;
 });
 
 test.beforeEach(() => {
   aiPolicyService.checkAIAccess = async () => ({ allowed: true });
   aiPolicyService.recordAIUsage = async () => ({ _id: "usage-1" });
+  aiPolicyService.countCodeReviewRunsForPush = async () => 0;
+  ProjectMember.find = () => ({
+    distinct: async () => [],
+  });
+  TeamMember.find = () => ({
+    distinct: async () => [],
+  });
 });
 
 test("validates task description generation request", async () => {
@@ -341,6 +357,72 @@ test("AI code review saves generated review to latest activity and history", asy
   assert.strictEqual(project.saveCount, 2);
   assert.strictEqual(diffRequested, true);
   assert.strictEqual(reviewPayload.repository, "pradeep/curecode");
+});
+
+test("AI code review blocks non-admin users after two generated reviews for a push", async () => {
+  const project = createProjectDoc();
+  let diffRequested = false;
+
+  aiPolicyService.countCodeReviewRunsForPush = async (payload) => {
+    assert.deepStrictEqual(payload, {
+      commitSha: "abc123",
+      projectId: "project-1",
+      workspaceId: "workspace-1",
+    });
+    return 2;
+  };
+  githubCommitDiff.getCommitDiffForProject = async () => {
+    diffRequested = true;
+    return { files: [] };
+  };
+
+  const { res, nextError } = await callReviewController(
+    { projectId: "project-1", commitSha: "abc123", forceRefresh: true },
+    project,
+    {
+      _id: "507f1f77bcf86cd799439011",
+      id: "507f1f77bcf86cd799439011",
+      role: ROLE_DEVELOPER,
+    }
+  );
+
+  assert.ifError(nextError);
+  assert.strictEqual(res.statusCode, 429);
+  assert.strictEqual(res.body.code, "AI_CODE_REVIEW_PUSH_LIMIT_REACHED");
+  assert.strictEqual(diffRequested, false);
+  assert.strictEqual(project.saveCount, 0);
+});
+
+test("AI code review limit excludes admin users", async () => {
+  const project = createProjectDoc();
+  let generated = false;
+
+  aiPolicyService.countCodeReviewRunsForPush = async () => 2;
+  githubCommitDiff.getCommitDiffForProject = async () => ({
+    files: [{ filename: "app.js", patch: "@@ -1 +1 @@\n-old\n+new" }],
+  });
+  aiService.generateCodeReview = async () => {
+    generated = true;
+    return {
+      score: 91,
+      rating: "Strong",
+      summary: "Review summary.",
+      findings: [],
+      testingRecommendations: [],
+      positiveObservations: [],
+    };
+  };
+
+  const { res, nextError } = await callReviewController(
+    { projectId: "project-1", commitSha: "abc123", forceRefresh: true },
+    project,
+    { role: ROLE_ADMIN }
+  );
+
+  assert.ifError(nextError);
+  assert.strictEqual(res.statusCode, 200);
+  assert.strictEqual(res.body.review.status, "COMPLETED");
+  assert.strictEqual(generated, true);
 });
 
 test("AI code review marks failed state when review generation fails", async () => {

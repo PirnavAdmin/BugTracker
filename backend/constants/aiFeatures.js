@@ -1,4 +1,11 @@
-const { ROLE_ADMIN, ROLE_MANAGER, ROLE_DEVELOPER, ROLE_TESTER } = require("../utils/roles");
+const {
+  ROLE_ADMIN,
+  ROLE_MANAGER,
+  ROLE_TEAM_LEAD,
+  ROLE_QA_LEAD,
+  ROLE_DEVELOPER,
+  ROLE_TESTER,
+} = require("../utils/roles");
 
 const AI_FEATURES = Object.freeze({
   DESCRIPTION: "ai.description",
@@ -21,7 +28,14 @@ const AI_FEATURE_LABELS = Object.freeze({
 });
 
 const AI_MANAGE_ROLES = Object.freeze([ROLE_ADMIN, ROLE_MANAGER]);
-const AI_ACCESS_ROLES = Object.freeze([ROLE_ADMIN, ROLE_MANAGER, ROLE_DEVELOPER, ROLE_TESTER]);
+const AI_ACCESS_ROLES = Object.freeze([
+  ROLE_ADMIN,
+  ROLE_MANAGER,
+  ROLE_TEAM_LEAD,
+  ROLE_QA_LEAD,
+  ROLE_DEVELOPER,
+  ROLE_TESTER,
+]);
 
 const DEFAULT_AI_FEATURE_SETTINGS = Object.freeze({
   [AI_FEATURES.DESCRIPTION]: {
