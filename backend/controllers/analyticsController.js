@@ -22,7 +22,7 @@ const {
   isValidIssueType,
 } = require("../utils/issueTypes");
 const {
-  getProjectIdsForUserThroughTeams,
+  getProjectIdsForUserThroughTenantTeams,
   mergeProjectTeamIds,
 } = require("../utils/projectRelations");
 const {
@@ -39,6 +39,7 @@ const {
   hasTesterAccess,
 } = require("../utils/roles");
 const { applyActiveSprintVisibilityToIssueQuery } = require("../utils/sprintVisibility");
+const { withTenantFilter } = require("../utils/tenant");
 const { normalizeWorkspaceId } = require("../utils/workspace");
 
 const DAY_IN_MS = 24 * 60 * 60 * 1000;
@@ -205,13 +206,13 @@ const getAccessibleProjectIds = async (user) => {
   const workspaceId = normalizeWorkspaceId(user.workspaceId);
 
   if (isOrganizationAnalyticsUser(user)) {
-    return Project.find({
+    return Project.find(withTenantFilter({
       workspaceId,
-    }).distinct("_id");
+    }, user)).distinct("_id");
   }
 
   const userId = user.id || user._id;
-  const teamProjectIds = await getProjectIdsForUserThroughTeams(userId, workspaceId);
+  const teamProjectIds = await getProjectIdsForUserThroughTenantTeams(user);
   const projectAccessQuery = {
     workspaceId,
     $or: [
@@ -230,7 +231,7 @@ const getAccessibleProjectIds = async (user) => {
     ],
   };
   const [memberProjectIds, directlyAssignedProjectIds] = await Promise.all([
-    Project.find(projectAccessQuery).distinct("_id"),
+    Project.find(withTenantFilter(projectAccessQuery, user)).distinct("_id"),
     Issue.find({
       $or: [
         { assignee: user._id },
@@ -242,12 +243,12 @@ const getAccessibleProjectIds = async (user) => {
   ]);
 
   const assignedProjectIds = directlyAssignedProjectIds.length
-    ? await Project.find({
+    ? await Project.find(withTenantFilter({
         _id: {
           $in: directlyAssignedProjectIds,
         },
         workspaceId,
-      }).distinct("_id")
+      }, user)).distinct("_id")
     : [];
 
   return uniqueObjectIds([...memberProjectIds, ...assignedProjectIds]);
@@ -346,7 +347,7 @@ const buildAnalyticsMatch = async (req, res) => {
         ProjectTeam.find({
           teamId: teamObjectId,
         }).distinct("projectId"),
-        Project.find({
+        Project.find(withTenantFilter({
           workspaceId,
           $or: [
             {
@@ -356,7 +357,7 @@ const buildAnalyticsMatch = async (req, res) => {
               teamIds: teamObjectId,
             },
           ],
-        }).distinct("_id"),
+        }, req.user)).distinct("_id"),
       ]).then(([linkedProjectIds, inlineProjectIds]) =>
         uniqueObjectIds([...linkedProjectIds, ...inlineProjectIds])
       ),
@@ -1128,12 +1129,12 @@ const buildProjectAnalytics = async (match, user, { limit = 0 } = {}) => {
   ]);
   const projectIds = rows.map((row) => row._id).filter(Boolean);
   const projects = projectIds.length
-    ? await Project.find({
+    ? await Project.find(withTenantFilter({
         _id: {
           $in: projectIds,
         },
         workspaceId: normalizeWorkspaceId(user.workspaceId),
-      })
+      }, user))
         .select("name isCompleted")
         .lean()
     : [];
@@ -1194,12 +1195,12 @@ const buildTeamAnalytics = async (match, user, { limit = 0 } = {}) => {
   const workspaceId = normalizeWorkspaceId(user.workspaceId);
   const [projects, projectTeams, assigneeTeamMemberships] = await Promise.all([
     projectIds.length
-      ? Project.find({
+      ? Project.find(withTenantFilter({
           _id: {
             $in: projectIds,
           },
           workspaceId,
-        })
+        }, user))
           .select("_id attachedTeams teamIds")
           .lean()
       : [],

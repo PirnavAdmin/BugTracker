@@ -20,7 +20,7 @@ const {
   normalizeText,
   parseUserImportCsv,
 } = require("../utils/userImportCsv");
-const { normalizeTenantId } = require("../utils/tenant");
+const { normalizeTenantId, withTenantFilter } = require("../utils/tenant");
 const { normalizeWorkspaceId } = require("../utils/workspace");
 
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -142,10 +142,10 @@ const getInvitationEmailFailureMessage = (error) => {
 
 const ensureAdminCanChangeRole = async ({ user, role, workspaceId }) => {
   if (user.role === ROLE_ADMIN && role !== ROLE_ADMIN) {
-    const adminCount = await User.countDocuments({
+    const adminCount = await User.countDocuments(withTenantFilter({
       workspaceId,
       role: ROLE_ADMIN,
-    });
+    }, user));
 
     if (adminCount <= 1) {
       const error = new Error("At least one admin must remain in the workspace");
@@ -158,9 +158,9 @@ const ensureAdminCanChangeRole = async ({ user, role, workspaceId }) => {
 const getManagedUsers = asyncHandler(async (req, res) => {
   const workspaceId = normalizeWorkspaceId(req.user.workspaceId);
 
-  const users = await User.find({
+  const users = await User.find(withTenantFilter({
     workspaceId,
-  })
+  }, req.user))
     .select("name email employeeId designation role avatarUrl createdAt workspaceId tenantId")
     .sort({ createdAt: -1 })
     .lean();
@@ -256,10 +256,10 @@ const updateUserRole = asyncHandler(async (req, res) => {
     throw new Error(`Role must be one of ${User.availableRoles.join(", ")}`);
   }
 
-  const user = await User.findOne({
+  const user = await User.findOne(withTenantFilter({
     _id: userId,
     workspaceId,
-  });
+  }, req.user));
 
   if (!user) {
     res.status(404);
@@ -315,10 +315,10 @@ const updateUser = asyncHandler(async (req, res) => {
     throw new Error("Please provide a valid user id");
   }
 
-  const user = await User.findOne({
+  const user = await User.findOne(withTenantFilter({
     _id: userId,
     workspaceId,
-  });
+  }, req.user));
 
   if (!user) {
     res.status(404);
@@ -421,10 +421,10 @@ const deleteUser = asyncHandler(async (req, res) => {
     throw new Error("You cannot delete your own account");
   }
 
-  const user = await User.findOne({
+  const user = await User.findOne(withTenantFilter({
     _id: userId,
     workspaceId,
-  });
+  }, req.user));
 
   if (!user) {
     res.status(404);
@@ -432,10 +432,10 @@ const deleteUser = asyncHandler(async (req, res) => {
   }
 
   if (user.role === ROLE_ADMIN) {
-    const adminCount = await User.countDocuments({
+    const adminCount = await User.countDocuments(withTenantFilter({
       workspaceId,
       role: ROLE_ADMIN,
-    });
+    }, req.user));
 
     if (adminCount <= 1) {
       res.status(400);
@@ -455,7 +455,7 @@ const deleteUser = asyncHandler(async (req, res) => {
   });
   await UserEmailConfig.deleteMany({ workspaceId, userId: user._id });
   await TeamMember.deleteMany({ userId: user._id });
-  await User.deleteOne({ _id: user._id, workspaceId });
+  await User.deleteOne(withTenantFilter({ _id: user._id, workspaceId }, req.user));
 
   res.status(200).json({
     message: "User deleted successfully",

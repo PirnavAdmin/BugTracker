@@ -26,6 +26,7 @@ const {
 } = require("../utils/projectTeamDiagnostics");
 const { ISSUE_STATUS } = require("../utils/issueStatus");
 const { attachMembersToTeams } = require("../utils/teamRelations");
+const { normalizeTenantId, withTenantFilter } = require("../utils/tenant");
 const { normalizeWorkspaceId } = require("../utils/workspace");
 const { PLANNING_ORDER_INCREMENT } = require("../utils/planningOrder");
 const { decryptGitToken, encryptGitToken } = require("../utils/gitTokenCrypto");
@@ -36,11 +37,11 @@ const { createUniqueProjectShortCode } = require("../utils/displayIds");
 const TEAMS_MEETING_URL_PREFIX = "https://teams.microsoft.com/l/meetup-join/";
 
 const projectPopulation = [
-  { path: "createdBy", select: "name email role workspaceId" },
-  { path: "manager", select: "name email role workspaceId" },
-  { path: "projectManager", select: "name email role workspaceId" },
-  { path: "teamLead", select: "name email role workspaceId" },
-  { path: "qaLead", select: "name email role workspaceId" },
+  { path: "createdBy", select: "name email role workspaceId tenantId" },
+  { path: "manager", select: "name email role workspaceId tenantId" },
+  { path: "projectManager", select: "name email role workspaceId tenantId" },
+  { path: "teamLead", select: "name email role workspaceId tenantId" },
+  { path: "qaLead", select: "name email role workspaceId tenantId" },
 ];
 
 const PROJECT_STATUS_VALUES = ["Active", "On Hold", "Completed"];
@@ -928,6 +929,7 @@ const normalizeProjectEpicInputs = (value) => {
 const loadWorkspaceUserAssignment = async ({
   userId,
   workspaceId,
+  reqUser,
   label,
   allowedRoles = [],
 }) => {
@@ -946,11 +948,11 @@ const loadWorkspaceUserAssignment = async ({
     };
   }
 
-  const user = await User.findOne({
+  const user = await User.findOne(withTenantFilter({
     _id: userId,
     workspaceId: normalizeWorkspaceId(workspaceId),
-  })
-    .select("_id name email role workspaceId")
+  }, reqUser))
+    .select("_id name email role workspaceId tenantId")
     .lean();
 
   if (!user) {
@@ -989,12 +991,12 @@ const buildProjectQuery = async (user) => {
     assignee: userId,
   }).distinct("projectId");
   const assignedProjectIds = directlyAssignedProjectIds.length
-    ? await Project.find({
+    ? await Project.find(withTenantFilter({
         _id: {
           $in: directlyAssignedProjectIds,
         },
         workspaceId,
-      }).distinct("_id")
+      }, user)).distinct("_id")
     : [];
 
   if (!assignedProjectIds.length) {
@@ -1064,9 +1066,9 @@ const loadAccessibleProject = async (user, projectId) =>
     .select("_id name workspaceId")
     .lean();
 
-const getAttachedTeamParticipants = async ({ projectId, workspaceId }) => {
+const getAttachedTeamParticipants = async ({ projectId, workspaceId, user }) => {
   const [project, projectTeams] = await Promise.all([
-    Project.findById(projectId)
+    Project.findOne(withTenantFilter({ _id: projectId, workspaceId }, user || { workspaceId }))
       .select("_id attachedTeams teamIds")
       .lean(),
     ProjectTeam.find({
@@ -1179,6 +1181,7 @@ const createProject = asyncHandler(async (req, res) => {
 
   const userId = req.user.id || req.user._id;
   const workspaceId = normalizeWorkspaceId(req.user.workspaceId);
+  const tenantId = normalizeTenantId(req.user.tenantId);
   const {
     name,
     description = "",
@@ -1270,18 +1273,21 @@ const createProject = asyncHandler(async (req, res) => {
     loadWorkspaceUserAssignment({
       userId: requestedManager,
       workspaceId,
+      reqUser: req.user,
       label: "Project manager",
       allowedRoles: ["Admin", "Manager"],
     }),
     loadWorkspaceUserAssignment({
       userId: teamLead,
       workspaceId,
+      reqUser: req.user,
       label: "Team lead",
       allowedRoles: ["Team Lead"],
     }),
     loadWorkspaceUserAssignment({
       userId: qaLead,
       workspaceId,
+      reqUser: req.user,
       label: "QA lead",
       allowedRoles: ["Admin", "Manager", "Tester", "Q/A Lead"],
     }),
@@ -1411,6 +1417,7 @@ const createProject = asyncHandler(async (req, res) => {
     attachedTeams: selectedTeamIds,
     teamIds: selectedTeamIds,
     workspaceId,
+    tenantId,
     createdBy: userId,
     isCompleted: statusResult.value === "Completed",
     ...buildDeliveryWorkflowPatch(
@@ -1477,10 +1484,10 @@ const updateProject = asyncHandler(async (req, res) => {
   }
 
   const workspaceId = normalizeWorkspaceId(req.user.workspaceId);
-  const project = await Project.findOne({
+  const project = await Project.findOne(withTenantFilter({
     _id: req.params.id,
     workspaceId,
-  });
+  }, req.user));
 
   if (!project) {
     res.status(404);
@@ -1562,6 +1569,7 @@ const updateProject = asyncHandler(async (req, res) => {
               ? req.body.projectManager
               : req.body.manager,
             workspaceId,
+            reqUser: req.user,
             label: "Project manager",
             allowedRoles: ["Admin", "Manager"],
           })
@@ -1570,6 +1578,7 @@ const updateProject = asyncHandler(async (req, res) => {
         ? loadWorkspaceUserAssignment({
             userId: req.body.teamLead,
             workspaceId,
+            reqUser: req.user,
             label: "Team lead",
             allowedRoles: ["Team Lead"],
           })
@@ -1578,6 +1587,7 @@ const updateProject = asyncHandler(async (req, res) => {
         ? loadWorkspaceUserAssignment({
             userId: req.body.qaLead,
             workspaceId,
+            reqUser: req.user,
             label: "QA lead",
             allowedRoles: ["Admin", "Manager", "Tester", "Q/A Lead"],
           })
@@ -1640,10 +1650,10 @@ const updateProjectDeliveryWorkflow = asyncHandler(async (req, res) => {
   }
 
   const workspaceId = normalizeWorkspaceId(req.user.workspaceId);
-  const project = await Project.findOne({
+  const project = await Project.findOne(withTenantFilter({
     _id: req.params.id,
     workspaceId,
-  }).select("+git.encryptedToken");
+  }, req.user)).select("+git.encryptedToken");
 
   if (!project) {
     res.status(404);
@@ -1742,7 +1752,7 @@ const testProjectGitConnection = asyncHandler(async (req, res) => {
   }
 
   const workspaceId = normalizeWorkspaceId(req.user.workspaceId);
-  const project = await Project.findOne({ _id: req.params.id, workspaceId }).select("+git.encryptedToken");
+  const project = await Project.findOne(withTenantFilter({ _id: req.params.id, workspaceId }, req.user)).select("+git.encryptedToken");
 
   if (!project) {
     res.status(404);
@@ -1812,7 +1822,7 @@ const syncProjectGitRepository = asyncHandler(async (req, res) => {
   }
 
   const workspaceId = normalizeWorkspaceId(req.user.workspaceId);
-  const project = await Project.findOne({ _id: req.params.id, workspaceId }).select("+git.encryptedToken");
+  const project = await Project.findOne(withTenantFilter({ _id: req.params.id, workspaceId }, req.user)).select("+git.encryptedToken");
 
   if (!project) {
     res.status(404);
@@ -1923,17 +1933,17 @@ const addProjectMember = asyncHandler(async (req, res) => {
 
   const workspaceId = normalizeWorkspaceId(req.user.workspaceId);
   const [project, user] = await Promise.all([
-    Project.findOne({
+    Project.findOne(withTenantFilter({
       _id: req.params.id,
       workspaceId,
-    })
-      .select("_id workspaceId")
+    }, req.user))
+      .select("_id workspaceId tenantId")
       .lean(),
-    User.findOne({
+    User.findOne(withTenantFilter({
       _id: req.body.userId,
       workspaceId,
-    })
-      .select("_id name email role workspaceId")
+    }, req.user))
+      .select("_id name email role workspaceId tenantId")
       .lean(),
   ]);
 
@@ -2000,10 +2010,10 @@ const removeProjectMember = asyncHandler(async (req, res) => {
   }
 
   const workspaceId = normalizeWorkspaceId(req.user.workspaceId);
-  const project = await Project.findOne({
+  const project = await Project.findOne(withTenantFilter({
     _id: req.params.id,
     workspaceId,
-  })
+  }, req.user))
     .select("_id")
     .lean();
 
@@ -2067,10 +2077,10 @@ const deleteProject = asyncHandler(async (req, res) => {
   }
 
   const workspaceId = normalizeWorkspaceId(req.user.workspaceId);
-  const project = await Project.findOne({
+  const project = await Project.findOne(withTenantFilter({
     _id: req.params.id,
     workspaceId,
-  })
+  }, req.user))
     .select("_id")
     .lean();
 
@@ -2106,10 +2116,10 @@ const deleteProject = asyncHandler(async (req, res) => {
     ProjectMeeting.deleteMany({
       projectId: project._id,
     }),
-    Project.deleteOne({
+    Project.deleteOne(withTenantFilter({
       _id: project._id,
       workspaceId,
-    }),
+    }, req.user)),
   ]);
 
   res.status(200).json({
@@ -2140,11 +2150,11 @@ const attachProjectTeam = asyncHandler(async (req, res) => {
 
   const workspaceId = normalizeWorkspaceId(req.user.workspaceId);
   const [project, team, existingProjectTeam] = await Promise.all([
-    Project.findOne({
+    Project.findOne(withTenantFilter({
       _id: req.params.id,
       workspaceId,
-    })
-      .select("_id workspaceId attachedTeams teamIds")
+    }, req.user))
+      .select("_id workspaceId tenantId attachedTeams teamIds")
       .lean(),
     Team.findOne({
       _id: req.body.teamId,
@@ -2172,10 +2182,10 @@ const attachProjectTeam = asyncHandler(async (req, res) => {
 
   if (existingProjectTeam) {
     await Project.updateOne(
-      {
+      withTenantFilter({
         _id: project._id,
         workspaceId,
-      },
+      }, req.user),
       {
         $addToSet: {
           attachedTeams: team._id,
@@ -2197,10 +2207,10 @@ const attachProjectTeam = asyncHandler(async (req, res) => {
       teamId: team._id,
     }),
     Project.updateOne(
-      {
+      withTenantFilter({
         _id: project._id,
         workspaceId,
-      },
+      }, req.user),
       {
         $addToSet: {
           attachedTeams: team._id,
@@ -2330,11 +2340,11 @@ const detachProjectTeam = asyncHandler(async (req, res) => {
 
   const workspaceId = normalizeWorkspaceId(req.user.workspaceId);
   const [project, team, projectTeam] = await Promise.all([
-    Project.findOne({
+    Project.findOne(withTenantFilter({
       _id: req.params.id,
       workspaceId,
-    })
-      .select("_id workspaceId attachedTeams teamIds")
+    }, req.user))
+      .select("_id workspaceId tenantId attachedTeams teamIds")
       .lean(),
     Team.findOne({
       _id: req.params.teamId,
@@ -2386,10 +2396,10 @@ const detachProjectTeam = asyncHandler(async (req, res) => {
         })
       : Promise.resolve(),
     Project.updateOne(
-      {
+      withTenantFilter({
         _id: project._id,
         workspaceId,
-      },
+      }, req.user),
       {
         $pull: {
           attachedTeams: team._id,
@@ -2443,10 +2453,10 @@ const updateProjectStatus = asyncHandler(async (req, res) => {
   }
 
   const workspaceId = normalizeWorkspaceId(req.user.workspaceId);
-  const project = await Project.findOne({
+  const project = await Project.findOne(withTenantFilter({
     _id: req.params.id,
     workspaceId,
-  });
+  }, req.user));
 
   if (!project) {
     res.status(404);
@@ -2514,6 +2524,7 @@ const scheduleProjectMeeting = asyncHandler(async (req, res) => {
   const participants = await getAttachedTeamParticipants({
     projectId: project._id,
     workspaceId,
+    user: req.user,
   });
 
   if (!participants.length) {

@@ -5,6 +5,7 @@ const Team = require("../models/Team");
 const User = require("../models/User");
 const asyncHandler = require("../utils/asyncHandler");
 const { hasAdminAccess } = require("../utils/roles");
+const { withTenantFilter } = require("../utils/tenant");
 const { attachMembersToTeams, populateTeam } = require("../utils/teamRelations");
 const {
   hasWorkspaceAccess,
@@ -37,7 +38,7 @@ const ensureWorkspaceAccess = (req, res, requestedWorkspaceId) => {
   return currentWorkspaceId;
 };
 
-const validateWorkspaceMembers = async (memberIds, workspaceId, res) => {
+const validateWorkspaceMembers = async (memberIds, workspaceId, reqOrUser, res) => {
   const uniqueMemberIds = Array.from(
     new Set(
       (Array.isArray(memberIds) ? memberIds : [])
@@ -55,13 +56,13 @@ const validateWorkspaceMembers = async (memberIds, workspaceId, res) => {
     return [];
   }
 
-  const users = await User.find({
+  const users = await User.find(withTenantFilter({
     _id: {
       $in: uniqueMemberIds,
     },
     workspaceId,
-  })
-    .select("_id name email role avatarUrl workspaceId")
+  }, reqOrUser))
+    .select("_id name email role avatarUrl workspaceId tenantId")
     .lean();
 
   if (users.length !== uniqueMemberIds.length) {
@@ -145,7 +146,7 @@ const createTeam = asyncHandler(async (req, res) => {
     throw new Error("A team with this name already exists in the workspace");
   }
 
-  const workspaceMembers = await validateWorkspaceMembers(members, workspaceId, res);
+  const workspaceMembers = await validateWorkspaceMembers(members, workspaceId, req.user, res);
   const team = await Team.create({
     name,
     description,
@@ -187,11 +188,11 @@ const addTeamMember = asyncHandler(async (req, res) => {
     })
       .select("_id workspaceId")
       .lean(),
-    User.findOne({
+    User.findOne(withTenantFilter({
       _id: req.body.userId,
       workspaceId,
-    })
-      .select("_id name avatarUrl workspaceId")
+    }, req.user))
+      .select("_id name avatarUrl workspaceId tenantId")
       .lean(),
     TeamMember.findOne({
       teamId: req.params.id,
@@ -260,7 +261,7 @@ const removeTeamMember = asyncHandler(async (req, res) => {
     })
       .select("_id")
       .lean(),
-    User.findById(req.params.userId).select("name").lean(),
+    User.findOne(withTenantFilter({ _id: req.params.userId, workspaceId }, req.user)).select("name").lean(),
   ]);
 
   if (!membership) {

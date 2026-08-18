@@ -1,6 +1,7 @@
 const UserActivity = require("../models/UserActivity");
 const User = require("../models/User");
 const redisClient = require("../utils/redis");
+const { withTenantFilter } = require("../utils/tenant");
 const { normalizeWorkspaceId } = require("../utils/workspace");
 
 const PRESENCE_TTL_SECONDS = 10 * 60;
@@ -194,9 +195,9 @@ const getPresenceForUsers = async (users = []) => {
   return Object.fromEntries(entries);
 };
 
-const getWorkspacePresence = async (workspaceId) => {
-  const users = await User.find({ workspaceId: normalizeWorkspaceId(workspaceId) })
-    .select("_id name email role workspaceId")
+const getWorkspacePresence = async (workspaceId, reqOrUser = {}) => {
+  const users = await User.find(withTenantFilter({ workspaceId: normalizeWorkspaceId(workspaceId) }, reqOrUser))
+    .select("_id name email role workspaceId tenantId")
     .lean();
   const presenceByUserId = await getPresenceForUsers(users);
 

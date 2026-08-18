@@ -5,6 +5,7 @@ const Team = require("../models/Team");
 const TeamMember = require("../models/TeamMember");
 const { ROLE_ADMIN } = require("./roles");
 const { attachMembersToTeams, sanitizeUser } = require("./teamRelations");
+const { normalizeTenantId, withTenantFilter } = require("./tenant");
 const { normalizeWorkspaceId } = require("./workspace");
 const {
   logProjectTeamsDebug,
@@ -265,6 +266,7 @@ const serializeProjectsWithRelations = async (projects = []) => {
     return {
       ...projectWithoutLegacyMembers,
       workspaceId: normalizeWorkspaceId(project.workspaceId),
+      tenantId: normalizeTenantId(project.tenantId),
       createdBy: sanitizeUser(project.createdBy),
       manager: sanitizeProjectUser(project.manager),
       projectManager: sanitizeProjectUser(project.projectManager || project.manager),
@@ -312,7 +314,7 @@ const getWorkspaceTeamIdsForUser = async (userId, workspaceId) => {
   }).distinct("_id");
 };
 
-const getProjectIdsForTeamIds = async (teamIds = [], workspaceId = "") => {
+const getProjectIdsForTeamIds = async (teamIds = [], workspaceId = "", reqOrUser = {}) => {
   if (!teamIds.length) {
     return [];
   }
@@ -323,7 +325,7 @@ const getProjectIdsForTeamIds = async (teamIds = [], workspaceId = "") => {
         $in: teamIds,
       },
     }).distinct("projectId"),
-    Project.find({
+    Project.find(withTenantFilter({
       ...(workspaceId ? { workspaceId: normalizeWorkspaceId(workspaceId) } : {}),
       $or: [
         {
@@ -337,7 +339,7 @@ const getProjectIdsForTeamIds = async (teamIds = [], workspaceId = "") => {
           },
         },
       ],
-    }).distinct("_id"),
+    }, reqOrUser)).distinct("_id"),
   ]);
   const uniqueProjectIds = new Map();
 
@@ -347,25 +349,45 @@ const getProjectIdsForTeamIds = async (teamIds = [], workspaceId = "") => {
     }
   });
 
-  return Array.from(uniqueProjectIds.values());
+  const candidateProjectIds = Array.from(uniqueProjectIds.values());
+
+  if (!candidateProjectIds.length) {
+    return [];
+  }
+
+  return Project.find(withTenantFilter({
+    _id: {
+      $in: candidateProjectIds,
+    },
+    ...(workspaceId ? { workspaceId: normalizeWorkspaceId(workspaceId) } : {}),
+  }, reqOrUser)).distinct("_id");
 };
 
 const getProjectIdsForUserThroughTeams = async (userId, workspaceId) =>
   getProjectIdsForTeamIds(
     await getWorkspaceTeamIdsForUser(userId, workspaceId),
-    workspaceId
+    workspaceId,
+    { workspaceId }
+  );
+
+const getProjectIdsForUserThroughTenantTeams = async (user) =>
+  getProjectIdsForTeamIds(
+    await getWorkspaceTeamIdsForUser(user.id || user._id, user.workspaceId),
+    user.workspaceId,
+    user
   );
 
 const buildProjectAccessQuery = async (user) => {
   const workspaceId = normalizeWorkspaceId(user.workspaceId);
+  const tenantScopedWorkspace = withTenantFilter({ workspaceId }, user);
 
   if (user.role === ROLE_ADMIN) {
-    return { workspaceId };
+    return tenantScopedWorkspace;
   }
 
   const userId = user.id || user._id;
   const [teamProjectIds, directProjectIds] = await Promise.all([
-    getProjectIdsForUserThroughTeams(userId, workspaceId),
+    getProjectIdsForUserThroughTenantTeams(user),
     ProjectMember.find({ userId }).distinct("projectId"),
   ]);
   const accessConditions = [
@@ -393,7 +415,7 @@ const buildProjectAccessQuery = async (user) => {
   }
 
   return {
-    workspaceId,
+    ...tenantScopedWorkspace,
     $or: accessConditions,
   };
 };
@@ -415,6 +437,7 @@ const loadSerializedProjectById = async (ProjectModel, target, populateProject) 
 module.exports = {
   serializeProjectsWithRelations,
   buildProjectAccessQuery,
+  getProjectIdsForUserThroughTenantTeams,
   getProjectIdsForUserThroughTeams,
   loadSerializedProjectById,
   mergeProjectTeamIds,

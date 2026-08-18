@@ -4,6 +4,7 @@ const IssueHistory = require("../models/IssueHistory");
 const Project = require("../models/Project");
 const Sprint = require("../models/Sprint");
 const asyncHandler = require("../utils/asyncHandler");
+const { buildProjectAccessQuery } = require("../utils/projectRelations");
 const { ROLE_DEVELOPER } = require("../utils/roles");
 const { ISSUE_STATUS } = require("../utils/issueStatus");
 const { ISSUE_TYPES } = require("../utils/issueTypes");
@@ -86,11 +87,15 @@ const CRITICAL_VALUES = ["Critical", "Blocker"];
 
 const getDeveloperDashboardAnalytics = asyncHandler(async (req, res) => {
   const userId = new mongoose.Types.ObjectId(req.user._id);
+  const accessibleProjectIds = await Project.find(
+    await buildProjectAccessQuery(req.user)
+  ).distinct("_id");
 
   // Filters
   const { projectId, sprintId, dateFrom, dateTo, priority, severity } = req.query;
   const match = {
     isDeleted: { $ne: true },
+    projectId: { $in: accessibleProjectIds },
     $or: [
       { assignee: userId },
       { developerId: userId },
@@ -101,6 +106,11 @@ const getDeveloperDashboardAnalytics = asyncHandler(async (req, res) => {
   };
 
   if (projectId && projectId !== "all") {
+    if (!accessibleProjectIds.some((item) => String(item) === String(projectId))) {
+      res.status(403);
+      throw new Error("You do not have access to that project");
+    }
+
     match.projectId = new mongoose.Types.ObjectId(projectId);
   }
   if (sprintId && sprintId !== "all") {
@@ -363,6 +373,7 @@ const getDeveloperDashboardAnalytics = asyncHandler(async (req, res) => {
   // Velocity - last 6 sprints
   const sprints = await Sprint.find({
     workspaceId: req.user.workspaceId,
+    projectId: { $in: accessibleProjectIds },
     state: "COMPLETED"
   }).sort({ endDate: -1 }).limit(6).lean();
 
@@ -371,6 +382,7 @@ const getDeveloperDashboardAnalytics = asyncHandler(async (req, res) => {
   const sprintData = await Issue.aggregate([
     {
       $match: {
+        projectId: { $in: accessibleProjectIds },
         sprintId: { $in: sprintIds },
         $or: [
           { assignee: userId },
@@ -411,6 +423,7 @@ const getDeveloperDashboardAnalytics = asyncHandler(async (req, res) => {
 
   const recentHistory = await IssueHistory.find({
     actorId: userId,
+    projectId: { $in: accessibleProjectIds },
   })
     .sort({ createdAt: -1 })
     .limit(15)

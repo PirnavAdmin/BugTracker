@@ -11,7 +11,7 @@ const {
   createWorkspaceId,
   normalizeWorkspaceId,
 } = require("../utils/workspace");
-const { normalizeTenantId } = require("../utils/tenant");
+const { normalizeTenantId, withTenantFilter } = require("../utils/tenant");
 
 const passwordHasLetter = /[A-Za-z]/;
 const passwordHasNumber = /\d/;
@@ -310,9 +310,9 @@ const adminLogin = asyncHandler(async (req, res) => {
 });
 
 const getUsers = asyncHandler(async (req, res) => {
-  const users = await User.find({
+  const users = await User.find(withTenantFilter({
     workspaceId: normalizeWorkspaceId(req.user.workspaceId),
-  })
+  }, req.user))
     .select("name email role avatarUrl createdAt workspaceId tenantId")
     .sort({ name: 1 });
 

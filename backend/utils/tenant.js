@@ -46,12 +46,25 @@ const assertTenantAccess = (reqOrUser = {}, tenantId, res) => {
   return authenticatedTenantId;
 };
 
+const buildTenantFilter = (reqOrUser = {}) => {
+  const tenantId = getTenantId(reqOrUser);
+
+  return tenantId ? { tenantId } : {};
+};
+
+const withTenantFilter = (filter = {}, reqOrUser = {}) => ({
+  ...filter,
+  ...buildTenantFilter(reqOrUser),
+});
+
 module.exports = {
   TENANT_ID_PATTERN,
   assertTenantAccess,
+  buildTenantFilter,
   createTenantIdFromNumber,
   getTenantId,
   normalizeTenantId,
   parseTenantSequence,
   requireTenant,
+  withTenantFilter,
 };

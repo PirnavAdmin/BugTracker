@@ -1,5 +1,6 @@
 const User = require("../models/User");
 const asyncHandler = require("../utils/asyncHandler");
+const { withTenantFilter } = require("../utils/tenant");
 const {
   hasWorkspaceAccess,
   normalizeWorkspaceId,
@@ -18,10 +19,10 @@ const getWorkspaceUsers = asyncHandler(async (req, res) => {
     throw new Error("You do not have access to that workspace");
   }
 
-  const users = await User.find({
+  const users = await User.find(withTenantFilter({
     workspaceId: requestedWorkspaceId,
-  })
-    .select("name email role avatarUrl employeeId designation createdAt workspaceId")
+  }, req.user))
+    .select("name email role avatarUrl employeeId designation createdAt workspaceId tenantId")
     .sort({ name: 1 })
     .lean();
 

@@ -80,7 +80,7 @@ const {
 } = require("../utils/sprintLifecycle");
 const {
   buildProjectAccessQuery,
-  getProjectIdsForUserThroughTeams,
+  getProjectIdsForUserThroughTenantTeams,
   mergeProjectTeamIds,
 } = require("../utils/projectRelations");
 const {
@@ -95,6 +95,7 @@ const {
   hasTesterAccess,
 } = require("../utils/roles");
 const { normalizeWorkspaceId } = require("../utils/workspace");
+const { withTenantFilter } = require("../utils/tenant");
 const { getNextIssueDisplayId } = require("../utils/displayIds");
 const { logProjectTeamsDebug } = require("../utils/projectTeamDiagnostics");
 const {
@@ -521,11 +522,11 @@ const buildTaskImportDependentDropdownFormula = ({
 }) =>
   `INDIRECT(IF(${sourceCell}="", "${TASK_IMPORT_LOOKUP_RANGE_NAMES.empty}", IFERROR(VLOOKUP(${sourceCell}, '${mapSheetName}'!$A$1:$B$${mapRowCount}, 2, FALSE), "${TASK_IMPORT_LOOKUP_RANGE_NAMES.empty}")))`;
 
-const getTaskImportTemplateOptions = async ({ workspaceId }) => {
+const getTaskImportTemplateOptions = async ({ workspaceId, user }) => {
   const normalizedWorkspaceId = normalizeWorkspaceId(workspaceId);
-  const projects = await Project.find({
+  const projects = await Project.find(withTenantFilter({
     workspaceId: normalizedWorkspaceId,
-  })
+  }, user))
     .select("_id name attachedTeams teamIds teams")
     .sort({ name: 1 })
     .lean();
@@ -626,12 +627,12 @@ const getTaskImportTemplateOptions = async ({ workspaceId }) => {
   );
 
   const users = uniqueUserIds.length
-    ? await User.find({
+      ? await User.find(withTenantFilter({
         workspaceId: normalizedWorkspaceId,
         _id: {
           $in: uniqueUserIds,
         },
-      })
+      }, user))
         .select("_id name email")
         .sort({ name: 1, email: 1 })
         .lean()
@@ -906,17 +907,17 @@ const shouldIgnoreTaskImportRow = ({
   !resolveImportText(teamName) &&
   !resolveImportText(assigneeInput);
 
-const resolveTaskImportProject = async ({ workspaceId, projectName }) => {
+const resolveTaskImportProject = async ({ workspaceId, projectName, user }) => {
   const trimmedProjectName = resolveImportText(projectName);
 
   if (!trimmedProjectName) {
     return null;
   }
 
-  return Project.findOne({
+  return Project.findOne(withTenantFilter({
     workspaceId: normalizeWorkspaceId(workspaceId),
     name: buildExactMatchRegex(trimmedProjectName),
-  });
+  }, user));
 };
 
 const resolveTaskImportPriority = (priorityInput) => {
@@ -1041,7 +1042,7 @@ const resolveTaskImportParentStory = async ({
   return { story: storyByTitle };
 };
 
-const resolveTaskImportAssignee = async ({ workspaceId, assigneeInput }) => {
+const resolveTaskImportAssignee = async ({ workspaceId, assigneeInput, user }) => {
   const trimmedAssigneeInput = resolveImportText(assigneeInput);
   const emailCandidate = extractAssigneeEmailFromImport(trimmedAssigneeInput);
 
@@ -1051,9 +1052,9 @@ const resolveTaskImportAssignee = async ({ workspaceId, assigneeInput }) => {
     };
   }
 
-  const workspaceQuery = {
+  const workspaceQuery = withTenantFilter({
     workspaceId: normalizeWorkspaceId(workspaceId),
-  };
+  }, user);
 
   if (emailCandidate) {
     const assigneeByEmail = await User.findOne({
@@ -1187,13 +1188,13 @@ const getAccessibleProjectIds = async (user) => {
   const workspaceId = normalizeWorkspaceId(user.workspaceId);
 
   if (isWorkspaceAdmin(user)) {
-    return Project.find({
+    return Project.find(withTenantFilter({
       workspaceId,
-    }).distinct("_id");
+    }, user)).distinct("_id");
   }
 
   const userId = user.id || user._id;
-  const teamProjectIds = await getProjectIdsForUserThroughTeams(userId, workspaceId);
+  const teamProjectIds = await getProjectIdsForUserThroughTenantTeams(user);
   const projectAccessQuery = {
     workspaceId,
     $or: [
@@ -1215,7 +1216,7 @@ const getAccessibleProjectIds = async (user) => {
   };
 
   const [memberProjectIds, directlyAssignedProjectIds] = await Promise.all([
-    Project.find(projectAccessQuery).distinct("_id"),
+    Project.find(withTenantFilter(projectAccessQuery, user)).distinct("_id"),
     Issue.find({
       ...ACTIVE_ISSUE_QUERY,
       $or: [
@@ -1233,12 +1234,12 @@ const getAccessibleProjectIds = async (user) => {
   }
 
   const assignedProjectIds = directlyAssignedProjectIds.length
-    ? await Project.find({
+    ? await Project.find(withTenantFilter({
         _id: {
           $in: directlyAssignedProjectIds,
         },
         workspaceId,
-      }).distinct("_id")
+      }, user)).distinct("_id")
     : [];
 
   const uniqueProjectIds = new Map();
@@ -1258,7 +1259,7 @@ const loadAccessibleProject = async (user, projectId) =>
     ...(await buildProjectAccessQuery(user)),
   });
 
-const getProjectTeamIds = async (projectId, project = null) => {
+const getProjectTeamIds = async (projectId, project = null, user = null) => {
   if (!projectId) {
     return [];
   }
@@ -1271,7 +1272,7 @@ const getProjectTeamIds = async (projectId, project = null) => {
       .lean(),
     project
       ? Promise.resolve(typeof project.toObject === "function" ? project.toObject() : project)
-      : Project.findById(projectId)
+      : Project.findOne(withTenantFilter({ _id: projectId }, user || {}))
           .select("_id attachedTeams teamIds teams")
           .lean(),
   ]);
@@ -1305,7 +1306,7 @@ const getBugPickupProjectEligibility = async ({
 }) => {
   const [userTeamIds, projectTeamIds] = await Promise.all([
     getWorkspaceTeamIdsForUser(user),
-    getProjectTeamIds(projectId, project),
+    getProjectTeamIds(projectId, project, user),
   ]);
   const userTeamIdSet = new Set(userTeamIds.map(String));
   const matchingTeamIds = projectTeamIds
@@ -1347,11 +1348,11 @@ const getBugPickupProjectEligibility = async ({
   };
 };
 
-const ensureAssigneeExists = async (assigneeId, workspaceId) => {
-  const assignee = await User.findOne({
+const ensureAssigneeExists = async (assigneeId, workspaceId, user = null) => {
+  const assignee = await User.findOne(withTenantFilter({
     _id: assigneeId,
     workspaceId: normalizeWorkspaceId(workspaceId),
-  })
+  }, user || {}))
     .select("_id name email role workspaceId")
     .lean();
 
@@ -2170,6 +2171,7 @@ const ensureIssueTeamForProject = async ({
   teamId,
   workspaceId,
   requireTeam = false,
+  user,
 }) => {
   if (!teamId) {
     if (requireTeam) {
@@ -2208,7 +2210,7 @@ const ensureIssueTeamForProject = async ({
     })
       .select("_id teamId")
       .lean(),
-    Project.findById(projectId)
+    Project.findOne(withTenantFilter({ _id: projectId }, user || {}))
       .select("_id attachedTeams teamIds")
       .lean(),
   ]);
@@ -2246,6 +2248,7 @@ const ensureAssigneeBelongsToTeam = async ({
   teamId,
   projectId,
   workspaceId,
+  user,
 }) => {
   if (!assigneeId || assigneeId === "" || assigneeId === "Unassigned") {
     return {
@@ -2273,7 +2276,8 @@ const ensureAssigneeBelongsToTeam = async ({
 
   const assignee = await ensureAssigneeExists(
     assigneeId,
-    normalizeWorkspaceId(workspaceId)
+    normalizeWorkspaceId(workspaceId),
+    user
   );
 
   if (!assignee) {
@@ -2301,7 +2305,7 @@ const ensureAssigneeBelongsToTeam = async ({
           .lean()
       : null,
     projectId
-      ? Project.findOne({
+      ? Project.findOne(withTenantFilter({
           _id: projectId,
           $or: [
             { manager: assigneeId },
@@ -2309,7 +2313,7 @@ const ensureAssigneeBelongsToTeam = async ({
             { teamLead: assigneeId },
             { qaLead: assigneeId },
           ],
-        })
+        }, user || {}))
           .select("_id")
           .lean()
       : null,
@@ -2336,6 +2340,7 @@ const ensureBugOwnerBelongsToTeam = async ({
   projectId,
   workspaceId,
   label,
+  user,
 }) => {
   if (!userId) {
     return {
@@ -2348,6 +2353,7 @@ const ensureBugOwnerBelongsToTeam = async ({
     teamId,
     projectId,
     workspaceId,
+    user,
   });
 
   if (result.error) {
@@ -2364,7 +2370,7 @@ const ensureBugOwnerBelongsToTeam = async ({
   };
 };
 
-const ensureBugOwnerInWorkspace = async ({ userId, workspaceId, label }) => {
+const ensureBugOwnerInWorkspace = async ({ userId, workspaceId, label, user }) => {
   if (!userId || userId === "" || userId === "Unassigned") {
     return {
       user: null,
@@ -2380,12 +2386,13 @@ const ensureBugOwnerInWorkspace = async ({ userId, workspaceId, label }) => {
     };
   }
 
-  const user = await ensureAssigneeExists(
+  const workspaceUser = await ensureAssigneeExists(
     userId,
-    normalizeWorkspaceId(workspaceId)
+    normalizeWorkspaceId(workspaceId),
+    user
   );
 
-  if (!user) {
+  if (!workspaceUser) {
     return {
       error: {
         status: 400,
@@ -2395,7 +2402,7 @@ const ensureBugOwnerInWorkspace = async ({ userId, workspaceId, label }) => {
   }
 
   return {
-    user,
+    user: workspaceUser,
   };
 };
 
@@ -2741,8 +2748,7 @@ const getPaginationOptions = (req) => {
 const shouldReturnPaginatedResponse = (req) =>
   ["true", "1", "yes"].includes(String(req.query.paginate || "").trim().toLowerCase());
 
-const buildAdminBugGlobalScope = (req) =>
-  req.user?.role === ROLE_ADMIN && getCanonicalIssueType(req.query.type, "") === ISSUE_TYPES.BUG;
+const buildAdminBugGlobalScope = () => false;
 
 const mergeOrConditions = (query, conditions = []) => {
   const safeConditions = conditions.filter(Boolean);
@@ -3183,8 +3189,8 @@ const buildIssueQueryFromRequest = async (
         : { workspaceId: normalizeWorkspaceId(req.user.workspaceId) }),
     };
     const [matchingProjectIds, matchingUserIds] = await Promise.all([
-      Project.find(projectSearchQuery).distinct("_id"),
-      User.find(userSearchQuery).distinct("_id"),
+      Project.find(withTenantFilter(projectSearchQuery, req.user)).distinct("_id"),
+      User.find(withTenantFilter(userSearchQuery, req.user)).distinct("_id"),
     ]);
 
     const directIssueIdConditions = mongoose.isValidObjectId(rawSearch)
@@ -3373,7 +3379,7 @@ const downloadTaskImportSample = asyncHandler(async (req, res) => {
 
   const workbook = new ExcelJS.Workbook();
   const workspaceId = normalizeWorkspaceId(req.user.workspaceId);
-  const templateOptions = await getTaskImportTemplateOptions({ workspaceId });
+  const templateOptions = await getTaskImportTemplateOptions({ workspaceId, user: req.user });
   const worksheet = workbook.addWorksheet("Tasks", {
     views: [{ state: "frozen", ySplit: 1 }],
   });
@@ -3780,6 +3786,7 @@ const importTasksFromSpreadsheet = asyncHandler(async (req, res) => {
       const project = await resolveTaskImportProject({
         workspaceId,
         projectName,
+        user: req.user,
       });
 
       if (!project) {
@@ -3801,6 +3808,7 @@ const importTasksFromSpreadsheet = asyncHandler(async (req, res) => {
       const assigneeResolution = await resolveTaskImportAssignee({
         workspaceId,
         assigneeInput,
+        user: req.user,
       });
 
       if (assigneeResolution.error) {
@@ -3812,6 +3820,7 @@ const importTasksFromSpreadsheet = asyncHandler(async (req, res) => {
         teamId: team._id,
         projectId: project._id,
         workspaceId,
+        user: req.user,
       });
 
       if (assigneeResult.error) {
@@ -4156,7 +4165,7 @@ const getBugBucket = asyncHandler(async (req, res) => {
       throw new Error("Invalid project id filter");
     }
 
-    const projectTeamIds = await getProjectTeamIds(req.query.projectId);
+    const projectTeamIds = await getProjectTeamIds(req.query.projectId, null, req.user);
     const hasProjectAccess =
       accessibleProjectIds.some(
         (projectId) => String(projectId) === String(req.query.projectId)
@@ -5114,6 +5123,7 @@ const createIssue = asyncHandler(async (req, res) => {
     teamId,
     workspaceId,
     requireTeam: true,
+    user: req.user,
   });
 
   if (teamResult.error) {
@@ -5160,6 +5170,7 @@ const createIssue = asyncHandler(async (req, res) => {
         teamId,
         projectId,
         workspaceId,
+        user: req.user,
       });
 
       if (assigneeResult.error) {
@@ -5268,6 +5279,7 @@ const createIssue = asyncHandler(async (req, res) => {
         userId: bugDetails.testerOwner,
         workspaceId,
         label: "QA owner",
+        user: req.user,
       }),
       ensureBugOwnerBelongsToTeam({
         userId: bugDetails.developerLead,
@@ -5275,6 +5287,7 @@ const createIssue = asyncHandler(async (req, res) => {
         projectId,
         workspaceId,
         label: "developer lead",
+        user: req.user,
       }),
     ]);
 
@@ -5539,10 +5552,10 @@ const updateIssue = asyncHandler(async (req, res) => {
       hasBugDeveloperLeadAccess);
 
   if (!targetProject && hasDirectIssueAccess) {
-    targetProject = await Project.findOne({
+    targetProject = await Project.findOne(withTenantFilter({
       _id: issue.projectId,
       workspaceId: normalizeWorkspaceId(req.user.workspaceId),
-    });
+    }, req.user));
   }
 
   if (!targetProject) {
@@ -5947,6 +5960,7 @@ const updateIssue = asyncHandler(async (req, res) => {
       teamId: nextTeamId,
       workspaceId,
       requireTeam: false,
+      user: req.user,
     });
 
     if (teamResult.error) {
@@ -6008,6 +6022,7 @@ const updateIssue = asyncHandler(async (req, res) => {
         teamId: nextTeamId,
         projectId: targetProject?._id || issue.projectId,
         workspaceId,
+        user: req.user,
       });
 
       if (assigneeResult.error) {
@@ -6065,6 +6080,7 @@ const updateIssue = asyncHandler(async (req, res) => {
         userId: nextBugDetails.testerOwner,
         workspaceId,
         label: "QA",
+        user: req.user,
       });
 
       if (testerOwnerResult.error) {
@@ -6082,6 +6098,7 @@ const updateIssue = asyncHandler(async (req, res) => {
         projectId: targetProject?._id || issue.projectId,
         workspaceId,
         label: "Developer",
+        user: req.user,
       });
 
       if (developerLeadResult.error) {
@@ -6103,7 +6120,7 @@ const updateIssue = asyncHandler(async (req, res) => {
       (previousBugStatus !== BUG_STATUS.ASSIGNED && nextStatus === BUG_STATUS.ASSIGNED));
 
   if (shouldSendBugAssignmentEmail && nextBugDeveloperId && !nextDeveloperLeadUser) {
-    nextDeveloperLeadUser = await ensureAssigneeExists(nextBugDeveloperId, workspaceId);
+    nextDeveloperLeadUser = await ensureAssigneeExists(nextBugDeveloperId, workspaceId, req.user);
   }
 
   if (hasTesterAccess(req.user.role) && shouldSendBugAssignmentEmail) {

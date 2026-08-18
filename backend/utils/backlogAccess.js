@@ -2,6 +2,7 @@ const Issue = require("../models/Issue");
 const Project = require("../models/Project");
 const { buildProjectAccessQuery } = require("./projectRelations");
 const { hasAdminAccess } = require("./roles");
+const { withTenantFilter } = require("./tenant");
 const { normalizeWorkspaceId } = require("./workspace");
 
 const getUserId = (user) => String(user?.id || user?._id || "");
@@ -50,12 +51,12 @@ const getReadableProjectIds = async (user) => {
   ]);
 
   const additionalProjectIds = directlyAssignedProjectIds.length
-    ? await Project.find({
+    ? await Project.find(withTenantFilter({
         _id: {
           $in: directlyAssignedProjectIds,
         },
         workspaceId,
-      }).distinct("_id")
+      }, user)).distinct("_id")
     : [];
   const uniqueProjectIds = new Map();
 
@@ -93,10 +94,10 @@ const loadReadableProject = async (user, projectId) => {
     return null;
   }
 
-  return Project.findOne({
+  return Project.findOne(withTenantFilter({
     _id: projectId,
     workspaceId,
-  });
+  }, user));
 };
 
 const loadReadableIssue = async (user, issueId) => {

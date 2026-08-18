@@ -1,10 +1,14 @@
 const mongoose = require("mongoose");
 const Issue = require("../models/Issue");
 const IssueHistory = require("../models/IssueHistory");
+const Project = require("../models/Project");
+const User = require("../models/User");
 const UserActivity = require("../models/UserActivity");
 const asyncHandler = require("../utils/asyncHandler");
+const { buildProjectAccessQuery } = require("../utils/projectRelations");
 const { hasAdminAccess, ROLE_ADMIN } = require("../utils/roles");
 const { ISSUE_TYPES } = require("../utils/issueTypes");
+const { withTenantFilter } = require("../utils/tenant");
 const { normalizeWorkspaceId } = require("../utils/workspace");
 const {
   getDayStart,
@@ -67,15 +71,20 @@ const serializeActivityRecord = (record) => {
   };
 };
 
+const getTenantUserIds = (user, workspaceId) =>
+  User.find(withTenantFilter({ workspaceId }, user)).distinct("_id");
+
 const getTeamActivity = asyncHandler(async (req, res) => {
   requireAdmin(req, res);
 
   const workspaceId = normalizeWorkspaceId(req.user.workspaceId);
   const { start, end } = parseDateRange(req.query);
+  const tenantUserIds = await getTenantUserIds(req.user, workspaceId);
   const [presenceRows, activityRows] = await Promise.all([
-    getWorkspacePresence(workspaceId),
+    getWorkspacePresence(workspaceId, req.user),
     UserActivity.find({
       workspaceId,
+      userId: { $in: tenantUserIds },
       date: {
         $gte: start,
         $lte: end,
@@ -128,7 +137,7 @@ const getTeamActivity = asyncHandler(async (req, res) => {
 
 const getMyActivity = asyncHandler(async (req, res) => {
   const workspaceId = normalizeWorkspaceId(req.user.workspaceId);
-  const presenceRows = await getWorkspacePresence(workspaceId);
+  const presenceRows = await getWorkspacePresence(workspaceId, req.user);
   const currentPresence = presenceRows.find(
     ({ user }) => String(user._id) === String(req.user._id)
   )?.presence;
@@ -156,8 +165,10 @@ const getMyActivity = asyncHandler(async (req, res) => {
 const getProductivityReport = asyncHandler(async (req, res) => {
   const workspaceId = normalizeWorkspaceId(req.user.workspaceId);
   const { start, end } = parseDateRange(req.query);
+  const tenantUserIds = await getTenantUserIds(req.user, workspaceId);
   const query = {
     workspaceId,
+    userId: { $in: tenantUserIds },
     date: {
       $gte: start,
       $lte: end,
@@ -167,6 +178,11 @@ const getProductivityReport = asyncHandler(async (req, res) => {
   if (!hasAdminAccess(req.user.role)) {
     query.userId = req.user._id;
   } else if (req.query.userId && mongoose.isValidObjectId(req.query.userId)) {
+    if (!tenantUserIds.some((userId) => String(userId) === String(req.query.userId))) {
+      res.status(403);
+      throw new Error("You do not have access to that user");
+    }
+
     query.userId = req.query.userId;
   }
 
@@ -208,22 +224,22 @@ const getProductivityReport = asyncHandler(async (req, res) => {
 const getBugEffortAnalytics = asyncHandler(async (req, res) => {
   requireAdmin(req, res);
 
-  const workspaceId = normalizeWorkspaceId(req.user.workspaceId);
   const { start, end } = parseDateRange(req.query);
+  const accessibleProjectIds = await Project.find(
+    await buildProjectAccessQuery(req.user)
+  ).distinct("_id");
   const bugs = await Issue.find({
     type: ISSUE_TYPES.BUG,
     isDeleted: { $ne: true },
+    projectId: { $in: accessibleProjectIds },
     updatedAt: { $gte: start, $lte: end },
   })
     .populate("projectId", "_id name workspaceId")
     .populate("assignee", "_id name email role")
     .select("_id title displayBugId projectId assignee createdAt updatedAt closedAt status")
     .lean();
-  const workspaceBugs = bugs.filter(
-    (bug) => normalizeWorkspaceId(bug.projectId?.workspaceId) === workspaceId
-  );
   const histories = await IssueHistory.find({
-    issueId: { $in: workspaceBugs.map((bug) => bug._id) },
+    issueId: { $in: bugs.map((bug) => bug._id) },
     eventType: { $in: ["BUG_STATUS_CHANGED", "ISSUE_STATUS_CHANGED"] },
   })
     .sort({ issueId: 1, createdAt: 1 })
@@ -235,7 +251,7 @@ const getBugEffortAnalytics = asyncHandler(async (req, res) => {
     historiesByIssue.set(issueId, [...(historiesByIssue.get(issueId) || []), history]);
   });
 
-  const rows = workspaceBugs.map((bug) => {
+  const rows = bugs.map((bug) => {
     const statusHistory = historiesByIssue.get(String(bug._id)) || [];
     const firstOpened = statusHistory[0]?.createdAt || bug.createdAt;
     const durations = {
