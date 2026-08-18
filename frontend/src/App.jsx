@@ -39,6 +39,7 @@ const TeamActivityPage = lazy(() => import("@/pages/TeamActivityPage"));
 const ProfilePage = lazy(() => import("@/pages/ProfilePage"));
 const PlatformLoginPage = lazy(() => import("@/pages/PlatformLoginPage"));
 const PlatformDashboardPage = lazy(() => import("@/pages/PlatformDashboardPage"));
+const PlatformPlaceholderPage = lazy(() => import("@/pages/PlatformPlaceholderPage"));
 
 const PublicRouteFallback = () => (
   <main className="grid min-h-screen place-items-center bg-[#111113] px-6 py-12 text-white">
@@ -294,6 +295,16 @@ const App = () => (
         <PlatformProtectedRoute>
           <Suspense fallback={<PublicRouteFallback />}>
             <PlatformDashboardPage />
+          </Suspense>
+        </PlatformProtectedRoute>
+      }
+    />
+    <Route
+      path="/platform/:platformModule"
+      element={
+        <PlatformProtectedRoute>
+          <Suspense fallback={<PublicRouteFallback />}>
+            <PlatformPlaceholderPage />
           </Suspense>
         </PlatformProtectedRoute>
       }
