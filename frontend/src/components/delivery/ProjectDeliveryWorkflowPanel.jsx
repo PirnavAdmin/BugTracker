@@ -1,3 +1,4 @@
+import { useEffect, useMemo, useState } from "react";
 import {
   CheckCircle2,
   Copy,
@@ -597,34 +598,59 @@ const getProjectStatusTone = (status = "") => {
 };
 
 export const ProjectOverviewDashboardPanel = ({ issues = [], onViewGitActivity, projects = [] }) => {
+  const [selectedGitProjectId, setSelectedGitProjectId] = useState("");
   const activeProjects = projects.filter((project) => project.status !== "Completed");
-  const projectRows = activeProjects
-    .map((project) => {
-      const metrics = getProjectDeliveryMetrics({ project, issues });
-      const activity = getLatestGitActivity(project);
-      const repository = getRepositorySummary(project);
-      const modules = activity.modulesChanged.length
-        ? activity.modulesChanged
-        : normalizeDeliveryModules(project);
-      const connected = isGitConnected(project);
-      const status = getProjectQaStatus({ metrics, project });
+  const projectRows = useMemo(
+    () =>
+      activeProjects
+        .map((project) => {
+          const metrics = getProjectDeliveryMetrics({ project, issues });
+          const activity = getLatestGitActivity(project);
+          const repository = getRepositorySummary(project);
+          const modules = activity.modulesChanged.length
+            ? activity.modulesChanged
+            : normalizeDeliveryModules(project);
+          const connected = isGitConnected(project);
+          const status = getProjectQaStatus({ metrics, project });
 
-      return {
-        activity,
-        connected,
-        metrics,
-        modules,
-        project,
-        repository,
-        status,
-      };
-    })
-    .sort(
-      (left, right) =>
-        new Date(right.activity.pushedAt || right.project.updatedAt || 0).getTime() -
-        new Date(left.activity.pushedAt || left.project.updatedAt || 0).getTime()
-    );
-  const latestPush = projectRows.find((row) => hasRecordedPush(row.activity)) || null;
+          return {
+            activity,
+            connected,
+            metrics,
+            modules,
+            project,
+            projectId: getProjectId(project),
+            repository,
+            status,
+          };
+        })
+        .sort(
+          (left, right) =>
+            new Date(right.activity.pushedAt || right.project.updatedAt || 0).getTime() -
+            new Date(left.activity.pushedAt || left.project.updatedAt || 0).getTime()
+        ),
+    [activeProjects, issues]
+  );
+  const connectedProjectRows = useMemo(
+    () => projectRows.filter((row) => row.connected),
+    [projectRows]
+  );
+  const latestConnectedPush = connectedProjectRows.find((row) => hasRecordedPush(row.activity)) || null;
+  const selectedGitProject = connectedProjectRows.find(
+    (row) => row.projectId === selectedGitProjectId
+  );
+  const latestPush = selectedGitProject || latestConnectedPush || null;
+
+  useEffect(() => {
+    const nextSelectedId =
+      selectedGitProjectId && connectedProjectRows.some((row) => row.projectId === selectedGitProjectId)
+        ? selectedGitProjectId
+        : latestConnectedPush?.projectId || connectedProjectRows[0]?.projectId || "";
+
+    if (nextSelectedId !== selectedGitProjectId) {
+      setSelectedGitProjectId(nextSelectedId);
+    }
+  }, [connectedProjectRows, latestConnectedPush, selectedGitProjectId]);
   const todayKey = new Date().toDateString();
   const totals = projectRows.reduce(
     (summary, project) => {
@@ -656,7 +682,23 @@ export const ProjectOverviewDashboardPanel = ({ issues = [], onViewGitActivity, 
                 <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-blue-600">Git Activity</p>
                 <h2 className="mt-1 text-lg font-semibold text-slate-950">Recent code changes across connected projects.</h2>
               </div>
-              <GitBranch className="h-5 w-5 text-blue-500" />
+              <div className="flex shrink-0 items-center gap-2">
+                {connectedProjectRows.length ? (
+                  <select
+                    aria-label="Select Git connected project"
+                    className="h-9 max-w-[180px] rounded-xl border border-blue-100 bg-white px-3 text-xs font-semibold text-slate-700 shadow-sm outline-none transition focus:border-blue-300 focus:ring-2 focus:ring-blue-500/20"
+                    value={selectedGitProjectId}
+                    onChange={(event) => setSelectedGitProjectId(event.target.value)}
+                  >
+                    {connectedProjectRows.map((row) => (
+                      <option key={row.projectId} value={row.projectId}>
+                        {row.project.name || "Untitled project"}
+                      </option>
+                    ))}
+                  </select>
+                ) : null}
+                <GitBranch className="h-5 w-5 text-blue-500" />
+              </div>
             </div>
 
             <div className="mt-4 grid gap-2 sm:grid-cols-2">
@@ -666,7 +708,7 @@ export const ProjectOverviewDashboardPanel = ({ issues = [], onViewGitActivity, 
               <MetricPill label="Testing" value={totals.testing} tone="blue" />
             </div>
 
-            {latestPush ? (
+            {latestPush && hasRecordedPush(latestPush.activity) ? (
               <div className="mt-4 rounded-2xl border border-white/80 bg-white/88 p-3 shadow-sm">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
@@ -708,8 +750,14 @@ export const ProjectOverviewDashboardPanel = ({ issues = [], onViewGitActivity, 
             ) : (
               <div className="mt-4 rounded-2xl border border-dashed border-blue-200 bg-white/70 p-5 text-center">
                 <GitBranch className="mx-auto h-7 w-7 text-blue-400" />
-                <p className="mt-2 text-sm font-semibold text-slate-900">No recent Git activity</p>
-                <p className="mt-1 text-xs text-slate-500">Git pushes will appear here when connected projects receive code changes.</p>
+                <p className="mt-2 text-sm font-semibold text-slate-900">
+                  {connectedProjectRows.length ? "No recent Git activity for this project" : "No Git connected projects"}
+                </p>
+                <p className="mt-1 text-xs text-slate-500">
+                  {connectedProjectRows.length
+                    ? "The selected project is connected, but no push has been recorded yet."
+                    : "Connect a project repository to review its latest push here."}
+                </p>
               </div>
             )}
 
