@@ -4,10 +4,22 @@ import {
   clearStoredSession,
   readStoredSession,
 } from "@/lib/session";
+import {
+  PLATFORM_AUTH_SESSION_CLEARED_EVENT,
+  clearPlatformSession,
+  readPlatformSession,
+} from "@/lib/platform-session";
 import { normalizeWorkspaceSenderResponse } from "@/lib/workspaceSender";
 import { CURRENT_WORKSPACE_SCOPE } from "@/lib/workspace";
 
 const api = axios.create({
+  baseURL: import.meta.env.VITE_API_BASE_URL || "/api",
+  headers: {
+    "Content-Type": "application/json",
+  },
+});
+
+const platformApi = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL || "/api",
   headers: {
     "Content-Type": "application/json",
@@ -49,6 +61,31 @@ api.interceptors.response.use(
 
       if (typeof window !== "undefined") {
         window.dispatchEvent(new Event(AUTH_SESSION_CLEARED_EVENT));
+      }
+    }
+
+    return Promise.reject(error);
+  }
+);
+
+platformApi.interceptors.request.use((config) => {
+  const session = readPlatformSession();
+
+  if (session?.token) {
+    config.headers.Authorization = `Bearer ${session.token}`;
+  }
+
+  return config;
+});
+
+platformApi.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error?.response?.status === 401) {
+      clearPlatformSession();
+
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new Event(PLATFORM_AUTH_SESSION_CLEARED_EVENT));
       }
     }
 
@@ -1250,6 +1287,26 @@ export const searchChatUsers = async (query) => {
     }),
   });
   return response.data?.users || [];
+};
+
+export const loginPlatformAdmin = async (payload) => {
+  const response = await platformApi.post("/platform/auth/login", payload);
+  return response.data;
+};
+
+export const fetchCurrentPlatformAdmin = async () => {
+  const response = await platformApi.get("/platform/auth/me");
+  return response.data?.platformAdmin || null;
+};
+
+export const logoutPlatformAdmin = async () => {
+  const response = await platformApi.post("/platform/auth/logout");
+  return response.data;
+};
+
+export const fetchPlatformDashboard = async () => {
+  const response = await platformApi.get("/platform/dashboard");
+  return response.data;
 };
 
 export default api;

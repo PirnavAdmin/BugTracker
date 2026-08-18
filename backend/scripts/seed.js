@@ -10,6 +10,7 @@ const ProjectTeam = require("../models/ProjectTeam");
 const Team = require("../models/Team");
 const TeamMember = require("../models/TeamMember");
 const User = require("../models/User");
+const { ensureInitialPlatformAdmin } = require("../utils/platformBootstrap");
 const { normalizeWorkspaceId } = require("../utils/workspace");
 
 dotenv.config({
@@ -40,6 +41,7 @@ const seedAdminUser = async () => {
     }
 
     await seedChatData(existingAdmin);
+    await ensureInitialPlatformAdmin();
   } catch (error) {
     console.error("Seed failed:", error.message);
     process.exitCode = 1;

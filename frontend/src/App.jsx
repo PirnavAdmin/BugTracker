@@ -4,6 +4,7 @@ import AppShell from "@/components/layout/AppShell";
 import ActivityTracker from "@/components/presence/ActivityTracker";
 import { PresenceProvider } from "@/context/PresenceContext";
 import { useAuth } from "@/hooks/use-auth";
+import { usePlatformAuth } from "@/hooks/use-platform-auth";
 import {
   ADMIN_PANEL_ROLES,
   getDashboardPathByRole,
@@ -36,6 +37,8 @@ const UserSettingsPage = lazy(() => import("@/pages/UserSettingsPage"));
 const TeamDetailsPage = lazy(() => import("@/pages/TeamDetailsPage"));
 const TeamActivityPage = lazy(() => import("@/pages/TeamActivityPage"));
 const ProfilePage = lazy(() => import("@/pages/ProfilePage"));
+const PlatformLoginPage = lazy(() => import("@/pages/PlatformLoginPage"));
+const PlatformDashboardPage = lazy(() => import("@/pages/PlatformDashboardPage"));
 
 const PublicRouteFallback = () => (
   <main className="grid min-h-screen place-items-center bg-[#111113] px-6 py-12 text-white">
@@ -214,6 +217,42 @@ const SelfSettingsRoute = () => {
   );
 };
 
+const PlatformProtectedRoute = ({ children }) => {
+  const { isAuthenticated, isCheckingPlatformSession } = usePlatformAuth();
+  const location = useLocation();
+
+  if (isCheckingPlatformSession) {
+    return <PublicRouteFallback />;
+  }
+
+  if (!isAuthenticated) {
+    const redirectTarget = `${location.pathname}${location.search}${location.hash}`;
+
+    return (
+      <Navigate
+        to={`/platform/login?redirect=${encodeURIComponent(redirectTarget)}`}
+        replace
+      />
+    );
+  }
+
+  return children;
+};
+
+const PlatformPublicRoute = ({ children }) => {
+  const { isAuthenticated, isCheckingPlatformSession } = usePlatformAuth();
+
+  if (isCheckingPlatformSession) {
+    return <PublicRouteFallback />;
+  }
+
+  if (isAuthenticated) {
+    return <Navigate to="/platform/dashboard" replace />;
+  }
+
+  return children;
+};
+
 const BugsRoute = () => {
   const { role } = useAuth();
 
@@ -239,6 +278,37 @@ const App = () => (
     <ActivityTracker />
     <Routes>
     <Route path="/" element={<RootRoute />} />
+    <Route
+      path="/platform/login"
+      element={
+        <PlatformPublicRoute>
+          <Suspense fallback={<PublicRouteFallback />}>
+            <PlatformLoginPage />
+          </Suspense>
+        </PlatformPublicRoute>
+      }
+    />
+    <Route
+      path="/platform/dashboard"
+      element={
+        <PlatformProtectedRoute>
+          <Suspense fallback={<PublicRouteFallback />}>
+            <PlatformDashboardPage />
+          </Suspense>
+        </PlatformProtectedRoute>
+      }
+    />
+    <Route path="/platform" element={<Navigate to="/platform/dashboard" replace />} />
+    <Route
+      path="/platform/*"
+      element={
+        <PlatformProtectedRoute>
+          <Suspense fallback={<PublicRouteFallback />}>
+            <PlatformDashboardPage />
+          </Suspense>
+        </PlatformProtectedRoute>
+      }
+    />
     <Route
       path="/login"
       element={

@@ -105,6 +105,22 @@ Frontend env example:
 VITE_API_BASE_URL=/api
 ```
 
+## Platform Admin Bootstrap
+
+Phase 0 platform authentication is separate from normal CureCode user login.
+To create the first SaaS Owner, set these environment variables before starting
+the backend or running `npm run seed` in `backend/`:
+
+```env
+PLATFORM_ADMIN_NAME=CureCode SaaS Owner
+PLATFORM_ADMIN_EMAIL=owner@example.com
+PLATFORM_ADMIN_PASSWORD=change-this-strong-password1
+```
+
+The password must be at least 12 characters and include at least one letter and
+one number. The bootstrap creates the account only if that platform admin email
+does not already exist. Platform login is available at `/platform/login`.
+
 ## Docker Usage
 
 1. Copy the compose env file:
