@@ -1309,4 +1309,65 @@ export const fetchPlatformDashboard = async () => {
   return response.data;
 };
 
+export const fetchPlatformDashboardSummary = async () => {
+  const response = await platformApi.get("/platform/dashboard/summary");
+  return response.data;
+};
+
+export const fetchPlatformDashboardRevenue = async (params = {}) => {
+  const response = await platformApi.get("/platform/dashboard/revenue", {
+    params: buildParams(params),
+  });
+  return response.data;
+};
+
+export const fetchPlatformDashboardSubscriptions = async (params = {}) => {
+  const response = await platformApi.get("/platform/dashboard/subscriptions", {
+    params: buildParams(params),
+  });
+  return response.data;
+};
+
+export const fetchPlatformDashboardAIUsage = async (params = {}) => {
+  const response = await platformApi.get("/platform/dashboard/ai-usage", {
+    params: buildParams(params),
+  });
+  return response.data;
+};
+
+export const fetchPlatformDashboardAICostByCompany = async (params = {}) => {
+  const response = await platformApi.get("/platform/dashboard/ai-cost-by-company", {
+    params: buildParams(params),
+  });
+  return response.data;
+};
+
+export const fetchPlatformDashboardPayments = async (params = {}) => {
+  const response = await platformApi.get("/platform/dashboard/payments", {
+    params: buildParams(params),
+  });
+  return response.data;
+};
+
+export const fetchPlatformDashboardGrowth = async (params = {}) => {
+  const response = await platformApi.get("/platform/dashboard/growth", {
+    params: buildParams(params),
+  });
+  return response.data;
+};
+
+export const fetchPlatformDashboardActivity = async (params = {}) => {
+  const response = await platformApi.get("/platform/dashboard/activity", {
+    params: buildParams(params),
+  });
+  return response.data;
+};
+
+export const fetchPlatformDashboardAlerts = async (params = {}) => {
+  const response = await platformApi.get("/platform/dashboard/alerts", {
+    params: buildParams(params),
+  });
+  return response.data;
+};
+
 export default api;
