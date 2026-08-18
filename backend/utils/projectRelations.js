@@ -118,6 +118,9 @@ const attachTeamsToProjects = async (projects = []) => {
   const workspaceIds = Array.from(
     new Set(normalizedProjects.map((project) => normalizeWorkspaceId(project.workspaceId)))
   );
+  const tenantIds = Array.from(
+    new Set(normalizedProjects.map((project) => normalizeTenantId(project.tenantId)).filter(Boolean))
+  );
 
   const projectTeams = await ProjectTeam.find({
     projectId: {
@@ -173,14 +176,22 @@ const attachTeamsToProjects = async (projects = []) => {
     }));
   }
 
-  const teams = await Team.find({
+  const teamFilter = {
     _id: {
       $in: attachedTeamIds,
     },
     workspaceId: {
       $in: workspaceIds,
     },
-  }).lean();
+  };
+
+  if (tenantIds.length) {
+    teamFilter.tenantId = {
+      $in: tenantIds,
+    };
+  }
+
+  const teams = await Team.find(teamFilter).lean();
   const serializedTeams = await attachMembersToTeams(teams);
   const teamsById = new Map(
     serializedTeams.map((team) => [String(team._id), team])
@@ -297,21 +308,25 @@ const serializeProjectsWithRelations = async (projects = []) => {
   });
 };
 
-const getWorkspaceTeamIdsForUser = async (userId, workspaceId) => {
-  const memberTeamIds = await TeamMember.find({
+const getWorkspaceTeamIdsForUser = async (userOrId, workspaceId) => {
+  const user =
+    userOrId && typeof userOrId === "object" && !userOrId._bsontype ? userOrId : null;
+  const userId = user ? user.id || user._id : userOrId;
+  const resolvedWorkspaceId = normalizeWorkspaceId(user ? user.workspaceId : workspaceId);
+  const memberTeamIds = await TeamMember.find(withTenantFilter({
     userId,
-  }).distinct("teamId");
+  }, user || {})).distinct("teamId");
 
   if (!memberTeamIds.length) {
     return [];
   }
 
-  return Team.find({
+  return Team.find(withTenantFilter({
     _id: {
       $in: memberTeamIds,
     },
-    workspaceId: normalizeWorkspaceId(workspaceId),
-  }).distinct("_id");
+    workspaceId: resolvedWorkspaceId,
+  }, user || {})).distinct("_id");
 };
 
 const getProjectIdsForTeamIds = async (teamIds = [], workspaceId = "", reqOrUser = {}) => {
@@ -372,7 +387,7 @@ const getProjectIdsForUserThroughTeams = async (userId, workspaceId) =>
 
 const getProjectIdsForUserThroughTenantTeams = async (user) =>
   getProjectIdsForTeamIds(
-    await getWorkspaceTeamIdsForUser(user.id || user._id, user.workspaceId),
+    await getWorkspaceTeamIdsForUser(user),
     user.workspaceId,
     user
   );

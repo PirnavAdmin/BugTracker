@@ -73,14 +73,16 @@ const validateWorkspaceMembers = async (memberIds, workspaceId, reqOrUser, res) 
   return users;
 };
 
-const loadSerializedTeam = async (teamId) => {
-  const team = await populateTeam(Team.findById(teamId)).lean();
+const buildTeamFilter = (filter, reqOrUser) => withTenantFilter(filter, reqOrUser);
+
+const loadSerializedTeam = async (teamId, reqOrUser) => {
+  const team = await populateTeam(Team.findOne(buildTeamFilter({ _id: teamId }, reqOrUser))).lean();
 
   if (!team) {
     return null;
   }
 
-  const [serializedTeam] = await attachMembersToTeams([team]);
+  const [serializedTeam] = await attachMembersToTeams([team], reqOrUser);
   return serializedTeam || null;
 };
 
@@ -88,14 +90,14 @@ const getTeams = asyncHandler(async (req, res) => {
   const workspaceId = ensureWorkspaceAccess(req, res, req.query.workspaceId);
 
   const teams = await populateTeam(
-    Team.find({
+    Team.find(buildTeamFilter({
       workspaceId,
-    })
+    }, req.user))
   )
     .sort({ createdAt: -1 })
     .lean();
 
-  res.status(200).json(await attachMembersToTeams(teams));
+  res.status(200).json(await attachMembersToTeams(teams, req.user));
 });
 
 const getTeamById = asyncHandler(async (req, res) => {
@@ -105,10 +107,10 @@ const getTeamById = asyncHandler(async (req, res) => {
   }
 
   const team = await populateTeam(
-    Team.findOne({
+    Team.findOne(buildTeamFilter({
       _id: req.params.id,
       workspaceId: normalizeWorkspaceId(req.user.workspaceId),
-    })
+    }, req.user))
   ).lean();
 
   if (!team) {
@@ -116,7 +118,7 @@ const getTeamById = asyncHandler(async (req, res) => {
     throw new Error("Team not found");
   }
 
-  const [serializedTeam] = await attachMembersToTeams([team]);
+  const [serializedTeam] = await attachMembersToTeams([team], req.user);
   res.status(200).json(serializedTeam);
 });
 
@@ -134,10 +136,10 @@ const createTeam = asyncHandler(async (req, res) => {
     throw new Error("Team name is required");
   }
 
-  const existingTeam = await Team.findOne({
+  const existingTeam = await Team.findOne(buildTeamFilter({
     name,
     workspaceId,
-  })
+  }, req.user))
     .select("_id")
     .lean();
 
@@ -151,6 +153,7 @@ const createTeam = asyncHandler(async (req, res) => {
     name,
     description,
     workspaceId,
+    tenantId: req.user.tenantId,
     createdBy: req.user._id,
   });
 
@@ -159,11 +162,12 @@ const createTeam = asyncHandler(async (req, res) => {
       workspaceMembers.map((member) => ({
         teamId: team._id,
         userId: member._id,
+        tenantId: req.user.tenantId,
       }))
     );
   }
 
-  res.status(201).json(await loadSerializedTeam(team._id));
+  res.status(201).json(await loadSerializedTeam(team._id, req.user));
 });
 
 const addTeamMember = asyncHandler(async (req, res) => {
@@ -182,11 +186,11 @@ const addTeamMember = asyncHandler(async (req, res) => {
   const workspaceId = normalizeWorkspaceId(req.user.workspaceId);
 
   const [team, user, existingMembership] = await Promise.all([
-    Team.findOne({
+    Team.findOne(buildTeamFilter({
       _id: req.params.id,
       workspaceId,
-    })
-      .select("_id workspaceId")
+    }, req.user))
+      .select("_id workspaceId tenantId")
       .lean(),
     User.findOne(withTenantFilter({
       _id: req.body.userId,
@@ -194,10 +198,10 @@ const addTeamMember = asyncHandler(async (req, res) => {
     }, req.user))
       .select("_id name avatarUrl workspaceId tenantId")
       .lean(),
-    TeamMember.findOne({
+    TeamMember.findOne(withTenantFilter({
       teamId: req.params.id,
       userId: req.body.userId,
-    })
+    }, req.user))
       .select("_id")
       .lean(),
   ]);
@@ -220,11 +224,12 @@ const addTeamMember = asyncHandler(async (req, res) => {
   await TeamMember.create({
     teamId: team._id,
     userId: user._id,
+    tenantId: req.user.tenantId,
   });
 
   res.status(200).json({
     message: `${user.name} added to the team`,
-    team: await loadSerializedTeam(team._id),
+    team: await loadSerializedTeam(team._id, req.user),
   });
 });
 
@@ -242,11 +247,11 @@ const removeTeamMember = asyncHandler(async (req, res) => {
   }
 
   const workspaceId = normalizeWorkspaceId(req.user.workspaceId);
-  const team = await Team.findOne({
+  const team = await Team.findOne(buildTeamFilter({
     _id: req.params.id,
     workspaceId,
-  })
-    .select("_id workspaceId")
+  }, req.user))
+    .select("_id workspaceId tenantId")
     .lean();
 
   if (!team) {
@@ -255,10 +260,10 @@ const removeTeamMember = asyncHandler(async (req, res) => {
   }
 
   const [membership, user] = await Promise.all([
-    TeamMember.findOneAndDelete({
+    TeamMember.findOneAndDelete(withTenantFilter({
       teamId: req.params.id,
       userId: req.params.userId,
-    })
+    }, req.user))
       .select("_id")
       .lean(),
     User.findOne(withTenantFilter({ _id: req.params.userId, workspaceId }, req.user)).select("name").lean(),
@@ -271,7 +276,7 @@ const removeTeamMember = asyncHandler(async (req, res) => {
 
   res.status(200).json({
     message: `${user?.name || "Member"} removed from the team`,
-    team: await loadSerializedTeam(team._id),
+    team: await loadSerializedTeam(team._id, req.user),
   });
 });
 
@@ -284,11 +289,11 @@ const deleteTeam = asyncHandler(async (req, res) => {
   }
 
   const workspaceId = normalizeWorkspaceId(req.user.workspaceId);
-  const team = await Team.findOne({
+  const team = await Team.findOne(buildTeamFilter({
     _id: req.params.id,
     workspaceId,
-  })
-    .select("_id name workspaceId")
+  }, req.user))
+    .select("_id name workspaceId tenantId")
     .lean();
 
   if (!team) {
@@ -297,13 +302,13 @@ const deleteTeam = asyncHandler(async (req, res) => {
   }
 
   const [memberCount, linkedProjectIds, inlineProjectCount] = await Promise.all([
-    TeamMember.countDocuments({
+    TeamMember.countDocuments(withTenantFilter({
       teamId: team._id,
-    }),
+    }, req.user)),
     ProjectTeam.find({
       teamId: team._id,
     }).distinct("projectId"),
-    Project.countDocuments({
+    Project.countDocuments(withTenantFilter({
       workspaceId,
       status: {
         $in: ACTIVE_PROJECT_STATUSES,
@@ -316,7 +321,7 @@ const deleteTeam = asyncHandler(async (req, res) => {
           teamIds: team._id,
         },
       ],
-    }),
+    }, req.user)),
   ]);
 
   if (memberCount > 0) {
@@ -325,7 +330,7 @@ const deleteTeam = asyncHandler(async (req, res) => {
   }
 
   const activeLinkedProjectCount = linkedProjectIds.length
-    ? await Project.countDocuments({
+      ? await Project.countDocuments(withTenantFilter({
         _id: {
           $in: linkedProjectIds,
         },
@@ -333,7 +338,7 @@ const deleteTeam = asyncHandler(async (req, res) => {
         status: {
           $in: ACTIVE_PROJECT_STATUSES,
         },
-      })
+      }, req.user))
     : 0;
 
   if (activeLinkedProjectCount + inlineProjectCount > 0) {
@@ -346,9 +351,9 @@ const deleteTeam = asyncHandler(async (req, res) => {
       teamId: team._id,
     }),
     Project.updateMany(
-      {
+      withTenantFilter({
         workspaceId,
-      },
+      }, req.user),
       {
         $pull: {
           attachedTeams: team._id,
@@ -356,10 +361,10 @@ const deleteTeam = asyncHandler(async (req, res) => {
         },
       }
     ),
-    Team.deleteOne({
+    Team.deleteOne(buildTeamFilter({
       _id: team._id,
       workspaceId,
-    }),
+    }, req.user)),
   ]);
 
   res.status(200).json({

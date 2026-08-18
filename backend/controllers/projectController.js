@@ -1083,11 +1083,11 @@ const getAttachedTeamParticipants = async ({ projectId, workspaceId, user }) => 
     return [];
   }
 
-  const teamMemberships = await TeamMember.find({
+  const teamMemberships = await TeamMember.find(withTenantFilter({
     teamId: {
       $in: attachedTeamIds,
     },
-  })
+  }, user || {}))
     .select("userId")
     .lean();
   const userIds = Array.from(
@@ -1098,12 +1098,12 @@ const getAttachedTeamParticipants = async ({ projectId, workspaceId, user }) => 
     return [];
   }
 
-  const users = await User.find({
+  const users = await User.find(withTenantFilter({
     _id: {
       $in: userIds,
     },
     workspaceId: normalizeWorkspaceId(workspaceId),
-  })
+  }, user || {}))
     .select("_id name email role workspaceId")
     .lean();
   const participantsByEmail = new Map();
@@ -1327,10 +1327,10 @@ const createProject = asyncHandler(async (req, res) => {
   }
 
   const selectedTeams = requestedTeamIds.length
-    ? await Team.find({
+    ? await Team.find(withTenantFilter({
         _id: { $in: requestedTeamIds },
         workspaceId,
-      })
+      }, req.user))
         .select("_id name")
         .lean()
     : [];
@@ -2156,11 +2156,11 @@ const attachProjectTeam = asyncHandler(async (req, res) => {
     }, req.user))
       .select("_id workspaceId tenantId attachedTeams teamIds")
       .lean(),
-    Team.findOne({
+    Team.findOne(withTenantFilter({
       _id: req.body.teamId,
       workspaceId,
-    })
-      .select("_id name workspaceId")
+    }, req.user))
+      .select("_id name workspaceId tenantId")
       .lean(),
     ProjectTeam.findOne({
       projectId: req.params.id,
@@ -2279,13 +2279,13 @@ const getProjectTeams = asyncHandler(async (req, res) => {
     return;
   }
 
-  const teams = await Team.find({
+  const teams = await Team.find(withTenantFilter({
     _id: {
       $in: teamIds,
     },
     workspaceId,
-  }).lean();
-  const serializedTeams = await attachMembersToTeams(teams);
+  }, req.user)).lean();
+  const serializedTeams = await attachMembersToTeams(teams, req.user);
   const teamsById = new Map(serializedTeams.map((team) => [String(team._id), team]));
   const orderedTeams = teamIds
     .map((teamId) => teamsById.get(teamId))
@@ -2346,11 +2346,11 @@ const detachProjectTeam = asyncHandler(async (req, res) => {
     }, req.user))
       .select("_id workspaceId tenantId attachedTeams teamIds")
       .lean(),
-    Team.findOne({
+    Team.findOne(withTenantFilter({
       _id: req.params.teamId,
       workspaceId,
-    })
-      .select("_id name")
+    }, req.user))
+      .select("_id name tenantId")
       .lean(),
     ProjectTeam.findOne({
       projectId: req.params.id,

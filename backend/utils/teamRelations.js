@@ -1,4 +1,5 @@
 const TeamMember = require("../models/TeamMember");
+const { withTenantFilter } = require("./tenant");
 const { normalizeWorkspaceId } = require("./workspace");
 
 const teamPopulation = [{ path: "createdBy", select: "name email role workspaceId" }];
@@ -17,10 +18,11 @@ const sanitizeUser = (user) => {
     role: user.role,
     avatarUrl: user.avatarUrl || "",
     workspaceId: normalizeWorkspaceId(user.workspaceId),
+    tenantId: user.tenantId || "",
   };
 };
 
-const attachMembersToTeams = async (teams = []) => {
+const attachMembersToTeams = async (teams = [], reqOrUser = {}) => {
   if (!teams.length) {
     return [];
   }
@@ -33,13 +35,23 @@ const attachMembersToTeams = async (teams = []) => {
     normalizedTeams.map((team) => [String(team._id), normalizeWorkspaceId(team.workspaceId)])
   );
   const membersByTeamId = new Map(teamIds.map((teamId) => [String(teamId), []]));
-
-  const memberships = await TeamMember.find({
+  const teamTenantIds = Array.from(
+    new Set(normalizedTeams.map((team) => String(team.tenantId || "").trim()).filter(Boolean))
+  );
+  const membershipFilter = withTenantFilter({
     teamId: {
       $in: teamIds,
     },
-  })
-    .populate("userId", "name email role avatarUrl workspaceId")
+  }, reqOrUser);
+
+  if (!membershipFilter.tenantId && teamTenantIds.length) {
+    membershipFilter.tenantId = {
+      $in: teamTenantIds,
+    };
+  }
+
+  const memberships = await TeamMember.find(membershipFilter)
+    .populate("userId", "name email role avatarUrl workspaceId tenantId")
     .sort({ createdAt: 1 })
     .lean();
 

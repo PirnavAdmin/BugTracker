@@ -334,15 +334,15 @@ const buildAnalyticsMatch = async (req, res) => {
     const workspaceId = normalizeWorkspaceId(req.user.workspaceId);
     const teamObjectId = new mongoose.Types.ObjectId(req.query.teamId);
     const [team, teamMemberUserIds, teamProjectIds] = await Promise.all([
-      Team.findOne({
+      Team.findOne(withTenantFilter({
         _id: teamObjectId,
         workspaceId,
-      })
+      }, req.user))
         .select("_id")
         .lean(),
-      TeamMember.find({
+      TeamMember.find(withTenantFilter({
         teamId: teamObjectId,
-      }).distinct("userId"),
+      }, req.user)).distinct("userId"),
       Promise.all([
         ProjectTeam.find({
           teamId: teamObjectId,
@@ -1214,11 +1214,11 @@ const buildTeamAnalytics = async (match, user, { limit = 0 } = {}) => {
           .lean()
       : [],
     assigneeIds.length
-      ? TeamMember.find({
+      ? TeamMember.find(withTenantFilter({
           userId: {
             $in: assigneeIds,
           },
-        })
+        }, user))
           .select("teamId userId")
           .lean()
       : [],
@@ -1323,12 +1323,12 @@ const buildTeamAnalytics = async (match, user, { limit = 0 } = {}) => {
     .map((teamId) => new mongoose.Types.ObjectId(teamId));
   const [teams, memberCounts] = await Promise.all([
     teamObjectIds.length
-      ? Team.find({
+      ? Team.find(withTenantFilter({
           _id: {
             $in: teamObjectIds,
           },
           workspaceId,
-        })
+        }, user))
           .select("name")
           .lean()
       : [],
@@ -1336,9 +1336,11 @@ const buildTeamAnalytics = async (match, user, { limit = 0 } = {}) => {
       ? TeamMember.aggregate([
           {
             $match: {
-              teamId: {
-                $in: teamObjectIds,
-              },
+              ...withTenantFilter({
+                teamId: {
+                  $in: teamObjectIds,
+                },
+              }, user),
             },
           },
           {
