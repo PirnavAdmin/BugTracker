@@ -15,6 +15,12 @@ const createCompany = asyncHandler(async (req, res) => {
   });
 });
 
+const createCompanyAdminUser = asyncHandler(async (req, res) => {
+  res.status(201).json(
+    await platformCompanyService.createCompanyAdminUser(req.params.id, req.body || {}, res)
+  );
+});
+
 const getCompany = asyncHandler(async (req, res) => {
   res.status(200).json({
     company: await platformCompanyService.getCompanyById(req.params.id, res),
@@ -49,6 +55,7 @@ const updateSubscription = asyncHandler(async (req, res) => {
 
 module.exports = {
   createCompany,
+  createCompanyAdminUser,
   createSubscription,
   getCompany,
   listCompanies,

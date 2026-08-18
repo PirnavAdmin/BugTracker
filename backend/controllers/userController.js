@@ -20,6 +20,7 @@ const {
   normalizeText,
   parseUserImportCsv,
 } = require("../utils/userImportCsv");
+const { normalizeTenantId } = require("../utils/tenant");
 const { normalizeWorkspaceId } = require("../utils/workspace");
 
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -53,6 +54,7 @@ const serializeUser = (user) => ({
   role: user.role,
   avatarUrl: user.avatarUrl || "",
   workspaceId: normalizeWorkspaceId(user.workspaceId),
+  tenantId: normalizeTenantId(user.tenantId),
   createdAt: user.createdAt,
 });
 
@@ -64,6 +66,7 @@ const serializeInvitedUser = (user) => ({
   designation: user.designation || "",
   role: user.role,
   avatarUrl: user.avatarUrl || "",
+  tenantId: normalizeTenantId(user.tenantId),
 });
 
 const createInvitedUser = async ({
@@ -74,6 +77,7 @@ const createInvitedUser = async ({
   designation,
   password,
   workspaceId,
+  tenantId,
 }) => {
   const temporaryPassword = generateTemporaryPassword();
   const user = await User.create({
@@ -84,6 +88,7 @@ const createInvitedUser = async ({
     password: password || temporaryPassword,
     role,
     workspaceId: normalizeWorkspaceId(workspaceId),
+    tenantId: normalizeTenantId(tenantId),
   });
 
   return {
@@ -156,7 +161,7 @@ const getManagedUsers = asyncHandler(async (req, res) => {
   const users = await User.find({
     workspaceId,
   })
-    .select("name email employeeId designation role avatarUrl createdAt workspaceId")
+    .select("name email employeeId designation role avatarUrl createdAt workspaceId tenantId")
     .sort({ createdAt: -1 })
     .lean();
 
@@ -165,6 +170,7 @@ const getManagedUsers = asyncHandler(async (req, res) => {
 
 const inviteUser = asyncHandler(async (req, res) => {
   const workspaceId = normalizeWorkspaceId(req.user.workspaceId);
+  const tenantId = normalizeTenantId(req.user.tenantId);
   const email = normalizeEmail(req.body.email);
   const role = normalizeRole(req.body.role);
 
@@ -190,7 +196,12 @@ const inviteUser = asyncHandler(async (req, res) => {
     throw new Error("A user with that email already exists");
   }
 
-  const { temporaryPassword, user } = await createInvitedUser({ email, role, workspaceId });
+  const { temporaryPassword, user } = await createInvitedUser({
+    email,
+    role,
+    workspaceId,
+    tenantId,
+  });
   let emailSent = false;
   let warning = "";
 
@@ -454,6 +465,7 @@ const deleteUser = asyncHandler(async (req, res) => {
 
 const importUsers = asyncHandler(async (req, res) => {
   const workspaceId = normalizeWorkspaceId(req.user.workspaceId);
+  const tenantId = normalizeTenantId(req.user.tenantId);
 
   if (!req.file?.buffer?.length) {
     res.status(400);
@@ -563,6 +575,7 @@ const importUsers = asyncHandler(async (req, res) => {
       password: hashedPassword,
       role: DEFAULT_IMPORTED_ROLE,
       workspaceId,
+      tenantId,
     });
   });
 

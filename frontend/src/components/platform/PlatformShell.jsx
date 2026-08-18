@@ -33,9 +33,9 @@ const PlatformShell = ({ actions, children, title = "SaaS Control Center" }) => 
   };
 
   return (
-    <main className="min-h-screen bg-slate-100 text-slate-950">
-      <div className="grid min-h-screen lg:grid-cols-[244px_1fr]">
-        <aside className="border-r border-slate-200 bg-white px-4 py-5">
+    <main className="min-h-screen bg-slate-100 text-slate-950 lg:h-[var(--app-viewport-height)] lg:overflow-hidden">
+      <div className="grid min-h-screen lg:h-full lg:min-h-0 lg:grid-cols-[244px_1fr]">
+        <aside className="border-r border-slate-200 bg-white px-4 py-5 lg:min-h-0 lg:overflow-y-auto">
           <div className="flex items-center gap-3 px-2">
             <img src="/icons/icon-192x192.png?v=20260727-3" alt="" className="h-10 w-10 rounded-xl" />
             <div>
@@ -65,8 +65,8 @@ const PlatformShell = ({ actions, children, title = "SaaS Control Center" }) => 
           </nav>
         </aside>
 
-        <section className="min-w-0">
-          <header className="flex flex-col gap-4 border-b border-slate-200 bg-white px-5 py-4 xl:flex-row xl:items-center xl:justify-between">
+        <section className="min-w-0 lg:flex lg:min-h-0 lg:flex-col">
+          <header className="flex shrink-0 flex-col gap-4 border-b border-slate-200 bg-white px-5 py-4 xl:flex-row xl:items-center xl:justify-between">
             <div>
               <p className="text-xs font-bold uppercase tracking-[0.16em] text-blue-700">
                 CureCode Platform
@@ -85,7 +85,9 @@ const PlatformShell = ({ actions, children, title = "SaaS Control Center" }) => 
             </div>
           </header>
 
-          {children}
+          <div className="lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:overscroll-contain">
+            {children}
+          </div>
         </section>
       </div>
     </main>

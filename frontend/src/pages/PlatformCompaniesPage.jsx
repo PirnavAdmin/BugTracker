@@ -157,9 +157,11 @@ const PlatformCompaniesPage = () => {
                 <thead>
                   <tr className="border-b border-slate-100 text-[11px] font-bold uppercase tracking-[0.12em] text-slate-500">
                     <th className="px-4 py-3">Company</th>
+                    <th className="px-4 py-3">Tenant ID</th>
                     <th className="px-4 py-3">Plan</th>
                     <th className="px-4 py-3">Users</th>
                     <th className="px-4 py-3">Status</th>
+                    <th className="px-4 py-3">Admin/User</th>
                     <th className="px-4 py-3">Subscription</th>
                     <th className="px-4 py-3">Created</th>
                     <th className="px-4 py-3 text-right">Actions</th>
@@ -172,12 +174,25 @@ const PlatformCompaniesPage = () => {
                         <p className="font-semibold text-slate-950">{company.name}</p>
                         <p className="text-xs text-slate-500">{company.email}</p>
                       </td>
+                      <td className="px-4 py-3 font-mono text-xs font-semibold text-slate-700">
+                        {company.tenantId || "N/A"}
+                      </td>
                       <td className="px-4 py-3">{company.plan?.name || "N/A"}</td>
                       <td className="px-4 py-3">N/A</td>
                       <td className="px-4 py-3">
                         <Badge className="px-2 py-0.5" variant={getStatusVariant(company.status)}>
                           {company.status}
                         </Badge>
+                      </td>
+                      <td className="px-4 py-3">
+                        {company.adminUser ? (
+                          <div>
+                            <p className="font-semibold text-slate-900">{company.adminUser.name}</p>
+                            <p className="text-xs text-slate-500">{company.adminUser.email}</p>
+                          </div>
+                        ) : (
+                          "Not linked"
+                        )}
                       </td>
                       <td className="px-4 py-3">{company.subscription?.status || "N/A"}</td>
                       <td className="px-4 py-3">{formatDate(company.createdAt)}</td>

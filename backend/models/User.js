@@ -62,6 +62,13 @@ const userSchema = new Schema(
       index: true,
       default: normalizeWorkspaceId(),
     },
+    tenantId: {
+      type: String,
+      trim: true,
+      uppercase: true,
+      default: "",
+      index: true,
+    },
     senderPreference: {
       userId: {
         type: Schema.Types.ObjectId,

@@ -26,6 +26,14 @@ const platformCompanySchema = new Schema(
       match: [emailRegex, "Please provide a valid company email address"],
       index: true,
     },
+    tenantId: {
+      type: String,
+      required: true,
+      trim: true,
+      uppercase: true,
+      immutable: true,
+      unique: true,
+    },
     contactPerson: {
       type: String,
       trim: true,
@@ -58,6 +66,12 @@ const platformCompanySchema = new Schema(
       type: String,
       enum: PLATFORM_COMPANY_STATUS_OPTIONS,
       default: PLATFORM_COMPANY_STATUSES.ACTIVE,
+      index: true,
+    },
+    adminUserId: {
+      type: Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
       index: true,
     },
   },

@@ -1,4 +1,5 @@
 const mongoose = require("mongoose");
+const crypto = require("crypto");
 const { PLATFORM_PLANS, getPlatformPlan } = require("../constants/platformPlans");
 const {
   PLATFORM_BILLING_CYCLES,
@@ -10,12 +11,21 @@ const {
 } = require("../constants/platformSubscriptions");
 const PlatformCompany = require("../models/PlatformCompany");
 const PlatformSubscription = require("../models/PlatformSubscription");
+const User = require("../models/User");
+const { ROLE_ADMIN } = require("../utils/roles");
+const {
+  createTenantIdFromNumber,
+  normalizeTenantId,
+  parseTenantSequence,
+} = require("../utils/tenant");
+const { normalizeWorkspaceId } = require("../utils/workspace");
 
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 const normalizeString = (value = "") => String(value || "").trim();
 const normalizeEmail = (value = "") => normalizeString(value).toLowerCase();
 const normalizePlanId = (value = "") => normalizeString(value).toLowerCase();
+const generateTemporaryPassword = () => `${crypto.randomBytes(4).toString("hex")}A9!`;
 
 const ensureObjectId = (id, res) => {
   if (!mongoose.Types.ObjectId.isValid(id)) {
@@ -72,16 +82,39 @@ const serializeCompany = (company, subscription = null) => ({
   _id: company._id,
   name: company.name,
   email: company.email,
+  tenantId: normalizeTenantId(company.tenantId),
   contactPerson: company.contactPerson,
   contactEmail: company.contactEmail,
   contactPhone: company.contactPhone,
   planId: company.planId,
   plan: serializePlan(company.planId),
   status: company.status,
+  adminUserId: company.adminUserId?._id || company.adminUserId || null,
+  adminUser: company.adminUserId?._id
+    ? {
+        _id: company.adminUserId._id,
+        name: company.adminUserId.name,
+        email: company.adminUserId.email,
+        role: company.adminUserId.role,
+        tenantId: normalizeTenantId(company.adminUserId.tenantId),
+      }
+    : null,
   subscription: serializeSubscription(subscription),
   createdAt: company.createdAt,
   updatedAt: company.updatedAt,
 });
+
+const generateNextTenantId = async () => {
+  const companies = await PlatformCompany.find({})
+    .select("tenantId")
+    .lean();
+  const highestSequence = companies.reduce(
+    (max, company) => Math.max(max, parseTenantSequence(company.tenantId)),
+    0
+  );
+
+  return createTenantIdFromNumber(highestSequence + 1);
+};
 
 const getLatestSubscriptionsForCompanies = async (companyIds = []) => {
   if (!companyIds.length) {
@@ -141,6 +174,7 @@ const listCompanies = async (query = {}) => {
       .sort({ createdAt: -1 })
       .skip((page - 1) * limit)
       .limit(limit)
+      .populate("adminUserId", "name email role tenantId")
       .lean(),
   ]);
   const subscriptionsByCompany = await getLatestSubscriptionsForCompanies(
@@ -190,6 +224,7 @@ const createCompany = async (payload = {}, res) => {
   const company = await PlatformCompany.create({
     name,
     email,
+    tenantId: await generateNextTenantId(),
     contactPerson,
     contactEmail,
     contactPhone,
@@ -212,7 +247,9 @@ const createCompany = async (payload = {}, res) => {
 const getCompanyById = async (id, res) => {
   ensureObjectId(id, res);
 
-  const company = await PlatformCompany.findById(id).lean();
+  const company = await PlatformCompany.findById(id)
+    .populate("adminUserId", "name email role tenantId")
+    .lean();
 
   if (!company) {
     res.status(404);
@@ -270,10 +307,15 @@ const updateCompany = async (id, payload = {}, res) => {
     }
   }
 
+  delete updates.tenantId;
+  delete updates.adminUserId;
+
   const company = await PlatformCompany.findByIdAndUpdate(id, updates, {
     new: true,
     runValidators: true,
-  }).lean();
+  })
+    .populate("adminUserId", "name email role tenantId")
+    .lean();
 
   if (!company) {
     res.status(404);
@@ -419,8 +461,71 @@ const updateSubscription = async (id, payload = {}, res) => {
   return serializeSubscription(subscription.toObject());
 };
 
+const createCompanyAdminUser = async (companyId, payload = {}, res) => {
+  ensureObjectId(companyId, res);
+
+  const company = await PlatformCompany.findById(companyId);
+
+  if (!company) {
+    res.status(404);
+    throw new Error("Platform company not found");
+  }
+
+  const name = normalizeString(payload.name) || company.contactPerson || `${company.name} Admin`;
+  const email = normalizeEmail(payload.email || company.contactEmail || company.email);
+  const password = normalizeString(payload.password) || generateTemporaryPassword();
+  const workspaceId = normalizeWorkspaceId();
+  const tenantId = normalizeTenantId(company.tenantId);
+
+  validateEmail(email, "Company admin email", res);
+
+  const existingUser = await User.findOne({ email });
+  let user;
+
+  if (existingUser) {
+    const existingTenantId = normalizeTenantId(existingUser.tenantId);
+
+    if (existingTenantId && existingTenantId !== tenantId) {
+      res.status(409);
+      throw new Error("User already belongs to a different tenant");
+    }
+
+    existingUser.tenantId = tenantId;
+    existingUser.role = ROLE_ADMIN;
+    if (!existingUser.workspaceId) {
+      existingUser.workspaceId = workspaceId;
+    }
+    user = await existingUser.save();
+  } else {
+    user = await User.create({
+      name,
+      email,
+      password,
+      role: ROLE_ADMIN,
+      workspaceId,
+      tenantId,
+    });
+  }
+
+  company.adminUserId = user._id;
+  await company.save();
+
+  return {
+    company: await getCompanyById(company._id, res),
+    adminUser: {
+      _id: user._id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      tenantId: normalizeTenantId(user.tenantId),
+    },
+    temporaryPassword: payload.password ? undefined : password,
+  };
+};
+
 module.exports = {
   createCompany,
+  createCompanyAdminUser,
   createSubscription,
   getCompanyById,
   listCompanies,

@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, Save } from "lucide-react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
+  createPlatformCompanyAdminUser,
   createPlatformSubscription,
   fetchPlatformCompany,
   fetchPlatformPlans,
@@ -40,6 +41,12 @@ const PlatformCompanyDetailsPage = () => {
   const queryClient = useQueryClient();
   const [companyForm, setCompanyForm] = useState(null);
   const [subscriptionForm, setSubscriptionForm] = useState(null);
+  const [adminForm, setAdminForm] = useState({
+    name: "",
+    email: "",
+    password: "",
+  });
+  const [temporaryPassword, setTemporaryPassword] = useState("");
   const [error, setError] = useState("");
 
   const companyQuery = useQuery({
@@ -88,6 +95,11 @@ const PlatformCompanyDetailsPage = () => {
       startDate: company.subscription?.startDate?.slice?.(0, 10) || "",
       endDate: company.subscription?.endDate?.slice?.(0, 10) || "",
     });
+    setAdminForm({
+      name: company.adminUser?.name || company.contactPerson || "",
+      email: company.adminUser?.email || company.contactEmail || company.email || "",
+      password: "",
+    });
   }, [company]);
 
   const invalidateCompany = () => {
@@ -120,6 +132,17 @@ const PlatformCompanyDetailsPage = () => {
       setError(mutationError?.response?.data?.message || "Unable to update subscription");
     },
   });
+  const adminMutation = useMutation({
+    mutationFn: (payload) => createPlatformCompanyAdminUser({ companyId, payload }),
+    onSuccess: (result) => {
+      setError("");
+      setTemporaryPassword(result?.temporaryPassword || "");
+      invalidateCompany();
+    },
+    onError: (mutationError) => {
+      setError(mutationError?.response?.data?.message || "Unable to create company admin");
+    },
+  });
 
   const updateCompanyForm = (key, value) => {
     setCompanyForm((current) => ({ ...current, [key]: value }));
@@ -127,6 +150,10 @@ const PlatformCompanyDetailsPage = () => {
 
   const updateSubscriptionForm = (key, value) => {
     setSubscriptionForm((current) => ({ ...current, [key]: value }));
+  };
+
+  const updateAdminForm = (key, value) => {
+    setAdminForm((current) => ({ ...current, [key]: value }));
   };
 
   const saveCompany = (event) => {
@@ -144,6 +171,12 @@ const PlatformCompanyDetailsPage = () => {
       ...subscriptionForm,
       status,
     });
+  };
+
+  const saveCompanyAdmin = (event) => {
+    event.preventDefault();
+    setTemporaryPassword("");
+    adminMutation.mutate(adminForm);
   };
 
   return (
@@ -275,7 +308,11 @@ const PlatformCompanyDetailsPage = () => {
               </form>
             </section>
 
-            <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+              <div className="rounded-lg border border-slate-200 bg-white p-4">
+                <p className="text-xs font-bold uppercase tracking-[0.12em] text-slate-500">Tenant ID</p>
+                <p className="mt-1 font-mono text-lg font-bold">{company.tenantId || "N/A"}</p>
+              </div>
               <div className="rounded-lg border border-slate-200 bg-white p-4">
                 <p className="text-xs font-bold uppercase tracking-[0.12em] text-slate-500">User Limit</p>
                 <p className="mt-1 text-lg font-bold">{limitText(selectedPlan?.limits?.users)}</p>
@@ -293,6 +330,46 @@ const PlatformCompanyDetailsPage = () => {
                 <p className="mt-1 text-lg font-bold">{limitText(selectedPlan?.limits?.aiRequestsPerMonth, "/month")}</p>
               </div>
             </section>
+
+            <form className="rounded-lg border border-slate-200 bg-white p-4" onSubmit={saveCompanyAdmin}>
+              <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+                <div>
+                  <h2 className="text-base font-bold tracking-normal">Company Admin User</h2>
+                  <p className="mt-1 text-sm text-slate-500">
+                    Normal CureCode Admin - {company.tenantId}.
+                  </p>
+                </div>
+                {company.adminUser ? (
+                  <Badge variant="success">Linked</Badge>
+                ) : (
+                  <Badge variant="warning">Not linked</Badge>
+                )}
+              </div>
+              <div className="mt-4 grid gap-3 md:grid-cols-3">
+                <label className="space-y-1 text-sm font-semibold">
+                  <span>Name</span>
+                  <Input value={adminForm.name} onChange={(event) => updateAdminForm("name", event.target.value)} required />
+                </label>
+                <label className="space-y-1 text-sm font-semibold">
+                  <span>Email</span>
+                  <Input type="email" value={adminForm.email} onChange={(event) => updateAdminForm("email", event.target.value)} required />
+                </label>
+                <label className="space-y-1 text-sm font-semibold">
+                  <span>Password</span>
+                  <Input type="password" value={adminForm.password} placeholder="Auto-generate if blank" onChange={(event) => updateAdminForm("password", event.target.value)} />
+                </label>
+              </div>
+              {temporaryPassword ? (
+                <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-800">
+                  Temporary password generated. Share it securely once: <span className="font-mono">{temporaryPassword}</span>
+                </div>
+              ) : null}
+              <div className="mt-4 flex justify-end">
+                <Button className="rounded-lg" disabled={adminMutation.isPending} type="submit">
+                  {adminMutation.isPending ? "Saving..." : company.adminUser ? "Update Link" : "Create Company Admin"}
+                </Button>
+              </div>
+            </form>
 
             <section className="rounded-lg border border-slate-200 bg-white p-4">
               <h2 className="text-base font-bold tracking-normal">Details</h2>
@@ -312,6 +389,10 @@ const PlatformCompanyDetailsPage = () => {
                 <div>
                   <dt className="font-bold text-slate-500">Company Status</dt>
                   <dd className="mt-1">{company.status}</dd>
+                </div>
+                <div>
+                  <dt className="font-bold text-slate-500">Admin/User Association</dt>
+                  <dd className="mt-1">{company.adminUser?.email || "Not linked"}</dd>
                 </div>
               </dl>
             </section>

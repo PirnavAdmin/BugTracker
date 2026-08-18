@@ -16,6 +16,11 @@ router.post("/auth/logout", platformAuth, logoutPlatformAdmin);
 router.get("/plans", platformAuth, platformCompanyController.listPlans);
 router.get("/companies", platformAuth, platformCompanyController.listCompanies);
 router.post("/companies", platformAuth, platformCompanyController.createCompany);
+router.post(
+  "/companies/:id/admin-user",
+  platformAuth,
+  platformCompanyController.createCompanyAdminUser
+);
 router.get("/companies/:id", platformAuth, platformCompanyController.getCompany);
 router.put("/companies/:id", platformAuth, platformCompanyController.updateCompany);
 router.get("/subscriptions", platformAuth, platformCompanyController.listSubscriptions);

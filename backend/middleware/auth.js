@@ -1,6 +1,7 @@
 const jwt = require("jsonwebtoken");
 const User = require("../models/User");
 const asyncHandler = require("../utils/asyncHandler");
+const { normalizeTenantId } = require("../utils/tenant");
 const { normalizeWorkspaceId } = require("../utils/workspace");
 
 const auth = asyncHandler(async (req, res, next) => {
@@ -38,6 +39,7 @@ const auth = asyncHandler(async (req, res, next) => {
   }
 
   const workspaceId = normalizeWorkspaceId(user.workspaceId || decoded.workspaceId);
+  const tenantId = normalizeTenantId(user.tenantId || decoded.tenantId);
 
   req.user = {
     ...decoded,
@@ -45,8 +47,10 @@ const auth = asyncHandler(async (req, res, next) => {
     id: user._id.toString(),
     _id: user._id,
     workspaceId,
+    tenantId,
   };
   req.workspaceId = workspaceId;
+  req.tenantId = tenantId;
 
   next();
 });

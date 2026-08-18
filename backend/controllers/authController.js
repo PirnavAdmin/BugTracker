@@ -11,6 +11,7 @@ const {
   createWorkspaceId,
   normalizeWorkspaceId,
 } = require("../utils/workspace");
+const { normalizeTenantId } = require("../utils/tenant");
 
 const passwordHasLetter = /[A-Za-z]/;
 const passwordHasNumber = /\d/;
@@ -113,6 +114,7 @@ const serializeAuthUser = (user, { teams = [] } = {}) => ({
   role: user.role,
   avatarUrl: user.avatarUrl || "",
   workspaceId: normalizeWorkspaceId(user.workspaceId),
+  tenantId: normalizeTenantId(user.tenantId),
   createdAt: user.createdAt,
   teams,
   teamCount: teams.length,
@@ -120,11 +122,12 @@ const serializeAuthUser = (user, { teams = [] } = {}) => ({
 
 const buildAuthPayload = async (user, { rememberMe = false } = {}) => {
   const normalizedWorkspaceId = normalizeWorkspaceId(user.workspaceId);
+  const tenantId = normalizeTenantId(user.tenantId);
   const maxAgeSeconds = generateToken.getTokenMaxAgeSeconds({ rememberMe });
   const teams = await getUserTeams(user);
 
   return {
-    token: generateToken(user._id, normalizedWorkspaceId, { rememberMe }),
+    token: generateToken(user._id, normalizedWorkspaceId, { rememberMe, tenantId }),
     expiresAt: new Date(Date.now() + maxAgeSeconds * 1000).toISOString(),
     rememberMe,
     user: serializeAuthUser(user, { teams }),
@@ -157,6 +160,15 @@ const syncUserForAuth = async (user, password) => {
   if (!user.workspaceId) {
     user.workspaceId = normalizeWorkspaceId();
     requiresSave = true;
+  }
+
+  if (user.tenantId) {
+    const normalizedTenantId = normalizeTenantId(user.tenantId);
+
+    if (user.tenantId !== normalizedTenantId) {
+      user.tenantId = normalizedTenantId;
+      requiresSave = true;
+    }
   }
 
   if (!User.isPasswordHashed(user.password)) {
@@ -301,7 +313,7 @@ const getUsers = asyncHandler(async (req, res) => {
   const users = await User.find({
     workspaceId: normalizeWorkspaceId(req.user.workspaceId),
   })
-    .select("name email role avatarUrl createdAt workspaceId")
+    .select("name email role avatarUrl createdAt workspaceId tenantId")
     .sort({ name: 1 });
 
   console.log(

@@ -10,6 +10,7 @@
     "seed": "node scripts/seed.js",
     "reset:default-user": "node scripts/resetDefaultUser.js",
     "reset:platform-admin": "node scripts/resetPlatformAdmin.js",
+    "migrate:legacy-tenant": "node scripts/migrateLegacyTenantIdentity.js",
     "backup:export": "node scripts/exportMongoBackup.js",
     "start": "node server.js"
   },

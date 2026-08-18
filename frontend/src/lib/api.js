@@ -1397,6 +1397,11 @@ export const updatePlatformCompany = async ({ companyId, payload }) => {
   return response.data?.company || response.data;
 };
 
+export const createPlatformCompanyAdminUser = async ({ companyId, payload }) => {
+  const response = await platformApi.post(`/platform/companies/${companyId}/admin-user`, payload);
+  return response.data;
+};
+
 export const fetchPlatformSubscriptions = async (params = {}) => {
   const response = await platformApi.get("/platform/subscriptions", {
     params: buildParams(params),
