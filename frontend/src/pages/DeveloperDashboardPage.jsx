@@ -8,6 +8,8 @@ import {
   Bell,
   Bug,
   CalendarClock,
+  ChevronLeft,
+  ChevronRight,
   CheckCircle2,
   CircleDotDashed,
   ClipboardList,
@@ -151,6 +153,8 @@ const severityRank = {
   Minor: 3,
   Trivial: 4,
 };
+
+const WORK_QUEUE_PAGE_SIZE = 10;
 
 const bugWorkflowLabels = {
   [ISSUE_STATUS.NEW]: "Open",
@@ -1365,7 +1369,18 @@ const ActivityList = ({ activity, compact = false, fallbackIssues = [], onOpenIs
 };
 
 const BugBucketPanel = ({ issues, isLoading, onOpenIssue, onPickIssue, onViewAllBugs, pickingId }) => {
+  const [currentPage, setCurrentPage] = useState(1);
   const sortedIssues = useMemo(() => sortAvailableBugQueue(issues), [issues]);
+  const pageCount = Math.max(1, Math.ceil(sortedIssues.length / WORK_QUEUE_PAGE_SIZE));
+  const activePage = Math.min(currentPage, pageCount);
+  const pageStartIndex = (activePage - 1) * WORK_QUEUE_PAGE_SIZE;
+  const visibleIssues = sortedIssues.slice(pageStartIndex, pageStartIndex + WORK_QUEUE_PAGE_SIZE);
+  const firstVisibleItem = sortedIssues.length ? pageStartIndex + 1 : 0;
+  const lastVisibleItem = Math.min(pageStartIndex + visibleIssues.length, sortedIssues.length);
+
+  useEffect(() => {
+    setCurrentPage((page) => Math.min(Math.max(page, 1), pageCount));
+  }, [pageCount]);
 
   return (
     <Card className="overflow-hidden border-cyan-100/80 bg-white/94 shadow-[0_18px_46px_-36px_rgba(8,145,178,0.42)] ring-1 ring-cyan-100/70 backdrop-blur-xl">
@@ -1416,7 +1431,7 @@ const BugBucketPanel = ({ issues, isLoading, onOpenIssue, onPickIssue, onViewAll
                 <span className="text-right">Action</span>
               </div>
               <div className="divide-y divide-cyan-100/70">
-                {sortedIssues.map((issue) => {
+                {visibleIssues.map((issue) => {
                   const canPick = issue.canPick !== false && issue.pickupEligibility?.canPick !== false;
                   const pickDisabled = pickingId === issue._id || !canPick;
                   const isStory = issue.type === "Story";
@@ -1493,12 +1508,41 @@ const BugBucketPanel = ({ issues, isLoading, onOpenIssue, onPickIssue, onViewAll
               </div>
             </div>
 
-            <p className="border-t border-cyan-100/80 pt-3 text-xs font-medium text-slate-500">
-              Showing all {sortedIssues.length} available work items
-            </p>
+            <div className="flex flex-col gap-3 border-t border-cyan-100/80 pt-3 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-xs font-medium text-slate-500">
+                Showing {firstVisibleItem}-{lastVisibleItem} of {sortedIssues.length} available work items
+              </p>
+              {pageCount > 1 ? (
+                <div className="flex items-center gap-2">
+                  <Button
+                    aria-label="Previous work queue page"
+                    className="h-8 w-8 rounded-xl p-0"
+                    type="button"
+                    variant="outline"
+                    disabled={currentPage === 1}
+                    onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </Button>
+                  <span className="min-w-[72px] text-center text-xs font-semibold text-slate-600">
+                    {activePage} / {pageCount}
+                  </span>
+                  <Button
+                    aria-label="Next work queue page"
+                    className="h-8 w-8 rounded-xl p-0"
+                    type="button"
+                    variant="outline"
+                    disabled={activePage === pageCount}
+                    onClick={() => setCurrentPage((page) => Math.min(pageCount, page + 1))}
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                </div>
+              ) : null}
+            </div>
           </>
         ) : (
-          <div className="flex min-h-[116px] flex-col justify-center rounded-2xl border border-dashed border-cyan-100 bg-cyan-50/35 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+          <div className="flex flex-col rounded-2xl border border-dashed border-cyan-100 bg-cyan-50/35 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
             <div>
               <p className="text-sm font-semibold text-slate-950">0 available</p>
               <p className="mt-1 text-sm text-slate-500">
