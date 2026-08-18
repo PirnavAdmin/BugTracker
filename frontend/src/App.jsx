@@ -39,7 +39,10 @@ const TeamActivityPage = lazy(() => import("@/pages/TeamActivityPage"));
 const ProfilePage = lazy(() => import("@/pages/ProfilePage"));
 const PlatformLoginPage = lazy(() => import("@/pages/PlatformLoginPage"));
 const PlatformDashboardPage = lazy(() => import("@/pages/PlatformDashboardPage"));
+const PlatformCompaniesPage = lazy(() => import("@/pages/PlatformCompaniesPage"));
+const PlatformCompanyDetailsPage = lazy(() => import("@/pages/PlatformCompanyDetailsPage"));
 const PlatformPlaceholderPage = lazy(() => import("@/pages/PlatformPlaceholderPage"));
+const PlatformSubscriptionsPage = lazy(() => import("@/pages/PlatformSubscriptionsPage"));
 
 const PublicRouteFallback = () => (
   <main className="grid min-h-screen place-items-center bg-[#111113] px-6 py-12 text-white">
@@ -295,6 +298,36 @@ const App = () => (
         <PlatformProtectedRoute>
           <Suspense fallback={<PublicRouteFallback />}>
             <PlatformDashboardPage />
+          </Suspense>
+        </PlatformProtectedRoute>
+      }
+    />
+    <Route
+      path="/platform/companies"
+      element={
+        <PlatformProtectedRoute>
+          <Suspense fallback={<PublicRouteFallback />}>
+            <PlatformCompaniesPage />
+          </Suspense>
+        </PlatformProtectedRoute>
+      }
+    />
+    <Route
+      path="/platform/companies/:companyId"
+      element={
+        <PlatformProtectedRoute>
+          <Suspense fallback={<PublicRouteFallback />}>
+            <PlatformCompanyDetailsPage />
+          </Suspense>
+        </PlatformProtectedRoute>
+      }
+    />
+    <Route
+      path="/platform/subscriptions"
+      element={
+        <PlatformProtectedRoute>
+          <Suspense fallback={<PublicRouteFallback />}>
+            <PlatformSubscriptionsPage />
           </Suspense>
         </PlatformProtectedRoute>
       }

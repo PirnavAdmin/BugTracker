@@ -2,6 +2,8 @@ const { test, beforeEach, afterEach } = require("node:test");
 const assert = require("node:assert");
 const AIUsage = require("../models/AIUsage");
 const PlatformAuditLog = require("../models/PlatformAuditLog");
+const PlatformCompany = require("../models/PlatformCompany");
+const PlatformSubscription = require("../models/PlatformSubscription");
 const Project = require("../models/Project");
 const User = require("../models/User");
 const {
@@ -13,6 +15,9 @@ const {
 
 const originalAIUsageAggregate = AIUsage.aggregate;
 const originalAIUsageDistinct = AIUsage.distinct;
+const originalPlatformCompanyCountDocuments = PlatformCompany.countDocuments;
+const originalPlatformSubscriptionAggregate = PlatformSubscription.aggregate;
+const originalPlatformSubscriptionCountDocuments = PlatformSubscription.countDocuments;
 const originalProjectAggregate = Project.aggregate;
 const originalProjectDistinct = Project.distinct;
 const originalUserAggregate = User.aggregate;
@@ -24,6 +29,9 @@ beforeEach(() => {
   User.distinct = async () => ["workspace-a", "workspace-b"];
   Project.distinct = async () => ["workspace-b"];
   AIUsage.distinct = async () => ["workspace-a"];
+  PlatformCompany.countDocuments = async () => 0;
+  PlatformSubscription.countDocuments = async () => 0;
+  PlatformSubscription.aggregate = async () => [];
   User.countDocuments = async () => 7;
   AIUsage.aggregate = async () => [
     {
@@ -37,6 +45,9 @@ beforeEach(() => {
 afterEach(() => {
   AIUsage.aggregate = originalAIUsageAggregate;
   AIUsage.distinct = originalAIUsageDistinct;
+  PlatformCompany.countDocuments = originalPlatformCompanyCountDocuments;
+  PlatformSubscription.aggregate = originalPlatformSubscriptionAggregate;
+  PlatformSubscription.countDocuments = originalPlatformSubscriptionCountDocuments;
   Project.aggregate = originalProjectAggregate;
   Project.distinct = originalProjectDistinct;
   User.aggregate = originalUserAggregate;

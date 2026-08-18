@@ -1,7 +1,11 @@
 const AIUsage = require("../models/AIUsage");
 const PlatformAuditLog = require("../models/PlatformAuditLog");
+const PlatformCompany = require("../models/PlatformCompany");
+const PlatformSubscription = require("../models/PlatformSubscription");
 const Project = require("../models/Project");
 const User = require("../models/User");
+const { PLATFORM_PLANS } = require("../constants/platformPlans");
+const { PLATFORM_SUBSCRIPTION_STATUSES } = require("../constants/platformSubscriptions");
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 const DEFAULT_RANGE_DAYS = 30;
@@ -83,9 +87,11 @@ const getWorkspaceIds = async () => {
 };
 
 const getSummary = async () => {
-  const [workspaceIds, users, aiTotals] = await Promise.all([
+  const [platformCompanies, workspaceIds, users, activeSubscriptions, aiTotals] = await Promise.all([
+    PlatformCompany.countDocuments({}),
     getWorkspaceIds(),
     User.countDocuments({}),
+    PlatformSubscription.countDocuments({ status: PLATFORM_SUBSCRIPTION_STATUSES.ACTIVE }),
     AIUsage.aggregate([
       { $match: { status: "SUCCESS" } },
       {
@@ -102,7 +108,7 @@ const getSummary = async () => {
   const ai = aiTotals[0] || {};
 
   return {
-    companies: workspaceIds.length,
+    companies: platformCompanies || workspaceIds.length,
     users,
     mrr: null,
     aiCost: Number(ai.estimatedCost || 0),
@@ -111,7 +117,10 @@ const getSummary = async () => {
     aiTokens: Number(ai.tokens || 0),
     currency: "USD",
     notes: {
-      companies: "Inferred from existing workspace records until a company model is added.",
+      companies: platformCompanies
+        ? "Platform company records."
+        : "Inferred from existing workspace records until companies are added.",
+      activeSubscriptions,
       mrr: "No subscription billing model is available yet.",
       storage: "No tenant storage metering model is available yet.",
     },
@@ -132,15 +141,27 @@ const getRevenueOverview = async (query = {}) => {
   };
 };
 
-const getSubscriptionOverview = async () => ({
-  totals: {
-    activeSubscriptions: null,
-    trialSubscriptions: null,
-    canceledSubscriptions: null,
-  },
-  plans: [],
-  emptyState: "No subscription data available yet",
-});
+const getSubscriptionOverview = async () => {
+  const [statusRows, planRows] = await Promise.all([
+    PlatformSubscription.aggregate([{ $group: { _id: "$status", count: { $sum: 1 } } }]),
+    PlatformSubscription.aggregate([{ $group: { _id: "$planId", count: { $sum: 1 } } }]),
+  ]);
+  const byStatus = new Map(statusRows.map((row) => [row._id, row.count]));
+  const byPlan = new Map(planRows.map((row) => [row._id, row.count]));
+
+  return {
+    totals: {
+      activeSubscriptions: Number(byStatus.get(PLATFORM_SUBSCRIPTION_STATUSES.ACTIVE) || 0),
+      trialSubscriptions: Number(byStatus.get(PLATFORM_SUBSCRIPTION_STATUSES.TRIAL) || 0),
+      canceledSubscriptions: Number(byStatus.get(PLATFORM_SUBSCRIPTION_STATUSES.CANCELLED) || 0),
+    },
+    plans: PLATFORM_PLANS.map((plan) => ({
+      ...plan,
+      activeSubscriptions: Number(byPlan.get(plan.id) || 0),
+    })),
+    emptyState: "No subscription data available yet",
+  };
+};
 
 const getAIUsage = async (query = {}) => {
   const { start, end } = getDateRange(query);

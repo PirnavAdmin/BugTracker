@@ -1370,4 +1370,48 @@ export const fetchPlatformDashboardAlerts = async (params = {}) => {
   return response.data;
 };
 
+export const fetchPlatformPlans = async () => {
+  const response = await platformApi.get("/platform/plans");
+  return response.data?.plans || [];
+};
+
+export const fetchPlatformCompanies = async (params = {}) => {
+  const response = await platformApi.get("/platform/companies", {
+    params: buildParams(params),
+  });
+  return response.data;
+};
+
+export const createPlatformCompany = async (payload) => {
+  const response = await platformApi.post("/platform/companies", payload);
+  return response.data?.company || response.data;
+};
+
+export const fetchPlatformCompany = async (companyId) => {
+  const response = await platformApi.get(`/platform/companies/${companyId}`);
+  return response.data?.company || response.data;
+};
+
+export const updatePlatformCompany = async ({ companyId, payload }) => {
+  const response = await platformApi.put(`/platform/companies/${companyId}`, payload);
+  return response.data?.company || response.data;
+};
+
+export const fetchPlatformSubscriptions = async (params = {}) => {
+  const response = await platformApi.get("/platform/subscriptions", {
+    params: buildParams(params),
+  });
+  return response.data;
+};
+
+export const createPlatformSubscription = async (payload) => {
+  const response = await platformApi.post("/platform/subscriptions", payload);
+  return response.data?.subscription || response.data;
+};
+
+export const updatePlatformSubscription = async ({ subscriptionId, payload }) => {
+  const response = await platformApi.put(`/platform/subscriptions/${subscriptionId}`, payload);
+  return response.data?.subscription || response.data;
+};
+
 export default api;

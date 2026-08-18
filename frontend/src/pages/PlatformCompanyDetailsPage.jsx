@@ -1,0 +1,331 @@
+import { useEffect, useMemo, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { ArrowLeft, Save } from "lucide-react";
+import { useNavigate, useParams } from "react-router-dom";
+import {
+  createPlatformSubscription,
+  fetchPlatformCompany,
+  fetchPlatformPlans,
+  updatePlatformCompany,
+  updatePlatformSubscription,
+} from "@/lib/api";
+import PlatformShell from "@/components/platform/PlatformShell";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
+
+const companyStatuses = ["Active", "Suspended"];
+const subscriptionStatuses = ["Trial", "Active", "Past Due", "Suspended", "Cancelled", "Expired"];
+const billingCycles = ["Monthly", "Yearly"];
+
+const formatDate = (value) =>
+  value
+    ? new Intl.DateTimeFormat("en-IN", { dateStyle: "medium" }).format(new Date(value))
+    : "N/A";
+
+const limitText = (value, suffix = "") =>
+  value === null || value === undefined ? "N/A" : `${value}${suffix}`;
+
+const FutureSection = ({ title }) => (
+  <section className="rounded-lg border border-slate-200 bg-white p-4">
+    <p className="text-sm font-bold tracking-normal text-slate-950">{title}</p>
+    <p className="mt-2 text-sm font-medium text-slate-500">Coming next</p>
+  </section>
+);
+
+const PlatformCompanyDetailsPage = () => {
+  const { companyId } = useParams();
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const [companyForm, setCompanyForm] = useState(null);
+  const [subscriptionForm, setSubscriptionForm] = useState(null);
+  const [error, setError] = useState("");
+
+  const companyQuery = useQuery({
+    queryKey: ["platform-company", companyId],
+    queryFn: () => fetchPlatformCompany(companyId),
+    enabled: Boolean(companyId),
+  });
+  const plansQuery = useQuery({
+    queryKey: ["platform-plans"],
+    queryFn: fetchPlatformPlans,
+  });
+
+  const company = companyQuery.data;
+  const plans = plansQuery.data || [];
+  const selectedPlan = useMemo(
+    () => plans.find((plan) => plan.id === (subscriptionForm?.planId || company?.planId)) || company?.plan,
+    [company?.plan, company?.planId, plans, subscriptionForm?.planId]
+  );
+
+  useEffect(() => {
+    if (!company) {
+      return;
+    }
+
+    setCompanyForm({
+      name: company.name || "",
+      email: company.email || "",
+      contactPerson: company.contactPerson || "",
+      contactEmail: company.contactEmail || "",
+      contactPhone: company.contactPhone || "",
+      planId: company.planId || "starter",
+      status: company.status || "Active",
+    });
+  }, [company]);
+
+  useEffect(() => {
+    if (!company) {
+      return;
+    }
+
+    setSubscriptionForm({
+      planId: company.subscription?.planId || company.planId || "starter",
+      status: company.subscription?.status || "Trial",
+      billingCycle: company.subscription?.billingCycle || "Monthly",
+      amount: company.subscription?.amount ?? "",
+      startDate: company.subscription?.startDate?.slice?.(0, 10) || "",
+      endDate: company.subscription?.endDate?.slice?.(0, 10) || "",
+    });
+  }, [company]);
+
+  const invalidateCompany = () => {
+    queryClient.invalidateQueries({ queryKey: ["platform-company", companyId] });
+    queryClient.invalidateQueries({ queryKey: ["platform-companies"] });
+    queryClient.invalidateQueries({ queryKey: ["platform-subscriptions"] });
+    queryClient.invalidateQueries({ queryKey: ["platform-dashboard-summary"] });
+  };
+
+  const companyMutation = useMutation({
+    mutationFn: (payload) => updatePlatformCompany({ companyId, payload }),
+    onSuccess: () => {
+      setError("");
+      invalidateCompany();
+    },
+    onError: (mutationError) => {
+      setError(mutationError?.response?.data?.message || "Unable to save company");
+    },
+  });
+  const subscriptionMutation = useMutation({
+    mutationFn: (payload) =>
+      company?.subscription?._id
+        ? updatePlatformSubscription({ subscriptionId: company.subscription._id, payload })
+        : createPlatformSubscription({ companyId, ...payload }),
+    onSuccess: () => {
+      setError("");
+      invalidateCompany();
+    },
+    onError: (mutationError) => {
+      setError(mutationError?.response?.data?.message || "Unable to update subscription");
+    },
+  });
+
+  const updateCompanyForm = (key, value) => {
+    setCompanyForm((current) => ({ ...current, [key]: value }));
+  };
+
+  const updateSubscriptionForm = (key, value) => {
+    setSubscriptionForm((current) => ({ ...current, [key]: value }));
+  };
+
+  const saveCompany = (event) => {
+    event.preventDefault();
+    companyMutation.mutate(companyForm);
+  };
+
+  const saveSubscription = (event) => {
+    event.preventDefault();
+    subscriptionMutation.mutate(subscriptionForm);
+  };
+
+  const setSubscriptionStatus = (status) => {
+    subscriptionMutation.mutate({
+      ...subscriptionForm,
+      status,
+    });
+  };
+
+  return (
+    <PlatformShell
+      title={company?.name || "Company Details"}
+      actions={
+        <Button className="h-10 rounded-lg" type="button" variant="outline" onClick={() => navigate("/platform/companies")}>
+          <ArrowLeft className="h-4 w-4" />
+          Companies
+        </Button>
+      }
+    >
+      <div className="space-y-4 p-4 xl:p-5">
+        {companyQuery.isLoading ? (
+          <Skeleton className="h-[420px] rounded-lg" />
+        ) : companyQuery.isError ? (
+          <section className="rounded-lg border border-rose-200 bg-rose-50 p-5 text-sm font-semibold text-rose-700">
+            Company not found
+          </section>
+        ) : (
+          <>
+            {error ? (
+              <div className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-700">
+                {error}
+              </div>
+            ) : null}
+
+            <section className="grid gap-4 xl:grid-cols-[1fr_0.9fr]">
+              <form className="rounded-lg border border-slate-200 bg-white p-4" onSubmit={saveCompany}>
+                <div className="flex items-center justify-between gap-3">
+                  <h2 className="text-base font-bold tracking-normal">Company</h2>
+                  <Badge variant={company.status === "Active" ? "success" : "warning"}>{company.status}</Badge>
+                </div>
+                <div className="mt-4 grid gap-3 md:grid-cols-2">
+                  <label className="space-y-1 text-sm font-semibold">
+                    <span>Company Name</span>
+                    <Input value={companyForm?.name || ""} onChange={(event) => updateCompanyForm("name", event.target.value)} required />
+                  </label>
+                  <label className="space-y-1 text-sm font-semibold">
+                    <span>Company Email</span>
+                    <Input type="email" value={companyForm?.email || ""} onChange={(event) => updateCompanyForm("email", event.target.value)} required />
+                  </label>
+                  <label className="space-y-1 text-sm font-semibold">
+                    <span>Contact Person</span>
+                    <Input value={companyForm?.contactPerson || ""} onChange={(event) => updateCompanyForm("contactPerson", event.target.value)} />
+                  </label>
+                  <label className="space-y-1 text-sm font-semibold">
+                    <span>Contact Email</span>
+                    <Input type="email" value={companyForm?.contactEmail || ""} onChange={(event) => updateCompanyForm("contactEmail", event.target.value)} />
+                  </label>
+                  <label className="space-y-1 text-sm font-semibold">
+                    <span>Contact Phone</span>
+                    <Input value={companyForm?.contactPhone || ""} onChange={(event) => updateCompanyForm("contactPhone", event.target.value)} />
+                  </label>
+                  <label className="space-y-1 text-sm font-semibold">
+                    <span>Status</span>
+                    <select className="h-11 w-full rounded-2xl border border-gray-300 bg-white px-4 text-sm" value={companyForm?.status || "Active"} onChange={(event) => updateCompanyForm("status", event.target.value)}>
+                      {companyStatuses.map((option) => (
+                        <option key={option} value={option}>
+                          {option}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                </div>
+                <div className="mt-4 flex justify-end">
+                  <Button className="rounded-lg" disabled={companyMutation.isPending} type="submit">
+                    <Save className="h-4 w-4" />
+                    {companyMutation.isPending ? "Saving..." : "Save Company"}
+                  </Button>
+                </div>
+              </form>
+
+              <form className="rounded-lg border border-slate-200 bg-white p-4" onSubmit={saveSubscription}>
+                <div className="flex items-center justify-between gap-3">
+                  <h2 className="text-base font-bold tracking-normal">Subscription</h2>
+                  <Badge>{company.subscription?.status || "Not assigned"}</Badge>
+                </div>
+                <div className="mt-4 grid gap-3 md:grid-cols-2">
+                  <label className="space-y-1 text-sm font-semibold">
+                    <span>Plan</span>
+                    <select className="h-11 w-full rounded-2xl border border-gray-300 bg-white px-4 text-sm" value={subscriptionForm?.planId || "starter"} onChange={(event) => updateSubscriptionForm("planId", event.target.value)}>
+                      {plans.map((plan) => (
+                        <option key={plan.id} value={plan.id}>
+                          {plan.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="space-y-1 text-sm font-semibold">
+                    <span>Status</span>
+                    <select className="h-11 w-full rounded-2xl border border-gray-300 bg-white px-4 text-sm" value={subscriptionForm?.status || "Trial"} onChange={(event) => updateSubscriptionForm("status", event.target.value)}>
+                      {subscriptionStatuses.map((option) => (
+                        <option key={option} value={option}>
+                          {option}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="space-y-1 text-sm font-semibold">
+                    <span>Billing Cycle</span>
+                    <select className="h-11 w-full rounded-2xl border border-gray-300 bg-white px-4 text-sm" value={subscriptionForm?.billingCycle || "Monthly"} onChange={(event) => updateSubscriptionForm("billingCycle", event.target.value)}>
+                      {billingCycles.map((option) => (
+                        <option key={option} value={option}>
+                          {option}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="space-y-1 text-sm font-semibold">
+                    <span>Amount</span>
+                    <Input min="0" step="0.01" type="number" value={subscriptionForm?.amount || ""} onChange={(event) => updateSubscriptionForm("amount", event.target.value)} />
+                  </label>
+                </div>
+                <div className="mt-4 flex flex-wrap justify-end gap-2">
+                  <Button className="rounded-lg" type="button" variant="outline" onClick={() => setSubscriptionStatus("Active")}>
+                    Activate
+                  </Button>
+                  <Button className="rounded-lg" type="button" variant="outline" onClick={() => setSubscriptionStatus("Suspended")}>
+                    Suspend
+                  </Button>
+                  <Button className="rounded-lg" type="button" variant="outline" onClick={() => setSubscriptionStatus("Cancelled")}>
+                    Cancel Subscription
+                  </Button>
+                  <Button className="rounded-lg" disabled={subscriptionMutation.isPending} type="submit">
+                    {subscriptionMutation.isPending ? "Saving..." : "Save Subscription"}
+                  </Button>
+                </div>
+              </form>
+            </section>
+
+            <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+              <div className="rounded-lg border border-slate-200 bg-white p-4">
+                <p className="text-xs font-bold uppercase tracking-[0.12em] text-slate-500">User Limit</p>
+                <p className="mt-1 text-lg font-bold">{limitText(selectedPlan?.limits?.users)}</p>
+              </div>
+              <div className="rounded-lg border border-slate-200 bg-white p-4">
+                <p className="text-xs font-bold uppercase tracking-[0.12em] text-slate-500">Project Limit</p>
+                <p className="mt-1 text-lg font-bold">{limitText(selectedPlan?.limits?.projects)}</p>
+              </div>
+              <div className="rounded-lg border border-slate-200 bg-white p-4">
+                <p className="text-xs font-bold uppercase tracking-[0.12em] text-slate-500">Storage Limit</p>
+                <p className="mt-1 text-lg font-bold">{limitText(selectedPlan?.limits?.storageGb, " GB")}</p>
+              </div>
+              <div className="rounded-lg border border-slate-200 bg-white p-4">
+                <p className="text-xs font-bold uppercase tracking-[0.12em] text-slate-500">AI Limit</p>
+                <p className="mt-1 text-lg font-bold">{limitText(selectedPlan?.limits?.aiRequestsPerMonth, "/month")}</p>
+              </div>
+            </section>
+
+            <section className="rounded-lg border border-slate-200 bg-white p-4">
+              <h2 className="text-base font-bold tracking-normal">Details</h2>
+              <dl className="mt-3 grid gap-3 text-sm md:grid-cols-2 xl:grid-cols-4">
+                <div>
+                  <dt className="font-bold text-slate-500">Plan</dt>
+                  <dd className="mt-1">{selectedPlan?.name || "N/A"}</dd>
+                </div>
+                <div>
+                  <dt className="font-bold text-slate-500">Created Date</dt>
+                  <dd className="mt-1">{formatDate(company.createdAt)}</dd>
+                </div>
+                <div>
+                  <dt className="font-bold text-slate-500">Subscription Status</dt>
+                  <dd className="mt-1">{company.subscription?.status || "N/A"}</dd>
+                </div>
+                <div>
+                  <dt className="font-bold text-slate-500">Company Status</dt>
+                  <dd className="mt-1">{company.status}</dd>
+                </div>
+              </dl>
+            </section>
+
+            <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+              {["Payments", "AI Usage", "Storage", "Users", "Activity"].map((title) => (
+                <FutureSection key={title} title={title} />
+              ))}
+            </section>
+          </>
+        )}
+      </div>
+    </PlatformShell>
+  );
+};
+
+export default PlatformCompanyDetailsPage;
