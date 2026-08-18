@@ -725,6 +725,11 @@ const projectSchema = new Schema(
       index: true,
       default: normalizeWorkspaceId(),
     },
+    tenantId: {
+      type: String,
+      index: true,
+      trim: true,
+    },
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
