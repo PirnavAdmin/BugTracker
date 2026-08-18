@@ -508,7 +508,7 @@ const AiCodeReviewPanelContent = ({
     return (
       <div
         className={cn(
-          "relative flex min-h-[340px] flex-1 flex-col overflow-hidden rounded-2xl border border-white/70 bg-white/75 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.72)]",
+          "relative flex min-h-[224px] flex-1 flex-col overflow-hidden rounded-2xl border border-white/70 bg-white/75 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.72)]",
           className
         )}
       >
@@ -556,13 +556,13 @@ const AiCodeReviewPanelContent = ({
           </span>
         </div>
 
-        <div className="relative flex flex-1 flex-col items-center justify-center py-5 text-center">
+        <div className="relative flex flex-1 flex-col items-center justify-center py-4 text-center">
           <motion.div
             animate={status === "REVIEWING" ? { scale: [1, 1.035, 1] } : { scale: 1 }}
             className={cn("rounded-full bg-gradient-to-br p-[3px] shadow-[0_20px_54px_-30px_rgba(37,99,235,0.75)]", ringTone)}
             transition={{ duration: 1.6, ease: "easeInOut", repeat: status === "REVIEWING" ? Infinity : 0 }}
           >
-            <div className="grid h-32 w-32 place-items-center rounded-full bg-white">
+            <div className="grid h-28 w-28 place-items-center rounded-full bg-white">
               <div>
                 <p className="text-4xl font-bold tracking-normal text-slate-950">{score}</p>
                 <p className="mt-1 text-[11px] font-bold uppercase tracking-[0.16em] text-slate-500">
@@ -571,31 +571,26 @@ const AiCodeReviewPanelContent = ({
               </div>
             </div>
           </motion.div>
-
-          <p className="mt-4 max-w-[320px] text-sm font-medium leading-6 text-slate-600">
-            {safeReview.status === "COMPLETED"
-              ? safeReview.summary || `${viewState.highRiskCount} high risk findings detected.`
-              : canRun
-                ? "Run a focused AI review for the latest commit before QA handoff."
-                : "Latest push review appears here."}
-          </p>
         </div>
 
-        <div className="relative mt-auto flex flex-col gap-2">
+        <div className="relative mt-auto grid gap-2 sm:grid-cols-2">
           {safeReview.status === "COMPLETED" ? (
             <Button className="h-10 rounded-xl border-white/80 bg-white/90 shadow-sm" onClick={() => setOpen(true)} type="button" variant="outline">
               <ShieldAlert className="h-4 w-4" aria-hidden="true" />
-              View AI Review
+              View Report
             </Button>
           ) : null}
           <Button
-            className="h-11 rounded-xl bg-gradient-to-r from-blue-600 via-indigo-600 to-cyan-500 text-white shadow-[0_14px_34px_-22px_rgba(37,99,235,0.95)] hover:from-blue-700 hover:via-indigo-700 hover:to-cyan-600"
+            className={cn(
+              "h-10 rounded-xl bg-gradient-to-r from-blue-600 via-indigo-600 to-cyan-500 text-white shadow-[0_14px_34px_-22px_rgba(37,99,235,0.95)] hover:from-blue-700 hover:via-indigo-700 hover:to-cyan-600",
+              safeReview.status !== "COMPLETED" && "sm:col-span-2"
+            )}
             disabled={!canRun || running}
             onClick={() => handleRunReview({ forceRefresh: false })}
             type="button"
           >
             {running ? <LoaderCircle className="h-4 w-4 animate-spin" aria-hidden="true" /> : safeReview.status === "COMPLETED" ? <RefreshCcw className="h-4 w-4" aria-hidden="true" /> : <CheckCircle2 className="h-4 w-4" aria-hidden="true" />}
-            {viewState.buttonLabel}
+            {safeReview.status === "COMPLETED" ? "Regenerate" : viewState.buttonLabel}
           </Button>
         </div>
 
