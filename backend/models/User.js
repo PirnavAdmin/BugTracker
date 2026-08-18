@@ -139,6 +139,7 @@ userSchema.methods.comparePassword = async function comparePassword(password) {
 
   return password === this.password;
 };
+userSchema.methods.verifyPassword = userSchema.methods.comparePassword;
 
 userSchema.statics.isPasswordHashed = isBcryptHash;
 userSchema.statics.availableRoles = USER_ROLE_OPTIONS;

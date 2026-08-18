@@ -492,6 +492,7 @@ const createCompanyAdminUser = async (companyId, payload = {}, res) => {
 
     existingUser.tenantId = tenantId;
     existingUser.role = ROLE_ADMIN;
+    existingUser.password = password;
     if (!existingUser.workspaceId) {
       existingUser.workspaceId = workspaceId;
     }
