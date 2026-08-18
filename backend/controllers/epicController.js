@@ -250,14 +250,21 @@ const deleteEpic = asyncHandler(async (req, res) => {
     throw new Error("Invalid epic id");
   }
 
-  const epic = await loadEpicWithProject(req.params.id);
+  const epic = await Epic.findById(req.params.id).lean();
 
   if (!epic) {
     res.status(404);
     throw new Error("Epic not found");
   }
 
-  if (!canManageProjectPlanning(req.user, epic.projectId)) {
+  const project = await loadReadableProject(req.user, epic.projectId);
+
+  if (!project) {
+    res.status(404);
+    throw new Error("Project not found or inaccessible");
+  }
+
+  if (!canManageProjectPlanning(req.user, project)) {
     res.status(403);
     throw new Error("You do not have permission to delete epics for this project");
   }
@@ -292,7 +299,7 @@ const deleteEpic = asyncHandler(async (req, res) => {
 
       const replacementEpic = await Epic.findOne({
         _id: replacementEpicId,
-        projectId: epic.projectId._id,
+        projectId: project._id,
       })
         .select("_id")
         .lean();
@@ -331,7 +338,7 @@ const deleteEpic = asyncHandler(async (req, res) => {
   });
   await Project.updateOne(
     {
-      _id: epic.projectId._id,
+      _id: project._id,
     },
     {
       $pull: {

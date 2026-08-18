@@ -37,6 +37,7 @@ const {
   getSprintLifecycleState,
   isSprintLocked,
 } = require("../utils/sprintLifecycle");
+const { loadTenantSafeIssueWithProject } = require("../utils/issueAccess");
 
 const attachmentsRoot = path.resolve(__dirname, "..", "uploads", "issue-attachments");
 fs.mkdirSync(attachmentsRoot, {
@@ -84,7 +85,7 @@ const formatAttachment = (attachment) => ({
 });
 
 const ensurePlanningAccessForIssue = async (user, issueId) => {
-  const issue = await Issue.findById(issueId);
+  const { issue, project } = await loadTenantSafeIssueWithProject(user, issueId);
 
   if (!issue) {
     return {
@@ -94,8 +95,6 @@ const ensurePlanningAccessForIssue = async (user, issueId) => {
       },
     };
   }
-
-  const project = await loadReadableProject(user, issue.projectId);
 
   if (!project) {
     return {

@@ -242,6 +242,37 @@ const ensureSprintManagementAccess = async (user, sprint) => {
   };
 };
 
+const loadTenantSafeSprintForManagement = async (user, sprintId, { populateTeam = false } = {}) => {
+  const query = Sprint.findById(sprintId);
+
+  if (populateTeam) {
+    query.populate("teamId", "name description workspaceId");
+  }
+
+  const sprint = await query;
+
+  if (!sprint) {
+    return {
+      sprint: null,
+      accessResult: null,
+    };
+  }
+
+  const accessResult = await ensureSprintManagementAccess(user, sprint);
+
+  if (accessResult.error) {
+    return {
+      sprint: null,
+      accessResult,
+    };
+  }
+
+  return {
+    sprint,
+    accessResult,
+  };
+};
+
 const isCompletedSprintIssue = (issue) =>
   [ISSUE_STATUS.DONE, ISSUE_STATUS.CLOSED].includes(issue?.status);
 
@@ -410,24 +441,16 @@ const getSprintIssues = asyncHandler(async (req, res) => {
     throw new Error("Invalid sprint id");
   }
 
-  const sprint = await Sprint.findById(req.params.id).populate(
-    "teamId",
-    "name description workspaceId"
-  );
+  const { sprint, accessResult } = await loadTenantSafeSprintForManagement(req.user, req.params.id, {
+    populateTeam: true,
+  });
 
   if (!sprint) {
-    res.status(404);
-    throw new Error("Sprint not found");
+    res.status(accessResult?.error?.status || 404);
+    throw new Error(accessResult?.error?.message || "Sprint not found");
   }
 
   await expireSprintIfNeeded(sprint);
-
-  const accessResult = await ensureSprintManagementAccess(req.user, sprint);
-
-  if (accessResult.error) {
-    res.status(accessResult.error.status);
-    throw new Error(accessResult.error.message);
-  }
 
   const issues = await populateIssueQuery(
     Issue.find({
@@ -533,18 +556,11 @@ const updateSprint = asyncHandler(async (req, res) => {
     throw new Error("Invalid sprint id");
   }
 
-  const sprint = await Sprint.findById(req.params.id);
+  const { sprint, accessResult } = await loadTenantSafeSprintForManagement(req.user, req.params.id);
 
   if (!sprint) {
-    res.status(404);
-    throw new Error("Sprint not found");
-  }
-
-  const accessResult = await ensureSprintManagementAccess(req.user, sprint);
-
-  if (accessResult.error) {
-    res.status(accessResult.error.status);
-    throw new Error(accessResult.error.message);
+    res.status(accessResult?.error?.status || 404);
+    throw new Error(accessResult?.error?.message || "Sprint not found");
   }
 
   if (sprint.state === "COMPLETED") {
@@ -644,18 +660,11 @@ const deleteSprint = asyncHandler(async (req, res) => {
     throw new Error("Invalid sprint id");
   }
 
-  const sprint = await Sprint.findById(req.params.id);
+  const { sprint, accessResult } = await loadTenantSafeSprintForManagement(req.user, req.params.id);
 
   if (!sprint) {
-    res.status(404);
-    throw new Error("Sprint not found");
-  }
-
-  const accessResult = await ensureSprintManagementAccess(req.user, sprint);
-
-  if (accessResult.error) {
-    res.status(accessResult.error.status);
-    throw new Error(accessResult.error.message);
+    res.status(accessResult?.error?.status || 404);
+    throw new Error(accessResult?.error?.message || "Sprint not found");
   }
 
   if (sprint.state !== "PLANNED") {
@@ -687,21 +696,14 @@ const startSprint = asyncHandler(async (req, res) => {
     throw new Error("Invalid sprint id");
   }
 
-  const sprint = await Sprint.findById(req.params.id);
+  const { sprint, accessResult } = await loadTenantSafeSprintForManagement(req.user, req.params.id);
 
   if (!sprint) {
-    res.status(404);
-    throw new Error("Sprint not found");
+    res.status(accessResult?.error?.status || 404);
+    throw new Error(accessResult?.error?.message || "Sprint not found");
   }
 
   logSprintStartAttempt(req, sprint);
-
-  const accessResult = await ensureSprintManagementAccess(req.user, sprint);
-
-  if (accessResult.error) {
-    res.status(accessResult.error.status);
-    throw new Error(accessResult.error.message);
-  }
 
   if (sprint.state === "ACTIVE" && !isSprintExpired(sprint)) {
     logSprintStartConflict({
@@ -860,18 +862,11 @@ const completeSprint = asyncHandler(async (req, res) => {
     throw new Error("Invalid sprint id");
   }
 
-  const sprint = await Sprint.findById(req.params.id);
+  const { sprint, accessResult } = await loadTenantSafeSprintForManagement(req.user, req.params.id);
 
   if (!sprint) {
-    res.status(404);
-    throw new Error("Sprint not found");
-  }
-
-  const accessResult = await ensureSprintManagementAccess(req.user, sprint);
-
-  if (accessResult.error) {
-    res.status(accessResult.error.status);
-    throw new Error(accessResult.error.message);
+    res.status(accessResult?.error?.status || 404);
+    throw new Error(accessResult?.error?.message || "Sprint not found");
   }
 
   if (sprint.state !== "ACTIVE") {
@@ -909,7 +904,10 @@ const completeSprint = asyncHandler(async (req, res) => {
     };
 
     const sprintForUpdate = await withOptionalSession(
-      Sprint.findById(req.params.id),
+      Sprint.findOne({
+        _id: sprint._id,
+        projectId: sprint.projectId,
+      }),
       session
     );
 
@@ -1211,18 +1209,11 @@ const reopenSprint = asyncHandler(async (req, res) => {
     throw new Error("Invalid sprint id");
   }
 
-  const sprint = await Sprint.findById(req.params.id);
+  const { sprint, accessResult } = await loadTenantSafeSprintForManagement(req.user, req.params.id);
 
   if (!sprint) {
-    res.status(404);
-    throw new Error("Sprint not found");
-  }
-
-  const accessResult = await ensureSprintManagementAccess(req.user, sprint);
-
-  if (accessResult.error) {
-    res.status(accessResult.error.status);
-    throw new Error(accessResult.error.message);
+    res.status(accessResult?.error?.status || 404);
+    throw new Error(accessResult?.error?.message || "Sprint not found");
   }
 
   if (req.user.role !== ROLE_ADMIN) {

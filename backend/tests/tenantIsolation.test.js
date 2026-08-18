@@ -8,7 +8,23 @@ const ProjectTeam = require("../models/ProjectTeam");
 const Team = require("../models/Team");
 const TeamMember = require("../models/TeamMember");
 const Issue = require("../models/Issue");
+const Epic = require("../models/Epic");
+const Sprint = require("../models/Sprint");
 const User = require("../models/User");
+const {
+  deleteIssue,
+  pickIssue,
+  updateIssue,
+} = require("../controllers/issueController");
+const {
+  downloadIssueAttachment,
+  getIssueAttachments,
+  getIssueHistory,
+  getIssueWorklogs,
+} = require("../controllers/issuePlanningController");
+const { getComments } = require("../controllers/commentController");
+const { deleteEpic } = require("../controllers/epicController");
+const { updateSprint } = require("../controllers/sprintController");
 const { attachProjectTeam, createProject } = require("../controllers/projectController");
 const {
   addTeamMember,
@@ -22,6 +38,7 @@ const {
   buildProjectAccessQuery,
   getProjectIdsForUserThroughTenantTeams,
 } = require("../utils/projectRelations");
+const { loadTenantSafeIssue } = require("../utils/issueAccess");
 
 const createResponse = () => ({
   statusCode: 200,
@@ -45,6 +62,27 @@ const invokeController = async (controller, req, res = createResponse()) => {
 
   return res;
 };
+
+const createQuery = (result) => ({
+  select() {
+    return this;
+  },
+  populate() {
+    return this;
+  },
+  sort() {
+    return this;
+  },
+  lean() {
+    return this;
+  },
+  then(resolve, reject) {
+    return Promise.resolve(result).then(resolve, reject);
+  },
+  catch(reject) {
+    return Promise.resolve(result).catch(reject);
+  },
+});
 
 test("admin project access query is scoped by workspace and tenant", async () => {
   const query = await buildProjectAccessQuery({
@@ -613,5 +651,230 @@ test("TENANT_002 cannot attach a TENANT_001 team to a TENANT_002 project", async
     Project.findOne = originalProjectFindOne;
     Team.findOne = originalTeamFindOne;
     ProjectTeam.findOne = originalProjectTeamFindOne;
+  }
+});
+
+test("tenant-safe issue loader blocks TENANT_002 and preserves TENANT_001 access", async () => {
+  const originalIssueFindOne = Issue.findOne;
+  const originalProjectFind = Project.find;
+  const originalProjectFindOne = Project.findOne;
+  const originalTeamMemberFind = TeamMember.find;
+  const originalProjectMemberFind = ProjectMember.find;
+  const issueId = new mongoose.Types.ObjectId();
+  const projectId = new mongoose.Types.ObjectId();
+  const tenantOneIssue = {
+    _id: issueId,
+    projectId,
+    isDeleted: false,
+  };
+
+  Issue.findOne = () => createQuery(tenantOneIssue);
+  Project.findOne = (filter) =>
+    Promise.resolve(
+      filter.tenantId === "TENANT_001" && String(filter._id) === String(projectId)
+        ? {
+            _id: projectId,
+            workspaceId: "legacy-workspace",
+            tenantId: "TENANT_001",
+          }
+        : null
+    );
+
+  try {
+    const tenantOneIssueResult = await loadTenantSafeIssue(
+      {
+        _id: "admin-1",
+        role: "Admin",
+        workspaceId: "legacy-workspace",
+        tenantId: "TENANT_001",
+      },
+      issueId
+    );
+    const tenantTwoIssueResult = await loadTenantSafeIssue(
+      {
+        _id: "admin-2",
+        role: "Admin",
+        workspaceId: "legacy-workspace",
+        tenantId: "TENANT_002",
+      },
+      issueId
+    );
+
+    assert.equal(tenantOneIssueResult, tenantOneIssue);
+    assert.equal(tenantTwoIssueResult, null);
+  } finally {
+    Issue.findOne = originalIssueFindOne;
+    Project.findOne = originalProjectFindOne;
+  }
+});
+
+test("TENANT_002 cannot update, delete, pick, or read child issue data for TENANT_001 issue", async () => {
+  const originalIssueFindOne = Issue.findOne;
+  const originalProjectFind = Project.find;
+  const originalProjectFindOne = Project.findOne;
+  const originalTeamMemberFind = TeamMember.find;
+  const originalProjectMemberFind = ProjectMember.find;
+  const issueId = new mongoose.Types.ObjectId();
+  const projectId = new mongoose.Types.ObjectId();
+
+  Issue.findOne = () =>
+    createQuery({
+      _id: issueId,
+      projectId,
+      type: "Bug",
+      isDeleted: false,
+      status: "AVAILABLE_QUEUE",
+    });
+  Project.findOne = () => Promise.resolve(null);
+  Project.find = () => ({
+    distinct: async () => [],
+  });
+  TeamMember.find = () => ({
+    distinct: async () => [],
+  });
+  ProjectMember.find = () => ({
+    distinct: async () => [],
+  });
+
+  const req = {
+    user: {
+      _id: new mongoose.Types.ObjectId(),
+      id: new mongoose.Types.ObjectId(),
+      role: "Developer",
+      workspaceId: "legacy-workspace",
+      tenantId: "TENANT_002",
+    },
+    params: {
+      id: String(issueId),
+      issueId: String(issueId),
+      attachmentId: String(new mongoose.Types.ObjectId()),
+    },
+    body: {
+      status: "DONE",
+    },
+  };
+
+  try {
+    for (const controller of [
+      updateIssue,
+      deleteIssue,
+      pickIssue,
+      getComments,
+      getIssueAttachments,
+      getIssueWorklogs,
+      getIssueHistory,
+      downloadIssueAttachment,
+    ]) {
+      const res = createResponse();
+
+      await assert.rejects(
+        () => invokeController(controller, req, res),
+        /Issue not found|inaccessible/
+      );
+      assert.equal(res.statusCode, 404);
+    }
+  } finally {
+    Issue.findOne = originalIssueFindOne;
+    Project.find = originalProjectFind;
+    Project.findOne = originalProjectFindOne;
+    TeamMember.find = originalTeamMemberFind;
+    ProjectMember.find = originalProjectMemberFind;
+  }
+});
+
+test("TENANT_002 cannot delete TENANT_001 epic", async () => {
+  const originalEpicFindById = Epic.findById;
+  const originalProjectFindOne = Project.findOne;
+  const originalIssueExists = Issue.exists;
+  const epicId = new mongoose.Types.ObjectId();
+  const projectId = new mongoose.Types.ObjectId();
+
+  Epic.findById = () =>
+    createQuery({
+      _id: epicId,
+      projectId,
+      name: "Tenant One Epic",
+    });
+  Project.findOne = () => Promise.resolve(null);
+  Issue.exists = async () => null;
+
+  const res = createResponse();
+
+  try {
+    await assert.rejects(
+      () =>
+        invokeController(
+          deleteEpic,
+          {
+            user: {
+              _id: new mongoose.Types.ObjectId(),
+              role: "Admin",
+              workspaceId: "legacy-workspace",
+              tenantId: "TENANT_002",
+            },
+            params: {
+              id: String(epicId),
+            },
+            body: {},
+          },
+          res
+        ),
+      /Project not found or inaccessible/
+    );
+    assert.equal(res.statusCode, 404);
+  } finally {
+    Epic.findById = originalEpicFindById;
+    Project.findOne = originalProjectFindOne;
+    Issue.exists = originalIssueExists;
+  }
+});
+
+test("TENANT_002 cannot modify TENANT_001 sprint by id", async () => {
+  const originalSprintFindById = Sprint.findById;
+  const originalProjectFindOne = Project.findOne;
+  const originalIssueExists = Issue.exists;
+  const sprintId = new mongoose.Types.ObjectId();
+  const projectId = new mongoose.Types.ObjectId();
+
+  Sprint.findById = () =>
+    createQuery({
+      _id: sprintId,
+      projectId,
+      state: "PLANNED",
+      workspaceId: "legacy-workspace",
+    });
+  Project.findOne = () => Promise.resolve(null);
+  Issue.exists = async () => null;
+
+  const res = createResponse();
+
+  try {
+    await assert.rejects(
+      () =>
+        invokeController(
+          updateSprint,
+          {
+            user: {
+              _id: "admin-2",
+              role: "Admin",
+              workspaceId: "legacy-workspace",
+              tenantId: "TENANT_002",
+            },
+            params: {
+              id: String(sprintId),
+            },
+            body: {
+              name: "Cross Tenant Rename",
+            },
+          },
+          res
+        ),
+      /Project not found or inaccessible/
+    );
+    assert.equal(res.statusCode, 404);
+  } finally {
+    Sprint.findById = originalSprintFindById;
+    Project.findOne = originalProjectFindOne;
+    Issue.exists = originalIssueExists;
   }
 });

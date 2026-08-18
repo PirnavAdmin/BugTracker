@@ -1,6 +1,9 @@
 const { updateIssue } = require("./issueController");
 const Issue = require("../models/Issue");
+const Project = require("../models/Project");
 const asyncHandler = require("../utils/asyncHandler");
+const { loadTenantSafeIssue } = require("../utils/issueAccess");
+const { buildProjectAccessQuery } = require("../utils/projectRelations");
 const {
   populateIssueQuery,
   serializeIssues,
@@ -33,7 +36,10 @@ const updateTaskStatus = asyncHandler(async (req, res, next) => {
     throw new Error("Status must be OPEN, IN_PROGRESS, or DONE");
   }
 
-  const task = await Issue.findById(req.params.id).select("_id type").lean();
+  const task = await loadTenantSafeIssue(req.user, req.params.id, {
+    select: "_id type",
+    lean: true,
+  });
 
   if (!task) {
     res.status(404);
@@ -58,9 +64,15 @@ const getRecentTasks = asyncHandler(async (req, res) => {
     throw new Error("Only tester roles can access recent tasks");
   }
 
+  const accessibleProjectIds = await Project.find(
+    await buildProjectAccessQuery(req.user)
+  ).distinct("_id");
   const tasks = await populateIssueQuery(
     Issue.find({
       assignee: req.user._id,
+      projectId: {
+        $in: accessibleProjectIds,
+      },
       type: ISSUE_TYPES.TASK,
     })
       .sort({

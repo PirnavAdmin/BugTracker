@@ -96,6 +96,7 @@ const {
 } = require("../utils/roles");
 const { normalizeWorkspaceId } = require("../utils/workspace");
 const { withTenantFilter } = require("../utils/tenant");
+const { loadTenantSafeIssue } = require("../utils/issueAccess");
 const { getNextIssueDisplayId } = require("../utils/displayIds");
 const { logProjectTeamsDebug } = require("../utils/projectTeamDiagnostics");
 const {
@@ -2444,7 +2445,10 @@ const ensureDependencyIssueForProject = async ({
     };
   }
 
-  const dependencyIssue = await Issue.findById(dependsOnIssueId)
+  const dependencyIssue = await Issue.findOne({
+    _id: dependsOnIssueId,
+    projectId,
+  })
     .select("_id title status dueAt projectId")
     .lean();
 
@@ -2453,15 +2457,6 @@ const ensureDependencyIssueForProject = async ({
       error: {
         status: 404,
         message: "Selected dependency issue could not be found",
-      },
-    };
-  }
-
-  if (String(dependencyIssue.projectId) !== String(projectId)) {
-    return {
-      error: {
-        status: 400,
-        message: "Dependency issues must belong to the selected project",
       },
     };
   }
@@ -4046,6 +4041,7 @@ const getStories = asyncHandler(async (req, res) => {
     ? await populateIssueQuery(
         Issue.find({
           ...ACTIVE_ISSUE_QUERY,
+          projectId: { $in: accessibleProjectIds },
           parentStoryId: { $in: storyIds },
           type: {
             $in: [ISSUE_TYPES.TASK, ISSUE_TYPES.SUB_TASK, ISSUE_TYPES.BUG],
@@ -4306,7 +4302,7 @@ const pickIssue = asyncHandler(async (req, res) => {
     throw new Error("Invalid issue id");
   }
 
-  const existingIssue = await Issue.findById(req.params.id);
+  const existingIssue = await loadTenantSafeIssue(req.user, req.params.id);
 
   if (!existingIssue) {
     res.status(404);
@@ -5523,7 +5519,7 @@ const updateIssue = asyncHandler(async (req, res) => {
     throw new Error("Invalid issue id");
   }
 
-  const issue = await Issue.findById(req.params.id);
+  const issue = await loadTenantSafeIssue(req.user, req.params.id);
 
   if (!issue || issue.isDeleted) {
     res.status(404);
@@ -6632,7 +6628,7 @@ const deleteIssue = asyncHandler(async (req, res) => {
     throw new Error("Invalid issue id");
   }
 
-  const issue = await Issue.findById(req.params.id);
+  const issue = await loadTenantSafeIssue(req.user, req.params.id);
 
   if (!issue || issue.isDeleted) {
     res.status(404);

@@ -1,5 +1,6 @@
 const Issue = require("../models/Issue");
 const Project = require("../models/Project");
+const { loadTenantSafeIssue } = require("./issueAccess");
 const { buildProjectAccessQuery } = require("./projectRelations");
 const { hasAdminAccess } = require("./roles");
 const { withTenantFilter } = require("./tenant");
@@ -101,19 +102,7 @@ const loadReadableProject = async (user, projectId) => {
 };
 
 const loadReadableIssue = async (user, issueId) => {
-  const issue = await Issue.findById(issueId);
-
-  if (!issue) {
-    return null;
-  }
-
-  const project = await loadReadableProject(user, issue.projectId);
-
-  if (!project) {
-    return null;
-  }
-
-  return issue;
+  return loadTenantSafeIssue(user, issueId);
 };
 
 const getBacklogPermissions = (user, project) => {

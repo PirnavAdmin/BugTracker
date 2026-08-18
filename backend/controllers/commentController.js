@@ -11,6 +11,7 @@ const {
   serializeIssue,
 } = require("../utils/issuePresentation");
 const { ISSUE_TYPES, getCanonicalIssueType } = require("../utils/issueTypes");
+const { loadTenantSafeIssueWithProject } = require("../utils/issueAccess");
 const { buildProjectAccessQuery } = require("../utils/projectRelations");
 const { ROLE_DEVELOPER, hasAdminAccess } = require("../utils/roles");
 const { normalizeWorkspaceId } = require("../utils/workspace");
@@ -43,37 +44,7 @@ const isBugReportedAndUnpicked = (issue) => {
 };
 
 const getAccessibleIssue = async (user, issueId) => {
-  const issue = await Issue.findById(issueId);
-
-  if (!issue) {
-    return null;
-  }
-
-  const project = await Project.findOne({
-    _id: issue.projectId,
-    workspaceId: normalizeWorkspaceId(user.workspaceId),
-  });
-
-  if (!project) {
-    return null;
-  }
-
-  if (
-    !hasAdminAccess(user.role) &&
-    (isAssignedToUser(issue, user._id) || hasDirectBugAccess(issue, user._id))
-  ) {
-    return issue;
-  }
-
-  const accessibleProject = await Project.findOne({
-    _id: issue.projectId,
-    ...(await buildProjectAccessQuery(user)),
-  });
-
-  if (!accessibleProject) {
-    return null;
-  }
-
+  const { issue } = await loadTenantSafeIssueWithProject(user, issueId);
   return issue;
 };
 

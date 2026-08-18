@@ -6,6 +6,7 @@ const {
 } = require("./issueController");
 const Issue = require("../models/Issue");
 const asyncHandler = require("../utils/asyncHandler");
+const { loadTenantSafeIssue } = require("../utils/issueAccess");
 const { ISSUE_TYPES } = require("../utils/issueTypes");
 
 const forceBugType = (req) => {
@@ -29,7 +30,10 @@ const createBug = (req, res, next) => {
 };
 
 const ensureBugRecord = asyncHandler(async (req, res, next) => {
-  const issue = await Issue.findById(req.params.id).select("_id type").lean();
+  const issue = await loadTenantSafeIssue(req.user, req.params.id, {
+    select: "_id type",
+    lean: true,
+  });
 
   if (!issue) {
     res.status(404);
