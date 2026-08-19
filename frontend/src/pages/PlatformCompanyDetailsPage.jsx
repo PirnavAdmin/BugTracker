@@ -74,6 +74,7 @@ const PlatformCompanyDetailsPage = () => {
     queryFn: () => fetchPlatformCompany(companyId),
     enabled: Boolean(companyId),
   });
+  const company = companyQuery.data;
   const companyUsageQuery = useQuery({
     queryKey: ["platform-company-storage", companyId, company?.email],
     queryFn: () => fetchPlatformCompanies({ page: 1, limit: 10, search: company?.email || "" }),
@@ -84,7 +85,6 @@ const PlatformCompanyDetailsPage = () => {
     queryFn: fetchPlatformPlans,
   });
 
-  const company = companyQuery.data;
   const companyStorage = companyUsageQuery.data?.companies?.find(
     (candidate) => String(candidate._id) === String(companyId)
   )?.usage?.storage || null;
