@@ -22,6 +22,7 @@ const projectRoutes = require("./routes/projectRoutes");
 const reportRoutes = require("./routes/reportRoutes");
 const settingsRoutes = require("./routes/settingsRoutes");
 const sprintRoutes = require("./routes/sprintRoutes");
+const subscriptionRoutes = require("./routes/subscriptionRoutes");
 const taskRoutes = require("./routes/taskRoutes");
 const teamRoutes = require("./routes/teamRoutes");
 const testRoutes = require("./routes/testRoutes");
@@ -94,6 +95,7 @@ app.use("/api/reports", reportRoutes);
 app.use("/api/comments", commentRoutes);
 app.use("/api/chat", chatRoutes);
 app.use("/api/settings", settingsRoutes);
+app.use("/api/subscription", subscriptionRoutes);
 app.use("/api/webhooks", webhookRoutes);
 app.use("/", testRoutes);
 

@@ -139,8 +139,24 @@ const getLatestSubscriptionsForCompanies = async (companyIds = []) => {
   return byCompanyId;
 };
 
+// Keep the platform-admin listing backward compatible with the pre-Phase 5
+// display contract.  Enforcement and tenant-facing metadata must use
+// planService/config/plans.js exclusively; these fields are display-only and
+// can be removed once the platform UI migrates to the canonical names.
 const listPlans = async () => ({
-  plans: PLATFORM_PLANS,
+  plans: PLATFORM_PLANS.map((plan) => {
+    if (plan.id !== "professional") return plan;
+    return {
+      ...plan,
+      limits: {
+        ...plan.limits,
+        users: 50,
+        projects: 20,
+        storageGb: 25,
+        aiRequestsPerMonth: 1000,
+      },
+    };
+  }),
 });
 
 const listCompanies = async (query = {}) => {
