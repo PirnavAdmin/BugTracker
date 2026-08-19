@@ -1419,4 +1419,9 @@ export const updatePlatformSubscription = async ({ subscriptionId, payload }) =>
   return response.data?.subscription || response.data;
 };
 
+export const fetchSubscriptionPlan = async () => {
+  const response = await api.get("/subscription/plan");
+  return response.data;
+};
+
 export default api;

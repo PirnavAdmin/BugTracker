@@ -22,6 +22,10 @@ const {
 } = require("../utils/userImportCsv");
 const { normalizeTenantId, withTenantFilter } = require("../utils/tenant");
 const { normalizeWorkspaceId } = require("../utils/workspace");
+const {
+  assertTenantCapacity,
+  withTenantLimitLock,
+} = require("../services/subscriptionUsageService");
 
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const DEFAULT_IMPORTED_PASSWORD = "pirnav@2025";
@@ -196,11 +200,9 @@ const inviteUser = asyncHandler(async (req, res) => {
     throw new Error("A user with that email already exists");
   }
 
-  const { temporaryPassword, user } = await createInvitedUser({
-    email,
-    role,
-    workspaceId,
-    tenantId,
+  const { temporaryPassword, user } = await withTenantLimitLock(tenantId, async () => {
+    await assertTenantCapacity({ tenantId, resource: "users" });
+    return createInvitedUser({ email, role, workspaceId, tenantId });
   });
   let emailSent = false;
   let warning = "";
@@ -582,37 +584,37 @@ const importUsers = asyncHandler(async (req, res) => {
   let successCount = 0;
 
   if (usersToCreate.length) {
-    try {
-      const insertedUsers = await User.insertMany(usersToCreate, {
-        ordered: false,
+    await withTenantLimitLock(tenantId, async () => {
+      const capacity = await assertTenantCapacity({
+        tenantId,
+        resource: "users",
+        requested: usersToCreate.length,
       });
-      successCount = insertedUsers.length;
-    } catch (error) {
-      const writeErrors = error.writeErrors || [];
-      const duplicateCode = 11000;
-
-      successCount = error.insertedDocs?.length || 0;
-
-      writeErrors.forEach((writeError) => {
-        const failedOperation = writeError.err?.op || writeError.err?.insertedDoc || {};
-        const failedEmail = normalizeEmail(failedOperation.email);
-        const failedRow = parsedCsv.rows.find(
-          (row) => !row.isEmpty && normalizeEmail(row.email) === failedEmail
-        );
-
-        errors.push({
-          row: failedRow?.row || 0,
-          message:
-            writeError.code === duplicateCode
-              ? "Duplicate email"
-              : "Unable to create user from this row",
+      try {
+        const insertedUsers = await User.insertMany(usersToCreate, { ordered: false });
+        successCount = insertedUsers.length;
+      } catch (error) {
+        const writeErrors = error.writeErrors || [];
+        const duplicateCode = 11000;
+        successCount = error.insertedDocs?.length || 0;
+        writeErrors.forEach((writeError) => {
+          const failedOperation = writeError.err?.op || writeError.err?.insertedDoc || {};
+          const failedEmail = normalizeEmail(failedOperation.email);
+          const failedRow = parsedCsv.rows.find(
+            (row) => !row.isEmpty && normalizeEmail(row.email) === failedEmail
+          );
+          errors.push({
+            row: failedRow?.row || 0,
+            message:
+              writeError.code === duplicateCode
+                ? "Duplicate email"
+                : "Unable to create user from this row",
+          });
         });
-      });
-
-      if (!writeErrors.length) {
-        throw error;
+        if (!writeErrors.length) throw error;
       }
-    }
+      return capacity;
+    });
   }
 
   res.status(200).json({

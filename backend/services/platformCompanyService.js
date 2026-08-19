@@ -12,6 +12,7 @@ const {
 const PlatformCompany = require("../models/PlatformCompany");
 const PlatformSubscription = require("../models/PlatformSubscription");
 const User = require("../models/User");
+const Project = require("../models/Project");
 const { ROLE_ADMIN } = require("../utils/roles");
 const {
   createTenantIdFromNumber,
@@ -19,6 +20,10 @@ const {
   parseTenantSequence,
 } = require("../utils/tenant");
 const { normalizeWorkspaceId } = require("../utils/workspace");
+const {
+  assertTenantCapacity,
+  withTenantLimitLock,
+} = require("./subscriptionUsageService");
 
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -58,6 +63,28 @@ const validateEmail = (email, fieldName, res, { required = true } = {}) => {
 
 const serializePlan = (planId) => getPlatformPlan(planId) || null;
 
+const buildUsageResource = (current, limit) => ({
+  current,
+  limit,
+  remaining: limit === null ? null : Math.max(limit - current, 0),
+  unlimited: limit === null,
+});
+
+const getCompanyUsage = async (company) => {
+  const tenantId = normalizeTenantId(company?.tenantId);
+  if (!tenantId) return null;
+  const plan = getPlatformPlan(company.planId);
+  if (!plan) return null;
+  const [users, projects] = await Promise.all([
+    User.countDocuments({ tenantId }),
+    Project.countDocuments({ tenantId }),
+  ]);
+  return {
+    users: buildUsageResource(Number(users) || 0, plan.limits.maxUsers),
+    projects: buildUsageResource(Number(projects) || 0, plan.limits.maxProjects),
+  };
+};
+
 const serializeSubscription = (subscription) => {
   if (!subscription) {
     return null;
@@ -78,7 +105,7 @@ const serializeSubscription = (subscription) => {
   };
 };
 
-const serializeCompany = (company, subscription = null) => ({
+const serializeCompany = (company, subscription = null, usage = undefined) => ({
   _id: company._id,
   name: company.name,
   email: company.email,
@@ -100,6 +127,8 @@ const serializeCompany = (company, subscription = null) => ({
       }
     : null,
   subscription: serializeSubscription(subscription),
+  linked: Boolean(normalizeTenantId(company.tenantId)),
+  ...(usage !== undefined ? { usage } : {}),
   createdAt: company.createdAt,
   updatedAt: company.updatedAt,
 });
@@ -139,24 +168,19 @@ const getLatestSubscriptionsForCompanies = async (companyIds = []) => {
   return byCompanyId;
 };
 
-// Keep the platform-admin listing backward compatible with the pre-Phase 5
-// display contract.  Enforcement and tenant-facing metadata must use
-// planService/config/plans.js exclusively; these fields are display-only and
-// can be removed once the platform UI migrates to the canonical names.
 const listPlans = async () => ({
-  plans: PLATFORM_PLANS.map((plan) => {
-    if (plan.id !== "professional") return plan;
-    return {
-      ...plan,
-      limits: {
-        ...plan.limits,
-        users: 50,
-        projects: 20,
-        storageGb: 25,
-        aiRequestsPerMonth: 1000,
-      },
-    };
-  }),
+  plans: PLATFORM_PLANS.map((plan) => ({
+    ...plan,
+    // Legacy display names are aliases of the canonical limits, never a
+    // second source of plan values.
+    limits: {
+      ...plan.limits,
+      users: plan.limits.maxUsers,
+      projects: plan.limits.maxProjects,
+      storageGb: plan.limits.storageGB,
+      aiRequestsPerMonth: plan.limits.maxAIRequestsPerMonth,
+    },
+  })),
 });
 
 const listCompanies = async (query = {}) => {
@@ -197,10 +221,18 @@ const listCompanies = async (query = {}) => {
     companies.map((company) => company._id)
   );
 
+  const serializedCompanies = await Promise.all(
+    companies.map(async (company) =>
+      serializeCompany(
+        company,
+        subscriptionsByCompany.get(String(company._id)),
+        await getCompanyUsage(company)
+      )
+    )
+  );
+
   return {
-    companies: companies.map((company) =>
-      serializeCompany(company, subscriptionsByCompany.get(String(company._id)))
-    ),
+    companies: serializedCompanies,
     pagination: {
       page,
       limit,
@@ -506,21 +538,32 @@ const createCompanyAdminUser = async (companyId, payload = {}, res) => {
       throw new Error("User already belongs to a different tenant");
     }
 
-    existingUser.tenantId = tenantId;
-    existingUser.role = ROLE_ADMIN;
-    existingUser.password = password;
-    if (!existingUser.workspaceId) {
-      existingUser.workspaceId = workspaceId;
-    }
-    user = await existingUser.save();
+    const relinkExistingUser = async () => {
+      existingUser.tenantId = tenantId;
+      existingUser.role = ROLE_ADMIN;
+      existingUser.password = password;
+      if (!existingUser.workspaceId) {
+        existingUser.workspaceId = workspaceId;
+      }
+      return existingUser.save();
+    };
+    user = existingTenantId
+      ? await relinkExistingUser()
+      : await withTenantLimitLock(tenantId, async () => {
+          await assertTenantCapacity({ tenantId, resource: "users" });
+          return relinkExistingUser();
+        });
   } else {
-    user = await User.create({
-      name,
-      email,
-      password,
-      role: ROLE_ADMIN,
-      workspaceId,
-      tenantId,
+    user = await withTenantLimitLock(tenantId, async () => {
+      await assertTenantCapacity({ tenantId, resource: "users" });
+      return User.create({
+        name,
+        email,
+        password,
+        role: ROLE_ADMIN,
+        workspaceId,
+        tenantId,
+      });
     });
   }
 

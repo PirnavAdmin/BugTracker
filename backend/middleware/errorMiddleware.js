@@ -52,6 +52,15 @@ const errorHandler = (err, req, res, next) => {
       typeof err.code === "string" && err.code !== "MulterError" && err.code !== "ValidationError"
         ? err.code
         : undefined,
+    ...(err.resource ? { resource: err.resource } : {}),
+    ...(Number.isFinite(err.current) ? { current: err.current } : {}),
+    ...(Number.isFinite(err.limit) || err.limit === null ? { limit: err.limit } : {}),
+    ...(Number.isFinite(err.requested) ? { requested: err.requested } : {}),
+    ...(Number.isFinite(err.available) ? { available: err.available } : {}),
+    ...(Number.isFinite(err.created) ? { created: err.created } : {}),
+    ...(Number.isFinite(err.rejected) ? { rejected: err.rejected } : {}),
+    ...(typeof err.plan === "string" ? { plan: err.plan } : {}),
+    ...(typeof err.upgradeRequired === "boolean" ? { upgradeRequired: err.upgradeRequired } : {}),
     details: err.details || undefined,
     stack: process.env.NODE_ENV === "production" ? undefined : err.stack,
   });

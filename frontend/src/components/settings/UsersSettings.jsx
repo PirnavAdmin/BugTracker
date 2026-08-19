@@ -60,6 +60,7 @@ const UsersSettings = ({
   isLoading,
   onActiveFilterChange,
   updateMutation,
+  usage,
   users = [],
 }) => {
   const [searchDraft, setSearchDraft] = useState("");
@@ -259,6 +260,12 @@ const UsersSettings = ({
         ) : null
       }
     >
+      {usage ? (
+        <div className="mb-5 rounded-[16px] border border-violet-200 bg-violet-50 px-4 py-3 text-sm text-violet-900">
+          <span className="font-semibold">User seats:</span>{" "}
+          {usage.current} / {usage.unlimited ? "Unlimited" : usage.limit}
+        </div>
+      ) : null}
       {isLoading ? (
         <div className="space-y-5">
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">

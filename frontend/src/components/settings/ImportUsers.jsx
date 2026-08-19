@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { FileUp, Upload } from "lucide-react";
 import { importUsers } from "@/lib/api";
+import { Link } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -162,6 +163,14 @@ const ImportUsers = ({ embedded = false, onImported }) => {
           <div className="rounded-[24px] border border-rose-200 bg-rose-50/80 p-4 text-sm text-rose-700">
             {importMutation.error?.response?.data?.message ||
               "Unable to import users right now."}
+            {importMutation.error?.response?.data?.code === "PLAN_LIMIT_REACHED" ? (
+              <div className="mt-3 flex flex-wrap items-center justify-between gap-3 text-violet-800">
+                <span>
+                  {importMutation.error.response.data.current} / {importMutation.error.response.data.limit} users used; {importMutation.error.response.data.rejected || importMutation.error.response.data.requested || 0} rejected.
+                </span>
+                <Link className="font-bold underline" to="/pricing">View Plans</Link>
+              </div>
+            ) : null}
           </div>
         ) : null}
 

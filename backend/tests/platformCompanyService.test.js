@@ -1,8 +1,12 @@
+process.env.NODE_ENV = "test";
+process.env.SUBSCRIPTION_LIMITS_BYPASS_FOR_TESTS = "true";
+
 const { test, beforeEach, afterEach } = require("node:test");
 const assert = require("node:assert");
 const PlatformCompany = require("../models/PlatformCompany");
 const PlatformSubscription = require("../models/PlatformSubscription");
 const User = require("../models/User");
+const { PLANS } = require("../config/plans");
 const {
   createCompany,
   createCompanyAdminUser,
@@ -79,10 +83,22 @@ test("platform plans are centralized and include Professional limits", async () 
   const professional = result.plans.find((plan) => plan.id === "professional");
 
   assert.ok(professional);
-  assert.strictEqual(professional.limits.users, 50);
-  assert.strictEqual(professional.limits.projects, 20);
-  assert.strictEqual(professional.limits.storageGb, 25);
-  assert.strictEqual(professional.limits.aiRequestsPerMonth, 1000);
+  assert.strictEqual(professional.limits.users, 25);
+  assert.strictEqual(professional.limits.projects, 25);
+  assert.strictEqual(professional.limits.storageGb, 20);
+  assert.strictEqual(professional.limits.aiRequestsPerMonth, 500);
+});
+
+test("platform plan aliases match canonical plan limits", async () => {
+  const result = await listPlans();
+  result.plans.forEach((plan) => {
+    const canonical = PLANS[plan.id];
+    assert.ok(canonical);
+    assert.equal(plan.limits.users, canonical.limits.maxUsers);
+    assert.equal(plan.limits.projects, canonical.limits.maxProjects);
+    assert.equal(plan.limits.storageGb, canonical.limits.storageGB);
+    assert.equal(plan.limits.aiRequestsPerMonth, canonical.limits.maxAIRequestsPerMonth);
+  });
 });
 
 test("createCompany stores a platform company and initial subscription", async () => {

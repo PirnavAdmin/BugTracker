@@ -4,6 +4,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import {
   deleteManagedUser,
   fetchManagedUsers,
+  fetchSubscriptionPlan,
   inviteUser,
   updateManagedUser,
   updateUserRole,
@@ -166,6 +167,12 @@ const UserSettingsPage = () => {
     saveWorkspaceSenderMutation,
   } = useWorkspaceSender({
     enabled: canManageWorkspaceMail,
+  });
+
+  const { data: subscriptionPlan } = useQuery({
+    queryKey: ["subscription-plan"],
+    queryFn: fetchSubscriptionPlan,
+    enabled: canManageWorkspaceUsers,
   });
 
   const eligibleSenders = canManageWorkspaceMail ? eligibleSendersQuery.data || [] : [];
@@ -901,6 +908,7 @@ const UserSettingsPage = () => {
           onActiveFilterChange={setActiveUserFilter}
           updateMutation={userUpdateMutation}
           users={users}
+          usage={subscriptionPlan?.usage?.users}
         />
       );
     }

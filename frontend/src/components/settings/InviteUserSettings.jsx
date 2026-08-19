@@ -1,4 +1,5 @@
 import { MailPlus } from "lucide-react";
+import { Link } from "react-router-dom";
 import SettingsPanel from "@/components/settings/SettingsPanel";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -123,6 +124,14 @@ const InviteUserSettings = ({
         <div className="rounded-[16px] border border-rose-200 bg-rose-50/80 p-4 text-sm text-rose-700">
           {inviteMutation.error?.response?.data?.message ||
             "Unable to invite this user right now."}
+          {inviteMutation.error?.response?.data?.code === "PLAN_LIMIT_REACHED" ? (
+            <div className="mt-3 flex items-center justify-between gap-3 text-violet-800">
+              <span>
+                {inviteMutation.error.response.data.current} / {inviteMutation.error.response.data.limit} users used.
+              </span>
+              <Link className="font-bold underline" to="/pricing">View Plans</Link>
+            </div>
+          ) : null}
         </div>
       ) : null}
 

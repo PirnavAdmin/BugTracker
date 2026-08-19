@@ -1,3 +1,6 @@
+process.env.NODE_ENV = "test";
+process.env.SUBSCRIPTION_LIMITS_BYPASS_FOR_TESTS = "true";
+
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const mongoose = require("mongoose");

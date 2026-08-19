@@ -160,6 +160,7 @@ const PlatformCompaniesPage = () => {
                     <th className="px-4 py-3">Tenant ID</th>
                     <th className="px-4 py-3">Plan</th>
                     <th className="px-4 py-3">Users</th>
+                    <th className="px-4 py-3">Projects</th>
                     <th className="px-4 py-3">Status</th>
                     <th className="px-4 py-3">Admin/User</th>
                     <th className="px-4 py-3">Subscription</th>
@@ -178,7 +179,16 @@ const PlatformCompaniesPage = () => {
                         {company.tenantId || "N/A"}
                       </td>
                       <td className="px-4 py-3">{company.plan?.name || "N/A"}</td>
-                      <td className="px-4 py-3">N/A</td>
+                      <td className="px-4 py-3">
+                        {company.usage?.users
+                          ? `${company.usage.users.current} / ${company.usage.users.unlimited ? "Unlimited" : company.usage.users.limit}`
+                          : "N/A"}
+                      </td>
+                      <td className="px-4 py-3">
+                        {company.usage?.projects
+                          ? `${company.usage.projects.current} / ${company.usage.projects.unlimited ? "Unlimited" : company.usage.projects.limit}`
+                          : "N/A"}
+                      </td>
                       <td className="px-4 py-3">
                         <Badge className="px-2 py-0.5" variant={getStatusVariant(company.status)}>
                           {company.status}

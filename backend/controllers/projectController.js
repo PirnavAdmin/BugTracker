@@ -5,6 +5,10 @@ const Issue = require("../models/Issue");
 const Project = require("../models/Project");
 const ProjectMeeting = require("../models/ProjectMeeting");
 const ProjectMember = require("../models/ProjectMember");
+const {
+  assertTenantCapacity,
+  withTenantLimitLock,
+} = require("../services/subscriptionUsageService");
 const ProjectTeam = require("../models/ProjectTeam");
 const Team = require("../models/Team");
 const TeamMember = require("../models/TeamMember");
@@ -1400,7 +1404,7 @@ const createProject = asyncHandler(async (req, res) => {
     }
   }
 
-  const project = await Project.create({
+  const projectPayload = {
     name: name.trim(),
     description: typeof description === "string" ? description.trim() : "",
     shortCode,
@@ -1435,6 +1439,10 @@ const createProject = asyncHandler(async (req, res) => {
       },
       {}
     ),
+  };
+  const project = await withTenantLimitLock(tenantId, async () => {
+    await assertTenantCapacity({ tenantId, resource: "projects" });
+    return Project.create(projectPayload);
   });
 
   if (normalizedEpicInputs.length) {

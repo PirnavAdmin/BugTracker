@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import {
   AlertTriangle,
   Layers3,
@@ -71,6 +72,7 @@ const ProjectComposer = ({
   });
   const [epics, setEpics] = useState([]);
   const [error, setError] = useState("");
+  const [limitError, setLimitError] = useState(null);
 
   const generatedProjectKey = deriveProjectKey(formData.name);
   const inputClassName =
@@ -234,6 +236,7 @@ const ProjectComposer = ({
 
     try {
       setError("");
+      setLimitError(null);
       await onSubmit({
         name: formData.name.trim(),
         description: formData.description.trim(),
@@ -269,8 +272,10 @@ const ProjectComposer = ({
       setEpicDraft({ name: "", startDate: "", targetDate: "" });
       setEpics([]);
     } catch (submitError) {
+      const details = submitError.response?.data;
+      setLimitError(details?.code === "PLAN_LIMIT_REACHED" && details?.resource === "projects" ? details : null);
       setError(
-        submitError.response?.data?.message || "Unable to create the project."
+        details?.message || "Unable to create the project."
       );
     }
   };
@@ -704,6 +709,15 @@ const ProjectComposer = ({
         <div className="flex items-start gap-2 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2.5 text-sm text-rose-700">
           <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
           <span>{error}</span>
+        </div>
+      ) : null}
+
+      {limitError ? (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-violet-200 bg-violet-50 px-3 py-2.5 text-sm text-violet-800">
+          <span>
+            Project limit reached: {limitError.current} / {limitError.limit} used.
+          </span>
+          <Link className="font-bold underline" to="/pricing">View Plans</Link>
         </div>
       ) : null}
 
