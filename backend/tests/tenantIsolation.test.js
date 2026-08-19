@@ -16,6 +16,7 @@ const {
   pickIssue,
   updateIssue,
 } = require("../controllers/issueController");
+const { updateTaskStatus } = require("../controllers/taskController");
 const {
   downloadIssueAttachment,
   getIssueAttachments,
@@ -83,6 +84,67 @@ const createQuery = (result) => ({
     return Promise.resolve(result).catch(reject);
   },
 });
+
+const createProjectingQuery = (result) => {
+  let selectedFields = null;
+
+  const pickPath = (source, target, path) => {
+    const parts = path.split(".");
+    let sourceCursor = source;
+    let targetCursor = target;
+
+    for (let index = 0; index < parts.length; index += 1) {
+      const part = parts[index];
+
+      if (!sourceCursor || typeof sourceCursor !== "object" || !(part in sourceCursor)) {
+        return;
+      }
+
+      if (index === parts.length - 1) {
+        targetCursor[part] = sourceCursor[part];
+        return;
+      }
+
+      targetCursor[part] = targetCursor[part] || {};
+      sourceCursor = sourceCursor[part];
+      targetCursor = targetCursor[part];
+    }
+  };
+
+  const applyProjection = () => {
+    if (!result || !selectedFields) {
+      return result;
+    }
+
+    const projected = {};
+
+    selectedFields
+      .split(/\s+/)
+      .filter(Boolean)
+      .forEach((field) => pickPath(result, projected, field));
+
+    return projected;
+  };
+
+  return {
+    select(fields) {
+      selectedFields = fields;
+      return this;
+    },
+    populate() {
+      return this;
+    },
+    sort() {
+      return this;
+    },
+    lean() {
+      return this;
+    },
+    then(resolve, reject) {
+      return Promise.resolve(applyProjection()).then(resolve, reject);
+    },
+  };
+};
 
 test("admin project access query is scoped by workspace and tenant", async () => {
   const query = await buildProjectAccessQuery({
@@ -705,6 +767,109 @@ test("tenant-safe issue loader blocks TENANT_002 and preserves TENANT_001 access
   } finally {
     Issue.findOne = originalIssueFindOne;
     Project.findOne = originalProjectFindOne;
+  }
+});
+
+test("task status preflight keeps fields required by tenant-safe issue access", async () => {
+  const originalIssueFindOne = Issue.findOne;
+  const originalProjectFindOne = Project.findOne;
+  const originalTeamMemberFind = TeamMember.find;
+  const originalProjectMemberFind = ProjectMember.find;
+  const issueId = new mongoose.Types.ObjectId();
+  const projectId = new mongoose.Types.ObjectId();
+  const userId = new mongoose.Types.ObjectId();
+  const issue = {
+    _id: issueId,
+    type: "Story",
+    projectId,
+    assignee: userId,
+    assignees: [userId],
+    reporter: userId,
+    bugDetails: {
+      testerOwner: null,
+      developerLead: null,
+    },
+    isDeleted: false,
+  };
+
+  Issue.findOne = () => createProjectingQuery(issue);
+  Project.findOne = (filter) =>
+    Promise.resolve(
+      filter.tenantId === "TENANT_001" && String(filter._id) === String(projectId)
+        ? {
+            _id: projectId,
+            workspaceId: "legacy-workspace",
+            tenantId: "TENANT_001",
+            teamLead: userId,
+          }
+        : null
+    );
+  TeamMember.find = () => ({
+    distinct: async () => [],
+  });
+  ProjectMember.find = () => ({
+    distinct: async () => [],
+  });
+
+  try {
+    const allowedRes = createResponse();
+
+    await assert.rejects(
+      () =>
+        invokeController(
+          updateTaskStatus,
+          {
+            user: {
+              _id: userId,
+              id: userId,
+              role: "Team Lead",
+              workspaceId: "legacy-workspace",
+              tenantId: "TENANT_001",
+            },
+            params: {
+              id: String(issueId),
+            },
+            body: {
+              status: "IN_PROGRESS",
+            },
+          },
+          allowedRes
+        ),
+      /Only Task work items can be updated from the task board/
+    );
+    assert.equal(allowedRes.statusCode, 400);
+
+    const deniedRes = createResponse();
+
+    await assert.rejects(
+      () =>
+        invokeController(
+          updateTaskStatus,
+          {
+            user: {
+              _id: new mongoose.Types.ObjectId(),
+              id: new mongoose.Types.ObjectId(),
+              role: "Team Lead",
+              workspaceId: "legacy-workspace",
+              tenantId: "TENANT_002",
+            },
+            params: {
+              id: String(issueId),
+            },
+            body: {
+              status: "IN_PROGRESS",
+            },
+          },
+          deniedRes
+        ),
+      /Task not found/
+    );
+    assert.equal(deniedRes.statusCode, 404);
+  } finally {
+    Issue.findOne = originalIssueFindOne;
+    Project.findOne = originalProjectFindOne;
+    TeamMember.find = originalTeamMemberFind;
+    ProjectMember.find = originalProjectMemberFind;
   }
 });
 

@@ -37,7 +37,8 @@ const updateTaskStatus = asyncHandler(async (req, res, next) => {
   }
 
   const task = await loadTenantSafeIssue(req.user, req.params.id, {
-    select: "_id type",
+    select:
+      "_id type projectId assignee assignees reporter bugDetails.testerOwner bugDetails.developerLead",
     lean: true,
   });
 
