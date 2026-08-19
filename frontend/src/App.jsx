@@ -376,7 +376,11 @@ const App = () => (
       path="/auth"
       element={
         <PublicRoute>
-          <Suspense fallback={<PublicRouteFallback />}><LoginPage /></Suspense>
+          <AuthSplashGate>
+            <Suspense fallback={<PublicRouteFallback />}>
+              <AuthPage />
+            </Suspense>
+          </AuthSplashGate>
         </PublicRoute>
       }
     />
