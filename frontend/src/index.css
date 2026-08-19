@@ -48,7 +48,8 @@
   html {
     height: 100%;
     min-height: 100%;
-    overflow: hidden;
+    overflow-x: hidden;
+    overflow-y: auto;
     text-size-adjust: 100%;
     -webkit-text-size-adjust: 100%;
   }
@@ -56,7 +57,8 @@
   body {
     height: 100%;
     min-height: 100%;
-    overflow: hidden;
+    overflow-x: hidden;
+    overflow-y: auto;
     @apply bg-background text-foreground antialiased;
     font-family: "Manrope", sans-serif;
     font-synthesis: none;
@@ -1198,6 +1200,27 @@
     overflow: hidden;
     width: var(--auth-card-max-width);
     max-height: calc(var(--app-viewport-height) - (var(--auth-page-padding) * 2));
+  }
+}
+
+/* Keep the CureCode mark prominent and aligned in the dedicated auth header. */
+main > header > a > img[alt="CureCode"] {
+  display: block;
+  height: clamp(3rem, 4vw, 3.75rem);
+  max-width: min(12.5rem, 46vw);
+  object-fit: contain;
+  object-position: left center;
+}
+
+@media (max-width: 480px) {
+  main > header {
+    align-items: center;
+    gap: 0.75rem;
+  }
+
+  main > header > p {
+    max-width: 11.5rem;
+    text-align: right;
   }
 }
 
