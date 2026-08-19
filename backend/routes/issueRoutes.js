@@ -21,6 +21,7 @@ const {
 } = require("../controllers/issueController");
 const {
   createIssueWorklog,
+  deleteIssueAttachment,
   getIssueAttachments,
   downloadIssueAttachment,
   getIssueHistory,
@@ -53,6 +54,7 @@ router.post("/:id/sprint", protect, moveIssueToSprint);
 router.delete("/:id/sprint", protect, removeIssueFromSprint);
 router.get("/:id/attachments", protect, getIssueAttachments);
 router.get("/:issueId/attachments/:attachmentId/download", protect, downloadIssueAttachment);
+router.delete("/:id/attachments/:attachmentId", protect, deleteIssueAttachment);
 router.post(
   "/:id/attachments",
   protect,

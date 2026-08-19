@@ -1424,4 +1424,14 @@ export const fetchSubscriptionPlan = async () => {
   return response.data;
 };
 
+export const fetchDatabaseUsage = async () => {
+  const response = await api.get("/subscription/database-usage");
+  return response.data;
+};
+
+export const fetchPlatformInfrastructureUsage = async () => {
+  const response = await platformApi.get("/platform/infrastructure-usage");
+  return response.data;
+};
+
 export default api;

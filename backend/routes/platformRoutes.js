@@ -7,6 +7,7 @@ const {
 const platformCompanyController = require("../controllers/platformCompanyController");
 const platformDashboardController = require("../controllers/platformDashboardController");
 const { platformAuth } = require("../middleware/platformAuth");
+const { getInfrastructureUsageController } = require("../controllers/infrastructureUsageController");
 
 const router = express.Router();
 
@@ -14,6 +15,7 @@ router.post("/auth/login", loginPlatformAdmin);
 router.get("/auth/me", platformAuth, getCurrentPlatformAdmin);
 router.post("/auth/logout", platformAuth, logoutPlatformAdmin);
 router.get("/plans", platformAuth, platformCompanyController.listPlans);
+router.get("/infrastructure-usage", platformAuth, getInfrastructureUsageController);
 router.get("/companies", platformAuth, platformCompanyController.listCompanies);
 router.post("/companies", platformAuth, platformCompanyController.createCompany);
 router.post(

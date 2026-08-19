@@ -4,6 +4,7 @@ const { Schema, model, models } = mongoose;
 
 const attachmentSchema = new Schema(
   {
+    tenantId: { type: String, trim: true, uppercase: true, default: "", index: true },
     name: {
       type: String,
       trim: true,
@@ -35,6 +36,11 @@ const attachmentSchema = new Schema(
       default: "",
     },
     size: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+    fileSizeBytes: {
       type: Number,
       default: 0,
       min: 0,

@@ -1,4 +1,4 @@
-const { GetObjectCommand, S3Client, PutObjectCommand } = require("@aws-sdk/client-s3");
+const { DeleteObjectCommand, GetObjectCommand, ListObjectsV2Command, S3Client, PutObjectCommand } = require("@aws-sdk/client-s3");
 const { Readable } = require("stream");
 
 const s3 = new S3Client({
@@ -68,4 +68,25 @@ const getS3ObjectStream = async (storagePath) => {
   throw new Error("S3 object body is empty");
 };
 
-module.exports = { getS3ObjectStream, uploadToS3 };
+const deleteS3Object = async (storagePath) => {
+  const key = getS3KeyFromStoragePath(storagePath);
+  if (!key) return;
+  await s3.send(new DeleteObjectCommand({ Bucket: process.env.AWS_S3_BUCKET, Key: key }));
+};
+
+const listS3Objects = async (prefix = "") => {
+  const objects = [];
+  let ContinuationToken;
+  do {
+    const response = await s3.send(new ListObjectsV2Command({
+      Bucket: process.env.AWS_S3_BUCKET,
+      Prefix: prefix,
+      ContinuationToken,
+    }));
+    objects.push(...(response.Contents || []));
+    ContinuationToken = response.IsTruncated ? response.NextContinuationToken : undefined;
+  } while (ContinuationToken);
+  return objects;
+};
+
+module.exports = { getS3ObjectStream, uploadToS3, deleteS3Object, listS3Objects, getS3KeyFromStoragePath };

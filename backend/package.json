@@ -12,6 +12,8 @@
     "reset:platform-admin": "node scripts/resetPlatformAdmin.js",
     "migrate:legacy-tenant": "node scripts/migrateLegacyTenantIdentity.js",
     "backup:export": "node scripts/exportMongoBackup.js",
+    "reconcile:storage": "node scripts/reconcileStorage.js",
+    "migrate:storage": "node scripts/migrateStorageBackfill.js",
     "start": "node server.js"
   },
   "dependencies": {

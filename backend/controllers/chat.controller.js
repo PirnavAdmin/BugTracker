@@ -16,7 +16,8 @@ const { buildAppUrl } = require("../config/env");
 const { sendChatMeetingInviteEmail } = require("../services/emailService");
 const { createNotification } = require("../services/notificationService");
 const asyncHandler = require("../utils/asyncHandler");
-const { uploadToS3 } = require("../utils/s3");
+const { deleteS3Object, uploadToS3 } = require("../utils/s3");
+const { confirmStorage, releaseStorage, reserveStorage } = require("../services/storageUsageService");
 const {
   buildProjectAccessQuery,
   mergeProjectTeamIds,
@@ -162,7 +163,7 @@ const uploadChatAttachmentMiddleware = multer({
   },
 }).single("file");
 
-const sanitizeAttachments = (attachments = []) => {
+const sanitizeAttachments = (attachments = [], tenantId = "") => {
   if (!Array.isArray(attachments)) {
     return [];
   }
@@ -180,6 +181,7 @@ const sanitizeAttachments = (attachments = []) => {
         : 0;
 
       return {
+        tenantId: normalizeTenantId(tenantId),
         name: fileName,
         fileName,
         url: fileUrl,
@@ -187,6 +189,7 @@ const sanitizeAttachments = (attachments = []) => {
         type: fileType,
         fileType,
         size,
+        fileSizeBytes: Number.isFinite(Number(attachment?.fileSizeBytes)) ? Math.max(0, Number(attachment.fileSizeBytes)) : size,
       };
     })
     .filter((attachment) => attachment.fileName || attachment.fileUrl);
@@ -521,7 +524,7 @@ const createMessageDocument = async ({
   metadata = null,
 }) => {
   const sanitizedMessage = sanitizeText(message);
-  const sanitizedAttachments = sanitizeAttachments(attachments);
+  const sanitizedAttachments = sanitizeAttachments(attachments, sender.tenantId);
   const sanitizedMetadata =
     metadata && typeof metadata === "object" && !Array.isArray(metadata)
       ? metadata
@@ -1335,10 +1338,18 @@ const uploadChatAttachment = asyncHandler(async (req, res) => {
 
   const fileName = sanitizeFileName(req.file.originalname);
 
-  const fileUrl = await uploadToS3(
-  req.file,
-  "chat-attachments"
-);
+  const reservation = await reserveStorage(req.user.tenantId, req.file.size, "chatAttachmentBytes");
+  let fileUrl;
+  try {
+    fileUrl = await uploadToS3(req.file, "chat-attachments");
+    await confirmStorage(reservation);
+  } catch (error) {
+    if (fileUrl) {
+      try { await deleteS3Object(fileUrl); } catch (cleanupError) { console.error("[storage] chat attachment cleanup failed", cleanupError); }
+    }
+    await releaseStorage({ ...reservation, reservation: true });
+    throw error;
+  }
   res.status(201).json({
     attachment: {
       name: fileName,
@@ -1348,6 +1359,8 @@ const uploadChatAttachment = asyncHandler(async (req, res) => {
       type: req.file.mimetype,
       fileType: req.file.mimetype,
       size: req.file.size,
+      fileSizeBytes: req.file.size,
+      tenantId: req.user.tenantId,
     },
   });
 });

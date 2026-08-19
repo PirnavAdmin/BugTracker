@@ -12,6 +12,8 @@ const {
   normalizeWorkspaceId,
 } = require("../utils/workspace");
 const { normalizeTenantId, withTenantFilter } = require("../utils/tenant");
+const { deleteS3Object, uploadToS3 } = require("../utils/s3");
+const { confirmStorage, releaseStorage, reserveStorage } = require("../services/storageUsageService");
 
 const passwordHasLetter = /[A-Za-z]/;
 const passwordHasNumber = /\d/;
@@ -345,8 +347,6 @@ const updateCurrentUserAvatar = asyncHandler(async (req, res) => {
     throw new Error("Profile image must be a JPG, PNG, WEBP, or GIF file");
   }
 
-  await fs.mkdir(avatarUploadDir, { recursive: true });
-
   const user = await User.findById(req.user._id);
 
   if (!user) {
@@ -354,12 +354,30 @@ const updateCurrentUserAvatar = asyncHandler(async (req, res) => {
     throw new Error("Unauthorized");
   }
 
-  const filename = `${user._id}-${Date.now()}${extension}`;
-  await fs.writeFile(path.join(avatarUploadDir, filename), req.file.buffer);
-  await removeStoredAvatar(user.avatarUrl || "");
-
-  user.avatarUrl = `/uploads/profile-avatars/${filename}`;
-  await user.save();
+  const oldAvatarBytes = Number.isFinite(user.avatarSizeBytes) ? user.avatarSizeBytes : 0;
+  const oldAvatarUrl = user.avatarUrl || "";
+  const netBytes = Math.max(req.file.size - oldAvatarBytes, 0);
+  const reservation = await reserveStorage(req.user.tenantId, netBytes, "avatarBytes");
+  let avatarUrl;
+  try {
+    avatarUrl = await uploadToS3(req.file, "avatars");
+    await confirmStorage(reservation);
+    user.avatarUrl = avatarUrl;
+    user.avatarSizeBytes = req.file.size;
+    await user.save();
+    if (oldAvatarBytes > 0) {
+      await releaseStorage({ tenantId: req.user.tenantId, bytes: oldAvatarBytes, category: "avatarBytes" });
+    }
+    if (/^https?:\/\//i.test(oldAvatarUrl) && oldAvatarUrl !== avatarUrl) {
+      try { await deleteS3Object(oldAvatarUrl); } catch (cleanupError) { console.error("[storage] old avatar cleanup failed", cleanupError); }
+    }
+  } catch (error) {
+    if (avatarUrl) {
+      try { await deleteS3Object(avatarUrl); } catch (cleanupError) { console.error("[storage] avatar cleanup failed", cleanupError); }
+    }
+    await releaseStorage({ ...reservation, reservation: true });
+    throw error;
+  }
 
   res.status(200).json({
     message: "Profile picture updated successfully",

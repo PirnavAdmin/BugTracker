@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useLocation, useNavigate } from "react-router-dom";
 import {
   deleteManagedUser,
+  fetchDatabaseUsage,
   fetchManagedUsers,
   fetchSubscriptionPlan,
   inviteUser,
@@ -172,6 +173,12 @@ const UserSettingsPage = () => {
   const { data: subscriptionPlan } = useQuery({
     queryKey: ["subscription-plan"],
     queryFn: fetchSubscriptionPlan,
+    enabled: canManageWorkspaceUsers,
+  });
+
+  const { data: databaseUsage } = useQuery({
+    queryKey: ["tenant-database-usage"],
+    queryFn: fetchDatabaseUsage,
     enabled: canManageWorkspaceUsers,
   });
 
@@ -909,6 +916,8 @@ const UserSettingsPage = () => {
           updateMutation={userUpdateMutation}
           users={users}
           usage={subscriptionPlan?.usage?.users}
+          storage={subscriptionPlan?.storage}
+          databaseUsage={databaseUsage}
         />
       );
     }

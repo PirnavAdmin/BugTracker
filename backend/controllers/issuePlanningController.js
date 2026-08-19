@@ -1,11 +1,12 @@
 const fs = require("fs");
 const path = require("path");
 const multer = require("multer");
-const { getS3ObjectStream, uploadToS3 } = require("../utils/s3");
+const { deleteS3Object, getS3ObjectStream, uploadToS3 } = require("../utils/s3");
 const mongoose = require("mongoose");
 const Comment = require("../models/Comment");
 const Epic = require("../models/Epic");
 const Issue = require("../models/Issue");
+const Project = require("../models/Project");
 const IssueAttachment = require("../models/IssueAttachment");
 const IssueHistory = require("../models/IssueHistory");
 const ProjectMember = require("../models/ProjectMember");
@@ -38,6 +39,7 @@ const {
   isSprintLocked,
 } = require("../utils/sprintLifecycle");
 const { loadTenantSafeIssueWithProject } = require("../utils/issueAccess");
+const { confirmStorage, releaseStorage, reserveStorage } = require("../services/storageUsageService");
 
 const attachmentsRoot = path.resolve(__dirname, "..", "uploads", "issue-attachments");
 fs.mkdirSync(attachmentsRoot, {
@@ -729,34 +731,44 @@ const uploadIssueAttachment = asyncHandler(async (req, res) => {
     throw new Error("Select a file to upload");
   }
 
-  const attachment = await IssueAttachment.create({
-  issueId: issue._id,
-  uploadedBy: req.user._id,
-  fileName: req.file.originalname,
-  mimeType: req.file.mimetype,
-  sizeBytes: req.file.size,
-  storagePath: await uploadToS3(
-    req.file,
-    "issue-attachments"
-  ),
-});
-
-  await attachment.populate("uploadedBy", "name email role");
-  await recordIssueHistory({
-    issueId: issue._id,
-    projectId: issue.projectId,
-    actorId: req.user._id,
-    eventType: "ATTACHMENT_UPLOADED",
-    field: "attachment",
-    fromValue: null,
-    toValue: attachment.fileName,
-    meta: {
-      mimeType: attachment.mimeType,
-      sizeBytes: attachment.sizeBytes,
-    },
-  });
-
-  res.status(201).json(formatAttachment(attachment));
+  const project = await Project.findOne({ _id: issue.projectId, tenantId: req.user.tenantId }).select("tenantId").lean();
+  if (!project) {
+    res.status(404);
+    throw new Error("Project not found or inaccessible");
+  }
+  const reservation = await reserveStorage(req.user.tenantId, req.file.size, "issueAttachmentBytes");
+  let storagePath;
+  try {
+    storagePath = await uploadToS3(req.file, "issue-attachments");
+    const attachment = await IssueAttachment.create({
+      tenantId: req.user.tenantId,
+      issueId: issue._id,
+      uploadedBy: req.user._id,
+      fileName: req.file.originalname,
+      mimeType: req.file.mimetype,
+      sizeBytes: req.file.size,
+      storagePath,
+    });
+    await confirmStorage(reservation);
+    await attachment.populate("uploadedBy", "name email role");
+    await recordIssueHistory({
+      issueId: issue._id,
+      projectId: issue.projectId,
+      actorId: req.user._id,
+      eventType: "ATTACHMENT_UPLOADED",
+      field: "attachment",
+      fromValue: null,
+      toValue: attachment.fileName,
+      meta: { mimeType: attachment.mimeType, sizeBytes: attachment.sizeBytes },
+    });
+    return res.status(201).json(formatAttachment(attachment));
+  } catch (error) {
+    if (storagePath) {
+      try { await deleteS3Object(storagePath); } catch (cleanupError) { console.error("[storage] issue attachment cleanup failed", cleanupError); }
+    }
+    await releaseStorage({ ...reservation, reservation: true });
+    throw error;
+  }
 });
 
 const getIssueWorklogs = asyncHandler(async (req, res) => {
@@ -998,6 +1010,38 @@ const downloadIssueAttachment = asyncHandler(async (req, res) => {
   });
 });
 
+const deleteIssueAttachment = asyncHandler(async (req, res) => {
+  if (!mongoose.isValidObjectId(req.params.id) || !mongoose.isValidObjectId(req.params.attachmentId)) {
+    res.status(400);
+    throw new Error("Invalid issue or attachment id");
+  }
+
+  const issue = await loadReadableIssue(req.user, req.params.id);
+  if (!issue) {
+    res.status(404);
+    throw new Error("Issue not found or inaccessible");
+  }
+
+  const attachment = await IssueAttachment.findOne({
+    _id: req.params.attachmentId,
+    issueId: issue._id,
+    tenantId: req.user.tenantId,
+  });
+  if (!attachment) {
+    res.status(404);
+    throw new Error("Attachment not found or inaccessible");
+  }
+
+  await deleteS3Object(attachment.storagePath);
+  await attachment.deleteOne();
+  await releaseStorage({
+    tenantId: req.user.tenantId,
+    bytes: attachment.sizeBytes,
+    category: "issueAttachmentBytes",
+  });
+  res.status(200).json({ message: "Attachment deleted" });
+});
+
 module.exports = {
   uploadIssueAttachmentMiddleware,
   updateIssuePlanning,
@@ -1007,6 +1051,7 @@ module.exports = {
   getIssueAttachments,
   uploadIssueAttachment,
   downloadIssueAttachment,
+  deleteIssueAttachment,
   getIssueWorklogs,
   createIssueWorklog,
   getIssueHistory,

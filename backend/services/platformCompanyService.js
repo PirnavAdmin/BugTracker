@@ -13,6 +13,7 @@ const PlatformCompany = require("../models/PlatformCompany");
 const PlatformSubscription = require("../models/PlatformSubscription");
 const User = require("../models/User");
 const Project = require("../models/Project");
+const StorageUsage = require("../models/StorageUsage");
 const { ROLE_ADMIN } = require("../utils/roles");
 const {
   createTenantIdFromNumber,
@@ -79,9 +80,23 @@ const getCompanyUsage = async (company) => {
     User.countDocuments({ tenantId }),
     Project.countDocuments({ tenantId }),
   ]);
+  const storageUsage = await StorageUsage.findOne({ tenantId }).lean();
+  const storageLimit = plan.limits.storageGB;
+  const storageUsed = Number(storageUsage?.totalBytes) || 0;
+  const storageLimitBytes = storageLimit === null ? null : storageLimit * 1024 ** 3;
   return {
     users: buildUsageResource(Number(users) || 0, plan.limits.maxUsers),
     projects: buildUsageResource(Number(projects) || 0, plan.limits.maxProjects),
+    storage: {
+      usedBytes: storageUsed,
+      usedMB: storageUsed / 1024 ** 2,
+      usedGB: storageUsed / 1024 ** 3,
+      limitBytes: storageLimitBytes,
+      limitGB: storageLimit,
+      remainingBytes: storageLimitBytes === null ? null : Math.max(storageLimitBytes - storageUsed, 0),
+      usagePercent: storageLimitBytes === null ? null : Math.min((storageUsed / storageLimitBytes) * 100, 100),
+      unlimited: storageLimitBytes === null,
+    },
   };
 };
 

@@ -61,6 +61,8 @@ const UsersSettings = ({
   onActiveFilterChange,
   updateMutation,
   usage,
+  storage,
+  databaseUsage,
   users = [],
 }) => {
   const [searchDraft, setSearchDraft] = useState("");
@@ -264,6 +266,23 @@ const UsersSettings = ({
         <div className="mb-5 rounded-[16px] border border-violet-200 bg-violet-50 px-4 py-3 text-sm text-violet-900">
           <span className="font-semibold">User seats:</span>{" "}
           {usage.current} / {usage.unlimited ? "Unlimited" : usage.limit}
+        </div>
+      ) : null}
+      {storage ? (
+        <div className="mb-5 rounded-[16px] border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-900">
+          <span className="font-semibold">Customer Storage:</span>{" "}
+          {storage.usedMB?.toFixed?.(2) || "0.00"} MB / {storage.unlimited ? "Unlimited" : `${storage.limitGB} GB`}
+          <div className="mt-2 h-2 overflow-hidden rounded-full bg-sky-100">
+            <div className="h-full bg-sky-600" style={{ width: `${Math.min(storage.usagePercent || 0, 100)}%` }} />
+          </div>
+          <p className="mt-1 text-xs text-sky-700">{storage.usagePercent >= 100 ? "Storage limit reached. Upgrade your plan to upload more files." : storage.usagePercent >= 90 ? "Storage usage is almost full." : storage.usagePercent >= 80 ? "Storage usage is approaching your plan limit." : ""}</p>
+        </div>
+      ) : null}
+      {databaseUsage ? (
+        <div className="mb-5 rounded-[16px] border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900">
+          <span className="font-semibold">Database Utilization:</span>{" "}
+          {databaseUsage.estimatedDataMB?.toFixed?.(2) || "0.00"} MB · {databaseUsage.recordCount || 0} records
+          <p className="mt-1 text-xs text-slate-600">Database usage is separate from your subscription storage quota.</p>
         </div>
       ) : null}
       {isLoading ? (

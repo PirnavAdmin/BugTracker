@@ -55,6 +55,11 @@ const userSchema = new Schema(
       trim: true,
       default: "",
     },
+    avatarSizeBytes: {
+      type: Number,
+      default: null,
+      min: 0,
+    },
     workspaceId: {
       type: String,
       required: true,

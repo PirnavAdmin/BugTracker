@@ -4,6 +4,13 @@ const { Schema, model, models } = mongoose;
 
 const issueAttachmentSchema = new Schema(
   {
+    tenantId: {
+      type: String,
+      trim: true,
+      uppercase: true,
+      default: "",
+      index: true,
+    },
     issueId: {
       type: Schema.Types.ObjectId,
       ref: "Issue",

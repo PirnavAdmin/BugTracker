@@ -18,6 +18,7 @@ const Notification = require("./Notification");
 const SprintNotification = require("./SprintNotification");
 const Conversation = require("./Conversation.model");
 const Message = require("./Message.model");
+const StorageUsage = require("./StorageUsage");
 
 module.exports = {
   User,
@@ -40,4 +41,5 @@ module.exports = {
   SprintNotification,
   Conversation,
   Message,
+  StorageUsage,
 };

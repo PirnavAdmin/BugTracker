@@ -36,6 +36,7 @@ import {
   fetchPlatformDashboardRevenue,
   fetchPlatformDashboardSubscriptions,
   fetchPlatformDashboardSummary,
+  fetchPlatformInfrastructureUsage,
 } from "@/lib/api";
 import { usePlatformAuth } from "@/hooks/use-platform-auth";
 import { Badge } from "@/components/ui/badge";
@@ -135,6 +136,10 @@ const PlatformDashboardPage = () => {
     queryKey: ["platform-dashboard-subscriptions", params],
     queryFn: () => fetchPlatformDashboardSubscriptions(params),
   });
+  const infrastructureQuery = useQuery({
+    queryKey: ["platform-infrastructure-usage"],
+    queryFn: fetchPlatformInfrastructureUsage,
+  });
   const aiUsageQuery = useQuery({
     queryKey: ["platform-dashboard-ai-usage", params],
     queryFn: () => fetchPlatformDashboardAIUsage(params),
@@ -164,6 +169,7 @@ const PlatformDashboardPage = () => {
   const aiUsage = aiUsageQuery.data || {};
   const revenue = revenueQuery.data || {};
   const subscriptions = subscriptionsQuery.data || {};
+  const infrastructure = infrastructureQuery.data || {};
   const payments = paymentsQuery.data || {};
   const growth = growthQuery.data || {};
   const activity = activityQuery.data || {};
@@ -413,6 +419,16 @@ const PlatformDashboardPage = () => {
                 )}
               </Panel>
             </section>
+
+            <Panel title="Infrastructure Utilization">
+              {infrastructureQuery.isLoading ? <Skeleton className="h-24 rounded-lg" /> : (
+                <div className="grid gap-3 md:grid-cols-3">
+                  <div className="rounded-lg bg-slate-50 px-3 py-2 text-sm"><p className="font-bold">EC2 DISK</p><p>{compactNumber(infrastructure.ec2?.usedBytes)} / {compactNumber(infrastructure.ec2?.totalBytes)} bytes</p></div>
+                  <div className="rounded-lg bg-blue-50 px-3 py-2 text-sm"><p className="font-bold">MONGODB</p><p>Data {compactNumber(infrastructure.mongodb?.dataSize)} · Index {compactNumber(infrastructure.mongodb?.indexSize)}</p></div>
+                  <div className="rounded-lg bg-violet-50 px-3 py-2 text-sm"><p className="font-bold">S3</p><p>Customer {compactNumber(infrastructure.s3?.customerStorageBytes)} · Backups {compactNumber(infrastructure.s3?.backupStorageBytes)}</p></div>
+                </div>
+              )}
+            </Panel>
 
             <Panel
               title="AI Cost by Company"
