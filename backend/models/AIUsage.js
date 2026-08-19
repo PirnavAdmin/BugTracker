@@ -10,6 +10,11 @@ const aiUsageSchema = new Schema(
       trim: true,
       index: true,
     },
+    tenantId: {
+      type: String,
+      trim: true,
+      index: true,
+    },
     userId: {
       type: Schema.Types.ObjectId,
       ref: "User",
@@ -91,6 +96,7 @@ const aiUsageSchema = new Schema(
 );
 
 aiUsageSchema.index({ workspaceId: 1, createdAt: -1 });
+aiUsageSchema.index({ tenantId: 1, createdAt: -1 });
 aiUsageSchema.index({ workspaceId: 1, feature: 1, createdAt: -1 });
 aiUsageSchema.index({ workspaceId: 1, userId: 1, createdAt: -1 });
 aiUsageSchema.index({ workspaceId: 1, projectId: 1, createdAt: -1 });

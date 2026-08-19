@@ -115,6 +115,24 @@ test("platform AI cost by company returns real workspace rows without fake billi
   ]);
 });
 
+test("platform company AI usage can be explicitly scoped to a tenant", async () => {
+  let usageMatch;
+  AIUsage.aggregate = async (pipeline) => {
+    usageMatch = pipeline[0].$match;
+    return [];
+  };
+  User.aggregate = async () => [];
+  Project.aggregate = async () => [];
+
+  await getAICostByCompany({
+    end: "2026-08-18",
+    start: "2026-08-01",
+    tenantId: "TENANT_001",
+  });
+
+  assert.strictEqual(usageMatch.tenantId, "TENANT_001");
+});
+
 test("platform payments remain an explicit empty state until billing models exist", async () => {
   const result = await getPayments();
 

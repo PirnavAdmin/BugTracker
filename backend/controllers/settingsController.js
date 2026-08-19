@@ -281,6 +281,7 @@ const getAIUsage = asyncHandler(async (req, res) => {
 
   const workspaceId = normalizeWorkspaceId(req.user.workspaceId);
   const usage = await getAIUsageAnalytics({
+    tenantId: req.user.tenantId,
     workspaceId,
     filters: {
       range: req.query.range,

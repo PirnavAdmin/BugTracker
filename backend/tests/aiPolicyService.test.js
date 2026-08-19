@@ -5,6 +5,7 @@ const WorkspaceSetting = require("../models/WorkspaceSetting");
 const { AI_FEATURES } = require("../constants/aiFeatures");
 const {
   checkAIAccess,
+  getAIUsageAnalytics,
   getDefaultAISettings,
   normalizeAISettings,
   recordAIUsage,
@@ -147,6 +148,7 @@ test("records successful AI usage with token cost details", async () => {
     inputTokens: 1_000_000,
     outputTokens: 1_000_000,
     role: ROLE_ADMIN,
+    tenantId: "TENANT_001",
     userId: "user-1",
     workspaceId: "workspace-1",
   });
@@ -154,5 +156,22 @@ test("records successful AI usage with token cost details", async () => {
   assert.strictEqual(usage.totalTokens, 2_000_000);
   assert.strictEqual(usage.estimatedCost, 0.3);
   assert.strictEqual(usage.status, "SUCCESS");
+  assert.strictEqual(usage.tenantId, "TENANT_001");
   assert.ok(usage.requestId);
+});
+
+test("tenant analytics match only the authenticated tenant", async () => {
+  const matches = [];
+  AIUsage.aggregate = async (pipeline) => {
+    matches.push(pipeline[0].$match);
+    return [];
+  };
+
+  await getAIUsageAnalytics({
+    tenantId: "TENANT_001",
+    workspaceId: "workspace-1",
+  });
+
+  assert.ok(matches.length > 0);
+  assert.ok(matches.every((match) => match.tenantId === "TENANT_001"));
 });

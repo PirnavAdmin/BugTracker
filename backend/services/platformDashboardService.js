@@ -165,10 +165,15 @@ const getSubscriptionOverview = async () => {
 
 const getAIUsage = async (query = {}) => {
   const { start, end } = getDateRange(query);
+  const usageMatch = {
+    createdAt: { $gte: start, $lte: end },
+    status: "SUCCESS",
+  };
+  if (query.tenantId) usageMatch.tenantId = String(query.tenantId).trim();
   const baseRows = buildEmptyTimeSeries(start, end, ["requests", "tokens", "estimatedCost"]);
   const [summaryRows, trendRows] = await Promise.all([
     AIUsage.aggregate([
-      { $match: { createdAt: { $gte: start, $lte: end }, status: "SUCCESS" } },
+      { $match: usageMatch },
       {
         $group: {
           _id: null,
@@ -181,7 +186,7 @@ const getAIUsage = async (query = {}) => {
       },
     ]),
     AIUsage.aggregate([
-      { $match: { createdAt: { $gte: start, $lte: end }, status: "SUCCESS" } },
+      { $match: usageMatch },
       {
         $group: {
           _id: { $dateToString: { date: "$createdAt", format: "%Y-%m-%d" } },
@@ -210,10 +215,15 @@ const getAIUsage = async (query = {}) => {
 
 const getAICostByCompany = async (query = {}) => {
   const { start, end } = getDateRange(query);
+  const usageMatch = {
+    createdAt: { $gte: start, $lte: end },
+    status: "SUCCESS",
+  };
+  if (query.tenantId) usageMatch.tenantId = String(query.tenantId).trim();
   const [workspaceIds, usageRows, userRows, projectRows] = await Promise.all([
     getWorkspaceIds(),
     AIUsage.aggregate([
-      { $match: { createdAt: { $gte: start, $lte: end }, status: "SUCCESS" } },
+      { $match: usageMatch },
       {
         $group: {
           _id: "$workspaceId",

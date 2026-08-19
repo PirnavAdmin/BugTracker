@@ -143,7 +143,7 @@ const updateWorkspaceAISettings = async ({ settings, updatedBy, workspaceId }) =
   return normalizeAISettings(workspaceSetting.aiSettings || {});
 };
 
-const buildUsageMatch = ({ endDate = new Date(), feature, projectId, role, startDate, userId, workspaceId }) => {
+const buildUsageMatch = ({ endDate = new Date(), feature, projectId, role, startDate, tenantId, userId, workspaceId }) => {
   const match = {
     workspaceId: normalizeWorkspaceId(workspaceId),
     createdAt: {
@@ -151,6 +151,8 @@ const buildUsageMatch = ({ endDate = new Date(), feature, projectId, role, start
       $lt: endDate,
     },
   };
+
+  if (tenantId) match.tenantId = String(tenantId).trim();
 
   if (feature) match.feature = feature;
   if (projectId) {
@@ -192,7 +194,7 @@ const getUsageTotals = async (match) => {
   };
 };
 
-const checkAIAccess = async ({ feature, projectId, role, userId, workspaceId }) => {
+const checkAIAccess = async ({ feature, projectId, role, tenantId, userId, workspaceId }) => {
   const settings = await getWorkspaceAISettings(workspaceId);
   const featureSettings = settings.features[feature];
 
@@ -211,10 +213,10 @@ const checkAIAccess = async ({ feature, projectId, role, userId, workspaceId }) 
   const now = new Date();
   const dayStart = startOfDay(now);
   const monthStart = startOfMonth(now);
-  const orgDaily = await getUsageTotals(buildUsageMatch({ startDate: dayStart, workspaceId }));
-  const orgMonthly = await getUsageTotals(buildUsageMatch({ startDate: monthStart, workspaceId }));
-  const userDaily = await getUsageTotals(buildUsageMatch({ startDate: dayStart, userId, workspaceId }));
-  const userMonthly = await getUsageTotals(buildUsageMatch({ startDate: monthStart, userId, workspaceId }));
+  const orgDaily = await getUsageTotals(buildUsageMatch({ startDate: dayStart, tenantId, workspaceId }));
+  const orgMonthly = await getUsageTotals(buildUsageMatch({ startDate: monthStart, tenantId, workspaceId }));
+  const userDaily = await getUsageTotals(buildUsageMatch({ startDate: dayStart, tenantId, userId, workspaceId }));
+  const userMonthly = await getUsageTotals(buildUsageMatch({ startDate: monthStart, tenantId, userId, workspaceId }));
   const { limits } = settings;
 
   if (limits.perUserDailyRequests && userDaily.requests >= limits.perUserDailyRequests) {
@@ -260,6 +262,7 @@ const recordAIUsage = async ({
   repository = "",
   role = "",
   status = "SUCCESS",
+  tenantId = "",
   userId,
   workspaceId,
 } = {}) => {
@@ -277,6 +280,7 @@ const recordAIUsage = async ({
 
   const usage = await AIUsage.create({
     workspaceId: normalizeWorkspaceId(workspaceId),
+    tenantId: String(tenantId || "").trim(),
     userId,
     projectId,
     feature,
@@ -295,7 +299,7 @@ const recordAIUsage = async ({
 
   try {
     const settings = await getWorkspaceAISettings(workspaceId);
-    await maybeCreateAIUsageAlerts({ settings, workspaceId });
+    await maybeCreateAIUsageAlerts({ settings, tenantId, workspaceId });
   } catch (error) {
     console.warn("[ai-policy] usage alert evaluation failed", {
       workspaceId: normalizeWorkspaceId(workspaceId),
@@ -306,18 +310,20 @@ const recordAIUsage = async ({
   return usage;
 };
 
-const countCodeReviewRunsForPush = async ({ commitSha = "", projectId, workspaceId } = {}) => {
+const countCodeReviewRunsForPush = async ({ commitSha = "", projectId, tenantId, workspaceId } = {}) => {
   if (!commitSha || !projectId || !workspaceId) {
     return 0;
   }
 
-  return AIUsage.countDocuments({
+  const match = {
     workspaceId: normalizeWorkspaceId(workspaceId),
     projectId,
     commitSha,
     feature: AI_FEATURES.CODE_REVIEW,
     status: "SUCCESS",
-  });
+  };
+  if (tenantId) match.tenantId = String(tenantId).trim();
+  return AIUsage.countDocuments(match);
 };
 
 const buildDateRange = (range = "30d") => {
@@ -379,7 +385,7 @@ const createAIUsageAlertNotifications = async ({ message, workspaceId }) => {
   );
 };
 
-const maybeCreateAIUsageAlerts = async ({ settings, workspaceId }) => {
+const maybeCreateAIUsageAlerts = async ({ settings, tenantId, workspaceId }) => {
   const thresholds = settings.alerts?.thresholds || [];
 
   if (!thresholds.length) {
@@ -388,8 +394,8 @@ const maybeCreateAIUsageAlerts = async ({ settings, workspaceId }) => {
 
   const now = new Date();
   const [today, thisMonth] = await Promise.all([
-    getUsageTotals(buildUsageMatch({ startDate: startOfDay(now), workspaceId })),
-    getUsageTotals(buildUsageMatch({ startDate: startOfMonth(now), workspaceId })),
+    getUsageTotals(buildUsageMatch({ startDate: startOfDay(now), tenantId, workspaceId })),
+    getUsageTotals(buildUsageMatch({ startDate: startOfMonth(now), tenantId, workspaceId })),
   ]);
   const budgetChecks = [
     {
@@ -442,7 +448,7 @@ const maybeCreateAIUsageAlerts = async ({ settings, workspaceId }) => {
   }
 };
 
-const getAIUsageAnalytics = async ({ filters = {}, workspaceId }) => {
+const getAIUsageAnalytics = async ({ filters = {}, tenantId, workspaceId }) => {
   const customStartDate = filters.startDate ? new Date(filters.startDate) : null;
   const customEndDate = filters.endDate ? new Date(filters.endDate) : null;
   const { startDate, endDate } =
@@ -458,6 +464,7 @@ const getAIUsageAnalytics = async ({ filters = {}, workspaceId }) => {
     projectId: filters.projectId,
     role: filters.role,
     startDate,
+    tenantId,
     userId: filters.userId,
     workspaceId,
   });
@@ -531,10 +538,10 @@ const getAIUsageAnalytics = async ({ filters = {}, workspaceId }) => {
     ]),
   ]);
   const thisMonth = await getUsageTotals(
-    buildUsageMatch({ startDate: startOfMonth(new Date()), workspaceId })
+    buildUsageMatch({ startDate: startOfMonth(new Date()), tenantId, workspaceId })
   );
   const today = await getUsageTotals(
-    buildUsageMatch({ startDate: startOfDay(new Date()), workspaceId })
+    buildUsageMatch({ startDate: startOfDay(new Date()), tenantId, workspaceId })
   );
 
   const settings = await getWorkspaceAISettings(workspaceId);
@@ -586,6 +593,7 @@ const getAIUsageAnalytics = async ({ filters = {}, workspaceId }) => {
 module.exports = {
   AI_MANAGE_ROLES,
   buildDateRange,
+  buildUsageMatch,
   checkAIAccess,
   countCodeReviewRunsForPush,
   getAIUsageAnalytics,

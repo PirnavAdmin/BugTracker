@@ -40,6 +40,7 @@ const {
   getProjectIdsForUserThroughTenantTeams,
 } = require("../utils/projectRelations");
 const { loadTenantSafeIssue } = require("../utils/issueAccess");
+const { buildUsageMatch } = require("../services/aiPolicyService");
 
 const createResponse = () => ({
   statusCode: 200,
@@ -52,6 +53,21 @@ const createResponse = () => ({
     this.payload = payload;
     return this;
   },
+});
+
+test("AI usage match keeps tenant one data unavailable to tenant two", () => {
+  const tenantOneMatch = buildUsageMatch({
+    tenantId: "TENANT_001",
+    workspaceId: "workspace-1",
+  });
+  const tenantTwoMatch = buildUsageMatch({
+    tenantId: "TENANT_002",
+    workspaceId: "workspace-2",
+  });
+
+  assert.strictEqual(tenantOneMatch.tenantId, "TENANT_001");
+  assert.strictEqual(tenantTwoMatch.tenantId, "TENANT_002");
+  assert.notDeepStrictEqual(tenantOneMatch, tenantTwoMatch);
 });
 
 const invokeController = async (controller, req, res = createResponse()) => {

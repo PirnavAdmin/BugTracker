@@ -47,6 +47,7 @@ const normalizeCommitSha = (value) => String(value || "").trim();
 
 const getAIUserContext = (req = {}) => ({
   role: req.user?.role || "",
+  tenantId: req.user?.tenantId || "",
   userId: req.user?._id || req.user?.id || null,
   workspaceId: req.user?.workspaceId,
 });
@@ -271,6 +272,7 @@ const reviewCodeForCommit = asyncHandler(async (req, res) => {
     const reviewRunsForPush = await aiPolicyService.countCodeReviewRunsForPush({
       commitSha,
       projectId,
+      ...(userContext.tenantId ? { tenantId: userContext.tenantId } : {}),
       workspaceId: userContext.workspaceId,
     });
 
