@@ -39,6 +39,16 @@ test("story completion is blocked by unfinished criteria, tasks, and high bugs",
   );
 });
 
+test("story completion allows stories without acceptance criteria", () => {
+  assert.equal(
+    getStoryCompletionBlocker({ acceptanceCriteria: [] }, [
+      { type: "Task", status: "DONE" },
+      { type: "Bug", status: "CLOSED", priority: "High" },
+    ]),
+    ""
+  );
+});
+
 test("story automatically advances when development work is complete", () => {
   const progress = calculateStoryProgress([
     { type: "Task", status: "DONE" },

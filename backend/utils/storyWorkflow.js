@@ -71,7 +71,7 @@ const getStoryCompletionBlocker = (story, children = []) => {
     : [];
 
   if (
-    !acceptanceCriteria.length ||
+    acceptanceCriteria.length &&
     acceptanceCriteria.some((criterion) => !criterion?.completed)
   ) {
     return "All acceptance criteria must be completed before closing the Story";
