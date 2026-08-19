@@ -224,9 +224,9 @@ const PlatformDashboardPage = () => {
   const pageTitle = activeNavPath === "/platform/dashboard" ? "SaaS Control Center" : "SaaS Control Center";
 
   return (
-    <main className="min-h-screen bg-slate-100 text-slate-950">
-      <div className="grid min-h-screen lg:grid-cols-[244px_1fr]">
-        <aside className="border-r border-slate-200 bg-white px-4 py-5">
+    <main className="h-[var(--app-viewport-height)] overflow-hidden bg-slate-100 text-slate-950">
+      <div className="grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)] lg:grid-cols-[244px_1fr] lg:grid-rows-none">
+        <aside className="min-h-0 border-r border-slate-200 bg-white px-4 py-5 lg:overflow-y-auto">
           <div className="flex items-center gap-3 px-2">
             <img src="/icons/icon-192x192.png?v=20260727-3" alt="" className="h-10 w-10 rounded-xl" />
             <div>
@@ -257,7 +257,7 @@ const PlatformDashboardPage = () => {
           </nav>
         </aside>
 
-        <section className="min-w-0">
+        <section className="flex min-h-0 min-w-0 flex-col">
           <header className="flex flex-col gap-4 border-b border-slate-200 bg-white px-5 py-4 xl:flex-row xl:items-center xl:justify-between">
             <div>
               <p className="text-xs font-bold uppercase tracking-[0.16em] text-blue-700">
@@ -287,7 +287,7 @@ const PlatformDashboardPage = () => {
             </div>
           </header>
 
-          <div className="space-y-4 p-4 xl:p-5">
+          <div className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain p-4 xl:p-5">
             <section className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
               {summaryQuery.isLoading
                 ? Array.from({ length: 5 }).map((_, index) => (
