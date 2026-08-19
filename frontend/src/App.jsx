@@ -19,6 +19,8 @@ import {
 } from "@/lib/roles";
 
 const AuthPage = lazy(() => import("@/pages/AuthPage"));
+const LoginPage = lazy(() => import("@/pages/LoginPage"));
+const PublicSite = lazy(() => import("@/pages/PublicSite"));
 const AdminBugsPage = lazy(() => import("@/pages/AdminBugsPage"));
 const DashboardPage = lazy(() => import("@/pages/DashboardPage"));
 const DeveloperDashboardPage = lazy(() => import("@/pages/DeveloperDashboardPage"));
@@ -197,14 +199,6 @@ const PublicRoute = ({ children }) => {
   return children;
 };
 
-const RootRoute = () => {
-  const { isAuthenticated, role } = useAuth();
-
-  return (
-    <Navigate to={isAuthenticated ? getDashboardPathByRole(role) : "/login"} replace />
-  );
-};
-
 const LegacyDashboardRedirect = () => {
   const { role } = useAuth();
 
@@ -281,7 +275,11 @@ const App = () => (
   <PresenceProvider>
     <ActivityTracker />
     <Routes>
-    <Route path="/" element={<RootRoute />} />
+    <Route path="/" element={<Suspense fallback={<PublicRouteFallback />}><PublicSite /></Suspense>} />
+    <Route path="/pricing" element={<Suspense fallback={<PublicRouteFallback />}><PublicSite /></Suspense>} />
+    <Route path="/features" element={<Suspense fallback={<PublicRouteFallback />}><PublicSite /></Suspense>} />
+    <Route path="/enterprise" element={<Suspense fallback={<PublicRouteFallback />}><PublicSite /></Suspense>} />
+    <Route path="/contact" element={<Suspense fallback={<PublicRouteFallback />}><PublicSite /></Suspense>} />
     <Route
       path="/platform/login"
       element={
@@ -357,14 +355,11 @@ const App = () => (
       path="/login"
       element={
         <PublicRoute>
-          <AuthSplashGate>
-            <Suspense fallback={<PublicRouteFallback />}>
-              <AuthPage />
-            </Suspense>
-          </AuthSplashGate>
+          <Suspense fallback={<PublicRouteFallback />}><LoginPage /></Suspense>
         </PublicRoute>
       }
     />
+    <Route path="/signup" element={<PublicRoute><Suspense fallback={<PublicRouteFallback />}><LoginPage signup /></Suspense></PublicRoute>} />
     <Route
       path="/admin"
       element={
@@ -381,11 +376,7 @@ const App = () => (
       path="/auth"
       element={
         <PublicRoute>
-          <AuthSplashGate>
-            <Suspense fallback={<PublicRouteFallback />}>
-              <AuthPage />
-            </Suspense>
-          </AuthSplashGate>
+          <Suspense fallback={<PublicRouteFallback />}><LoginPage /></Suspense>
         </PublicRoute>
       }
     />
