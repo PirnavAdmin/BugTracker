@@ -1069,6 +1069,24 @@ const getIssueModuleName = (issue) =>
 const isRejectedOrInvalid = (issue) =>
   getNormalizedBugStatus(issue) === ISSUE_STATUS.REJECTED ||
   /invalid|duplicate/i.test(`${issue?.status || ""} ${issue?.resolution || ""} ${issue?.labels?.join(" ") || ""} ${issue?.title || ""}`);
+const getQaEfficiencyMetrics = (bugs = [], tasks = []) => {
+  const bugRows = asArray(bugs);
+  const taskRows = asArray(tasks);
+  const verifiedBugs = bugRows.filter((bug) => isClosed(bug) && !isRejectedOrInvalid(bug)).length;
+  const rejectedBugs = bugRows.filter(isRejectedOrInvalid).length;
+  const completedTests = taskRows.filter(isClosed).length;
+  const completedWork = verifiedBugs + rejectedBugs + completedTests;
+  const totalWork = bugRows.length + taskRows.length;
+
+  return {
+    verifiedBugs,
+    rejectedBugs,
+    completedTests,
+    completedWork,
+    totalWork,
+    efficiency: percent(completedWork, totalWork),
+  };
+};
 const hasGitPush = (activity = {}) =>
   Boolean(activity.commitSha || (activity.commitMessage && activity.commitMessage !== "No pushes recorded yet") || activity.filesChanged?.length);
 const formatMaybePercent = (part, total) => (total ? `${percent(part, total)}%` : "—");
@@ -1265,9 +1283,8 @@ const QaAnalyticsDashboard = ({ user }) => {
       : "No reported bugs yet";
   const reopenRate = bugsVerified.length ? percent(reopenedBugs.length, bugsVerified.length) : null;
   const falsePositiveRate = bugs.length ? percent(rejectedBugs.length, bugs.length) : null;
-  const completedQaWork = bugsVerified.length + rejectedBugs.length + completedTests.length;
-  const totalQaWork = bugs.length + tasks.length;
-  const qaEfficiency = percent(completedQaWork, totalQaWork);
+  const qaEfficiencyMetrics = getQaEfficiencyMetrics(bugs, tasks);
+  const qaEfficiency = qaEfficiencyMetrics.efficiency;
   const cycleSamples = [...completedTests, ...bugsVerified].map((issue) => toNumber(issue.resolutionTimeMs)).filter((value) => value > 0);
   const avgQaTime = cycleSamples.length ? cycleSamples.reduce((sum, value) => sum + value, 0) / cycleSamples.length : 0;
   const buildRows = projectOptions
@@ -4100,7 +4117,7 @@ const QaTopPerformersCard = ({ rows = [] }) => (
               />
             </div>
             <div className="mt-3 grid gap-2 sm:grid-cols-3">
-              <MiniStat label="Closed Bugs" tone="emerald" value={row.closed} />
+              <MiniStat label="Verified Bugs" tone="emerald" value={row.closed} />
               <MiniStat label="Done Tasks" tone="blue" value={row.doneTasks} />
               <MiniStat label="Active Work" tone={row.activeWork > 0 ? "amber" : "emerald"} value={row.activeWork} />
             </div>
@@ -4724,7 +4741,7 @@ const JiraReportsDashboard = () => {
     .map((tester) => {
       const testerId = resolveUserId(tester);
       const testerBugs = bugIssues.filter(
-        (issue) => String(resolveBugTesterId(issue)) === String(testerId)
+        (issue) => bugBelongsToTester(issue, testerId)
       );
       const testerTasks = taskIssues.filter((issue) => {
         const assigneeIds = [issue.assignee, ...(issue.assignees || [])]
@@ -4732,14 +4749,15 @@ const JiraReportsDashboard = () => {
           .filter(Boolean);
         return assigneeIds.includes(String(testerId));
       });
-      const active = testerBugs.filter((issue) => !isClosed(issue)).length;
-      const activeTasks = testerTasks.filter((issue) => !isClosed(issue)).length;
+      const qaMetrics = getQaEfficiencyMetrics(testerBugs, testerTasks);
+      const active = testerBugs.length - qaMetrics.verifiedBugs - qaMetrics.rejectedBugs;
+      const activeTasks = testerTasks.length - qaMetrics.completedTests;
       const inProgressTasks = testerTasks.filter(
         (issue) => issue.status === ISSUE_STATUS.IN_PROGRESS
       ).length;
-      const doneTasks = testerTasks.filter(isClosed).length;
-      const completedWork = testerBugs.filter(isClosed).length + doneTasks;
-      const totalWork = testerBugs.length + testerTasks.length;
+      const doneTasks = qaMetrics.completedTests;
+      const completedWork = qaMetrics.completedWork;
+      const totalWork = qaMetrics.totalWork;
       const activeWork = active + activeTasks;
 
       return {
@@ -4755,9 +4773,10 @@ const JiraReportsDashboard = () => {
         doneTasks,
         active,
         readyForQa: testerBugs.filter(isReadyForQa).length,
-        closed: testerBugs.filter(isClosed).length,
+        closed: qaMetrics.verifiedBugs,
+        rejected: qaMetrics.rejectedBugs,
         availability: active === 0 ? "Available" : "Assigned",
-        qaEfficiency: percent(completedWork, totalWork),
+        qaEfficiency: qaMetrics.efficiency,
       };
     })
     .sort((left, right) => left.active - right.active || left.name.localeCompare(right.name));
@@ -4978,7 +4997,7 @@ const JiraReportsDashboard = () => {
             <JiraKpi label="Ready For QA" value={bugIssues.filter(isReadyForQa).length} helper="Awaiting verification" onClick={() => drillTo("Ready for QA", bugIssues.filter(isReadyForQa))} />
             <JiraKpi label="Rejected Fixes" value={bugIssues.filter((issue) => issue.status === ISSUE_STATUS.REJECTED).length} helper="Returned by QA" />
             <JiraKpi label="Reopened" value={formatCompactNumber(reopenedBugs.length)} helper="Quality follow-up" onClick={() => drillTo("Reopened bugs", reopenedBugs)} />
-            <JiraKpi label="QA Efficiency" value={`${qaEfficiency}%`} helper="Closed bugs + done tasks" />
+            <JiraKpi label="QA Efficiency" value={`${qaEfficiency}%`} helper="Verified/rejected bugs + completed tests" />
           </div>
           {renderDrilldownPanel()}
           {!hasDrilldown ? (
