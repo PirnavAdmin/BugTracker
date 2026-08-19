@@ -27,7 +27,7 @@ const getInfrastructureUsage = async () => {
   const customerBytes = sumObjects(customerObjects);
   const backupBytes = sumObjects(backupObjects);
   const totalBytes = sumObjects(objects);
-  const usageRows = await StorageUsage.aggregate([{ $group: { _id: null, bytes: { $sum: "$totalBytes" } } }]);
+  const usageRows = await StorageUsage.aggregate([{ $group: { _id: null, bytes: { $sum: "$totalBytes" }, issueAttachmentBytes: { $sum: "$issueAttachmentBytes" }, chatAttachmentBytes: { $sum: "$chatAttachmentBytes" }, avatarBytes: { $sum: "$avatarBytes" } } }]);
   const customerAccountingBytes = usageRows[0]?.bytes || 0;
   return {
     mongodb: {
@@ -43,6 +43,11 @@ const getInfrastructureUsage = async () => {
       totalBucketBytes: totalBytes,
       customerStorageBytes: customerBytes,
       customerAccountingBytes,
+      customerBreakdown: {
+        issueAttachmentBytes: usageRows[0]?.issueAttachmentBytes || 0,
+        chatAttachmentBytes: usageRows[0]?.chatAttachmentBytes || 0,
+        avatarBytes: usageRows[0]?.avatarBytes || 0,
+      },
       backupStorageBytes: backupBytes,
       platformSystemStorageBytes: Math.max(totalBytes - customerBytes, 0),
     },

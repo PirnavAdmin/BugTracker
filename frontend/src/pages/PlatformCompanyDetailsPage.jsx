@@ -6,6 +6,7 @@ import {
   createPlatformCompanyAdminUser,
   createPlatformSubscription,
   fetchPlatformCompany,
+  fetchPlatformCompanies,
   fetchPlatformPlans,
   updatePlatformCompany,
   updatePlatformSubscription,
@@ -28,12 +29,31 @@ const formatDate = (value) =>
 const limitText = (value, suffix = "") =>
   value === null || value === undefined ? "N/A" : `${value}${suffix}`;
 
+const formatBytes = (value) => {
+  const bytes = Number(value);
+  if (!Number.isFinite(bytes)) return "N/A";
+  if (bytes < 1024) return `${bytes} B`;
+  const units = ["KiB", "MiB", "GiB", "TiB"];
+  let amount = bytes / 1024;
+  let index = 0;
+  while (amount >= 1024 && index < units.length - 1) { amount /= 1024; index += 1; }
+  return `${amount.toFixed(amount >= 10 ? 1 : 2)} ${units[index]}`;
+};
+
 const FutureSection = ({ title }) => (
   <section className="rounded-lg border border-slate-200 bg-white p-4">
     <p className="text-sm font-bold tracking-normal text-slate-950">{title}</p>
     <p className="mt-2 text-sm font-medium text-slate-500">Coming next</p>
   </section>
 );
+
+const StorageSection = ({ company, storage }) => {
+  if (!company?.linked || !storage) {
+    return <section className="rounded-lg border border-slate-200 bg-white p-4"><p className="text-sm font-bold text-slate-950">Storage</p><p className="mt-2 text-sm font-medium text-slate-500">Not available</p><p className="mt-1 text-xs text-slate-500">Company is not linked to a CureCode tenant.</p></section>;
+  }
+  const percent = storage.unlimited ? 0 : Math.min(Number(storage.usagePercent) || 0, 100);
+  return <section className="rounded-lg border border-slate-200 bg-white p-4"><div className="flex items-center justify-between gap-2"><p className="text-sm font-bold text-slate-950">Storage</p><Badge variant="outline">{storage.unlimited ? "Unlimited" : `${percent.toFixed(1)}%`}</Badge></div><p className="mt-2 text-sm font-semibold text-slate-900">{formatBytes(storage.usedBytes)} / {storage.unlimited ? "Unlimited" : formatBytes(storage.limitBytes)}</p><div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-100"><div className="h-full rounded-full bg-blue-600" style={{ width: `${percent}%` }} /></div><p className="mt-2 text-xs text-slate-500">Customer storage is separate from database utilization.</p></section>;
+};
 
 const PlatformCompanyDetailsPage = () => {
   const { companyId } = useParams();
@@ -54,12 +74,20 @@ const PlatformCompanyDetailsPage = () => {
     queryFn: () => fetchPlatformCompany(companyId),
     enabled: Boolean(companyId),
   });
+  const companyUsageQuery = useQuery({
+    queryKey: ["platform-company-storage", companyId, company?.email],
+    queryFn: () => fetchPlatformCompanies({ page: 1, limit: 10, search: company?.email || "" }),
+    enabled: Boolean(company?.email),
+  });
   const plansQuery = useQuery({
     queryKey: ["platform-plans"],
     queryFn: fetchPlatformPlans,
   });
 
   const company = companyQuery.data;
+  const companyStorage = companyUsageQuery.data?.companies?.find(
+    (candidate) => String(candidate._id) === String(companyId)
+  )?.usage?.storage || null;
   const plans = plansQuery.data || [];
   const selectedPlan = useMemo(
     () => plans.find((plan) => plan.id === (subscriptionForm?.planId || company?.planId)) || company?.plan,
@@ -398,9 +426,11 @@ const PlatformCompanyDetailsPage = () => {
             </section>
 
             <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
-              {["Payments", "AI Usage", "Storage", "Users", "Activity"].map((title) => (
-                <FutureSection key={title} title={title} />
-              ))}
+              <FutureSection title="Payments" />
+              <FutureSection title="AI Usage" />
+              <StorageSection company={company} storage={companyStorage} />
+              <FutureSection title="Users" />
+              <FutureSection title="Activity" />
             </section>
           </>
         )}

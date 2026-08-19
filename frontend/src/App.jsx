@@ -45,6 +45,7 @@ const PlatformCompaniesPage = lazy(() => import("@/pages/PlatformCompaniesPage")
 const PlatformCompanyDetailsPage = lazy(() => import("@/pages/PlatformCompanyDetailsPage"));
 const PlatformPlaceholderPage = lazy(() => import("@/pages/PlatformPlaceholderPage"));
 const PlatformSubscriptionsPage = lazy(() => import("@/pages/PlatformSubscriptionsPage"));
+const PlatformStoragePage = lazy(() => import("@/pages/PlatformStoragePage"));
 
 const PublicRouteFallback = () => (
   <main className="grid min-h-screen place-items-center bg-[#111113] px-6 py-12 text-white">
@@ -330,6 +331,10 @@ const App = () => (
           </Suspense>
         </PlatformProtectedRoute>
       }
+    />
+    <Route
+      path="/platform/storage"
+      element={<PlatformProtectedRoute><Suspense fallback={<PublicRouteFallback />}><PlatformStoragePage /></Suspense></PlatformProtectedRoute>}
     />
     <Route
       path="/platform/:platformModule"
