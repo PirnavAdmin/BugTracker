@@ -5,6 +5,7 @@ import {
   LogOut,
   Lock,
   Settings,
+  CreditCard,
   User,
 } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
@@ -83,6 +84,9 @@ const UserProfileDropdown = () => {
             onClick: () => handleNavigate(settingsPath),
           },
         ]
+      : []),
+    ...(hasAdminPanelAccess(user?.role)
+      ? [{ icon: CreditCard, label: "Billing & Subscription", onClick: () => handleNavigate("/settings/billing") }]
       : []),
   ];
 

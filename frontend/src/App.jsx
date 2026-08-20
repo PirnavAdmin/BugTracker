@@ -47,6 +47,7 @@ const PlatformPlaceholderPage = lazy(() => import("@/pages/PlatformPlaceholderPa
 const PlatformSubscriptionsPage = lazy(() => import("@/pages/PlatformSubscriptionsPage"));
 const PlatformStoragePage = lazy(() => import("@/pages/PlatformStoragePage"));
 const PlatformPaymentsPage = lazy(() => import("@/pages/PlatformPaymentsPage"));
+const BillingPage = lazy(() => import("@/pages/BillingPage"));
 
 const PublicRouteFallback = () => (
   <main className="grid min-h-screen place-items-center bg-[#111113] px-6 py-12 text-white">
@@ -418,6 +419,7 @@ const App = () => (
           </ProtectedRoute>
         }
       />
+      <Route path="/settings/billing" element={<ProtectedRoute roles={ADMIN_PANEL_ROLES}><Suspense fallback={<PublicRouteFallback />}><BillingPage /></Suspense></ProtectedRoute>} />
       <Route
         path="/admin/dashboard"
         element={

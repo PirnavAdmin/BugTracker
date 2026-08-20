@@ -235,6 +235,13 @@ export const registerRequest = async (payload) => {
   return response.data;
 };
 
+export const fetchBillingSubscription = async () => (await api.get("/billing/subscription")).data?.subscription || null;
+export const fetchBillingPayments = async () => (await api.get("/billing/payments")).data?.payments || [];
+export const fetchBillingInvoices = async () => (await api.get("/billing/invoices")).data?.invoices || [];
+export const createBillingSubscription = async ({ planId, billingCycle }) =>
+  (await api.post("/billing/subscription/create", { planId, billingCycle })).data;
+export const cancelBillingSubscription = async () => (await api.post("/billing/subscription/cancel")).data;
+
 export const changePasswordRequest = async (payload) => {
   const response = await api.post("/auth/change-password", payload);
   return response.data;

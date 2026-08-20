@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { fetchPlatformSubscriptions } from "@/lib/api";
+import { fetchPlatformBillingSubscriptions } from "@/lib/api";
 import PlatformShell from "@/components/platform/PlatformShell";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -9,26 +9,26 @@ const formatDate = (value) =>
     ? new Intl.DateTimeFormat("en-IN", { dateStyle: "medium" }).format(new Date(value))
     : "N/A";
 
-const formatAmount = (value) =>
+const formatAmount = (value, currency = "INR") =>
   value === null || value === undefined
     ? "N/A"
     : new Intl.NumberFormat("en-US", {
         style: "currency",
-        currency: "USD",
+        currency,
         maximumFractionDigits: 2,
       }).format(Number(value || 0));
 
 const statusVariant = (status = "") => {
-  if (status === "Active") return "success";
-  if (["Past Due", "Suspended"].includes(status)) return "warning";
-  if (["Cancelled", "Expired"].includes(status)) return "danger";
+  if (status === "ACTIVE") return "success";
+  if (["PAST_DUE", "PAUSED", "PENDING"].includes(status)) return "warning";
+  if (["CANCELLED", "EXPIRED", "SUSPENDED"].includes(status)) return "danger";
   return "default";
 };
 
 const PlatformSubscriptionsPage = () => {
   const subscriptionsQuery = useQuery({
     queryKey: ["platform-subscriptions"],
-    queryFn: fetchPlatformSubscriptions,
+    queryFn: fetchPlatformBillingSubscriptions,
   });
   const subscriptions = subscriptionsQuery.data?.subscriptions || [];
 
@@ -49,31 +49,34 @@ const PlatformSubscriptionsPage = () => {
                 <thead>
                   <tr className="border-b border-slate-100 text-[11px] font-bold uppercase tracking-[0.12em] text-slate-500">
                     <th className="px-4 py-3">Company</th>
+                    <th className="px-4 py-3">Tenant</th>
                     <th className="px-4 py-3">Plan</th>
                     <th className="px-4 py-3">Status</th>
-                    <th className="px-4 py-3">Billing</th>
+                    <th className="px-4 py-3">Billing Cycle</th>
                     <th className="px-4 py-3">Amount</th>
-                    <th className="px-4 py-3">Start</th>
-                    <th className="px-4 py-3">End</th>
+                    <th className="px-4 py-3">Provider Status</th>
+                    <th className="px-4 py-3">Current Period</th>
+                    <th className="px-4 py-3">Created</th>
                   </tr>
                 </thead>
                 <tbody>
                   {subscriptions.map((subscription) => (
                     <tr key={subscription._id} className="border-b border-slate-50">
                       <td className="px-4 py-3">
-                        <p className="font-semibold text-slate-950">{subscription.company?.name || "N/A"}</p>
-                        <p className="text-xs text-slate-500">{subscription.company?.email || ""}</p>
+                        <p className="font-semibold text-slate-950">{subscription.company?.name || subscription.companyId || "N/A"}</p>
                       </td>
-                      <td className="px-4 py-3">{subscription.plan?.name || subscription.planId}</td>
+                      <td className="px-4 py-3 font-mono text-xs">{subscription.tenantId}</td>
+                      <td className="px-4 py-3 capitalize">{subscription.planId}</td>
                       <td className="px-4 py-3">
                         <Badge className="px-2 py-0.5" variant={statusVariant(subscription.status)}>
                           {subscription.status}
                         </Badge>
                       </td>
                       <td className="px-4 py-3">{subscription.billingCycle}</td>
-                      <td className="px-4 py-3">{formatAmount(subscription.amount)}</td>
-                      <td className="px-4 py-3">{formatDate(subscription.startDate)}</td>
-                      <td className="px-4 py-3">{formatDate(subscription.endDate)}</td>
+                      <td className="px-4 py-3">{formatAmount(subscription.amount, subscription.currency)}</td>
+                      <td className="px-4 py-3">{subscription.providerStatus || "N/A"}</td>
+                      <td className="px-4 py-3">{formatDate(subscription.currentPeriodStart)} – {formatDate(subscription.currentPeriodEnd)}</td>
+                      <td className="px-4 py-3">{formatDate(subscription.createdAt)}</td>
                     </tr>
                   ))}
                 </tbody>
