@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ExternalLink, RefreshCw } from "lucide-react";
 import { useLocation } from "react-router-dom";
-import { cancelBillingSubscription, createBillingSubscription, fetchBillingInvoices, fetchBillingPayments, fetchBillingSubscription } from "@/lib/api";
+import { cancelBillingSubscription, createBillingSubscription, fetchBillingInvoices, fetchBillingPayments, fetchBillingSubscription, retryBillingSubscription } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -24,6 +24,7 @@ export default function BillingPage() {
   const invoices = useQuery({ queryKey: ["billing-invoices"], queryFn: fetchBillingInvoices });
   const refresh = () => client.invalidateQueries({ queryKey: ["billing"] });
   const create = useMutation({ mutationFn: () => createBillingSubscription({ planId, billingCycle }), onSuccess: (data) => { refresh(); setNotice("Payment submitted. Your subscription is being activated. This may take a few moments."); if (data.checkout?.shortUrl) window.location.assign(data.checkout.shortUrl); }, onError: (e) => setNotice(errorMessage(e)) });
+  const retry = useMutation({ mutationFn: retryBillingSubscription, onSuccess: (data) => { setNotice("Retrying payment securely with Razorpay Test Mode."); if (data.checkout?.shortUrl) window.location.assign(data.checkout.shortUrl); }, onError: (e) => setNotice(errorMessage(e)) });
   const cancel = useMutation({ mutationFn: cancelBillingSubscription, onSuccess: () => { refresh(); setNotice("Cancellation has been scheduled. Subscription status was refreshed from CureCode."); }, onError: (e) => setNotice(errorMessage(e)) });
   useEffect(() => { if (subscription.data?.status === "ACTIVE") setNotice("Subscription active"); }, [subscription.data?.status]);
   const active = subscription.data;
