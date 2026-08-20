@@ -8,6 +8,7 @@ const platformCompanyController = require("../controllers/platformCompanyControl
 const platformDashboardController = require("../controllers/platformDashboardController");
 const { platformAuth } = require("../middleware/platformAuth");
 const { getInfrastructureUsageController } = require("../controllers/infrastructureUsageController");
+const billingController = require("../controllers/billingController");
 
 const router = express.Router();
 
@@ -26,6 +27,10 @@ router.post(
 router.get("/companies/:id", platformAuth, platformCompanyController.getCompany);
 router.put("/companies/:id", platformAuth, platformCompanyController.updateCompany);
 router.get("/subscriptions", platformAuth, platformCompanyController.listSubscriptions);
+router.get("/billing/subscriptions", platformAuth, billingController.platformSubscriptions);
+router.get("/billing/payments", platformAuth, billingController.platformPayments);
+router.get("/billing/invoices", platformAuth, billingController.platformInvoices);
+router.get("/billing/companies/:id/status", platformAuth, billingController.platformCompanyStatus);
 router.post("/subscriptions", platformAuth, platformCompanyController.createSubscription);
 router.put("/subscriptions/:id", platformAuth, platformCompanyController.updateSubscription);
 router.get("/dashboard", platformAuth, platformDashboardController.getDashboard);

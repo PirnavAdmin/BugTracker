@@ -19,6 +19,10 @@ const SprintNotification = require("./SprintNotification");
 const Conversation = require("./Conversation.model");
 const Message = require("./Message.model");
 const StorageUsage = require("./StorageUsage");
+const Subscription = require("./Subscription");
+const Payment = require("./Payment");
+const Invoice = require("./Invoice");
+const BillingWebhookEvent = require("./BillingWebhookEvent");
 
 module.exports = {
   User,
@@ -42,4 +46,8 @@ module.exports = {
   Conversation,
   Message,
   StorageUsage,
+  Subscription,
+  Payment,
+  Invoice,
+  BillingWebhookEvent,
 };

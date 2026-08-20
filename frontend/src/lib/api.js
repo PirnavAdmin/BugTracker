@@ -1434,4 +1434,14 @@ export const fetchPlatformInfrastructureUsage = async () => {
   return response.data;
 };
 
+export const fetchPlatformBillingPayments = async (params = {}) => {
+  const response = await platformApi.get("/platform/billing/payments", { params: buildParams(params) });
+  return response.data?.payments || [];
+};
+
+export const fetchPlatformBillingSubscriptions = async (params = {}) => {
+  const response = await platformApi.get("/platform/billing/subscriptions", { params: buildParams(params) });
+  return response.data?.subscriptions || [];
+};
+
 export default api;

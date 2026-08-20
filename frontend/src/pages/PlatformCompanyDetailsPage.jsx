@@ -8,6 +8,7 @@ import {
   fetchPlatformCompany,
   fetchPlatformCompanies,
   fetchPlatformPlans,
+  fetchPlatformBillingSubscriptions,
   updatePlatformCompany,
   updatePlatformSubscription,
 } from "@/lib/api";
@@ -44,6 +45,12 @@ const FutureSection = ({ title }) => (
   <section className="rounded-lg border border-slate-200 bg-white p-4">
     <p className="text-sm font-bold tracking-normal text-slate-950">{title}</p>
     <p className="mt-2 text-sm font-medium text-slate-500">Coming next</p>
+  </section>
+);
+const BillingSection = ({ subscription }) => (
+  <section className="rounded-lg border border-slate-200 bg-white p-4">
+    <p className="text-sm font-bold text-slate-950">Payments</p>
+    {subscription ? <dl className="mt-2 space-y-1 text-sm"><div><dt className="inline text-slate-500">Status: </dt><dd className="inline font-semibold">{subscription.status}</dd></div><div><dt className="inline text-slate-500">Cycle: </dt><dd className="inline font-semibold capitalize">{subscription.billingCycle}</dd></div><div><dt className="inline text-slate-500">Amount: </dt><dd className="inline font-semibold">₹{subscription.amount}</dd></div></dl> : <p className="mt-2 text-sm text-slate-500">No Razorpay billing subscription.</p>}
   </section>
 );
 
@@ -84,6 +91,8 @@ const PlatformCompanyDetailsPage = () => {
     queryKey: ["platform-plans"],
     queryFn: fetchPlatformPlans,
   });
+  const billingSubscriptionsQuery = useQuery({ queryKey: ["platform-billing-subscriptions"], queryFn: fetchPlatformBillingSubscriptions });
+  const billingSubscription = (billingSubscriptionsQuery.data || []).find((item) => String(item.companyId) === String(companyId));
 
   const companyStorage = companyUsageQuery.data?.companies?.find(
     (candidate) => String(candidate._id) === String(companyId)
@@ -426,7 +435,7 @@ const PlatformCompanyDetailsPage = () => {
             </section>
 
             <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
-              <FutureSection title="Payments" />
+              <BillingSection subscription={billingSubscription} />
               <FutureSection title="AI Usage" />
               <StorageSection company={company} storage={companyStorage} />
               <FutureSection title="Users" />

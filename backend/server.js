@@ -28,6 +28,8 @@ const teamRoutes = require("./routes/teamRoutes");
 const testRoutes = require("./routes/testRoutes");
 const userRoutes = require("./routes/userRoutes");
 const webhookRoutes = require("./routes/webhookRoutes");
+const billingRoutes = require("./routes/billingRoutes");
+const { webhook: razorpayBillingWebhook } = require("./controllers/billingController");
 const workspaceRoutes = require("./routes/workspaceRoutes");
 const { startSprintNotificationWorker } = require("./services/sprintNotificationQueue");
 const { setupChatSocket } = require("./socket");
@@ -45,6 +47,8 @@ const server = http.createServer(app);
 app.disable("x-powered-by");
 
 app.use(cors());
+// Razorpay signs the exact bytes sent. This route intentionally precedes JSON parsing.
+app.post("/api/billing/webhooks/razorpay", express.raw({ type: "application/json", limit: "2mb" }), razorpayBillingWebhook);
 app.use(express.json({ limit: "25mb" }));
 app.use(express.urlencoded({ limit: "25mb", extended: true }));
 
@@ -96,6 +100,7 @@ app.use("/api/comments", commentRoutes);
 app.use("/api/chat", chatRoutes);
 app.use("/api/settings", settingsRoutes);
 app.use("/api/subscription", subscriptionRoutes);
+app.use("/api/billing", billingRoutes);
 app.use("/api/webhooks", webhookRoutes);
 app.use("/", testRoutes);
 
