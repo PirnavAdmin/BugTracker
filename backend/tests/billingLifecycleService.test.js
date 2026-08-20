@@ -37,12 +37,12 @@ test("invalid terminal subscription transition is rejected", async () => {
 });
 
 test("Razorpay plan mapping and charge counts use the approved test plans", () => {
-  assert.equal(getBillingPlan("starter", "monthly"), "plan_TRtZqcqv7Uf9N");
-  assert.equal(getBillingPlan("starter", "annual"), "plan_TRtdeOC4C4QH3U9");
+  assert.equal(getBillingPlan("starter", "monthly"), "plan_TRtZqcqv7UTF9N");
+  assert.equal(getBillingPlan("starter", "annual"), "plan_TRtdeOC4CQH3U9");
   assert.equal(getBillingPlan("professional", "monthly"), "plan_TRtenEQnTyn1WK");
   assert.equal(getBillingPlan("professional", "annual"), "plan_TRtfKRbPF9Oiqj");
   assert.equal(getBillingPlan("business", "monthly"), "plan_TRtfkF2UcXeeBO");
-  assert.equal(getBillingPlan("business", "annual"), "plan_TRciCUREMWBLo7");
+  assert.equal(getBillingPlan("business", "annual"), "plan_TRtiCUREMVBLo7");
   assert.equal(getSubscriptionTotalCount("monthly"), 120);
   assert.equal(getSubscriptionTotalCount("annual"), 1);
 });
