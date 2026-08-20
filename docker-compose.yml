@@ -58,6 +58,11 @@ services:
       APP_URL: ${APP_URL:-https://app.renivval.com}
       FRONTEND_URL: ${FRONTEND_URL:-https://app.renivval.com}
 
+      RAZORPAY_MODE: ${RAZORPAY_MODE:-test}
+      RAZORPAY_KEY_ID: ${RAZORPAY_KEY_ID:-}
+      RAZORPAY_KEY_SECRET: ${RAZORPAY_KEY_SECRET:-}
+      RAZORPAY_WEBHOOK_SECRET: ${RAZORPAY_WEBHOOK_SECRET:-}
+
       AWS_REGION: ${AWS_REGION:-}
       AWS_S3_BUCKET: ${AWS_S3_BUCKET:-}
       AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
