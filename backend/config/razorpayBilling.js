@@ -7,4 +7,7 @@ const RAZORPAY_BILLING_PLANS = Object.freeze({
   [PLAN_IDS.BUSINESS]: Object.freeze({ monthly: process.env.RAZORPAY_BUSINESS_MONTHLY_PLAN_ID || "plan_TRtfkF2UcXeeBO", annual: process.env.RAZORPAY_BUSINESS_ANNUAL_PLAN_ID || "plan_TRciCUREMWBLo7" }),
 });
 const getBillingPlan = (planId, billingCycle) => RAZORPAY_BILLING_PLANS[String(planId || "").toLowerCase()]?.[String(billingCycle || "").toLowerCase()] || null;
-module.exports = { BILLING_CYCLES, RAZORPAY_BILLING_PLANS, getBillingPlan };
+// Razorpay total_count is the total number of charges, not an interval. One annual
+// charge therefore creates a deliberately non-renewing one-year subscription.
+const getSubscriptionTotalCount = (billingCycle) => String(billingCycle).toLowerCase() === BILLING_CYCLES.ANNUAL ? 1 : 120;
+module.exports = { BILLING_CYCLES, RAZORPAY_BILLING_PLANS, getBillingPlan, getSubscriptionTotalCount };
