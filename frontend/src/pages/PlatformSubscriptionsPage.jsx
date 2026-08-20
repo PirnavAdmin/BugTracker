@@ -1,96 +1,12 @@
-import { useQuery } from "@tanstack/react-query";
+import { useMemo, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { Copy, RefreshCw, X } from "lucide-react";
 import { fetchPlatformBillingSubscriptions } from "@/lib/api";
 import PlatformShell from "@/components/platform/PlatformShell";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-
-const formatDate = (value) =>
-  value
-    ? new Intl.DateTimeFormat("en-IN", { dateStyle: "medium" }).format(new Date(value))
-    : "N/A";
-
-const formatAmount = (value, currency = "INR") =>
-  value === null || value === undefined
-    ? "N/A"
-    : new Intl.NumberFormat("en-US", {
-        style: "currency",
-        currency,
-        maximumFractionDigits: 2,
-      }).format(Number(value || 0));
-
-const statusVariant = (status = "") => {
-  if (status === "ACTIVE") return "success";
-  if (["PAST_DUE", "PAUSED", "PENDING"].includes(status)) return "warning";
-  if (["CANCELLED", "EXPIRED", "SUSPENDED"].includes(status)) return "danger";
-  return "default";
-};
-
-const PlatformSubscriptionsPage = () => {
-  const subscriptionsQuery = useQuery({
-    queryKey: ["platform-subscriptions"],
-    queryFn: fetchPlatformBillingSubscriptions,
-  });
-  const subscriptions = subscriptionsQuery.data?.subscriptions || [];
-
-  return (
-    <PlatformShell title="Subscriptions">
-      <div className="p-4 xl:p-5">
-        <section className="rounded-lg border border-slate-200 bg-white">
-          <div className="border-b border-slate-100 px-4 py-3">
-            <h2 className="text-sm font-bold tracking-normal text-slate-900">Platform Subscriptions</h2>
-          </div>
-          {subscriptionsQuery.isLoading ? (
-            <div className="p-4">
-              <Skeleton className="h-[320px] rounded-lg" />
-            </div>
-          ) : subscriptions.length ? (
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[860px] text-left text-sm">
-                <thead>
-                  <tr className="border-b border-slate-100 text-[11px] font-bold uppercase tracking-[0.12em] text-slate-500">
-                    <th className="px-4 py-3">Company</th>
-                    <th className="px-4 py-3">Tenant</th>
-                    <th className="px-4 py-3">Plan</th>
-                    <th className="px-4 py-3">Status</th>
-                    <th className="px-4 py-3">Billing Cycle</th>
-                    <th className="px-4 py-3">Amount</th>
-                    <th className="px-4 py-3">Provider Status</th>
-                    <th className="px-4 py-3">Current Period</th>
-                    <th className="px-4 py-3">Created</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {subscriptions.map((subscription) => (
-                    <tr key={subscription._id} className="border-b border-slate-50">
-                      <td className="px-4 py-3">
-                        <p className="font-semibold text-slate-950">{subscription.company?.name || subscription.companyId || "N/A"}</p>
-                      </td>
-                      <td className="px-4 py-3 font-mono text-xs">{subscription.tenantId}</td>
-                      <td className="px-4 py-3 capitalize">{subscription.planId}</td>
-                      <td className="px-4 py-3">
-                        <Badge className="px-2 py-0.5" variant={statusVariant(subscription.status)}>
-                          {subscription.status}
-                        </Badge>
-                      </td>
-                      <td className="px-4 py-3">{subscription.billingCycle}</td>
-                      <td className="px-4 py-3">{formatAmount(subscription.amount, subscription.currency)}</td>
-                      <td className="px-4 py-3">{subscription.providerStatus || "N/A"}</td>
-                      <td className="px-4 py-3">{formatDate(subscription.currentPeriodStart)} – {formatDate(subscription.currentPeriodEnd)}</td>
-                      <td className="px-4 py-3">{formatDate(subscription.createdAt)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          ) : (
-            <div className="grid min-h-[240px] place-items-center px-4 py-8 text-center text-sm font-medium text-slate-500">
-              No subscription data available yet
-            </div>
-          )}
-        </section>
-      </div>
-    </PlatformShell>
-  );
-};
-
-export default PlatformSubscriptionsPage;
+const money = (n, c = "INR") => new Intl.NumberFormat("en-IN", { style: "currency", currency: c }).format(Number(n || 0)); const date = (d) => d ? new Intl.DateTimeFormat("en-IN", { dateStyle: "medium" }).format(new Date(d)) : "—"; const variant = (s = "") => s === "ACTIVE" ? "success" : ["PENDING", "PAST_DUE", "PAUSED"].includes(s) ? "warning" : ["CANCELLED", "EXPIRED"].includes(s) ? "danger" : "default";
+const CopyValue = ({ value }) => <div className="flex items-center gap-2"><code className="break-all text-xs">{value || "—"}</code>{value && <Button size="icon" variant="ghost" onClick={() => navigator.clipboard?.writeText(value)}><Copy className="h-3.5 w-3.5"/></Button>}</div>;
+export default function PlatformSubscriptionsPage() { const client = useQueryClient(); const [q, setQ] = useState(""); const [status, setStatus] = useState("all"); const [plan, setPlan] = useState("all"); const [cycle, setCycle] = useState("all"); const [page, setPage] = useState(1); const [selected, setSelected] = useState(null); const query = useQuery({ queryKey: ["platform-billing-subscriptions"], queryFn: fetchPlatformBillingSubscriptions }); const rows = useMemo(() => (query.data || []).filter((s) => { const text = `${s.company?.name || ""} ${s.tenantId || ""} ${s.providerSubscriptionId || ""}`.toLowerCase(); return (!q || text.includes(q.toLowerCase())) && (status === "all" || s.status === status) && (plan === "all" || s.planId === plan) && (cycle === "all" || s.billingCycle === cycle); }), [query.data, q, status, plan, cycle]); const pageRows = rows.slice((page - 1) * 20, page * 20); const counts = (key) => rows.filter((s) => s.status === key).length; return <PlatformShell title="Subscription Command Center"><div className="space-y-4 p-4 xl:p-5"><header className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-xs font-bold uppercase tracking-widest text-violet-700">CureCode Platform</p><h1 className="mt-1 text-2xl font-black">Subscription Command Center</h1><p className="mt-1 text-sm text-slate-600">Monitor plans, billing status, provider state, and tenant subscriptions.</p></div><Button variant="outline" onClick={() => client.invalidateQueries({ queryKey: ["platform-billing-subscriptions"] })}><RefreshCw className="h-4 w-4"/>Refresh</Button></header><section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">{[["Active", counts("ACTIVE")], ["Pending", counts("PENDING")], ["Past Due", counts("PAST_DUE")], ["Cancelled", counts("CANCELLED")]].map(([label, value]) => <div key={label} className="rounded-lg border bg-white p-4"><p className="text-xs font-bold uppercase text-slate-500">{label}</p><p className="mt-2 text-2xl font-black">{value}</p></div>)}</section><section className="rounded-lg border bg-white p-4"><div className="grid gap-2 md:grid-cols-4"><input value={q} onChange={(e) => { setQ(e.target.value); setPage(1); }} placeholder="Search company, tenant, or subscription ID..." className="h-10 rounded-md border px-3 md:col-span-2"/><select value={status} onChange={(e) => { setStatus(e.target.value); setPage(1); }} className="rounded-md border px-2"><option value="all">All statuses</option>{["ACTIVE", "PENDING", "PAST_DUE", "CANCELLED", "EXPIRED"].map((x) => <option key={x}>{x}</option>)}</select><select value={plan} onChange={(e) => setPlan(e.target.value)} className="rounded-md border px-2"><option value="all">All plans</option>{["starter", "professional", "business", "enterprise"].map((x) => <option key={x}>{x}</option>)}</select><select value={cycle} onChange={(e) => setCycle(e.target.value)} className="rounded-md border px-2"><option value="all">All billing</option><option value="monthly">Monthly</option><option value="annual">Yearly</option></select></div></section><section className="overflow-hidden rounded-lg border bg-white">{query.isLoading ? <div className="p-4"><Skeleton className="h-64"/></div> : query.isError ? <div className="p-8 text-center"><p className="font-semibold text-rose-700">Unable to load subscriptions</p><Button className="mt-3" onClick={() => query.refetch()}>Retry</Button></div> : !rows.length ? <p className="p-10 text-center text-sm text-slate-500">No subscriptions yet</p> : <><div className="overflow-x-auto"><table className="w-full min-w-[1050px] text-left text-sm"><thead className="bg-slate-50 text-xs uppercase text-slate-500"><tr>{["Company", "Plan", "Billing", "Amount", "CureCode Status", "Provider Status", "Next Billing", "Created", "Actions"].map((h) => <th key={h} className="px-4 py-3">{h}</th>)}</tr></thead><tbody>{pageRows.map((s) => <tr key={s._id} className="border-t"><td className="px-4 py-3"><b>{s.company?.name || s.companyId || "—"}</b><br/><span className="font-mono text-xs text-slate-500">{s.tenantId}</span></td><td className="px-4 py-3 capitalize">{s.planId}</td><td className="px-4 py-3 capitalize">{s.billingCycle}</td><td className="px-4 py-3">{money(s.amount, s.currency)}</td><td className="px-4 py-3"><Badge variant={variant(s.status)}>{s.status}</Badge></td><td className="px-4 py-3"><Badge variant="outline">{s.providerStatus || "—"}</Badge></td><td className="px-4 py-3">{date(s.currentPeriodEnd)}</td><td className="px-4 py-3">{date(s.createdAt)}</td><td className="px-4 py-3"><Button size="sm" variant="outline" onClick={() => setSelected(s)}>View Details</Button></td></tr>)}</tbody></table></div><div className="flex items-center justify-between border-t px-4 py-3 text-sm"><span>{rows.length} subscriptions</span><div className="flex gap-2"><Button size="sm" variant="outline" disabled={page === 1} onClick={() => setPage(page - 1)}>Previous</Button><Button size="sm" variant="outline" disabled={page * 20 >= rows.length} onClick={() => setPage(page + 1)}>Next</Button></div></div></>}</section>{selected && <aside className="fixed inset-y-0 right-0 z-50 w-full max-w-lg overflow-y-auto border-l bg-white p-5 shadow-2xl"><div className="flex justify-between"><div><p className="text-xs font-bold text-violet-700">Subscription details</p><h2 className="text-xl font-black">{selected.company?.name || selected.companyId}</h2></div><Button size="icon" variant="ghost" onClick={() => setSelected(null)}><X/></Button></div><div className="mt-5 space-y-4 text-sm"><div className="grid grid-cols-2 gap-3"><p>Plan<br/><b className="capitalize">{selected.planId}</b></p><p>Amount<br/><b>{money(selected.amount, selected.currency)}</b></p><p>CureCode Status<br/><Badge variant={variant(selected.status)}>{selected.status}</Badge></p><p>Provider Status<br/><Badge variant="outline">{selected.providerStatus || "—"}</Badge></p></div><Detail label="Tenant ID" value={selected.tenantId}/><Detail label="Provider Subscription ID" value={selected.providerSubscriptionId} copy/><Detail label="Provider Customer ID" value={selected.metadata?.providerCustomerId} copy/><Detail label="Current Period" value={`${date(selected.currentPeriodStart)} – ${date(selected.currentPeriodEnd)}`}/><Detail label="Created" value={date(selected.createdAt)}/><Detail label="Cancelled / Ended" value={`${date(selected.cancelledAt)} / ${date(selected.endedAt)}`}/><Detail label="Latest payment" value={selected.lastPayment ? `${money(selected.lastPayment.amount, selected.lastPayment.currency)} · ${selected.lastPayment.status}` : "—"}/></div></aside>}</div></PlatformShell>; }
+function Detail({ label, value, copy }) { return <div className="border-t pt-3"><p className="text-xs font-bold uppercase text-slate-500">{label}</p>{copy ? <CopyValue value={value}/> : <p className="mt-1 font-medium">{value || "—"}</p>}</div> }
