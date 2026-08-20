@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { RefreshCw } from "lucide-react";
-import { cancelBillingSubscription, createBillingSubscription, fetchBillingInvoices, fetchBillingPayments, fetchBillingSubscription, retryBillingSubscription } from "@/lib/api";
+import { cancelBillingSubscription, createBillingSubscription, fetchBillingInvoices, fetchBillingPayments, fetchBillingSubscription, retryBillingSubscription, verifyBillingSubscriptionAuthorization } from "@/lib/api";
 import { openSubscriptionCheckout } from "@/lib/razorpayCheckout";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";

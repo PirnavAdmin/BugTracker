@@ -241,6 +241,7 @@ export const fetchBillingInvoices = async () => (await api.get("/billing/invoice
 export const createBillingSubscription = async ({ planId, billingCycle }) =>
   (await api.post("/billing/subscription/create", { planId, billingCycle })).data;
 export const retryBillingSubscription = async () => (await api.post("/billing/subscription/retry")).data;
+export const verifyBillingSubscriptionAuthorization = async (payload) => (await api.post("/billing/subscription/verify-authorization", payload)).data;
 export const cancelBillingSubscription = async () => (await api.post("/billing/subscription/cancel")).data;
 
 export const changePasswordRequest = async (payload) => {
