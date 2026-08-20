@@ -124,6 +124,7 @@ services:
       context: ./frontend
       args:
         VITE_API_BASE_URL: ${VITE_API_BASE_URL:-/api}
+        VITE_RAZORPAY_KEY_ID: ${VITE_RAZORPAY_KEY_ID:-}
         VITE_ENABLE_ADMIN_DEFAULT_LOGIN: ${VITE_ENABLE_ADMIN_DEFAULT_LOGIN:-true}
         VITE_DEBUG_TEAM_SELECTION: ${VITE_DEBUG_TEAM_SELECTION:-false}
         VITE_STUN_URL: ${VITE_STUN_URL:-stun:stun.l.google.com:19302}
