@@ -35,4 +35,7 @@ const normalizeProviderError = (operation, error) => {
 const createSubscription = async (data) => { try { return await getClient().subscriptions.create(data); } catch (error) { if (String(error?.code || "").startsWith("BILLING_")) throw error; throw normalizeProviderError("createSubscription", error); } };
 const fetchSubscription = async (id) => { try { return await getClient().subscriptions.fetch(id); } catch (error) { if (String(error?.code || "").startsWith("BILLING_")) throw error; throw normalizeProviderError("fetchSubscription", error); } };
 const cancelSubscription = async (id, cancelAtCycleEnd = true) => { try { return await getClient().subscriptions.cancel(id, cancelAtCycleEnd); } catch (error) { if (String(error?.code || "").startsWith("BILLING_")) throw error; throw normalizeProviderError("cancelSubscription", error); } };
-module.exports = { createSubscription, fetchSubscription, cancelSubscription, isTestMode, normalizeProviderError };
+const fetchInvoice = async (id) => { try { return await getClient().invoices.fetch(id); } catch (error) { throw normalizeProviderError("fetchInvoice", error); } };
+const fetchOrderPayments = async (id) => { try { return await getClient().orders.fetchPayments(id); } catch (error) { throw normalizeProviderError("fetchOrderPayments", error); } };
+const fetchInvoicesByPayment = async (paymentId) => { try { return await getClient().invoices.all({ payment_id: paymentId }); } catch (error) { throw normalizeProviderError("fetchInvoicesByPayment", error); } };
+module.exports = { createSubscription, fetchSubscription, cancelSubscription, fetchInvoice, fetchOrderPayments, fetchInvoicesByPayment, isTestMode, normalizeProviderError };
