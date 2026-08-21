@@ -46,3 +46,15 @@ test("Razorpay plan mapping and charge counts use the approved test plans", () =
   assert.equal(getSubscriptionTotalCount("monthly"), 120);
   assert.equal(getSubscriptionTotalCount("annual"), 1);
 });
+
+test("payment without subscription_id resolves only through an exact trusted payment association", async () => {
+  const originalPaymentFindOne = Payment.findOne;
+  const originalSubscriptionFindOne = Subscription.findOne;
+  Payment.findOne = () => ({ lean: async () => ({ providerPaymentId: "pay_exact", providerSubscriptionId: "sub_exact", subscriptionId: "local_exact", tenantId: "TENANT_001" }) });
+  Subscription.findOne = async (query) => query.providerSubscriptionId === "sub_exact" ? { _id: "local_exact", tenantId: "TENANT_001" } : null;
+  try {
+    assert.deepEqual(await lifecycle.resolvePaymentAssociation({ id: "pay_exact" }), { providerSubscriptionId: "sub_exact" });
+    Payment.findOne = () => ({ lean: async () => null });
+    assert.equal(await lifecycle.resolvePaymentAssociation({ id: "pay_other" }), null);
+  } finally { Payment.findOne = originalPaymentFindOne; Subscription.findOne = originalSubscriptionFindOne; }
+});
