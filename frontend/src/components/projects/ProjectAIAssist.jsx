@@ -58,7 +58,7 @@ const ProjectAIAssist = ({ project }) => {
       queryClient.setQueryData(reportQueryKey, { success: true, report });
     },
   });
-  const result = mutation.data || savedReport?.report;
+  const result = savedReport?.report;
   const health = result?.metrics?.projectHealth;
 
   if ((isSavedReportLoading || mutation.isPending) && !result) return <LoadingState />;

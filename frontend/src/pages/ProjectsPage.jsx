@@ -1434,10 +1434,20 @@ const ProjectsPage = () => {
       return;
     }
 
+    if (
+      routeProjectId &&
+      filteredProjects.some((project) => String(project._id) === String(routeProjectId))
+    ) {
+      if (String(selectedProjectId) !== String(routeProjectId)) {
+        setSelectedProjectId(routeProjectId);
+      }
+      return;
+    }
+
     if (!filteredProjects.some((project) => project._id === selectedProjectId)) {
       setSelectedProjectId(filteredProjects[0]._id);
     }
-  }, [filteredProjects, selectedProjectId]);
+  }, [filteredProjects, routeProjectId, selectedProjectId]);
 
   useEffect(() => {
     setProjectDetailView("overview");
@@ -1945,6 +1955,7 @@ const ProjectsPage = () => {
                       type="button"
                       onClick={() => {
                         if (routeProjectId) {
+                          setSelectedProjectId(project._id);
                           navigate(`/projects/${project._id}/ai-assist`);
                           return;
                         }
@@ -2005,6 +2016,7 @@ const ProjectsPage = () => {
           <div className="min-h-0 min-w-0 space-y-4 overflow-y-auto overscroll-contain pb-10 pr-1">
             {selectedProject ? (
               <>
+                {projectPanelView !== "ai-assist" ? (
                 <Card className="overflow-hidden rounded-[18px] border-[#EEF2F7] bg-white shadow-[0_2px_12px_rgba(0,0,0,.04)]">
                   <CardContent className="p-0">
                     <div
@@ -2156,6 +2168,7 @@ const ProjectsPage = () => {
                     </div>
                   </CardContent>
                 </Card>
+                ) : null}
 
                 <section className="rounded-[18px] border border-[#EEF2F7] bg-white px-4 py-3 shadow-[0_2px_12px_rgba(0,0,0,.04)]">
                   <div className="grid gap-0 divide-y divide-[#EEF2F7] md:grid-cols-4 md:divide-x md:divide-y-0 xl:grid-cols-7">
