@@ -1440,7 +1440,7 @@ const ProjectsPage = () => {
 
   useEffect(() => {
     setProjectDetailView("overview");
-    setProjectPanelView("details");
+    setProjectPanelView(routeProjectId ? "ai-assist" : "details");
     setSettingsTeamId("");
     setSettingsError("");
     setGitConfigError("");
@@ -1448,7 +1448,7 @@ const ProjectsPage = () => {
     setGitSyncResult(null);
     setSelectedProjectDeleteConfirmation("");
     setIsSelectedProjectDeleteOpen(false);
-  }, [selectedProject?._id]);
+  }, [routeProjectId, selectedProject?._id]);
 
   useEffect(() => {
     if (!selectedProject) {

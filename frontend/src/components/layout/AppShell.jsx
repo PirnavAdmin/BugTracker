@@ -22,7 +22,8 @@ const RouteContentFallback = () => (
 const AppShell = () => {
   const location = useLocation();
   const isChatPage = location.pathname === "/chat";
-  const isProjectsPage = location.pathname === "/projects";
+  const isProjectsPage =
+    location.pathname === "/projects" || location.pathname.startsWith("/projects/");
   const usesInternalScroll = isChatPage || isProjectsPage;
   useBugWorkflowRealtime();
   useScrollRestoration();
