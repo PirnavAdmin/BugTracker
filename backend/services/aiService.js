@@ -259,6 +259,13 @@ Review the following commit diff and return the JSON object only.
 ${diffText || "No patch text was available."}`;
 };
 
+const projectInsightsSystemPrompt = `You are CureCode Project AI Assist, a concise engineering delivery analyst.
+
+Use only the supplied project-scoped facts. Numeric metrics are authoritative: never recalculate, alter, or invent a number. Never infer people, work items, dates, causes, or activity that are not present. If evidence is limited, say so plainly.
+
+Return only valid JSON:
+{"healthSummary":"concise factual interpretation","developerObservations":[{"userId":"supplied id","observation":"factual observation"}],"testerObservations":[{"userId":"supplied id","observation":"factual observation"}],"sprintSummary":"concise sprint interpretation","deliveryRisks":[{"severity":"Critical|High|Medium|Low","risk":"short risk","evidence":"supplied evidence","recommendedAction":"practical action"}],"recommendations":["specific recommendation"]}`;
+
 const extractJsonObject = (value = "") => {
   const text = String(value || "").trim();
   const start = text.indexOf("{");
@@ -379,6 +386,41 @@ const normalizeCodeReviewResult = (value) => {
   };
 };
 
+const normalizeProjectInsightsResult = (value) => {
+  const parsed = typeof value === "string" ? extractJsonObject(value) : value;
+
+  if (!parsed || typeof parsed !== "object") {
+    throw new Error("Invalid AI project insights response");
+  }
+
+  const observations = (items) =>
+    (Array.isArray(items) ? items : [])
+      .slice(0, 30)
+      .map((item) => ({
+        userId: String(item?.userId || "").trim().slice(0, 80),
+        observation: stripMarkdownStructure(item?.observation || "").slice(0, 600),
+      }))
+      .filter((item) => item.userId && item.observation);
+  const severities = new Set(["Critical", "High", "Medium", "Low"]);
+
+  return {
+    healthSummary: stripMarkdownStructure(parsed.healthSummary || "").slice(0, 1200),
+    developerObservations: observations(parsed.developerObservations),
+    testerObservations: observations(parsed.testerObservations),
+    sprintSummary: stripMarkdownStructure(parsed.sprintSummary || "").slice(0, 800),
+    deliveryRisks: (Array.isArray(parsed.deliveryRisks) ? parsed.deliveryRisks : [])
+      .slice(0, 10)
+      .map((item) => ({
+        severity: severities.has(item?.severity) ? item.severity : "Low",
+        risk: stripMarkdownStructure(item?.risk || "").slice(0, 300),
+        evidence: stripMarkdownStructure(item?.evidence || "").slice(0, 600),
+        recommendedAction: stripMarkdownStructure(item?.recommendedAction || "").slice(0, 600),
+      }))
+      .filter((item) => item.risk),
+    recommendations: normalizeStringList(parsed.recommendations, 10, 500),
+  };
+};
+
 const generateWorkItemDescription = async ({
   title,
   workItemType = "Task",
@@ -478,6 +520,29 @@ const generateCodeReview = async (context = {}) => {
   }
 };
 
+const generateProjectInsights = async (context = {}) => {
+  try {
+    const response = await getBedrockClient().send(
+      new ConverseCommand({
+        modelId: BEDROCK_MODEL_ID,
+        system: [{ text: projectInsightsSystemPrompt }],
+        messages: [{ role: "user", content: [{ text: JSON.stringify(context) }] }],
+        inferenceConfig: { maxTokens: 1800, temperature: 0.1, topP: 0.8 },
+      })
+    );
+    const insights = normalizeProjectInsightsResult(extractTextFromConverseResponse(response));
+    Object.defineProperty(insights, "__usage", {
+      value: response.usage || {},
+      enumerable: false,
+    });
+    return insights;
+  } catch (error) {
+    const sanitizedError = new Error("Unable to generate project insights");
+    sanitizedError.cause = error;
+    throw sanitizedError;
+  }
+};
+
 module.exports = {
   BEDROCK_MODEL_ID,
   BEDROCK_REGION,
@@ -485,8 +550,10 @@ module.exports = {
   MAX_DESCRIPTION_WORDS,
   enforceDescriptionWordLimit,
   generateCodeReview,
+  generateProjectInsights,
   generateWorkItemDescription,
   getBedrockClient,
   normalizeCodeReviewResult,
+  normalizeProjectInsightsResult,
   setBedrockClientForTests,
 };

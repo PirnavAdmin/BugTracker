@@ -7,6 +7,7 @@ const Project = require("../models/Project");
 const ProjectMember = require("../models/ProjectMember");
 const TeamMember = require("../models/TeamMember");
 const {
+  generateProjectInsights,
   generateWorkItemDescription,
   reviewCodeForCommit,
 } = require("../controllers/aiController");
@@ -129,6 +130,34 @@ test.beforeEach(() => {
   TeamMember.find = () => ({
     distinct: async () => [],
   });
+});
+
+test("project AI insights ignores frontend tenantId and denies a project outside authenticated access", async () => {
+  let receivedProjectQuery;
+  Project.findOne = (filter) => {
+    receivedProjectQuery = filter;
+    return { lean: async () => null };
+  };
+  const req = {
+    params: { projectId: "tenant-b-project" },
+    body: { tenantId: "TENANT_B" },
+    user: {
+      _id: "user-a",
+      role: ROLE_ADMIN,
+      workspaceId: "workspace-a",
+      tenantId: "TENANT_A",
+    },
+  };
+  const res = createResponse();
+  let nextError;
+
+  await generateProjectInsights(req, res, (error) => { nextError = error; });
+
+  assert.strictEqual(res.statusCode, 404);
+  assert.strictEqual(receivedProjectQuery._id, "tenant-b-project");
+  assert.strictEqual(receivedProjectQuery.tenantId, "TENANT_A");
+  assert.ok(!JSON.stringify(receivedProjectQuery).includes("TENANT_B"));
+  assert.match(nextError?.message || "", /Project not found/);
 });
 
 test("validates task description generation request", async () => {

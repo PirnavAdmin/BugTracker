@@ -7,6 +7,7 @@ const { reviewCodeChanges } = require("../services/aiCodeReviewService");
 const { AI_FEATURES } = require("../constants/aiFeatures");
 const aiPolicyService = require("../services/aiPolicyService");
 const { hasAdminAccess } = require("../utils/roles");
+const { buildProjectAIData } = require("../services/projectAIInsightsService");
 
 const MAX_TITLE_LENGTH = 180;
 const MAX_OPTIONAL_FIELD_LENGTH = 120;
@@ -470,7 +471,88 @@ const reviewCode = asyncHandler(async (req, res) => {
   }
 });
 
+const generateProjectInsights = asyncHandler(async (req, res) => {
+  const projectId = String(req.params?.projectId || "").trim();
+
+  if (!projectId) {
+    return sendValidationError(res, "Project is required");
+  }
+
+  const accessQuery = await buildProjectAccessQuery(req.user);
+  const project = await Project.findOne({ ...accessQuery, _id: projectId }).lean();
+
+  if (!project) {
+    res.status(404);
+    throw new Error("Project not found");
+  }
+
+  const userContext = getAIUserContext(req);
+  const access = await aiPolicyService.checkAIAccess({
+    ...userContext,
+    feature: AI_FEATURES.PROJECT_INSIGHTS,
+    projectId,
+  });
+
+  if (!access.allowed) {
+    return sendAIBlockedResponse(res, access);
+  }
+
+  const startedAt = Date.now();
+
+  try {
+    const projectData = await buildProjectAIData({
+      project,
+      tenantId: userContext.tenantId,
+    });
+    const analysis = await aiService.generateProjectInsights(projectData.payload);
+    const usage = await aiPolicyService.recordAIUsage({
+      ...userContext,
+      durationMs: Date.now() - startedAt,
+      feature: AI_FEATURES.PROJECT_INSIGHTS,
+      inputTokens: analysis.__usage?.inputTokens,
+      outputTokens: analysis.__usage?.outputTokens,
+      projectId,
+      status: "SUCCESS",
+    });
+    const analyzedAt = usage.createdAt || new Date();
+
+    return res.status(200).json({
+      success: true,
+      project: { _id: project._id, name: project.name },
+      metrics: projectData.metrics,
+      developers: projectData.developers,
+      testers: projectData.testers,
+      sprintInsight: projectData.sprintInsight,
+      analysis,
+      analysisInfo: {
+        analyzedAt,
+        requestedBy: {
+          _id: req.user?._id,
+          name: req.user?.name || req.user?.email || "User",
+        },
+        feature: AI_FEATURES.PROJECT_INSIGHTS,
+        modelId: usage.modelId,
+        inputTokens: usage.inputTokens,
+        outputTokens: usage.outputTokens,
+        totalTokens: usage.totalTokens,
+        estimatedCost: usage.estimatedCost,
+      },
+    });
+  } catch (error) {
+    console.error("[ai] project insights failed", {
+      userId: String(req.user?._id || req.user?.id || ""),
+      projectId,
+      message: error.cause?.message || error.message,
+    });
+    return res.status(502).json({
+      success: false,
+      message: "Unable to analyze this project at the moment.",
+    });
+  }
+});
+
 module.exports = {
+  generateProjectInsights,
   generateWorkItemDescription,
   reviewCodeForCommit,
   reviewCode,

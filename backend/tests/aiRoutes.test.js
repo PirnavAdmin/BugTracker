@@ -42,3 +42,14 @@ test("AI code review endpoint is authenticated and rate limited", () => {
   assert.strictEqual(middlewareNames[1], "aiDescriptionRateLimit");
   assert.strictEqual(typeof route.stack[2].handle, "function");
 });
+
+test("project AI insights endpoint is authenticated and rate limited", () => {
+  const route = getRoute("/projects/:projectId/insights");
+  const middlewareNames = getMiddlewareNames(route);
+
+  assert.ok(route, "expected project insights route");
+  assert.strictEqual(route.stack.length, 3);
+  assert.strictEqual(typeof route.stack[0].handle, "function");
+  assert.strictEqual(middlewareNames[1], "aiDescriptionRateLimit");
+  assert.strictEqual(typeof route.stack[2].handle, "function");
+});

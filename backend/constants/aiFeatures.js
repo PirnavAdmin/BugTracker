@@ -63,7 +63,7 @@ const DEFAULT_AI_FEATURE_SETTINGS = Object.freeze({
     allowedRoles: AI_ACCESS_ROLES,
   },
   [AI_FEATURES.PROJECT_INSIGHTS]: {
-    enabled: false,
+    enabled: true,
     allowedRoles: [ROLE_ADMIN, ROLE_MANAGER],
   },
 });

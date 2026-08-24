@@ -514,6 +514,14 @@ const App = () => (
         }
       />
       <Route
+        path="/projects/:projectId/ai-assist"
+        element={
+          <ProtectedRoute roles={ADMIN_PANEL_ROLES}>
+            <ProjectsPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
         path="/teams"
         element={
           <ProtectedRoute roles={ADMIN_PANEL_ROLES}>

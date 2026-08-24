@@ -628,6 +628,11 @@ export const runAiCodeReview = async (payload) => {
   return response.data;
 };
 
+export const generateProjectAIInsights = async (projectId) => {
+  const response = await api.post(`/ai/projects/${projectId}/insights`);
+  return response.data;
+};
+
 const parseDownloadFilename = (contentDisposition = "", fallback = "download.xlsx") => {
   const utf8Match = /filename\*=UTF-8''([^;]+)/i.exec(contentDisposition);
 

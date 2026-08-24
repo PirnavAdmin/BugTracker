@@ -33,7 +33,7 @@ import {
   Users2,
   WalletCards,
 } from "lucide-react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
 import {
   attachProjectTeam,
   addProjectMember,
@@ -62,6 +62,7 @@ import {
 import ProjectComposer from "@/components/projects/ProjectComposer";
 import EpicDialog from "@/components/backlog/EpicDialog";
 import ProjectManageDialog from "@/components/projects/ProjectManageDialog";
+import ProjectAIAssist from "@/components/projects/ProjectAIAssist";
 import ProjectDeliveryConfiguration, {
   normalizeProjectDeliveryConfiguration,
 } from "@/components/projects/ProjectDeliveryConfiguration";
@@ -480,6 +481,7 @@ const ProjectsPage = () => {
   const queryClient = useQueryClient();
   const location = useLocation();
   const navigate = useNavigate();
+  const { projectId: routeProjectId } = useParams();
   const { user } = useAuth();
   const workspaceScope = getWorkspaceScope(user);
   const [activeTab, setActiveTab] = useState("projects");
@@ -555,6 +557,14 @@ const ProjectsPage = () => {
       setProjectPanelView("git-activity");
     }
   }, [location.search, location.state?.projectPanelView, location.state?.selectedProjectId]);
+
+  useEffect(() => {
+    if (!routeProjectId) return;
+    setActiveTab("projects");
+    setSelectedProjectId(routeProjectId);
+    setProjectMode("overview");
+    setProjectPanelView("ai-assist");
+  }, [routeProjectId]);
 
   const showToast = (type, message) => {
     setToast({
@@ -2203,6 +2213,11 @@ const ProjectsPage = () => {
                     { id: "tasks", label: "Tasks", detail: "tasks" },
                     { id: "bugs", label: "Bugs", detail: "bugs" },
                     { id: "reports", label: "Reports", path: "/reports" },
+                    {
+                      id: "ai-assist",
+                      label: "AI Assist",
+                      action: () => navigate(`/projects/${selectedProject._id}/ai-assist`),
+                    },
                     { id: "git-activity", label: "Git Activity" },
                     { id: "git", label: "Git Configuration" },
                     { id: "settings", label: "Settings" },
@@ -2320,6 +2335,10 @@ const ProjectsPage = () => {
                     )}
                   </div>
                 </section>
+                ) : null}
+
+                {projectPanelView === "ai-assist" ? (
+                  <ProjectAIAssist project={selectedProject} />
                 ) : null}
 
                 {["details", "tasks", "bugs"].includes(projectPanelView) ? (
