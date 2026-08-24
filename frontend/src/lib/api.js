@@ -633,6 +633,11 @@ export const generateProjectAIInsights = async (projectId) => {
   return response.data;
 };
 
+export const fetchLatestProjectAIInsights = async (projectId) => {
+  const response = await api.get(`/ai/projects/${projectId}/insights`);
+  return response.data;
+};
+
 const parseDownloadFilename = (contentDisposition = "", fallback = "download.xlsx") => {
   const utf8Match = /filename\*=UTF-8''([^;]+)/i.exec(contentDisposition);
 

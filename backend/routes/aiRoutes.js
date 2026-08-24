@@ -1,6 +1,7 @@
 const express = require("express");
 const {
   generateProjectInsights,
+  getLatestProjectInsights,
   generateWorkItemDescription,
   reviewCodeForCommit,
 } = require("../controllers/aiController");
@@ -9,6 +10,11 @@ const { protect } = require("../middleware/authMiddleware");
 
 const router = express.Router();
 
+router.get(
+  "/projects/:projectId/insights",
+  protect,
+  getLatestProjectInsights
+);
 router.post(
   "/projects/:projectId/insights",
   protect,

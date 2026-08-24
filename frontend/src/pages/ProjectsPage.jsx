@@ -24,6 +24,7 @@ import {
   Search,
   Settings2,
   ShieldCheck,
+  Sparkles,
   Star,
   Target,
   TimerReset,
@@ -529,7 +530,7 @@ const ProjectsPage = () => {
       params.delete("tab");
     }
 
-    navigate(`${location.pathname}${params.toString() ? `?${params}` : ""}`, {
+    navigate(`/projects${params.toString() ? `?${params}` : ""}`, {
       replace: true,
       state: location.state,
     });
@@ -1777,6 +1778,17 @@ const ProjectsPage = () => {
                   },
                 },
                 {
+                  label: "AI Assist",
+                  Icon: Sparkles,
+                  active: activeTab === "projects" && projectPanelView === "ai-assist",
+                  highlight: true,
+                  action: () => {
+                    if (selectedProject?._id) {
+                      navigate(`/projects/${selectedProject._id}/ai-assist`);
+                    }
+                  },
+                },
+                {
                   label: "Reports",
                   Icon: BarChart3,
                   active: false,
@@ -1788,13 +1800,17 @@ const ProjectsPage = () => {
                   active: activeTab === "teams",
                   action: () => updateActiveTab("teams"),
                 },
-              ].map(({ label, Icon, active, action }) => (
+              ].map(({ label, Icon, active, action, highlight }) => (
                 <button
                   key={label}
                   className={`flex h-9 w-full items-center gap-2 rounded-lg border px-3 text-sm font-semibold transition ${
                     active
-                      ? "border-[#B6D4FE] bg-[#E9F2FF] text-[#0C66E4]"
-                      : "border-transparent text-slate-600 hover:bg-slate-50 hover:text-slate-950"
+                      ? highlight
+                        ? "border-violet-300 bg-gradient-to-r from-violet-600 to-indigo-600 text-white shadow-md shadow-violet-200"
+                        : "border-[#B6D4FE] bg-[#E9F2FF] text-[#0C66E4]"
+                      : highlight
+                        ? "border-violet-200 bg-violet-50 text-violet-700 hover:border-violet-300 hover:bg-violet-100"
+                        : "border-transparent text-slate-600 hover:bg-slate-50 hover:text-slate-950"
                   }`}
                   type="button"
                   onClick={action}
@@ -1927,7 +1943,13 @@ const ProjectsPage = () => {
                           : "border-transparent bg-white hover:border-[#EEF2F7] hover:bg-white"
                       }`}
                       type="button"
-                      onClick={() => setSelectedProjectId(project._id)}
+                      onClick={() => {
+                        if (routeProjectId) {
+                          navigate(`/projects/${project._id}/ai-assist`);
+                          return;
+                        }
+                        setSelectedProjectId(project._id);
+                      }}
                     >
                       <span
                         className="absolute inset-y-2 left-0 w-1 rounded-full opacity-0 transition group-hover:opacity-100"
@@ -2213,11 +2235,6 @@ const ProjectsPage = () => {
                     { id: "tasks", label: "Tasks", detail: "tasks" },
                     { id: "bugs", label: "Bugs", detail: "bugs" },
                     { id: "reports", label: "Reports", path: "/reports" },
-                    {
-                      id: "ai-assist",
-                      label: "AI Assist",
-                      action: () => navigate(`/projects/${selectedProject._id}/ai-assist`),
-                    },
                     { id: "git-activity", label: "Git Activity" },
                     { id: "git", label: "Git Configuration" },
                     { id: "settings", label: "Settings" },
@@ -2242,6 +2259,10 @@ const ProjectsPage = () => {
                           if (action) {
                             action();
                             return;
+                          }
+
+                          if (routeProjectId) {
+                            navigate(`/projects?projectId=${selectedProject._id}`);
                           }
 
                           setProjectPanelView(id);

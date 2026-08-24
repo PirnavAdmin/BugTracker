@@ -1,6 +1,7 @@
 const asyncHandler = require("../utils/asyncHandler");
 const aiService = require("../services/aiService");
 const Project = require("../models/Project");
+const ProjectAIInsight = require("../models/ProjectAIInsight");
 const githubCommitDiff = require("../utils/githubCommitDiff");
 const { buildProjectAccessQuery } = require("../utils/projectRelations");
 const { reviewCodeChanges } = require("../services/aiCodeReviewService");
@@ -15,6 +16,7 @@ const MAX_REVIEW_CONTEXT_LENGTH = 4000;
 const MAX_DIFF_LENGTH = 60000;
 const MAX_CODE_REVIEW_RUNS_PER_PUSH = 2;
 const SUPPORTED_WORK_ITEM_TYPES = new Set(["Task", "Bug"]);
+const PROJECT_INSIGHTS_ANALYSIS_VERSION = "v1";
 
 const normalizeWorkItemType = (value = "Task") => {
   const normalized = String(value || "Task").trim().toLowerCase();
@@ -516,7 +518,7 @@ const generateProjectInsights = asyncHandler(async (req, res) => {
     });
     const analyzedAt = usage.createdAt || new Date();
 
-    return res.status(200).json({
+    const report = {
       success: true,
       project: { _id: project._id, name: project.name },
       metrics: projectData.metrics,
@@ -537,7 +539,26 @@ const generateProjectInsights = asyncHandler(async (req, res) => {
         totalTokens: usage.totalTokens,
         estimatedCost: usage.estimatedCost,
       },
-    });
+    };
+
+    await ProjectAIInsight.findOneAndUpdate(
+      {
+        tenantId: userContext.tenantId,
+        projectId,
+        analysisVersion: PROJECT_INSIGHTS_ANALYSIS_VERSION,
+      },
+      {
+        $set: {
+          workspaceId: userContext.workspaceId,
+          generatedBy: userContext.userId,
+          generatedAt: analyzedAt,
+          report,
+        },
+      },
+      { new: true, setDefaultsOnInsert: true, upsert: true }
+    );
+
+    return res.status(200).json(report);
   } catch (error) {
     console.error("[ai] project insights failed", {
       userId: String(req.user?._id || req.user?.id || ""),
@@ -551,8 +572,50 @@ const generateProjectInsights = asyncHandler(async (req, res) => {
   }
 });
 
+const getLatestProjectInsights = asyncHandler(async (req, res) => {
+  const projectId = String(req.params?.projectId || "").trim();
+
+  if (!projectId) {
+    return sendValidationError(res, "Project is required");
+  }
+
+  const accessQuery = await buildProjectAccessQuery(req.user);
+  const project = await Project.findOne({ ...accessQuery, _id: projectId }).lean();
+
+  if (!project) {
+    res.status(404);
+    throw new Error("Project not found");
+  }
+
+  const userContext = getAIUserContext(req);
+  const access = await aiPolicyService.checkAIAccess({
+    ...userContext,
+    checkUsageLimits: false,
+    feature: AI_FEATURES.PROJECT_INSIGHTS,
+    projectId,
+  });
+
+  if (!access.allowed) {
+    return sendAIBlockedResponse(res, access);
+  }
+
+  const savedAnalysis = await ProjectAIInsight.findOne({
+    tenantId: userContext.tenantId,
+    projectId,
+    analysisVersion: PROJECT_INSIGHTS_ANALYSIS_VERSION,
+  })
+    .select("report generatedAt")
+    .lean();
+
+  return res.status(200).json({
+    success: true,
+    report: savedAnalysis?.report || null,
+  });
+});
+
 module.exports = {
   generateProjectInsights,
+  getLatestProjectInsights,
   generateWorkItemDescription,
   reviewCodeForCommit,
   reviewCode,

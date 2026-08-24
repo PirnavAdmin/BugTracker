@@ -16,7 +16,10 @@ const {
 const asId = (value) => String(value?._id || value || "");
 const percentage = (part, total) => (total ? Math.round((part / total) * 100) : 0);
 const unique = (values) => [...new Set(values.filter(Boolean).map(asId))];
-const isBugResolved = (issue) => isClosedIssueStatus(issue.status) || normalizeIssueStatus(issue.status) === "FIXED";
+const isBugClosed = (issue) =>
+  ["DONE", "CLOSED", "RESOLVED"].includes(normalizeIssueStatus(issue.status));
+const isBugFixed = (issue) =>
+  isBugClosed(issue) || normalizeIssueStatus(issue.status) === "FIXED";
 
 const issueOwnerIds = (issue = {}) =>
   unique([
@@ -87,10 +90,13 @@ const resolveSprintInsight = ({ sprints, issues, now }) => {
 
 const buildProjectAIData = async ({ project, tenantId, now = new Date() }) => {
   const projectId = asId(project);
+  // Keep AI metrics aligned with the Task and Bug pages: soft-deleted work is
+  // never part of an active project view or an AI analysis.
   const boundary = { tenantId, projectId };
+  const activeIssueBoundary = { ...boundary, isDeleted: { $ne: true } };
   const [epics, issues, sprints, directMembers, projectTeamLinks] = await Promise.all([
     Epic.find(boundary).select("name status priority targetDate").lean(),
-    Issue.find(boundary)
+    Issue.find(activeIssueBoundary)
       .select("type status priority storyPoints dueAt sprintId assignee assignees assignedDeveloperId bugDetails.testerOwner createdAt updatedAt")
       .lean(),
     Sprint.find(boundary).select("name state startDate endDate completedAt updatedAt snapshot").lean(),
@@ -125,7 +131,7 @@ const buildProjectAIData = async ({ project, tenantId, now = new Date() }) => {
   const bugs = issues.filter((issue) => issue.type === ISSUE_TYPES.BUG);
   const workItems = [...stories, ...tasks, ...bugs];
   const completed = workItems.filter((issue) => isClosedIssueStatus(issue.status));
-  const openBugs = bugs.filter((issue) => !isBugResolved(issue));
+  const openBugs = bugs.filter((issue) => !isBugClosed(issue));
   const activeItems = workItems.filter((issue) => !isClosedIssueStatus(issue.status));
   const storyPoints = stories.reduce((sum, issue) => sum + (Number(issue.storyPoints) || 0), 0);
   const completedStoryPoints = stories
@@ -148,13 +154,28 @@ const buildProjectAIData = async ({ project, tenantId, now = new Date() }) => {
         completed: tasks.filter((issue) => isClosedIssueStatus(issue.status)).length,
         inProgress: tasks.filter((issue) => isInProgressIssueStatus(issue.status)).length,
         pending: tasks.filter((issue) => !isClosedIssueStatus(issue.status) && !isInProgressIssueStatus(issue.status)).length,
+        overdue: tasks.filter(
+          (issue) => !isClosedIssueStatus(issue.status) && issue.dueAt && new Date(issue.dueAt) < now
+        ).length,
+        blocked: tasks.filter((issue) => normalizeIssueStatus(issue.status) === "BLOCKED").length,
+        unassigned: tasks.filter(
+          (issue) => !isClosedIssueStatus(issue.status) && issueOwnerIds(issue).length === 0
+        ).length,
       },
       bugs: {
         total: bugs.length,
         open: openBugs.length,
         resolved: bugs.length - openBugs.length,
+        inProgress: openBugs.filter((issue) => normalizeIssueStatus(issue.status) === "IN_PROGRESS").length,
+        readyForQa: openBugs.filter((issue) =>
+          ["READY_FOR_QA", "READY_FOR_TESTING", "READY_FOR_VERIFICATION", "TESTING", "QA", "QA_READY"].includes(
+            normalizeIssueStatus(issue.status)
+          )
+        ).length,
         reopened: bugs.filter((issue) => normalizeIssueStatus(issue.status) === "REOPEN").length,
         criticalOpen: openBugs.filter((issue) => issue.priority === "Critical").length,
+        overdue: openBugs.filter((issue) => issue.dueAt && new Date(issue.dueAt) < now).length,
+        unassigned: openBugs.filter((issue) => issueOwnerIds(issue).length === 0).length,
       },
       sprints: {
         total: sprints.length,
@@ -170,14 +191,22 @@ const buildProjectAIData = async ({ project, tenantId, now = new Date() }) => {
 
   const developers = buildMemberPerformance({
     users,
-    issues: [...stories, ...tasks, ...bugs],
+    issues: tasks,
     roleMatcher: (role) => ["Developer", "Team Lead"].includes(role),
     ownershipIds: issueOwnerIds,
     now,
   }).map((row) => ({
-    ...row,
+    userId: row.userId,
+    name: row.name,
+    role: row.role,
+    assignedTasks: row.assigned,
+    completedTasks: row.completed,
+    activeTasks: row.active,
+    overdueTasks: row.overdue,
+    taskCompletionRate: row.completionRate,
+    completedStoryPoints: row.completedStoryPoints,
     bugsFixed: bugs.filter(
-      (bug) => issueOwnerIds(bug).includes(row.userId) && isBugResolved(bug)
+      (bug) => issueOwnerIds(bug).includes(row.userId) && isBugFixed(bug)
     ).length,
   }));
   const testers = buildMemberPerformance({
@@ -189,7 +218,7 @@ const buildProjectAIData = async ({ project, tenantId, now = new Date() }) => {
   }).map((row) => ({
     ...row,
     bugsVerified: bugs.filter(
-      (bug) => asId(bug.bugDetails?.testerOwner) === row.userId && isBugResolved(bug)
+      (bug) => asId(bug.bugDetails?.testerOwner) === row.userId && isBugClosed(bug)
     ).length,
     reopenedBugs: bugs.filter(
       (bug) => asId(bug.bugDetails?.testerOwner) === row.userId && normalizeIssueStatus(bug.status) === "REOPEN"

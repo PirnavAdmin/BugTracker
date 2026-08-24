@@ -47,9 +47,19 @@ test("project AI aggregation remains tenant and project scoped and sends a minim
     now: new Date("2026-08-24T00:00:00.000Z"),
   });
 
-  assert.deepStrictEqual(filters.epics, { tenantId: "TENANT_A", projectId: "project-a" });
-  assert.deepStrictEqual(filters.issues, { tenantId: "TENANT_A", projectId: "project-a" });
-  assert.deepStrictEqual(filters.sprints, { tenantId: "TENANT_A", projectId: "project-a" });
+  assert.deepStrictEqual(filters.epics, {
+    tenantId: "TENANT_A",
+    projectId: "project-a",
+  });
+  assert.deepStrictEqual(filters.issues, {
+    tenantId: "TENANT_A",
+    projectId: "project-a",
+    isDeleted: { $ne: true },
+  });
+  assert.deepStrictEqual(filters.sprints, {
+    tenantId: "TENANT_A",
+    projectId: "project-a",
+  });
   assert.strictEqual(filters.teams.tenantId, "TENANT_A");
   assert.strictEqual(filters.teamMembers.tenantId, "TENANT_A");
   assert.strictEqual(filters.users, undefined, "no unbounded user query should run");

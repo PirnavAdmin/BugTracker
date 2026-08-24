@@ -194,7 +194,15 @@ const getUsageTotals = async (match) => {
   };
 };
 
-const checkAIAccess = async ({ feature, projectId, role, tenantId, userId, workspaceId }) => {
+const checkAIAccess = async ({
+  checkUsageLimits = true,
+  feature,
+  projectId,
+  role,
+  tenantId,
+  userId,
+  workspaceId,
+}) => {
   const settings = await getWorkspaceAISettings(workspaceId);
   const featureSettings = settings.features[feature];
 
@@ -208,6 +216,10 @@ const checkAIAccess = async ({ feature, projectId, role, tenantId, userId, works
 
   if (!featureSettings.allowedRoles.includes(role)) {
     return { allowed: false, code: "AI_ROLE_NOT_ALLOWED", message: "Your role cannot use this AI feature." };
+  }
+
+  if (!checkUsageLimits) {
+    return { allowed: true, feature, projectId, settings };
   }
 
   const now = new Date();

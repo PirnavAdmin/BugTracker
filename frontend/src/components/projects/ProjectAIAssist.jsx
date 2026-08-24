@@ -1,14 +1,16 @@
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   AlertTriangle,
   Bot,
+  Bug,
   CheckCircle2,
+  ListTodo,
   RefreshCw,
   ShieldAlert,
   Sparkles,
   Users2,
 } from "lucide-react";
-import { generateProjectAIInsights } from "@/lib/api";
+import { fetchLatestProjectAIInsights, generateProjectAIInsights } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 
 const Metric = ({ label, value, helper }) => (
@@ -43,11 +45,23 @@ const LoadingState = () => (
 );
 
 const ProjectAIAssist = ({ project }) => {
-  const mutation = useMutation({ mutationFn: () => generateProjectAIInsights(project._id) });
-  const result = mutation.data;
+  const queryClient = useQueryClient();
+  const reportQueryKey = ["project-ai-insights", project._id];
+  const { data: savedReport, isLoading: isSavedReportLoading } = useQuery({
+    queryKey: reportQueryKey,
+    queryFn: () => fetchLatestProjectAIInsights(project._id),
+    enabled: Boolean(project._id),
+  });
+  const mutation = useMutation({
+    mutationFn: () => generateProjectAIInsights(project._id),
+    onSuccess: (report) => {
+      queryClient.setQueryData(reportQueryKey, { success: true, report });
+    },
+  });
+  const result = mutation.data || savedReport?.report;
   const health = result?.metrics?.projectHealth;
 
-  if (mutation.isPending) return <LoadingState />;
+  if ((isSavedReportLoading || mutation.isPending) && !result) return <LoadingState />;
 
   if (!result) {
     return (
@@ -85,20 +99,53 @@ const ProjectAIAssist = ({ project }) => {
           </p>
         </div>
         <Button className="rounded-xl" disabled={mutation.isPending} onClick={() => mutation.mutate()} type="button" variant="outline">
-          <RefreshCw className="h-4 w-4" /> Refresh Analysis
+          <RefreshCw className={`h-4 w-4 ${mutation.isPending ? "animate-spin" : ""}`} />
+          {mutation.isPending ? "Generating..." : "Generate New Report"}
         </Button>
       </div>
+      {mutation.isError ? (
+        <p className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-medium text-rose-700">
+          {mutation.error?.response?.data?.message || "The new report could not be generated. The previous report is still displayed."}
+        </p>
+      ) : null}
 
       <Section icon={CheckCircle2} title="Project Health" subtitle={result.analysis?.healthSummary}>
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          <Metric label="Completion" value={`${health.completionRate}%`} helper={`${health.totalWorkItems} work items`} />
+        <div className="grid gap-3 sm:grid-cols-3">
+          <Metric label="Overall completion" value={`${health.completionRate}%`} helper={`${health.totalWorkItems} current work items`} />
           <Metric label="Stories" value={`${health.stories.completed}/${health.stories.total}`} helper={`${health.stories.completedStoryPoints}/${health.stories.storyPoints} points`} />
-          <Metric label="Tasks" value={`${health.tasks.completed}/${health.tasks.total}`} helper={`${health.tasks.inProgress} in progress · ${health.tasks.pending} pending`} />
-          <Metric label="Open bugs" value={health.bugs.open} helper={`${health.bugs.criticalOpen} critical · ${health.bugs.reopened} reopened`} />
           <Metric label="Sprint completion" value={`${health.sprints.completionRate}%`} helper={`${health.sprints.completed}/${health.sprints.total} completed`} />
-          <Metric label="Overdue" value={health.overdueItems} />
-          <Metric label="Blocked" value={health.blockedItems} />
-          <Metric label="Unassigned" value={health.unassignedItems} />
+        </div>
+
+        <div className="mt-4 grid gap-4 xl:grid-cols-2">
+          <div className="rounded-2xl border border-blue-200 bg-blue-50/40 p-3">
+            <div className="mb-3 flex items-center gap-2 text-blue-800">
+              <ListTodo className="h-4 w-4" />
+              <h4 className="text-sm font-bold">Task Health</h4>
+            </div>
+            <div className="grid gap-2 sm:grid-cols-3">
+              <Metric label="Completed tasks" value={`${health.tasks.completed}/${health.tasks.total}`} />
+              <Metric label="In progress tasks" value={health.tasks.inProgress} />
+              <Metric label="Pending tasks" value={health.tasks.pending} />
+              <Metric label="Overdue tasks" value={health.tasks.overdue} />
+              <Metric label="Blocked tasks" value={health.tasks.blocked} />
+              <Metric label="Unassigned tasks" value={health.tasks.unassigned} />
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-rose-200 bg-rose-50/40 p-3">
+            <div className="mb-3 flex items-center gap-2 text-rose-800">
+              <Bug className="h-4 w-4" />
+              <h4 className="text-sm font-bold">Bug Health</h4>
+            </div>
+            <div className="grid gap-2 sm:grid-cols-3">
+              <Metric label="Closed bugs" value={`${health.bugs.resolved}/${health.bugs.total}`} />
+              <Metric label="Open bugs" value={health.bugs.open} />
+              <Metric label="In progress bugs" value={health.bugs.inProgress} />
+              <Metric label="Ready for QA" value={health.bugs.readyForQa} />
+              <Metric label="Reopened bugs" value={health.bugs.reopened} />
+              <Metric label="Critical open bugs" value={health.bugs.criticalOpen} />
+            </div>
+          </div>
         </div>
       </Section>
 
@@ -107,8 +154,8 @@ const ProjectAIAssist = ({ project }) => {
           <div className="space-y-2">
             {result.developers.length ? result.developers.map((row) => (
               <div className="rounded-xl border border-slate-200 p-3" key={row.userId}>
-                <div className="flex justify-between gap-3"><p className="font-semibold text-slate-950">{row.name}</p><span className="text-sm font-semibold text-indigo-600">{row.completionRate}%</span></div>
-                <p className="mt-1 text-xs text-slate-500">{row.completed}/{row.assigned} completed · {row.completedStoryPoints} points · {row.bugsFixed} bugs fixed</p>
+                <div className="flex justify-between gap-3"><p className="font-semibold text-slate-950">{row.name}</p><span className="text-sm font-semibold text-indigo-600">{row.taskCompletionRate}% tasks</span></div>
+                <p className="mt-1 text-xs text-slate-500">Tasks: {row.completedTasks}/{row.assignedTasks} completed / Bugs: {row.bugsFixed} fixed</p>
                 {developerNotes.get(row.userId) ? <p className="mt-2 text-sm text-slate-600">{developerNotes.get(row.userId)}</p> : null}
               </div>
             )) : <p className="text-sm text-slate-500">No developer assignments were found.</p>}
@@ -119,7 +166,7 @@ const ProjectAIAssist = ({ project }) => {
             {result.testers.length ? result.testers.map((row) => (
               <div className="rounded-xl border border-slate-200 p-3" key={row.userId}>
                 <div className="flex justify-between gap-3"><p className="font-semibold text-slate-950">{row.name}</p><span className="text-sm font-semibold text-indigo-600">{row.completionRate}%</span></div>
-                <p className="mt-1 text-xs text-slate-500">{row.bugsVerified} verified · {row.reopenedBugs} reopened · {row.active} active</p>
+                <p className="mt-1 text-xs text-slate-500">Bugs: {row.bugsVerified} verified / {row.reopenedBugs} reopened / {row.active} active</p>
                 {testerNotes.get(row.userId) ? <p className="mt-2 text-sm text-slate-600">{testerNotes.get(row.userId)}</p> : null}
               </div>
             )) : <p className="text-sm text-slate-500">No tester ownership was found.</p>}
@@ -153,7 +200,7 @@ const ProjectAIAssist = ({ project }) => {
           <ol className="space-y-2">
             {(result.analysis?.recommendations || []).map((item, index) => <li className="rounded-xl bg-slate-50 px-3 py-2 text-sm text-slate-700" key={`${item}-${index}`}>{index + 1}. {item}</li>)}
           </ol>
-          <p className="mt-4 border-t border-slate-100 pt-3 text-xs text-slate-400">{result.analysisInfo.feature} · {result.analysisInfo.modelId} · {result.analysisInfo.totalTokens ?? 0} tokens · ${Number(result.analysisInfo.estimatedCost || 0).toFixed(6)}</p>
+          <p className="mt-4 border-t border-slate-100 pt-3 text-xs text-slate-400">{result.analysisInfo.feature} / {result.analysisInfo.modelId} / {result.analysisInfo.totalTokens ?? 0} tokens / ${Number(result.analysisInfo.estimatedCost || 0).toFixed(6)}</p>
         </Section>
       </div>
     </div>

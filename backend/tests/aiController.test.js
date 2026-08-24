@@ -4,10 +4,12 @@ const aiService = require("../services/aiService");
 const aiPolicyService = require("../services/aiPolicyService");
 const githubCommitDiff = require("../utils/githubCommitDiff");
 const Project = require("../models/Project");
+const ProjectAIInsight = require("../models/ProjectAIInsight");
 const ProjectMember = require("../models/ProjectMember");
 const TeamMember = require("../models/TeamMember");
 const {
   generateProjectInsights,
+  getLatestProjectInsights,
   generateWorkItemDescription,
   reviewCodeForCommit,
 } = require("../controllers/aiController");
@@ -20,6 +22,7 @@ const originalRecordAIUsage = aiPolicyService.recordAIUsage;
 const originalCountCodeReviewRunsForPush = aiPolicyService.countCodeReviewRunsForPush;
 const originalGetCommitDiffForProject = githubCommitDiff.getCommitDiffForProject;
 const originalProjectFindOne = Project.findOne;
+const originalProjectAIInsightFindOne = ProjectAIInsight.findOne;
 const originalProjectMemberFind = ProjectMember.find;
 const originalTeamMemberFind = TeamMember.find;
 
@@ -116,6 +119,7 @@ test.afterEach(() => {
   aiPolicyService.countCodeReviewRunsForPush = originalCountCodeReviewRunsForPush;
   githubCommitDiff.getCommitDiffForProject = originalGetCommitDiffForProject;
   Project.findOne = originalProjectFindOne;
+  ProjectAIInsight.findOne = originalProjectAIInsightFindOne;
   ProjectMember.find = originalProjectMemberFind;
   TeamMember.find = originalTeamMemberFind;
 });
@@ -158,6 +162,40 @@ test("project AI insights ignores frontend tenantId and denies a project outside
   assert.strictEqual(receivedProjectQuery.tenantId, "TENANT_A");
   assert.ok(!JSON.stringify(receivedProjectQuery).includes("TENANT_B"));
   assert.match(nextError?.message || "", /Project not found/);
+});
+
+test("saved project AI report is loaded only through the authenticated tenant boundary", async () => {
+  let savedReportQuery;
+  let accessPayload;
+  Project.findOne = () => ({ lean: async () => ({ _id: "project-a", name: "Project A" }) });
+  ProjectAIInsight.findOne = (filter) => {
+    savedReportQuery = filter;
+    return {
+      select: () => ({ lean: async () => ({ report: { success: true, marker: "tenant-a" } }) }),
+    };
+  };
+  aiPolicyService.checkAIAccess = async (payload) => {
+    accessPayload = payload;
+    return { allowed: true };
+  };
+  const req = {
+    params: { projectId: "project-a" },
+    user: {
+      _id: "user-a",
+      role: ROLE_ADMIN,
+      workspaceId: "workspace-a",
+      tenantId: "TENANT_A",
+    },
+  };
+  const res = createResponse();
+
+  await getLatestProjectInsights(req, res, () => {});
+
+  assert.strictEqual(res.statusCode, 200);
+  assert.strictEqual(savedReportQuery.tenantId, "TENANT_A");
+  assert.strictEqual(savedReportQuery.projectId, "project-a");
+  assert.strictEqual(accessPayload.checkUsageLimits, false);
+  assert.deepStrictEqual(res.body.report, { success: true, marker: "tenant-a" });
 });
 
 test("validates task description generation request", async () => {
