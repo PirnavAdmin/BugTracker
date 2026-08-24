@@ -480,6 +480,7 @@ const IssueCreateDialog = ({
   defaultType = "Task",
   defaultParentStoryId = "",
   lockType = false,
+  showStoryPoints = false,
   isPending = false,
   onSubmit,
   onUploadAttachment,
@@ -1168,6 +1169,16 @@ const IssueCreateDialog = ({
       }
     }
 
+    const storyPoints =
+      showStoryPoints && isStoryType && formData.storyPoints !== ""
+        ? Number(formData.storyPoints)
+        : null;
+
+    if (storyPoints !== null && (!Number.isFinite(storyPoints) || storyPoints < 0)) {
+      setError("Story Points must be zero or a positive number.");
+      return;
+    }
+
     const basePayload = {
       title: formData.title.trim(),
       description: supportsDescription ? formData.description.trim() : "",
@@ -1184,7 +1195,7 @@ const IssueCreateDialog = ({
           : formData.type === "Story"
             ? ISSUE_STATUS.DRAFT
             : ISSUE_STATUS.TODO,
-      storyPoints: null,
+      storyPoints,
       acceptanceCriteria: [],
       definitionOfDone: "",
       labels: [],
@@ -1674,28 +1685,54 @@ const IssueCreateDialog = ({
 
             <div className="rounded-[22px] border border-slate-200/80 bg-white p-3 sm:p-3.5 shadow-[0_16px_40px_-32px_rgba(15,23,42,0.18)]">
               <div className="grid items-start gap-3 md:grid-cols-2">
-                <label className="space-y-1.5">
-                  <span className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">
-                    Priority
-                  </span>
-                  <select
-                    className="field-select rounded-2xl"
-                    value={formData.priority}
-                    onChange={(event) =>
-                      setFormData((current) => ({
-                        ...current,
-                        priority: event.target.value,
-                      }))
-                    }
-                    disabled={isSubmitPending}
-                  >
-                    {(isBugType ? BUG_PRIORITY_OPTIONS : ISSUE_PRIORITIES).map((priority) => (
-                      <option key={priority} value={priority}>
-                        {priority}
-                      </option>
-                    ))}
-                  </select>
-                </label>
+                <div className="space-y-3">
+                  <label className="block space-y-1.5">
+                    <span className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">
+                      Priority
+                    </span>
+                    <select
+                      className="field-select rounded-2xl"
+                      value={formData.priority}
+                      onChange={(event) =>
+                        setFormData((current) => ({
+                          ...current,
+                          priority: event.target.value,
+                        }))
+                      }
+                      disabled={isSubmitPending}
+                    >
+                      {(isBugType ? BUG_PRIORITY_OPTIONS : ISSUE_PRIORITIES).map((priority) => (
+                        <option key={priority} value={priority}>
+                          {priority}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+
+                  {showStoryPoints && isStoryType ? (
+                    <label className="block space-y-1.5 rounded-2xl border border-amber-200 bg-amber-50/80 p-3">
+                      <span className="text-xs font-semibold uppercase tracking-[0.22em] text-amber-800">
+                        Story Points (Optional)
+                      </span>
+                      <Input
+                        type="number"
+                        min="0"
+                        step="1"
+                        inputMode="numeric"
+                        className="h-auto rounded-xl border-amber-200 bg-yellow-50 py-3 focus-visible:border-amber-400 focus-visible:ring-amber-200"
+                        placeholder="Set Story Points"
+                        value={formData.storyPoints}
+                        onChange={(event) =>
+                          setFormData((current) => ({
+                            ...current,
+                            storyPoints: event.target.value,
+                          }))
+                        }
+                        disabled={isSubmitPending}
+                      />
+                    </label>
+                  ) : null}
+                </div>
 
                 <label className="space-y-1.5">
                   <span className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">

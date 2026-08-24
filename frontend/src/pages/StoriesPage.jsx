@@ -248,6 +248,7 @@ const StoriesPage = () => {
         defaultType="Story"
         allowedTypes={["Story"]}
         lockType
+        showStoryPoints
         isPending={createMutation.isPending}
         onSubmit={(payload) => createMutation.mutateAsync(payload)}
         onUploadAttachment={uploadIssueAttachment}
