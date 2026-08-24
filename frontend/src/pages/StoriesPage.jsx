@@ -233,7 +233,7 @@ const StoriesPage = () => {
           title={search ? "No Stories match this search" : "No Stories yet"}
           description={
             canCreateStory
-              ? "Create a Story here, then plan it into a Sprint from Backlog."
+              ? "Create a Story here, then schedule it from Sprint Planning."
               : "Stories in your accessible projects will appear here."
           }
         />

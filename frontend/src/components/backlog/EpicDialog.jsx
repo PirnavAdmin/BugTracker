@@ -387,7 +387,7 @@ const EpicDialog = ({
                       noOptionsMessage={() => "No work items available in the current planning view."}
                     />
                     <p className="text-xs text-slate-500">
-                      The picker uses issues currently visible in this backlog view.
+                      The picker uses work items from the selected project.
                     </p>
                   </div>
                 ) : null}

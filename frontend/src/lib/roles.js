@@ -69,7 +69,7 @@ export const getRoleNavigation = (role) => {
     const navigation = [
       { id: "dashboard", label: "Dashboard", href: dashboardPathByRole[ROLE_ADMIN], icon: "dashboard" },
       { id: "projects", label: "Projects", href: "/projects", icon: "projects" },
-      { id: "backlog", label: "Backlog", href: "/backlog", icon: "backlog" },
+      { id: "backlog", label: "Sprint Planning", href: "/sprint-planning", icon: "backlog" },
       { id: "stories", label: "Stories", href: "/stories", icon: "stories" },
       { id: "tasks", label: "Tasks", href: "/tasks", icon: "tasks" },
       { id: "bugs", label: "Bugs", href: "/admin/bugs", icon: "bugs" },
@@ -203,10 +203,14 @@ export const getPageMeta = (pathname, role) => {
       description:
         "Team management now lives inside the combined Projects page.",
     },
-    "/backlog": {
-      title: "Backlog Planning",
+    "/sprint-planning": {
+      title: "Sprint Planning",
       description:
-        "Plan sprint work, organize epics, and keep backlog priorities aligned before execution starts.",
+        "Prioritize Stories and arrange project work into planned and active sprints.",
+    },
+    "/backlog": {
+      title: "Sprint Planning",
+      description: "Prioritize Stories and arrange project work into planned and active sprints.",
     },
     "/teams/create": {
       title: "Projects & Teams",

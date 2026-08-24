@@ -67,6 +67,11 @@ const AUTH_SPLASH_MOBILE_VIDEO = "/animations/need_this_for_mobile_aspect_ra.mp4
 const AUTH_SPLASH_FALLBACK_MS = 12000;
 const MOBILE_SPLASH_MEDIA_QUERY = "(max-width: 767px)";
 
+const LegacyBacklogRedirect = () => {
+  const location = useLocation();
+  return <Navigate to={`/sprint-planning${location.search}`} replace />;
+};
+
 const useIsMobileSplashViewport = () => {
   const getIsMobile = () =>
     typeof window !== "undefined" &&
@@ -485,10 +490,18 @@ const App = () => (
         }
       />
       <Route
-        path="/backlog"
+        path="/sprint-planning"
         element={
           <ProtectedRoute roles={ADMIN_PANEL_ROLES}>
             <BacklogPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/backlog"
+        element={
+          <ProtectedRoute roles={ADMIN_PANEL_ROLES}>
+            <LegacyBacklogRedirect />
           </ProtectedRoute>
         }
       />

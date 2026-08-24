@@ -54,11 +54,13 @@ import {
   syncProjectGitRepository,
   testProjectGitConnection,
   updateEpic,
+  updateIssuePlanning,
   updateProject,
   updateProjectDeliveryWorkflow,
   updateProjectStatus,
 } from "@/lib/api";
 import ProjectComposer from "@/components/projects/ProjectComposer";
+import EpicDialog from "@/components/backlog/EpicDialog";
 import ProjectManageDialog from "@/components/projects/ProjectManageDialog";
 import ProjectDeliveryConfiguration, {
   normalizeProjectDeliveryConfiguration,
@@ -511,6 +513,7 @@ const ProjectsPage = () => {
   );
   const [selectedProjectId, setSelectedProjectId] = useState("");
   const [isSelectedProjectManageOpen, setIsSelectedProjectManageOpen] = useState(false);
+  const [epicDialogState, setEpicDialogState] = useState({ open: false, epic: null });
   const [toast, setToast] = useState(null);
 
   const updateActiveTab = (tab) => {
@@ -1755,24 +1758,13 @@ const ProjectsPage = () => {
                   },
                 },
                 {
-                  label: "Project Planning",
-                  Icon: ClipboardList,
+                  label: "Epics",
+                  Icon: Layers3,
                   active: activeTab === "projects" && projectMode === "planning",
                   action: () => {
                     updateActiveTab("projects");
                     setProjectMode("planning");
                   },
-                },
-                {
-                  label: "Backlog",
-                  Icon: Route,
-                  active: false,
-                  action: () =>
-                    navigate(
-                      selectedProject
-                        ? `/backlog?projectId=${selectedProject._id}`
-                        : "/backlog"
-                    ),
                 },
                 {
                   label: "Reports",
@@ -2054,8 +2046,14 @@ const ProjectsPage = () => {
                                 { label: "Story", path: `/stories?projectId=${selectedProject._id}` },
                                 { label: "Task", path: `/tasks?projectId=${selectedProject._id}` },
                                 { label: "Bug", path: `/issues?projectId=${selectedProject._id}` },
-                                { label: "Epic", action: () => setProjectMode("planning") },
-                                { label: "Sprint", path: `/backlog?projectId=${selectedProject._id}` },
+                                {
+                                  label: "Epic",
+                                  action: () => {
+                                    setProjectMode("planning");
+                                    setEpicDialogState({ open: true, epic: null });
+                                  },
+                                },
+                                { label: "Sprint", path: `/sprint-planning?projectId=${selectedProject._id}` },
                               ].map((item) => (
                                 <button
                                   key={item.label}
@@ -2106,10 +2104,10 @@ const ProjectsPage = () => {
                           className="h-10 rounded-xl"
                           variant="outline"
                           type="button"
-                          onClick={() => navigate(`/backlog?projectId=${selectedProject._id}`)}
+                          onClick={() => navigate(`/sprint-planning?projectId=${selectedProject._id}`)}
                         >
                           <Layers3 className="h-4 w-4" />
-                          Backlog
+                          Sprint Planning
                         </Button>
                         <Button
                           className="h-10 w-10 rounded-xl border-rose-200 px-0 text-rose-600 hover:bg-rose-50 hover:text-rose-700"
@@ -2309,7 +2307,10 @@ const ProjectsPage = () => {
                           <Button
                             className="mt-3 h-8 rounded-lg px-3 text-xs"
                             type="button"
-                            onClick={() => setProjectMode("planning")}
+                            onClick={() => {
+                              setProjectMode("planning");
+                              setEpicDialogState({ open: true, epic: null });
+                            }}
                           >
                             <Plus className="h-3.5 w-3.5" />
                             Create Epic
@@ -3030,20 +3031,20 @@ const ProjectsPage = () => {
 
       {activeTab === "projects" && projectMode === "planning" ? (
         <section
-          aria-label="Project planning"
+          aria-label="Project epics"
           className="h-full min-h-0 min-w-0 space-y-5 overflow-y-auto pr-1"
         >
           <div className="flex flex-col gap-4 border-b border-slate-200 pb-4 lg:flex-row lg:items-start lg:justify-between">
             <div className="min-w-0">
               <p className="text-[11px] font-semibold uppercase text-blue-600">
-                Project Planning
+                Epics
               </p>
               <h1 className="mt-1 text-2xl font-semibold tracking-tight text-slate-950">
-                Plan setup, teams, epics, and delivery from one flow
+                Organize project work into clear epics
               </h1>
               <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
-                Start with the project shell, attach the right team, define epics,
-                then move into backlog and issue planning for execution.
+                Create and maintain project epics here, then use Sprint Planning to
+                arrange Stories into upcoming sprints.
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
@@ -3075,7 +3076,7 @@ const ProjectsPage = () => {
                     Select Project
                   </h2>
                   <p className="text-xs text-slate-500">
-                    Planning follows the selected project.
+                    Epics follow the selected project.
                   </p>
                 </div>
                 <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-500">
@@ -3178,10 +3179,10 @@ const ProjectsPage = () => {
                         <Button
                           className="h-10 rounded-xl"
                           type="button"
-                          onClick={() => navigate(`/backlog?projectId=${selectedProject._id}`)}
+                          onClick={() => navigate(`/sprint-planning?projectId=${selectedProject._id}`)}
                         >
                           <Route className="h-4 w-4" />
-                          Open Backlog
+                          Sprint Planning
                         </Button>
                         <Button
                           className="h-10 rounded-xl"
@@ -3220,7 +3221,7 @@ const ProjectsPage = () => {
                         helper: selectedProjectEpics.length
                           ? `${selectedProjectEpics.length} epic${selectedProjectEpics.length === 1 ? "" : "s"} ready`
                           : "Create epics for workstreams.",
-                        action: "Backlog",
+                        action: "Epics",
                       },
                       {
                         label: "Execution queue",
@@ -3285,7 +3286,7 @@ const ProjectsPage = () => {
                           className="h-9 rounded-lg"
                           type="button"
                           variant="outline"
-                          onClick={() => navigate(`/backlog?projectId=${selectedProject._id}`)}
+                          onClick={() => setEpicDialogState({ open: true, epic: null })}
                         >
                           <Plus className="h-4 w-4" />
                           Epic
@@ -3295,9 +3296,11 @@ const ProjectsPage = () => {
                       <div className="mt-3 space-y-2">
                         {selectedProjectEpics.length ? (
                           selectedProjectEpics.map((epic, index) => (
-                            <div
+                            <button
                               key={epic._id || epic.name}
-                              className="flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5"
+                              type="button"
+                              className="flex w-full items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-left transition hover:border-blue-200 hover:bg-blue-50/60"
+                              onClick={() => setEpicDialogState({ open: true, epic })}
                             >
                               <span
                                 className="h-2.5 w-2.5 rounded-full"
@@ -3314,12 +3317,12 @@ const ProjectsPage = () => {
                                   Planning order {epic.planningOrder || index + 1}
                                 </span>
                               </span>
-                            </div>
+                              <span className="text-xs font-semibold text-blue-600">Edit</span>
+                            </button>
                           ))
                         ) : (
                           <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-6 text-sm text-slate-500">
-                            No epics yet. Use Backlog planning to create the first
-                            workstream.
+                            No epics yet. Create the first project workstream here.
                           </div>
                         )}
                       </div>
@@ -3347,10 +3350,9 @@ const ProjectsPage = () => {
                             onClick: () => setIsCreateTeamDialogOpen(true),
                           },
                           {
-                            label: "Build epics and sprint scope",
-                            action: "Open Backlog",
-                            onClick: () =>
-                              navigate(`/backlog?projectId=${selectedProject._id}`),
+                            label: "Build project epics",
+                            action: "Create Epic",
+                            onClick: () => setEpicDialogState({ open: true, epic: null }),
                           },
                           {
                             label: "Add initial stories, tasks, and bugs",
@@ -3526,13 +3528,11 @@ const ProjectsPage = () => {
           onCreateEpic={(payload) => createEpicMutation.mutateAsync(payload)}
           onUpdateEpic={(payload) => updateEpicMutation.mutateAsync(payload)}
           onDeleteEpic={(payload) => deleteEpicMutation.mutateAsync(payload)}
-          onEpicClick={(epic) =>
-            navigate(
-              `/backlog?projectId=${selectedProject._id}${
-                epic?._id ? `&epicId=${epic._id}` : ""
-              }`
-            )
-          }
+          onEpicClick={(epic) => {
+            setIsSelectedProjectManageOpen(false);
+            setProjectMode("planning");
+            setEpicDialogState({ open: true, epic });
+          }}
           isUpdatingProject={
             updateProjectMutation.isPending &&
             updateProjectMutation.variables?.projectId === selectedProject._id
@@ -3551,6 +3551,58 @@ const ProjectsPage = () => {
           deletingEpicId={deleteEpicMutation.isPending ? deleteEpicMutation.variables?.id : ""}
           teamsErrorMessage={isTeamsLoading ? "" : teamsErrorMessage}
           usersErrorMessage={isUsersLoading ? "" : usersErrorMessage}
+        />
+      ) : null}
+
+      {selectedProject ? (
+        <EpicDialog
+          open={epicDialogState.open}
+          onOpenChange={(open) =>
+            setEpicDialogState((current) => ({
+              ...current,
+              open,
+              epic: open ? current.epic : null,
+            }))
+          }
+          initialEpic={epicDialogState.epic}
+          issues={selectedProjectIssues}
+          members={selectedProjectMembers}
+          isPending={createEpicMutation.isPending || updateEpicMutation.isPending}
+          onSubmit={async (payload) => {
+            if (epicDialogState.epic) {
+              const { issueIds: _issueIds, ...epicPayload } = payload;
+              const updatedEpic = await updateEpicMutation.mutateAsync({
+                id: epicDialogState.epic._id,
+                payload: epicPayload,
+              });
+              showToast("success", `${epicPayload.name} was updated.`);
+              return updatedEpic;
+            }
+
+            const { issueIds = [], ...epicPayload } = payload;
+            const createdEpic = await createEpicMutation.mutateAsync({
+              projectId: selectedProject._id,
+              ...epicPayload,
+            });
+
+            if (issueIds.length) {
+              await Promise.all(
+                issueIds.map((issueId) =>
+                  updateIssuePlanning({
+                    id: issueId,
+                    payload: { epicId: createdEpic._id },
+                  })
+                )
+              );
+              await queryClient.invalidateQueries({ queryKey: ["issues"] });
+            }
+
+            showToast(
+              "success",
+              `${createdEpic.name} was created${issueIds.length ? ` with ${issueIds.length} linked work item${issueIds.length === 1 ? "" : "s"}` : ""}.`
+            );
+            return createdEpic;
+          }}
         />
       ) : null}
 

@@ -22,16 +22,13 @@ import {
 } from "lucide-react";
 import {
   completeSprint,
-  createEpic,
   createSprint,
-  deleteEpic,
   deleteSprint,
   fetchBacklogBoard,
   fetchProjects,
   reopenSprint,
   reorderIssuePlanning,
   startSprint,
-  updateEpic,
   updateIssue,
   updateIssuePlanning,
   updateSprint,
@@ -42,7 +39,6 @@ import {
   getProjectTeams,
   resolveTeamId,
 } from "@/lib/project-teams";
-import EpicDialog from "@/components/backlog/EpicDialog";
 import IssueDetailsDrawer from "@/components/backlog/IssueDetailsDrawer";
 import IssuePlanningCard from "@/components/backlog/IssuePlanningCard";
 import SprintCompletionDialog from "@/components/backlog/SprintCompletionDialog";
@@ -121,20 +117,6 @@ const createBoardState = (data) => ({
       }))
     : [],
 });
-
-const sortByCreatedAt = (left, right) =>
-  new Date(left?.createdAt || 0).getTime() - new Date(right?.createdAt || 0).getTime();
-
-const sortEpicsByPlanning = (epics = []) =>
-  [...epics].sort((left, right) => {
-    const planningDelta = Number(left?.planningOrder || 0) - Number(right?.planningOrder || 0);
-
-    if (planningDelta !== 0) {
-      return planningDelta;
-    }
-
-    return sortByCreatedAt(left, right);
-  });
 
 const resolveBacklogEpicId = (value) => String(value?._id || value || "");
 const resolveBacklogAssigneeId = (issue) =>
@@ -230,75 +212,6 @@ const issueMatchesBacklogFilters = (issue, filters) => {
   return true;
 };
 
-const rebuildBacklogSummary = (data) => {
-  const backlogIssues = Array.isArray(data?.backlogIssues)
-    ? data.backlogIssues.filter(isBacklogPlanningIssue)
-    : [];
-  const sprintSections = Array.isArray(data?.sprintSections)
-    ? data.sprintSections.map((section) => ({
-        ...section,
-        issues: Array.isArray(section?.issues)
-          ? section.issues.filter(isBacklogPlanningIssue)
-          : [],
-      }))
-    : [];
-  const totalVisibleIssues =
-    backlogIssues.length +
-    sprintSections.reduce((total, section) => total + (section?.issues?.length || 0), 0);
-
-  return {
-    ...(data?.summary || {}),
-    totalVisibleIssues,
-    backlogIssueCount: backlogIssues.length,
-    activeSprintCount: sprintSections.filter((section) => section?.sprint?.state === "ACTIVE")
-      .length,
-    plannedSprintCount: sprintSections.filter((section) => section?.sprint?.state === "PLANNED")
-      .length,
-    completedSprintCount: sprintSections.filter(
-      (section) => section?.sprint?.state === "COMPLETED"
-    ).length,
-  };
-};
-
-const rebuildBacklogEpics = (epics = [], backlogIssues = [], sprintSections = []) => {
-  const visibleIssues = [
-    ...backlogIssues,
-    ...sprintSections.flatMap((section) => section?.issues || []),
-  ].filter(isBacklogPlanningIssue);
-  const epicCounts = visibleIssues.reduce((counts, issue) => {
-    const epicId = resolveBacklogEpicId(issue?.epicId);
-
-    if (!epicId) {
-      return counts;
-    }
-
-    counts.set(epicId, (counts.get(epicId) || 0) + 1);
-    return counts;
-  }, new Map());
-
-  return sortEpicsByPlanning(epics).map((epic) => ({
-    ...epic,
-    issueCount: epicCounts.get(String(epic._id)) || 0,
-  }));
-};
-
-const updateBacklogIssueCollections = (data, filters, updater) => {
-  const backlogIssues = (data?.backlogIssues || [])
-    .map((issue) => updater(issue))
-    .filter((issue) => issueMatchesBacklogFilters(issue, filters));
-  const sprintSections = (data?.sprintSections || []).map((section) => ({
-    ...section,
-    issues: (section?.issues || [])
-      .map((issue) => updater(issue))
-      .filter((issue) => issueMatchesBacklogFilters(issue, filters)),
-  }));
-
-  return {
-    backlogIssues,
-    sprintSections,
-  };
-};
-
 const BacklogSkeleton = () => (
   <div className="grid w-full gap-4 lg:grid-cols-[238px_minmax(0,1fr)]">
     <Skeleton className="hidden h-[calc(100vh-6rem)] w-full rounded-none lg:block" />
@@ -320,11 +233,10 @@ const BacklogSkeleton = () => (
 
 const PLANNING_NAV_ITEMS = [
   { label: "Overview", icon: BookOpen },
-  { label: "Backlog", icon: ClipboardList, active: true },
+  { label: "Sprint Planning", icon: ClipboardList, active: true },
   { label: "Active Sprint", icon: Flag },
   { label: "Upcoming Sprints", icon: CalendarDays },
   { label: "Completed Sprints", icon: CheckCircle2 },
-  { label: "Epics", icon: Layers3 },
   { label: "My Work", icon: UserRound },
 ];
 
@@ -385,7 +297,6 @@ const PlanningSidebar = ({
   onChange,
   onResetFilters,
   onCreateSprint,
-  onCreateEpic,
   onAddWorkItem,
 }) => (
   <aside className="min-w-0 border-r border-[#EEF2F7] bg-white/72 pr-3 lg:sticky lg:top-0 lg:h-[calc(100vh-5.5rem)] lg:self-start lg:overflow-y-scroll lg:[scrollbar-color:rgba(100,116,139,.65)_rgba(226,232,240,.85)] lg:[scrollbar-width:thin] lg:[&::-webkit-scrollbar]:w-2 lg:[&::-webkit-scrollbar-thumb]:rounded-full lg:[&::-webkit-scrollbar-thumb]:bg-slate-400/80 lg:[&::-webkit-scrollbar-track]:bg-slate-100/80">
@@ -526,12 +437,6 @@ const PlanningSidebar = ({
             Quick Actions
           </span>
           <div className="mt-3 space-y-2">
-            {permissions.canManageEpics ? (
-              <Button type="button" variant="outline" className="h-9 w-full justify-start rounded-[8px]" onClick={onCreateEpic}>
-                <Plus className="h-4 w-4" />
-                Create Epic
-              </Button>
-            ) : null}
             {permissions.canManageSprints ? (
               <Button type="button" variant="outline" className="h-9 w-full justify-start rounded-[8px] border-emerald-100 bg-emerald-50/70 text-emerald-700 hover:bg-emerald-100/70" onClick={onCreateSprint}>
                 <Plus className="h-4 w-4" />
@@ -552,38 +457,18 @@ const PlanningSidebar = ({
 const PlanningHeader = ({
   filters,
   permissions = {},
-  selectedEpic = null,
   onChange,
-  onCreateEpic,
   onCreateSprint,
-  onEditEpic,
-  onDeleteEpic,
 }) => (
   <section className="rounded-[20px] border border-white/70 bg-white/88 p-4 shadow-[0_18px_48px_-38px_rgba(15,23,42,0.36)] backdrop-blur-xl">
     <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight text-slate-950">Planning Hub</h1>
+        <h1 className="text-2xl font-semibold tracking-tight text-slate-950">Sprint Planning</h1>
         <p className="mt-1 text-sm text-slate-600">
-          Prioritize work, organize your backlog and plan successful sprints.
+          Prioritize Stories and arrange them into successful sprints.
         </p>
       </div>
       <div className="flex flex-wrap items-center gap-2">
-        {permissions.canManageEpics && selectedEpic ? (
-          <>
-            <Button type="button" variant="outline" className="h-9 rounded-[8px]" onClick={onEditEpic}>
-              Edit Epic
-            </Button>
-            <Button type="button" variant="outline" className="h-9 rounded-[8px]" onClick={onDeleteEpic}>
-              Delete Epic
-            </Button>
-          </>
-        ) : null}
-        {permissions.canManageEpics ? (
-          <Button type="button" variant="outline" className="h-9 rounded-[8px]" onClick={onCreateEpic}>
-            <Plus className="h-4 w-4" />
-            Create Epic
-          </Button>
-        ) : null}
         {permissions.canManageSprints ? (
           <Button type="button" className="h-9 rounded-[8px]" onClick={onCreateSprint}>
             <Plus className="h-4 w-4" />
@@ -598,7 +483,7 @@ const PlanningHeader = ({
         <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
         <Input
           className="h-10 rounded-[8px] border-slate-200 bg-white pl-9 text-sm shadow-sm"
-          placeholder="Search backlog items, epics, sprints..."
+          placeholder="Search Stories and sprints..."
           value={filters.search}
           onChange={(event) => onChange("search", event.target.value)}
         />
@@ -787,16 +672,11 @@ const BacklogPage = () => {
   const [selectedIssueId, setSelectedIssueId] = useState("");
   const [draggedIssueId, setDraggedIssueId] = useState("");
   const [toast, setToast] = useState(null);
-  const [epicDialogState, setEpicDialogState] = useState({
-    open: false,
-    epic: null,
-  });
   const [sprintDialogState, setSprintDialogState] = useState({
     open: false,
     sprint: null,
   });
   const [completionSprint, setCompletionSprint] = useState(null);
-  const [isEpicSubmitting, setIsEpicSubmitting] = useState(false);
   const previousProjectIdRef = useRef(filters.projectId);
   const deferredSearch = useDeferredValue(filters.search);
   const queryFilters = useMemo(
@@ -968,12 +848,6 @@ const BacklogPage = () => {
     () => findIssueById(boardState, selectedIssueId),
     [boardState, selectedIssueId]
   );
-  const selectedEpic = useMemo(
-    () =>
-      (backlogData?.epics || []).find((epic) => String(epic._id) === String(filters.epicId)) ||
-      null,
-    [backlogData?.epics, filters.epicId]
-  );
   const allSprints = useMemo(
     () => boardState.sprintSections.map((section) => section.sprint),
     [boardState.sprintSections]
@@ -1015,149 +889,6 @@ const BacklogPage = () => {
     [planningIssues]
   );
 
-  const syncCurrentBacklogData = (updater) => {
-    queryClient.setQueryData(["backlog", queryFilters], (current) => {
-      if (!current) {
-        return current;
-      }
-
-      const nextData = updater(current);
-
-      if (!nextData) {
-        return current;
-      }
-
-      return {
-        ...nextData,
-        summary: rebuildBacklogSummary(nextData),
-      };
-    });
-  };
-
-  const insertEpicIntoCurrentBacklog = (epic) => {
-    syncCurrentBacklogData((current) => {
-      const epicsById = new Map(
-        (current?.epics || []).map((currentEpic) => [String(currentEpic._id), currentEpic])
-      );
-
-      epicsById.set(String(epic._id), {
-        ...epic,
-        issueCount: epicsById.get(String(epic._id))?.issueCount || 0,
-      });
-
-      return {
-        ...current,
-        epics: rebuildBacklogEpics(
-          Array.from(epicsById.values()),
-          current.backlogIssues,
-          current.sprintSections
-        ),
-      };
-    });
-  };
-
-  const updateEpicInCurrentBacklog = (epic) => {
-    syncCurrentBacklogData((current) => {
-      const currentEpics = current?.epics || [];
-
-      if (!currentEpics.some((currentEpic) => String(currentEpic._id) === String(epic._id))) {
-        return current;
-      }
-
-      const { backlogIssues, sprintSections } = updateBacklogIssueCollections(
-        current,
-        queryFilters,
-        (issue) => {
-          if (resolveBacklogEpicId(issue?.epicId) !== String(epic._id)) {
-            return issue;
-          }
-
-          return {
-            ...issue,
-            epicId: {
-              ...(typeof issue?.epicId === "object" && issue?.epicId ? issue.epicId : {}),
-              ...epic,
-            },
-          };
-        }
-      );
-
-      return {
-        ...current,
-        backlogIssues,
-        sprintSections,
-        epics: rebuildBacklogEpics(
-          currentEpics.map((currentEpic) =>
-            String(currentEpic._id) === String(epic._id)
-              ? {
-                  ...currentEpic,
-                  ...epic,
-                }
-              : currentEpic
-          ),
-          backlogIssues,
-          sprintSections
-        ),
-      };
-    });
-  };
-
-  const removeEpicFromCurrentBacklog = (epicId) => {
-    syncCurrentBacklogData((current) => ({
-      ...current,
-      epics: rebuildBacklogEpics(
-        (current?.epics || []).filter(
-          (currentEpic) => String(currentEpic._id) !== String(epicId)
-        ),
-        current.backlogIssues,
-        current.sprintSections
-      ),
-    }));
-  };
-
-  const assignIssuesToEpicInCurrentBacklog = (epic, issueIds = []) => {
-    if (!issueIds.length) {
-      return;
-    }
-
-    const issueIdSet = new Set(issueIds.map((issueId) => String(issueId)));
-
-    syncCurrentBacklogData((current) => {
-      const { backlogIssues, sprintSections } = updateBacklogIssueCollections(
-        current,
-        queryFilters,
-        (issue) => {
-          if (!issueIdSet.has(String(issue?._id))) {
-            return issue;
-          }
-
-          return {
-            ...issue,
-            epicId: epic,
-          };
-        }
-      );
-
-      return {
-        ...current,
-        backlogIssues,
-        sprintSections,
-        epics: rebuildBacklogEpics(
-          (current?.epics || []).map((currentEpic) =>
-            String(currentEpic._id) === String(epic._id)
-              ? {
-                  ...currentEpic,
-                  ...epic,
-                }
-              : currentEpic
-          ),
-          backlogIssues,
-          sprintSections
-        ),
-      };
-    });
-  };
-
   const invalidatePlanningQueries = async () => {
     await Promise.all([
       queryClient.invalidateQueries({
@@ -1175,23 +906,6 @@ const BacklogPage = () => {
     ]);
   };
 
-  const createEpicMutation = useMutation({
-    mutationFn: createEpic,
-  });
-  const updateEpicMutation = useMutation({
-    mutationFn: updateEpic,
-  });
-  const deleteEpicMutation = useMutation({
-    mutationFn: deleteEpic,
-    onSuccess: async (_response, variables) => {
-      setFilters((current) => ({
-        ...current,
-        epicId: "all",
-      }));
-      removeEpicFromCurrentBacklog(variables?.id);
-      await invalidatePlanningQueries();
-    },
-  });
   const createSprintMutation = useMutation({
     mutationFn: createSprint,
     onSuccess: async () => invalidatePlanningQueries(),
@@ -1367,7 +1081,7 @@ const BacklogPage = () => {
         <CardContent className="p-6 text-sm text-rose-700">
           {projectsError?.response?.data?.message ||
             backlogError?.response?.data?.message ||
-            "Unable to load backlog planning data right now."}
+            "Unable to load Sprint Planning data right now."}
         </CardContent>
       </Card>
     );
@@ -1376,8 +1090,8 @@ const BacklogPage = () => {
   if (!isProjectsLoading && !projects.length) {
     return (
       <EmptyState
-        title="No accessible project backlog yet"
-        description="Attach the current user to a project team or create a new project first. Backlog planning appears per project."
+        title="No accessible Sprint Planning project yet"
+        description="Attach the current user to a project team or create a new project first. Sprint Planning appears per project."
         icon={<FolderKanban className="h-5 w-5" />}
       />
     );
@@ -1399,7 +1113,6 @@ const BacklogPage = () => {
           onChange={handleFilterChange}
           onResetFilters={handleResetFilters}
           onCreateSprint={() => setSprintDialogState({ open: true, sprint: null })}
-          onCreateEpic={() => setEpicDialogState({ open: true, epic: null })}
           onAddWorkItem={() =>
             setToast({
               type: "info",
@@ -1414,14 +1127,13 @@ const BacklogPage = () => {
             permissions={{}}
             onChange={handleFilterChange}
             onCreateSprint={() => setSprintDialogState({ open: true, sprint: null })}
-            onCreateEpic={() => setEpicDialogState({ open: true, epic: null })}
           />
 
           <Card className="border-white/70 bg-white/92 shadow-[0_18px_50px_-34px_rgba(15,23,42,0.45)] backdrop-blur">
             <CardContent className="p-8">
               <EmptyState
-                title="Select a project backlog"
-                description="Choose a project from the Planning filters to load backlog planning. The page keeps your last valid project selection instead of auto-switching to the first project."
+                title="Select a project for Sprint Planning"
+                description="Choose a project from the Planning filters to load its Stories and sprints. The page keeps your last valid project selection instead of auto-switching to the first project."
                 icon={<FolderKanban className="h-5 w-5" />}
               />
             </CardContent>
@@ -1443,11 +1155,9 @@ const BacklogPage = () => {
         epics={backlogData?.epics || []}
         sprints={(backlogData?.sprintSections || []).map((section) => section.sprint)}
         permissions={permissions}
-        selectedEpic={selectedEpic}
         onChange={handleFilterChange}
         onResetFilters={handleResetFilters}
         onCreateSprint={() => setSprintDialogState({ open: true, sprint: null })}
-        onCreateEpic={() => setEpicDialogState({ open: true, epic: null })}
         onAddWorkItem={() =>
           setToast({
             type: "info",
@@ -1460,37 +1170,8 @@ const BacklogPage = () => {
         <PlanningHeader
           filters={filters}
           permissions={permissions}
-          selectedEpic={selectedEpic}
           onChange={handleFilterChange}
           onCreateSprint={() => setSprintDialogState({ open: true, sprint: null })}
-          onCreateEpic={() => setEpicDialogState({ open: true, epic: null })}
-        onEditEpic={() =>
-          setEpicDialogState({
-            open: true,
-            epic: selectedEpic,
-          })
-        }
-        onDeleteEpic={async () => {
-          if (!selectedEpic) {
-            return;
-          }
-
-          try {
-            await deleteEpicMutation.mutateAsync({
-              id: selectedEpic._id,
-            });
-            setToast({
-              type: "success",
-              message: `${selectedEpic.name} was removed from backlog planning.`,
-            });
-          } catch (error) {
-            setToast({
-              type: "error",
-              message:
-                error.response?.data?.message || "Unable to delete that epic right now.",
-            });
-          }
-        }}
       />
 
       <PlanningSummary
@@ -1835,91 +1516,6 @@ const BacklogPage = () => {
         }
         isPlanningPending={updatePlanningMutation.isPending}
         isStatusPending={updateStatusMutation.isPending}
-      />
-
-      <EpicDialog
-        open={epicDialogState.open}
-        onOpenChange={(open) =>
-          setEpicDialogState((current) => ({
-            ...current,
-            open,
-          }))
-        }
-        initialEpic={epicDialogState.epic}
-        issues={planningIssues}
-        members={availableMembers}
-        isPending={
-          createEpicMutation.isPending || updateEpicMutation.isPending || isEpicSubmitting
-        }
-        onSubmit={async (payload) => {
-          setIsEpicSubmitting(true);
-
-          try {
-            if (epicDialogState.epic) {
-              const { issueIds: _issueIds, ...epicPayload } = payload;
-              const updatedEpic = await updateEpicMutation.mutateAsync({
-                id: epicDialogState.epic._id,
-                payload: epicPayload,
-              });
-              updateEpicInCurrentBacklog(updatedEpic);
-              await invalidatePlanningQueries();
-
-              setToast({
-                type: "success",
-                message: `${epicPayload.name} was updated.`,
-              });
-
-              return updatedEpic;
-            }
-
-            const { issueIds = [], ...epicPayload } = payload;
-            const createdEpic = await createEpicMutation.mutateAsync({
-              projectId: filters.projectId,
-              ...epicPayload,
-            });
-            insertEpicIntoCurrentBacklog(createdEpic);
-
-            if (issueIds.length) {
-              try {
-                await Promise.all(
-                  issueIds.map((issueId) =>
-                    updateIssuePlanning({
-                      id: issueId,
-                      payload: {
-                        epicId: createdEpic._id,
-                      },
-                    })
-                  )
-                );
-                assignIssuesToEpicInCurrentBacklog(createdEpic, issueIds);
-                await invalidatePlanningQueries();
-                setToast({
-                  type: "success",
-                  message: `${createdEpic.name} created and linked to ${issueIds.length} work item${issueIds.length === 1 ? "" : "s"}.`,
-                });
-              } catch (error) {
-                await invalidatePlanningQueries();
-                setToast({
-                  type: "error",
-                  title: "Epic created, assignments need attention",
-                  message:
-                    error.response?.data?.message ||
-                    "The epic was created, but one or more work items could not be linked.",
-                });
-              }
-            } else {
-              await invalidatePlanningQueries();
-              setToast({
-                type: "success",
-                message: `${createdEpic.name} was created.`,
-              });
-            }
-
-            return createdEpic;
-          } finally {
-            setIsEpicSubmitting(false);
-          }
-        }}
       />
 
       <SprintDialog
