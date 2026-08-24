@@ -2,10 +2,7 @@ import {
   Bug,
   CheckCircle2,
   CircleUserRound,
-  FolderKanban,
-  Layers3,
   ListTodo,
-  Milestone,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -40,99 +37,85 @@ const StoryCard = ({
   const progress = story.storyProgress || {};
   const progressPercent = Number(progress.percent || 0);
   const isQueued = Boolean(story.bugDetails?.addToBucket);
-  const isFaded = fadeWhenOverdue && isPastDue(story.dueAt);
   const assignees = resolveIssueAssignees(story);
   const normalizedStatus = normalizeIssueStatus(story?.status, "");
+  const isCompleted = [ISSUE_STATUS.DONE, ISSUE_STATUS.CLOSED].includes(normalizedStatus);
+  const isOverdue = fadeWhenOverdue && isPastDue(story.dueAt);
   const canShowCompleteButton =
-    canComplete && ![ISSUE_STATUS.DONE, ISSUE_STATUS.CLOSED].includes(normalizedStatus);
+    canComplete && !isCompleted;
   const assigneeLabel = assignees.length
     ? assignees.map((assignee) => assignee.name).join(", ")
     : "Unassigned";
 
   return (
-    <button
-      type="button"
+    <div
+      role="button"
+      tabIndex={0}
+      aria-label={`Open Story ${getIssueDisplayKey(story)}: ${story.title}`}
       onClick={() => onClick(story)}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          onClick(story);
+        }
+      }}
       className={cn(
-        "group min-w-0 rounded-lg border p-4 text-left backdrop-blur-xl transition hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500",
+        "group grid min-w-[1270px] cursor-pointer grid-cols-[90px_minmax(240px,1.6fr)_minmax(160px,1fr)_minmax(120px,0.8fr)_90px_110px_110px_130px_90px_minmax(150px,1fr)_104px] items-center gap-3 border-b px-4 py-2.5 text-left transition last:border-b-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-500",
         isQueued
-          ? "border-amber-300/90 bg-amber-50/85 shadow-[0_14px_34px_-28px_rgba(217,119,6,0.58)] hover:border-amber-400 hover:bg-amber-50 hover:shadow-[0_20px_42px_-28px_rgba(217,119,6,0.66)]"
-          : "border-blue-200/80 bg-blue-50/75 shadow-[0_14px_34px_-28px_rgba(37,99,235,0.55)] hover:border-blue-300 hover:bg-blue-50 hover:shadow-[0_20px_42px_-28px_rgba(37,99,235,0.62)]",
-        isFaded && "opacity-45 grayscale hover:opacity-75"
+          ? "border-amber-200 bg-amber-50/70 hover:bg-amber-50"
+          : "border-slate-100 bg-white/75 hover:bg-blue-50/60",
+        isCompleted && "opacity-45 grayscale hover:opacity-70",
+        !isCompleted && isOverdue && "opacity-50 grayscale hover:opacity-75"
       )}
     >
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <span className="text-xs font-semibold text-blue-700">
-            {getIssueDisplayKey(story)}
-          </span>
-          <h2 className="mt-1 line-clamp-2 text-sm font-semibold leading-5 text-slate-950 group-hover:text-blue-800">
-            {story.title}
-          </h2>
-        </div>
-        <Badge variant={getIssuePriorityVariant(story.priority)}>
-          {story.priority || "Medium"}
-        </Badge>
-      </div>
-
-      <div className="mt-4 grid gap-2 text-xs text-slate-600 sm:grid-cols-2">
-        <span className="flex min-w-0 items-center gap-2">
-          <FolderKanban className="h-3.5 w-3.5 shrink-0 text-blue-500" />
-          <span className="truncate">{story.projectId?.name || "Unknown project"}</span>
+      <span className="truncate text-xs font-semibold text-blue-700">
+        {getIssueDisplayKey(story)}
+      </span>
+      <span className="truncate text-sm font-semibold text-slate-950 group-hover:text-blue-800" title={story.title}>
+        {story.title}
+      </span>
+      <span className="truncate text-xs text-slate-600" title={story.projectId?.name || "Unknown project"}>
+        {story.projectId?.name || "Unknown project"}
+      </span>
+      <span className="truncate text-xs text-slate-600" title={story.sprintId?.name || "Backlog"}>
+        {story.sprintId?.name || "Backlog"}
+      </span>
+      <Badge variant={getIssuePriorityVariant(story.priority)}>
+        {story.priority || "Medium"}
+      </Badge>
+      <span className="truncate text-xs font-medium text-slate-700">
+        {getIssueStatusLabel(story.status)}
+      </span>
+      <span className="text-xs font-medium text-slate-700">
+        {story.storyPoints ?? 0} points
+      </span>
+      <span className="min-w-0">
+        <span className="flex items-center justify-between text-[11px] font-semibold text-blue-700">
+          <span>{progressPercent}%</span>
+          {isQueued ? <span className="text-amber-700">Queue</span> : null}
         </span>
-        <span className="flex min-w-0 items-center gap-2">
-          <Layers3 className="h-3.5 w-3.5 shrink-0 text-blue-500" />
-          <span className="truncate">{story.epicId?.name || "No epic"}</span>
-        </span>
-        <span className="flex min-w-0 items-center gap-2">
-          <Milestone className="h-3.5 w-3.5 shrink-0 text-blue-500" />
-          <span className="truncate">{story.sprintId?.name || "Backlog"}</span>
-        </span>
-        <span className="flex min-w-0 items-center gap-2">
-          <CircleUserRound className="h-3.5 w-3.5 shrink-0 text-blue-500" />
-          <span className="truncate">{assigneeLabel}</span>
-        </span>
-      </div>
-
-      <div className="mt-4 flex flex-wrap items-center gap-2 text-xs">
-        <span className="rounded-md border border-blue-200 bg-white/75 px-2 py-1 font-medium text-slate-700">
-          {getIssueStatusLabel(story.status)}
-        </span>
-        <span className="rounded-md border border-blue-200 bg-white/75 px-2 py-1 font-medium text-slate-700">
-          {story.storyPoints ?? 0} points
-        </span>
-        {isQueued ? (
-          <span className="rounded-md border border-amber-300 bg-white/80 px-2 py-1 font-medium text-amber-800">
-            Work Queue
-          </span>
-        ) : null}
-      </div>
-
-      <div className="mt-4">
-        <div className="flex items-center justify-between text-xs">
-          <span className="flex items-center gap-1.5 font-medium text-slate-700">
-            <CheckCircle2 className="h-3.5 w-3.5 text-blue-600" />
-            Progress
-          </span>
-          <span className="font-semibold text-blue-700">{progressPercent}%</span>
-        </div>
-        <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-blue-100">
+        <span className="mt-1 block h-1 overflow-hidden rounded-full bg-blue-100">
           <div
             className="h-full rounded-full bg-blue-600 transition-[width]"
             style={{ width: `${Math.min(100, Math.max(0, progressPercent))}%` }}
           />
-        </div>
-      </div>
-
-      <div className="mt-4 flex items-center gap-4 border-t border-blue-200/70 pt-3 text-xs font-medium text-slate-700">
-        <span className="flex items-center gap-1.5">
+        </span>
+      </span>
+      <span className="flex items-center gap-3 text-xs font-medium text-slate-700">
+        <span className="flex items-center gap-1" title="Tasks">
           <ListTodo className="h-3.5 w-3.5 text-blue-600" />
-          {progress.taskCount || 0} tasks
+          {progress.taskCount || 0}
         </span>
-        <span className="flex items-center gap-1.5">
+        <span className="flex items-center gap-1" title="Open bugs">
           <Bug className="h-3.5 w-3.5 text-rose-500" />
-          {story.openBugCount || 0} open bugs
+          {story.openBugCount || 0}
         </span>
+      </span>
+      <span className="flex min-w-0 items-center gap-1.5 text-xs text-slate-600">
+        <CircleUserRound className="h-3.5 w-3.5 shrink-0 text-blue-500" />
+        <span className="truncate" title={assigneeLabel}>{assigneeLabel}</span>
+      </span>
+      <span className="flex justify-end">
         {canShowCompleteButton ? (
           <Button
             type="button"
@@ -147,9 +130,11 @@ const StoryCard = ({
             <CheckCircle2 className="h-3.5 w-3.5" />
             {isCompleting ? "Completing..." : "Complete"}
           </Button>
+        ) : isCompleted ? (
+          <CheckCircle2 className="h-4 w-4 text-emerald-600" aria-label="Completed" />
         ) : null}
-      </div>
-    </button>
+      </span>
+    </div>
   );
 };
 

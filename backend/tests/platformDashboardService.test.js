@@ -16,6 +16,7 @@ const {
 const originalAIUsageAggregate = AIUsage.aggregate;
 const originalAIUsageDistinct = AIUsage.distinct;
 const originalPlatformCompanyCountDocuments = PlatformCompany.countDocuments;
+const originalPlatformCompanyFind = PlatformCompany.find;
 const originalPlatformSubscriptionAggregate = PlatformSubscription.aggregate;
 const originalPlatformSubscriptionCountDocuments = PlatformSubscription.countDocuments;
 const originalProjectAggregate = Project.aggregate;
@@ -30,6 +31,11 @@ beforeEach(() => {
   Project.distinct = async () => ["workspace-b"];
   AIUsage.distinct = async () => ["workspace-a"];
   PlatformCompany.countDocuments = async () => 0;
+  PlatformCompany.find = () => ({
+    select: () => ({
+      lean: async () => [],
+    }),
+  });
   PlatformSubscription.countDocuments = async () => 0;
   PlatformSubscription.aggregate = async () => [];
   User.countDocuments = async () => 7;
@@ -46,6 +52,7 @@ afterEach(() => {
   AIUsage.aggregate = originalAIUsageAggregate;
   AIUsage.distinct = originalAIUsageDistinct;
   PlatformCompany.countDocuments = originalPlatformCompanyCountDocuments;
+  PlatformCompany.find = originalPlatformCompanyFind;
   PlatformSubscription.aggregate = originalPlatformSubscriptionAggregate;
   PlatformSubscription.countDocuments = originalPlatformSubscriptionCountDocuments;
   Project.aggregate = originalProjectAggregate;
@@ -68,22 +75,30 @@ test("platform dashboard summary uses existing workspace, user, and AI usage dat
   assert.strictEqual(summary.aiCost, 0.12);
 });
 
-test("platform AI cost by company returns real workspace rows without fake billing data", async () => {
+test("platform AI cost by company resolves tenant metrics to company names", async () => {
+  PlatformCompany.find = () => ({
+    select: () => ({
+      lean: async () => [
+        { _id: "company-a", name: "Acme Software", tenantId: "TENANT_001" },
+        { _id: "company-b", name: "Bright Labs", tenantId: "TENANT_002" },
+      ],
+    }),
+  });
   AIUsage.aggregate = async () => [
     {
-      _id: "workspace-a",
+      _id: "TENANT_001",
       requests: 3,
       tokens: 900,
       estimatedCost: 0.09,
     },
   ];
   User.aggregate = async () => [
-    { _id: "workspace-a", users: 5 },
-    { _id: "workspace-b", users: 2 },
+    { _id: "TENANT_001", users: 5 },
+    { _id: "TENANT_002", users: 2 },
   ];
   Project.aggregate = async () => [
-    { _id: "workspace-a", projects: 1 },
-    { _id: "workspace-b", projects: 2 },
+    { _id: "TENANT_001", projects: 1 },
+    { _id: "TENANT_002", projects: 2 },
   ];
 
   const result = await getAICostByCompany({
@@ -93,9 +108,9 @@ test("platform AI cost by company returns real workspace rows without fake billi
 
   assert.deepStrictEqual(result.companies, [
     {
-      id: "workspace-a",
-      companyName: "workspace-a",
-      workspaceId: "workspace-a",
+      id: "company-a",
+      companyName: "Acme Software",
+      tenantId: "TENANT_001",
       users: 5,
       projects: 1,
       requests: 3,
@@ -103,14 +118,44 @@ test("platform AI cost by company returns real workspace rows without fake billi
       estimatedCost: 0.09,
     },
     {
-      id: "workspace-b",
-      companyName: "workspace-b",
-      workspaceId: "workspace-b",
+      id: "company-b",
+      companyName: "Bright Labs",
+      tenantId: "TENANT_002",
       users: 2,
       projects: 2,
       requests: 0,
       tokens: 0,
       estimatedCost: 0,
+    },
+  ]);
+});
+
+test("platform AI cost assigns pre-tenant legacy metrics to the legacy company name", async () => {
+  PlatformCompany.find = () => ({
+    select: () => ({
+      lean: async () => [
+        { _id: "legacy-company", name: "CureCode", tenantId: "TENANT_001" },
+      ],
+    }),
+  });
+  AIUsage.aggregate = async () => [
+    { _id: "__legacy_company__", requests: 2, tokens: 100, estimatedCost: 0.01 },
+  ];
+  User.aggregate = async () => [{ _id: "TENANT_001", users: 4 }];
+  Project.aggregate = async () => [{ _id: "__legacy_company__", projects: 3 }];
+
+  const result = await getAICostByCompany();
+
+  assert.deepStrictEqual(result.companies, [
+    {
+      id: "legacy-company",
+      companyName: "CureCode",
+      tenantId: "TENANT_001",
+      users: 4,
+      projects: 3,
+      requests: 2,
+      tokens: 100,
+      estimatedCost: 0.01,
     },
   ]);
 });

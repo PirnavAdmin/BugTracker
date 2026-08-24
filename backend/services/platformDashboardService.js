@@ -10,6 +10,16 @@ const { PLATFORM_SUBSCRIPTION_STATUSES } = require("../constants/platformSubscri
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 const DEFAULT_RANGE_DAYS = 30;
 const MAX_RANGE_DAYS = 365;
+const LEGACY_COMPANY_TENANT_ID = "TENANT_001";
+const LEGACY_COMPANY_KEY = "__legacy_company__";
+
+const companyIdentityExpression = {
+  $cond: [
+    { $gt: [{ $strLenCP: { $ifNull: ["$tenantId", ""] } }, 0] },
+    { $toUpper: "$tenantId" },
+    LEGACY_COMPANY_KEY,
+  ],
+};
 
 const clampRangeDays = (value) => {
   const numeric = Number(value);
@@ -220,39 +230,67 @@ const getAICostByCompany = async (query = {}) => {
     status: "SUCCESS",
   };
   if (query.tenantId) usageMatch.tenantId = String(query.tenantId).trim();
-  const [workspaceIds, usageRows, userRows, projectRows] = await Promise.all([
-    getWorkspaceIds(),
+  const [platformCompanies, usageRows, userRows, projectRows] = await Promise.all([
+    PlatformCompany.find({}).select("name tenantId").lean(),
     AIUsage.aggregate([
       { $match: usageMatch },
       {
         $group: {
-          _id: "$workspaceId",
+          _id: companyIdentityExpression,
           requests: { $sum: 1 },
           tokens: { $sum: { $ifNull: ["$totalTokens", 0] } },
           estimatedCost: { $sum: { $ifNull: ["$estimatedCost", 0] } },
         },
       },
     ]),
-    User.aggregate([{ $group: { _id: "$workspaceId", users: { $sum: 1 } } }]),
-    Project.aggregate([{ $group: { _id: "$workspaceId", projects: { $sum: 1 } } }]),
+    User.aggregate([{ $group: { _id: companyIdentityExpression, users: { $sum: 1 } } }]),
+    Project.aggregate([{ $group: { _id: companyIdentityExpression, projects: { $sum: 1 } } }]),
   ]);
 
-  const usageByWorkspace = new Map(usageRows.map((row) => [row._id, row]));
-  const usersByWorkspace = new Map(userRows.map((row) => [row._id, row.users]));
-  const projectsByWorkspace = new Map(projectRows.map((row) => [row._id, row.projects]));
+  const normalizeCompanyKey = (key) =>
+    key === LEGACY_COMPANY_KEY ? LEGACY_COMPANY_TENANT_ID : String(key || "").trim().toUpperCase();
+  const sumRowsByCompany = (rows, fields) => {
+    const totals = new Map();
+
+    rows.forEach((row) => {
+      const key = normalizeCompanyKey(row._id);
+      if (!key) return;
+      const current = totals.get(key) || {};
+      fields.forEach((field) => {
+        current[field] = Number(current[field] || 0) + Number(row[field] || 0);
+      });
+      totals.set(key, current);
+    });
+
+    return totals;
+  };
+  const usageByCompany = sumRowsByCompany(usageRows, ["requests", "tokens", "estimatedCost"]);
+  const usersByCompany = sumRowsByCompany(userRows, ["users"]);
+  const projectsByCompany = sumRowsByCompany(projectRows, ["projects"]);
+  const companiesByTenant = new Map(
+    platformCompanies.map((company) => [String(company.tenantId || "").trim().toUpperCase(), company])
+  );
+  const companyKeys = new Set([
+    ...companiesByTenant.keys(),
+    ...usageByCompany.keys(),
+    ...usersByCompany.keys(),
+    ...projectsByCompany.keys(),
+  ]);
 
   return {
     currency: "USD",
-    companies: workspaceIds
-      .map((workspaceId) => {
-        const usage = usageByWorkspace.get(workspaceId) || {};
+    companies: [...companyKeys]
+      .filter(Boolean)
+      .map((tenantId) => {
+        const company = companiesByTenant.get(tenantId);
+        const usage = usageByCompany.get(tenantId) || {};
 
         return {
-          id: workspaceId,
-          companyName: workspaceId,
-          workspaceId,
-          users: Number(usersByWorkspace.get(workspaceId) || 0),
-          projects: Number(projectsByWorkspace.get(workspaceId) || 0),
+          id: company?._id ? String(company._id) : tenantId,
+          companyName: company?.name || tenantId,
+          tenantId,
+          users: Number(usersByCompany.get(tenantId)?.users || 0),
+          projects: Number(projectsByCompany.get(tenantId)?.projects || 0),
           requests: Number(usage.requests || 0),
           tokens: Number(usage.tokens || 0),
           estimatedCost: Number(usage.estimatedCost || 0),

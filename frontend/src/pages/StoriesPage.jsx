@@ -155,7 +155,9 @@ const StoriesPage = () => {
           />
         </label>
         <select
+          aria-label="Filter Stories by project"
           value={projectId}
+          disabled={projectsLoading}
           onChange={(event) => {
             const nextProjectId = event.target.value;
             setProjectId(nextProjectId);
@@ -181,34 +183,49 @@ const StoriesPage = () => {
       </div>
 
       {projectsLoading || storiesLoading ? (
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+        <div className="space-y-2">
           {Array.from({ length: 6 }, (_, index) => (
-            <Skeleton key={index} className="h-[290px] rounded-lg" />
+            <Skeleton key={index} className="h-14 rounded-lg" />
           ))}
         </div>
       ) : filteredStories.length ? (
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {filteredStories.map((story) => (
-            <StoryCard
-              key={story._id}
-              story={story}
-              canComplete={canCompleteStory}
-              isCompleting={
-                completeStoryMutation.isPending &&
-                String(completeStoryMutation.variables?.id || "") === String(story._id)
-              }
-              fadeWhenOverdue={shouldFadeOverdueStories}
-              onClick={(item) =>
-                navigate(`/stories/${item._id}${projectId === "all" ? "" : `?projectId=${encodeURIComponent(projectId)}`}`)
-              }
-              onComplete={(item) =>
-                completeStoryMutation.mutate({
-                  id: item._id,
-                  payload: { status: ISSUE_STATUS.DONE },
-                })
-              }
-            />
-          ))}
+        <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white/70 shadow-sm">
+          <div className="grid min-w-[1270px] grid-cols-[90px_minmax(240px,1.6fr)_minmax(160px,1fr)_minmax(120px,0.8fr)_90px_110px_110px_130px_90px_minmax(150px,1fr)_104px] items-center gap-3 border-b border-slate-200 bg-slate-50/90 px-4 py-2 text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500">
+            <span>Story</span>
+            <span>Summary</span>
+            <span>Project</span>
+            <span>Sprint</span>
+            <span>Priority</span>
+            <span>Status</span>
+            <span>Estimate</span>
+            <span>Progress</span>
+            <span>Work</span>
+            <span>Assignee</span>
+            <span className="text-right">Action</span>
+          </div>
+          <div>
+            {filteredStories.map((story) => (
+              <StoryCard
+                key={story._id}
+                story={story}
+                canComplete={canCompleteStory}
+                isCompleting={
+                  completeStoryMutation.isPending &&
+                  String(completeStoryMutation.variables?.id || "") === String(story._id)
+                }
+                fadeWhenOverdue={shouldFadeOverdueStories}
+                onClick={(item) =>
+                  navigate(`/stories/${item._id}${projectId === "all" ? "" : `?projectId=${encodeURIComponent(projectId)}`}`)
+                }
+                onComplete={(item) =>
+                  completeStoryMutation.mutate({
+                    id: item._id,
+                    payload: { status: ISSUE_STATUS.DONE },
+                  })
+                }
+              />
+            ))}
+          </div>
         </div>
       ) : (
         <EmptyState
