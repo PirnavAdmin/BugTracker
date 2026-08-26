@@ -1,5 +1,6 @@
 const path = require("path");
 require("./config/env");
+require("./config/cashfree");
 const redisClient = require("./utils/redis");
 
 const cors = require("cors");
