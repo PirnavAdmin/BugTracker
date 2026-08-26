@@ -418,6 +418,8 @@ test("failed Cashfree creation retries with a new provider attempt and preserves
   assert.equal(paymentPayload.providerOrderId, servicePayload.reference);
   assert.equal(subscriptionPayload.metadata.retryOfSubscriptionId, "failed-subscription");
   assert.equal(existingSubscription.status, "FAILED");
+  assert.equal(existingSubscription.providerStatus, "STALE_PROVIDER_REFERENCE");
+  assert.equal(existingSubscription.metadata.staleProviderReference, "cashfree-failed-reference");
 });
 
 test("Cashfree failures are returned safely while the local attempt stays non-active", async () => {

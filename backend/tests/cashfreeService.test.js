@@ -309,6 +309,52 @@ test("subscription status is fetched server-side and reduced to safe authorizati
   });
 });
 
+test("Cashfree subscription_not_found is a reconciliation miss when explicitly allowed", async () => {
+  fetchSubscriptionImpl = async () => {
+    throw Object.assign(new Error("not found"), {
+      response: {
+        status: 400,
+        data: { code: "subscription_not_found", message: "Subscription does not exist" },
+      },
+    });
+  };
+  const logs = [];
+  const originalInfo = console.info;
+  console.info = (...args) => logs.push(args);
+  try {
+    assert.equal(await cashfreeService.fetchSubscription("cc_stale_reference", { allowNotFound: true }), null);
+  } finally {
+    console.info = originalInfo;
+  }
+  assert.deepEqual(logs, [["[billing] Cashfree subscription reconciliation", {
+    operation: "fetchSubscription",
+    provider: "cashfree",
+    providerSubscriptionId: "cc_stale_reference",
+    apiVersion: "2025-01-01",
+    httpStatus: 400,
+    providerErrorCode: "subscription_not_found",
+    reconciliationResult: "NOT_FOUND_STALE_REFERENCE",
+  }]]);
+});
+
+test("genuine Cashfree fetch errors remain provider failures during reconciliation", async () => {
+  fetchSubscriptionImpl = async () => {
+    throw Object.assign(new Error("upstream unavailable"), {
+      response: { status: 500, data: { code: "internal_error" } },
+    });
+  };
+  const originalError = console.error;
+  console.error = () => {};
+  try {
+    await assert.rejects(
+      () => cashfreeService.fetchSubscription("cc_provider_error", { allowNotFound: true }),
+      (error) => error.code === "CASHFREE_SUBSCRIPTION_STATUS_FAILED"
+    );
+  } finally {
+    console.error = originalError;
+  }
+});
+
 test("caller-supplied amount cannot override the configured CureCode plan price", async () => {
   await assert.rejects(
     () => cashfreeService.createSubscription(baseInput({ amount: 1 })),

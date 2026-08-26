@@ -150,6 +150,12 @@ const diagnosticValue = (error, field) => {
   return typeof value === "string" || typeof value === "number" ? value : undefined;
 };
 
+const isSubscriptionNotFound = (error) => {
+  const status = Number(error?.response?.status);
+  const providerCode = String(diagnosticValue(error, "code") || "").trim().toLowerCase();
+  return status === 404 || (status === 400 && providerCode === "subscription_not_found");
+};
+
 const providerErrorDiagnostic = (error, context = {}) => {
   const diagnostic = {
     environment,
@@ -330,7 +336,7 @@ const createSubscription = async ({
           lookupRequestId
         );
       } catch (lookupError) {
-        if (Number(lookupError?.response?.status) !== 404) {
+        if (!isSubscriptionNotFound(lookupError)) {
           console.warn("[billing] Cashfree ambiguous create reconciliation was inconclusive", {
             environment,
             operation: "fetchSubscriptionAfterAmbiguousCreate",
@@ -438,7 +444,18 @@ const fetchSubscription = async (subscriptionId, { allowNotFound = false } = {})
         : {}),
     };
   } catch (error) {
-    if (allowNotFound && Number(error?.response?.status) === 404) return null;
+    if (allowNotFound && isSubscriptionNotFound(error)) {
+      console.info("[billing] Cashfree subscription reconciliation", {
+        operation: "fetchSubscription",
+        provider: "cashfree",
+        providerSubscriptionId: normalizedSubscriptionId,
+        apiVersion: CASHFREE_API_VERSION,
+        httpStatus: error?.response?.status,
+        providerErrorCode: diagnosticValue(error, "code"),
+        reconciliationResult: "NOT_FOUND_STALE_REFERENCE",
+      });
+      return null;
+    }
     throw providerFailure(
       error,
       {
@@ -475,6 +492,7 @@ module.exports = {
   classifyProviderFailure,
   createSubscription,
   fetchSubscription,
+  isSubscriptionNotFound,
   resolvePlanBilling,
   sanitizeProviderText,
   verifyWebhookSignature,
