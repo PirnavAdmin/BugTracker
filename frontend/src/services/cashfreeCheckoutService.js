@@ -7,6 +7,7 @@ export const CASHFREE_RETURN_MESSAGES = Object.freeze({
   ACTIVE: "Cashfree subscription authorization completed.",
   PENDING: "Cashfree subscription authorization is still being processed.",
   FAILED: "Cashfree subscription authorization was not completed.",
+  CANCELLED: "Cashfree subscription has been cancelled.",
 });
 export const CASHFREE_BILLING_PHONE_REQUIRED_MESSAGE =
   "Please ask your CureCode platform administrator to add a billing contact phone number for your company before continuing with Cashfree.";
@@ -124,9 +125,19 @@ export const getCashfreeReturnStatus = (search) => {
   return ["success", "pending", "failed"].includes(status) ? status : "";
 };
 
-export const getCashfreeVerifiedNotice = (status) =>
-  CASHFREE_RETURN_MESSAGES[String(status || "").trim().toUpperCase()] ||
-  CASHFREE_RETURN_MESSAGES.PENDING;
+export const getCashfreeVerifiedNotice = (subscriptionOrStatus) => {
+  const subscription =
+    subscriptionOrStatus && typeof subscriptionOrStatus === "object"
+      ? subscriptionOrStatus
+      : { status: subscriptionOrStatus };
+  const status = String(subscription.status || "").trim().toUpperCase();
+  return CASHFREE_RETURN_MESSAGES[status] || "";
+};
+
+// The return URL is only a signal that a provider round-trip happened. Once
+// the API has supplied a subscription record, its verified state always wins.
+export const getCashfreeBillingNotice = ({ subscription, search } = {}) =>
+  getCashfreeVerifiedNotice(subscription) || getCashfreeInitialNotice(search);
 
 export const isCashfreeSubscriptionRecord = (subscription) =>
   subscription?.provider === "cashfree" ||

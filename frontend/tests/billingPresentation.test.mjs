@@ -140,6 +140,35 @@ test("Platform Company uses authoritative Cashfree state and hides manual contro
   assert.doesNotMatch(pageSource, /SubsFetchSubscription|SubsCreateSubscription/);
 });
 
+test("cancelled Cashfree presentation keeps the Platform provider-managed fields consistent", async () => {
+  const subscription = {
+    provider: "cashfree",
+    status: "CANCELLED",
+    paymentStatus: "cancelled",
+    planId: "starter",
+    billingCycle: "monthly",
+    amount: 799,
+    createdAt: "2026-08-01T00:00:00.000Z",
+    startDate: "2026-08-02T00:00:00.000Z",
+    cancelledAt: "2026-08-26T00:00:00.000Z",
+    providerSubscriptionId: "cc_cancelled_platform_subscription",
+  };
+  const pageSource = await readFile(
+    new URL("../src/pages/PlatformCompanyDetailsPage.jsx", import.meta.url),
+    "utf8"
+  );
+  assert.equal(formatProviderName(subscription.provider), "Cashfree");
+  assert.equal(subscription.status, "CANCELLED");
+  assert.equal(getSubscriptionPaymentStatus(subscription), "Cancelled");
+  assert.deepEqual(getSubscriptionDateRows(subscription), [
+    { label: "Created On", value: subscription.createdAt },
+    { label: "Activated On", value: subscription.startDate },
+    { label: "Cancelled On", value: subscription.cancelledAt },
+  ]);
+  assert.match(pageSource, /ProviderManagedSubscription/);
+  assert.match(pageSource, /subscription\.providerSubscriptionId/);
+});
+
 test("Cashfree billing cancellation uses its dedicated endpoint and immediate-cancellation wording", async () => {
   const [billingSource, apiSource] = await Promise.all([
     readFile(new URL("../src/pages/BillingPage.jsx", import.meta.url), "utf8"),
@@ -151,4 +180,5 @@ test("Cashfree billing cancellation uses its dedicated endpoint and immediate-ca
   assert.match(billingSource, /Your Cashfree subscription has been cancelled/);
   assert.doesNotMatch(billingSource, /Cashfree.*Cancel at period end/);
   assert.match(billingSource, /record\.status !== "CANCELLED" && record\.currentPeriodEnd/);
+  assert.match(billingSource, /cashfreeRecord && record\.status === "ACTIVE"/);
 });

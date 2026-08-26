@@ -7,6 +7,7 @@ import {
   CASHFREE_RETURN_MESSAGES,
   CASHFREE_PROCESSING_MESSAGE,
   createSingleFlight,
+  getCashfreeBillingNotice,
   getCashfreeCheckoutErrorMessage,
   getCashfreeInitialNotice,
   getCashfreeReturnStatus,
@@ -183,6 +184,7 @@ test("server-verified Cashfree states map to exact authorization notices", () =>
   assert.equal(getCashfreeVerifiedNotice("ACTIVE"), CASHFREE_RETURN_MESSAGES.ACTIVE);
   assert.equal(getCashfreeVerifiedNotice("PENDING"), CASHFREE_RETURN_MESSAGES.PENDING);
   assert.equal(getCashfreeVerifiedNotice("FAILED"), CASHFREE_RETURN_MESSAGES.FAILED);
+  assert.equal(getCashfreeVerifiedNotice("CANCELLED"), CASHFREE_RETURN_MESSAGES.CANCELLED);
   assert.equal(CASHFREE_RETURN_MESSAGES.ACTIVE, "Cashfree subscription authorization completed.");
   assert.equal(
     CASHFREE_RETURN_MESSAGES.PENDING,
@@ -192,7 +194,41 @@ test("server-verified Cashfree states map to exact authorization notices", () =>
     CASHFREE_RETURN_MESSAGES.FAILED,
     "Cashfree subscription authorization was not completed."
   );
+  assert.equal(
+    CASHFREE_RETURN_MESSAGES.CANCELLED,
+    "Cashfree subscription has been cancelled."
+  );
   assert.doesNotMatch(Object.values(CASHFREE_RETURN_MESSAGES).join(" "), /payment successful/i);
+});
+
+test("server-verified Cashfree state always overrides a stale return URL", () => {
+  assert.equal(
+    getCashfreeBillingNotice({
+      search: "?cashfree=return&status=success",
+      subscription: { status: "ACTIVE", paymentStatus: "authorized" },
+    }),
+    CASHFREE_RETURN_MESSAGES.ACTIVE
+  );
+  assert.equal(
+    getCashfreeBillingNotice({
+      search: "?cashfree=return&status=success",
+      subscription: { status: "PENDING", paymentStatus: "pending" },
+    }),
+    CASHFREE_RETURN_MESSAGES.PENDING
+  );
+  for (const status of ["success", "failed", "pending"]) {
+    assert.equal(
+      getCashfreeBillingNotice({
+        search: `?cashfree=return&status=${status}`,
+        subscription: { status: "CANCELLED", paymentStatus: "cancelled" },
+      }),
+      CASHFREE_RETURN_MESSAGES.CANCELLED
+    );
+  }
+  assert.equal(
+    getCashfreeBillingNotice({ subscription: { status: "CANCELLED" } }),
+    CASHFREE_RETURN_MESSAGES.CANCELLED
+  );
 });
 
 test("Cashfree records are identified for provider-specific retry without changing Razorpay retry", () => {
@@ -218,7 +254,8 @@ test("Cashfree UI has duplicate-click loading protection and no frontend secret"
   assert.match(buttonSource, /Creating subscription\.\.\." : label/);
   assert.match(apiSource, /\/billing\/cashfree\/subscription\/status/);
   assert.match(billingSource, /fetchCashfreeBillingSubscriptionStatus/);
-  assert.match(billingSource, /getCashfreeVerifiedNotice\(data\?\.subscription\?\.status\)/);
+  assert.match(billingSource, /getCashfreeVerifiedNotice\(data\?\.subscription\)/);
+  assert.match(billingSource, /getCashfreeBillingNotice\(\{ subscription: record \}\)/);
   assert.match(billingSource, /\["billing-subscription"\], \["billing-payments"\], \["billing-invoices"\]/);
   assert.match(billingSource, /Retry Cashfree Payment/);
   assert.match(billingSource, /CashfreeCheckoutButton/);

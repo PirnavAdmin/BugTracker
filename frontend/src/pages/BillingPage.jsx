@@ -5,7 +5,7 @@ import { cancelBillingSubscription, cancelCashfreeBillingSubscription, createBil
 import { formatDate } from "@/lib/utils";
 import { openSubscriptionCheckout } from "@/lib/razorpayCheckout";
 import CashfreeCheckoutButton from "@/components/billing/CashfreeCheckoutButton";
-import { getCashfreeInitialNotice, getCashfreeVerifiedNotice, isCashfreeReturn, isCashfreeSubscriptionRecord } from "@/services/cashfreeCheckoutService";
+import { getCashfreeBillingNotice, getCashfreeInitialNotice, getCashfreeVerifiedNotice, isCashfreeReturn, isCashfreeSubscriptionRecord } from "@/services/cashfreeCheckoutService";
 import { formatPaymentStatus, formatProviderName, getBillingCycleLabel, getBillingIntervalLabel, getPlanName, getSubscriptionDateRows, getSubscriptionMessage, getSubscriptionPaymentStatus } from "@/services/billingPresentation";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -104,7 +104,7 @@ export default function BillingPage() {
     let active = true;
     fetchCashfreeBillingSubscriptionStatus().then((data) => {
       if (!active) return;
-      setNotice(getCashfreeVerifiedNotice(data?.subscription?.status));
+      setNotice(getCashfreeVerifiedNotice(data?.subscription));
       refresh();
     }).catch(() => { if (active) setNotice("Unable to verify Cashfree payment status. Please try again."); });
     return () => { active = false; };
@@ -128,6 +128,9 @@ export default function BillingPage() {
 
   const record = subscription.data;
   const cashfreeRecord = isCashfreeSubscriptionRecord(record);
+  const billingNotice = cashfreeRecord
+    ? getCashfreeBillingNotice({ subscription: record })
+    : notice;
   const historical = record && !currentStatuses.has(record.status);
   const cashfreeRetry = record ? <CashfreeCheckoutButton planId={record.planId} billingCycle={record.billingCycle} label="Retry Cashfree Payment" onNotice={setNotice} onStarted={refresh} /> : null;
   const chooser = (
@@ -150,7 +153,7 @@ export default function BillingPage() {
   return (
     <div className="mx-auto max-w-6xl space-y-5 p-4 sm:p-6">
       <div className="flex justify-between gap-4"><div><p className="font-bold text-violet-700">Billing & Subscription</p><h1 className="text-2xl font-black">Manage your CureCode plan</h1><p className="text-sm text-slate-600">Razorpay Test Mode</p></div><Button variant="outline" onClick={refresh}><RefreshCw className="h-4 w-4" />Refresh</Button></div>
-      {notice ? <p className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800">{notice}</p> : null}
+      {billingNotice ? <p className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800">{billingNotice}</p> : null}
       {subscription.isLoading ? <Skeleton className="h-48" /> : record ? <><SubscriptionCard record={record} historical={historical} cashfreeRecord={cashfreeRecord} retry={retry} cancel={cancel} cashfreeCancel={cashfreeCancel} cashfreeRetry={cashfreeRetry} onShowPlans={() => setShowPlans(true)} />{historical && showPlans ? chooser : null}</> : chooser}
       <History title="Payment History" rows={payments.data} loading={payments.isLoading} empty="No payments have been recorded.">
         <table className="w-full text-left text-sm"><thead className="border-b bg-slate-50 text-xs uppercase tracking-wide text-slate-500"><tr><th className="px-4 py-3">Amount</th><th className="px-4 py-3">Status</th><th className="px-4 py-3">Date</th><th className="px-4 py-3">Provider</th></tr></thead><tbody>{payments.data?.map((payment) => <tr key={payment._id} className="border-b last:border-0"><td className="px-4 py-3 font-semibold">{money(payment.amount, payment.currency)}</td><td className="px-4 py-3">{formatPaymentStatus(payment.status)}</td><td className="px-4 py-3">{payment.createdAt ? formatDate(payment.createdAt, { fallback: "—" }) : "—"}</td><td className="px-4 py-3">{formatProviderName(payment.provider)}</td></tr>)}</tbody></table>
