@@ -23,6 +23,23 @@ const LOCAL_CASHFREE_ERROR_CODES = new Set([
 const apiError = (code, message, status = 400) =>
   Object.assign(new Error(message), { code, status });
 
+const normalizeCustomerPhone = (value) => {
+  if (value === undefined || value === null) return "";
+  const text = String(value).trim();
+  if (!text || ["null", "undefined"].includes(text.toLowerCase())) return "";
+  const normalized = text.replace(/[\s()-]/g, "");
+  return /^\+?\d{8,15}$/.test(normalized) ? normalized : "";
+};
+
+const resolveCustomerPhone = ({ user, company }) => {
+  const candidates = [user?.phone, user?.mobile, company?.contactPhone];
+  for (const candidate of candidates) {
+    const normalized = normalizeCustomerPhone(candidate);
+    if (normalized) return normalized;
+  }
+  return "";
+};
+
 const rejectUnexpectedFields = (body = {}) => {
   if (!body || typeof body !== "object" || Array.isArray(body)) {
     throw apiError("CASHFREE_REQUEST_INVALID", "A JSON request body is required");
@@ -146,6 +163,21 @@ const createSubscription = asyncHandler(async (req, res) => {
     );
   }
 
+  const customerPhone = resolveCustomerPhone({ user: req.user, company });
+  if (!customerPhone) {
+    console.warn("[billing] Cashfree billing phone missing", {
+      tenantId,
+      userId,
+      planId: billing.planId,
+      billingCycle: billing.billingCycle,
+    });
+    throw apiError(
+      "CASHFREE_BILLING_PHONE_REQUIRED",
+      "Please add a billing contact phone number before starting the subscription.",
+      400
+    );
+  }
+
   const reference = buildReference();
   const providerPlanId = `cashfree-inline:${billing.planId}:${billing.billingCycle}`;
   const localSubscription = await Subscription.create({
@@ -194,7 +226,7 @@ const createSubscription = asyncHandler(async (req, res) => {
       customer: {
         name: req.user?.name || company.contactPerson || company.name,
         email: req.user?.email || company.contactEmail || company.email,
-        phone: req.user?.phone || company.contactPhone,
+        phone: customerPhone,
       },
       planId: billing.planId,
       billingCycle: billing.billingCycle,
@@ -360,6 +392,8 @@ module.exports = {
   createSubscription,
   getSubscriptionStatus,
   mapVerifiedStatus,
+  normalizeCustomerPhone,
   rejectUnexpectedFields,
+  resolveCustomerPhone,
   resolveRequestedPlan,
 };

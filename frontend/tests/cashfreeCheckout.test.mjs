@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import {
+  CASHFREE_BILLING_PHONE_REQUIRED_MESSAGE,
   CASHFREE_CHECKOUT_MODE,
   CASHFREE_PROCESSING_MESSAGE,
   createSingleFlight,
@@ -125,6 +126,26 @@ test("backend and checkout failures produce only safe messages", async () => {
         "Unable to open Cashfree checkout. Please try again."
       );
       assert.equal(error.message.includes("internal checkout"), false);
+      return true;
+    }
+  );
+});
+
+test("missing Cashfree billing phone displays clear company-contact guidance", async () => {
+  await assert.rejects(
+    () =>
+      startCashfreeSubscriptionCheckout({
+        planId: "starter",
+        billingCycle: "monthly",
+        createSubscription: async () => {
+          throw { response: { data: { code: "CASHFREE_BILLING_PHONE_REQUIRED" } } };
+        },
+      }),
+    (error) => {
+      assert.equal(error.backendCode, "CASHFREE_BILLING_PHONE_REQUIRED");
+      assert.equal(getCashfreeCheckoutErrorMessage(error), CASHFREE_BILLING_PHONE_REQUIRED_MESSAGE);
+      assert.match(getCashfreeCheckoutErrorMessage(error), /billing contact phone number/i);
+      assert.match(getCashfreeCheckoutErrorMessage(error), /platform administrator/i);
       return true;
     }
   );

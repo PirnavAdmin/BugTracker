@@ -3,6 +3,8 @@ import { load } from "@cashfreepayments/cashfree-js";
 export const CASHFREE_CHECKOUT_MODE = "sandbox";
 export const CASHFREE_PROCESSING_MESSAGE =
   "Payment processing... We're confirming your subscription. Please wait.";
+export const CASHFREE_BILLING_PHONE_REQUIRED_MESSAGE =
+  "Please ask your CureCode platform administrator to add a billing contact phone number for your company before continuing with Cashfree.";
 
 const checkoutError = (stage, backendCode) =>
   Object.assign(new Error("Cashfree checkout could not be started"), {
@@ -83,6 +85,10 @@ export const startCashfreeSubscriptionCheckout = async ({
 };
 
 export const getCashfreeCheckoutErrorMessage = (error) => {
+  if (error?.backendCode === "CASHFREE_BILLING_PHONE_REQUIRED") {
+    return CASHFREE_BILLING_PHONE_REQUIRED_MESSAGE;
+  }
+
   if (error?.backendCode === "CASHFREE_ALREADY_SUBSCRIBED") {
     return "A current billing subscription already exists.";
   }

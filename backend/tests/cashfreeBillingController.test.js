@@ -10,6 +10,8 @@ const {
   createSubscription,
   getSubscriptionStatus,
   mapVerifiedStatus,
+  normalizeCustomerPhone,
+  resolveCustomerPhone,
 } = require("../controllers/cashfreeBillingController");
 
 const originalCompanyFindOne = PlatformCompany.findOne;
@@ -28,6 +30,7 @@ let servicePayload;
 let existingSubscription;
 let localSubscriptionDocument;
 let paymentDocument;
+let companyDocument;
 
 const createDocument = (payload) => ({
   _id: payload._id || "local-subscription-1",
@@ -91,19 +94,20 @@ test.beforeEach(() => {
   existingSubscription = null;
   localSubscriptionDocument = undefined;
   paymentDocument = undefined;
+  companyDocument = {
+    _id: "company-001",
+    tenantId: "TENANT_001",
+    name: "CureCode Company",
+    email: "company@example.com",
+    contactPerson: "Billing Contact",
+    contactEmail: "billing@example.com",
+    contactPhone: "9999999999",
+    status: "Active",
+  };
 
   PlatformCompany.findOne = async (filter) => {
     companyQuery = filter;
-    return {
-      _id: "company-001",
-      tenantId: "TENANT_001",
-      name: "CureCode Company",
-      email: "company@example.com",
-      contactPerson: "Billing Contact",
-      contactEmail: "billing@example.com",
-      contactPhone: "9999999999",
-      status: "Active",
-    };
+    return companyDocument;
   };
   Subscription.findOne = (filter) => {
     subscriptionQuery = filter;
@@ -219,6 +223,97 @@ test("authenticated user customer data takes precedence over company contact dat
     email: "customer@example.com",
     phone: "9888888888",
   });
+});
+
+test("authenticated user mobile is used when phone is absent", async () => {
+  await callController(
+    { planId: "starter", billingCycle: "monthly" },
+    { phone: undefined, mobile: "+91 98888-88888" }
+  );
+
+  assert.equal(servicePayload.customer.phone, "+919888888888");
+});
+
+test("company contact phone is used when the authenticated user phone is missing", async () => {
+  companyDocument.contactPhone = "(99999) 99999";
+  await callController(
+    { planId: "starter", billingCycle: "monthly" },
+    { phone: undefined, mobile: undefined }
+  );
+
+  assert.equal(servicePayload.customer.phone, "9999999999");
+});
+
+test("invalid user phone falls back to a valid tenant company contact phone", async () => {
+  companyDocument.contactPhone = "+91 99999-99999";
+  await callController(
+    { planId: "starter", billingCycle: "monthly" },
+    { phone: "not-a-phone", mobile: "undefined" }
+  );
+
+  assert.equal(servicePayload.customer.phone, "+919999999999");
+});
+
+test("missing billing phone returns a safe error before creating records or calling Cashfree", async () => {
+  companyDocument.contactPhone = "";
+  const logs = [];
+  const originalWarn = console.warn;
+  console.warn = (...args) => logs.push(args);
+  try {
+    const { nextError } = await callController(
+      { planId: "starter", billingCycle: "monthly" },
+      { phone: null, mobile: "null" }
+    );
+
+    assert.equal(nextError.code, "CASHFREE_BILLING_PHONE_REQUIRED");
+    assert.equal(
+      nextError.message,
+      "Please add a billing contact phone number before starting the subscription."
+    );
+    assert.equal(nextError.status, 400);
+  } finally {
+    console.warn = originalWarn;
+  }
+
+  assert.equal(servicePayload, undefined);
+  assert.equal(subscriptionPayload, undefined);
+  assert.equal(paymentPayload, undefined);
+  assert.deepEqual(logs, [
+    [
+      "[billing] Cashfree billing phone missing",
+      {
+        tenantId: "TENANT_001",
+        userId: "user-001",
+        planId: "starter",
+        billingCycle: "monthly",
+      },
+    ],
+  ]);
+  assert.equal(JSON.stringify(logs).includes("admin@example.com"), false);
+  assert.equal(JSON.stringify(logs).includes(process.env.CASHFREE_SECRET_KEY || "never-match"), false);
+});
+
+test("phone resolution uses only the authenticated tenant company", async () => {
+  await callController(
+    { planId: "starter", billingCycle: "monthly" },
+    { tenantId: "TENANT_001", phone: undefined, mobile: undefined }
+  );
+
+  assert.deepEqual(companyQuery, { tenantId: "TENANT_001" });
+  assert.equal(servicePayload.customer.phone, "9999999999");
+});
+
+test("customer phone normalization rejects placeholders and normalizes supported formatting", () => {
+  assert.equal(normalizeCustomerPhone(" undefined "), "");
+  assert.equal(normalizeCustomerPhone("null"), "");
+  assert.equal(normalizeCustomerPhone("+91 (98888) 88888"), "+919888888888");
+  assert.equal(
+    resolveCustomerPhone({
+      user: { phone: "invalid", mobile: "98888 88888" },
+      company: { contactPhone: "9999999999" },
+    }),
+    "9888888888"
+  );
 });
 
 test("annual price is resolved from CureCode plan configuration", async () => {
