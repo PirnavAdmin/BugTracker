@@ -30,6 +30,7 @@ const testRoutes = require("./routes/testRoutes");
 const userRoutes = require("./routes/userRoutes");
 const webhookRoutes = require("./routes/webhookRoutes");
 const billingRoutes = require("./routes/billingRoutes");
+const cashfreeBillingRoutes = require("./routes/cashfreeBillingRoutes");
 const { webhook: razorpayBillingWebhook } = require("./controllers/billingController");
 const workspaceRoutes = require("./routes/workspaceRoutes");
 const { startSprintNotificationWorker } = require("./services/sprintNotificationQueue");
@@ -102,6 +103,7 @@ app.use("/api/chat", chatRoutes);
 app.use("/api/settings", settingsRoutes);
 app.use("/api/subscription", subscriptionRoutes);
 app.use("/api/billing", billingRoutes);
+app.use("/api/billing/cashfree", cashfreeBillingRoutes);
 app.use("/api/webhooks", webhookRoutes);
 app.use("/", testRoutes);
 

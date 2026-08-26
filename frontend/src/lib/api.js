@@ -240,6 +240,8 @@ export const fetchBillingPayments = async () => (await api.get("/billing/payment
 export const fetchBillingInvoices = async () => (await api.get("/billing/invoices")).data?.invoices || [];
 export const createBillingSubscription = async ({ planId, billingCycle }) =>
   (await api.post("/billing/subscription/create", { planId, billingCycle })).data;
+export const createCashfreeBillingSubscription = async ({ planId, billingCycle }) =>
+  (await api.post("/billing/cashfree/create-subscription", { planId, billingCycle })).data;
 export const retryBillingSubscription = async () => (await api.post("/billing/subscription/retry")).data;
 export const verifyBillingSubscriptionAuthorization = async (payload) => (await api.post("/billing/subscription/verify-authorization", payload)).data;
 export const cancelBillingSubscription = async () => (await api.post("/billing/subscription/cancel")).data;
