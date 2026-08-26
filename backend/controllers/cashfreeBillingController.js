@@ -97,6 +97,13 @@ const safeSubscription = (subscription) =>
     providerStatus: subscription.providerStatus,
     currency: subscription.currency,
     amount: subscription.amount,
+    createdAt: subscription.createdAt,
+    startDate: subscription.startDate,
+    currentPeriodStart: subscription.currentPeriodStart,
+    currentPeriodEnd: subscription.currentPeriodEnd,
+    cancelledAt: subscription.cancelledAt,
+    endedAt: subscription.endedAt,
+    cancelAtPeriodEnd: subscription.cancelAtPeriodEnd,
     providerSubscriptionId: subscription.providerSubscriptionId,
   };
 

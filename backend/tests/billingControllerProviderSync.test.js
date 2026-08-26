@@ -44,6 +44,12 @@ test.beforeEach(() => {
     providerStatus: "INITIALIZED",
     currency: "INR",
     amount: 799,
+    createdAt: new Date("2026-08-26T00:00:00.000Z"),
+    startDate: new Date("2026-08-26T01:00:00.000Z"),
+    currentPeriodStart: new Date("2026-08-26T01:00:00.000Z"),
+    currentPeriodEnd: new Date("2026-09-26T01:00:00.000Z"),
+    cancelledAt: undefined,
+    endedAt: undefined,
   };
   Subscription.findOne = (filter) => {
     subscriptionQuery = filter;
@@ -69,6 +75,12 @@ test("generic billing read delegates the tenant Cashfree pending record to provi
   assert.equal(res.body.subscription.provider, "cashfree");
   assert.equal(res.body.subscription.status, "ACTIVE");
   assert.equal(res.body.subscription.providerSubscriptionId, "cc_test_subscription");
+  assert.equal(res.body.subscription.createdAt, subscription.createdAt);
+  assert.equal(res.body.subscription.startDate, subscription.startDate);
+  assert.equal(res.body.subscription.currentPeriodStart, subscription.currentPeriodStart);
+  assert.equal(res.body.subscription.currentPeriodEnd, subscription.currentPeriodEnd);
+  assert.equal(res.body.subscription.cancelledAt, undefined);
+  assert.equal(res.body.subscription.endedAt, undefined);
 });
 
 test("pending provider errors are logged without raw provider details", async () => {
