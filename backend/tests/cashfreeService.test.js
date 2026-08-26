@@ -29,6 +29,8 @@ let lastCreateCall;
 let lastFetchCall;
 let createCalls;
 let fetchCalls;
+let lastManageCall;
+let manageSubscriptionImpl;
 
 class FakeCashfree {
   constructor(environment, appId, secretKey) {
@@ -46,6 +48,11 @@ class FakeCashfree {
     lastFetchCall = args;
     fetchCalls.push(args);
     return fetchSubscriptionImpl(...args);
+  }
+
+  async SubsManageSubscription(...args) {
+    lastManageCall = args;
+    return manageSubscriptionImpl(...args);
   }
 }
 
@@ -98,6 +105,8 @@ test.beforeEach(() => {
   lastFetchCall = undefined;
   createCalls = [];
   fetchCalls = [];
+  lastManageCall = undefined;
+  manageSubscriptionImpl = async () => ({ data: { subscription_status: "CANCELLED" } });
   createSubscriptionImpl = async (request) => ({
     data: {
       subscription_id: request.subscription_id,
@@ -335,6 +344,51 @@ test("Cashfree subscription_not_found is a reconciliation miss when explicitly a
     providerErrorCode: "subscription_not_found",
     reconciliationResult: "NOT_FOUND_STALE_REFERENCE",
   }]]);
+});
+
+test("Cashfree cancellation uses the stored ID with CANCEL and independent idempotency headers", async () => {
+  fetchSubscriptionImpl = async (subscriptionId) => ({
+    data: { subscription_id: subscriptionId, subscription_status: "CANCELLED" },
+  });
+  const result = await cashfreeService.cancelSubscription("cc_active_subscription");
+  assert.equal(lastManageCall[0], "cc_active_subscription");
+  assert.deepEqual(lastManageCall[1], { subscription_id: "cc_active_subscription", action: "CANCEL" });
+  assert.match(lastManageCall[2], UUID_PATTERN);
+  assert.match(lastManageCall[3], UUID_PATTERN);
+  assert.notEqual(lastManageCall[2], lastManageCall[3]);
+  assert.equal(result.status, "CANCELLED");
+});
+
+test("Cashfree cancellation reconciles an already-cancelled provider response", async () => {
+  manageSubscriptionImpl = async () => {
+    throw Object.assign(new Error("already cancelled"), {
+      response: { status: 409, data: { code: "subscription_already_cancelled" } },
+    });
+  };
+  fetchSubscriptionImpl = async (subscriptionId) => ({
+    data: { subscription_id: subscriptionId, subscription_status: "CANCELLED" },
+  });
+  const result = await cashfreeService.cancelSubscription("cc_cancelled_subscription");
+  assert.equal(lastManageCall[0], "cc_cancelled_subscription");
+  assert.equal(result.status, "CANCELLED");
+});
+
+test("Cashfree cancellation does not turn a provider-not-found response into a local success", async () => {
+  manageSubscriptionImpl = async () => {
+    throw Object.assign(new Error("not found"), {
+      response: { status: 404, data: { code: "subscription_not_found" } },
+    });
+  };
+  const originalError = console.error;
+  console.error = () => {};
+  try {
+    await assert.rejects(
+      () => cashfreeService.cancelSubscription("cc_missing_subscription"),
+      (error) => error.code === "CASHFREE_SUBSCRIPTION_CANCELLATION_FAILED"
+    );
+  } finally {
+    console.error = originalError;
+  }
 });
 
 test("genuine Cashfree fetch errors remain provider failures during reconciliation", async () => {

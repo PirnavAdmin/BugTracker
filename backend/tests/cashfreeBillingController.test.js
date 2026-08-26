@@ -8,6 +8,7 @@ const PlatformAuditLog = require("../models/PlatformAuditLog");
 const cashfreeService = require("../services/payment/cashfreeService");
 const {
   buildReference,
+  cancelSubscription,
   createSubscription,
   getSubscriptionStatus,
   mapVerifiedStatus,
@@ -24,6 +25,7 @@ const originalPaymentFindOne = Payment.findOne;
 const originalPlatformAuditCreate = PlatformAuditLog.create;
 const originalCashfreeCreate = cashfreeService.createSubscription;
 const originalCashfreeFetch = cashfreeService.fetchSubscription;
+const originalCashfreeCancel = cashfreeService.cancelSubscription;
 
 let companyQuery;
 let subscriptionQuery;
@@ -35,6 +37,7 @@ let localSubscriptionDocument;
 let paymentDocument;
 let companyDocument;
 let paymentQuery;
+let cancelledProviderSubscriptionId;
 
 const createDocument = (payload) => ({
   _id: payload._id || "local-subscription-1",
@@ -94,6 +97,14 @@ const callStatusController = async (userOverrides = {}) => {
   return { res, nextError };
 };
 
+const callCancelController = async (body = {}, userOverrides = {}) => {
+  const req = { body, user: { _id: "user-001", tenantId: "TENANT_001", ...userOverrides } };
+  const res = createResponse();
+  let nextError;
+  await cancelSubscription(req, res, (error) => { nextError = error; });
+  return { res, nextError };
+};
+
 const callReturnController = async (body = {}) => {
   const req = { body, method: "POST" };
   const res = createResponse();
@@ -114,6 +125,7 @@ test.beforeEach(() => {
   localSubscriptionDocument = undefined;
   paymentDocument = undefined;
   paymentQuery = undefined;
+  cancelledProviderSubscriptionId = undefined;
   companyDocument = {
     _id: "company-001",
     tenantId: "TENANT_001",
@@ -163,6 +175,10 @@ test.beforeEach(() => {
     paymentId: "cashfree-payment-001",
     paymentMethod: "upi",
   });
+  cashfreeService.cancelSubscription = async (subscriptionId) => {
+    cancelledProviderSubscriptionId = subscriptionId;
+    return { subscriptionId, status: "CANCELLED" };
+  };
 });
 
 test.after(() => {
@@ -174,6 +190,7 @@ test.after(() => {
   PlatformAuditLog.create = originalPlatformAuditCreate;
   cashfreeService.createSubscription = originalCashfreeCreate;
   cashfreeService.fetchSubscription = originalCashfreeFetch;
+  cashfreeService.cancelSubscription = originalCashfreeCancel;
 });
 
 test("authenticated tenant user creates a pending Cashfree subscription", async () => {
@@ -187,6 +204,51 @@ test("authenticated tenant user creates a pending Cashfree subscription", async 
   assert.equal(subscriptionPayload.provider, "cashfree");
   assert.equal(subscriptionPayload.status, "PENDING");
   assert.equal(paymentPayload.status, "pending");
+});
+
+test("tenant-owned active Cashfree subscription is cancelled with its stored provider ID", async () => {
+  existingSubscription = createDocument({
+    _id: "cashfree-active-local", tenantId: "TENANT_001", provider: "cashfree",
+    providerSubscriptionId: "cc_stored_only", status: "ACTIVE", providerStatus: "ACTIVE",
+    planId: "starter", billingCycle: "monthly", amount: 799, currency: "INR", metadata: {},
+  });
+  const { res, nextError } = await callCancelController({ providerSubscriptionId: "cc_browser_override" });
+  assert.equal(nextError?.code, "CASHFREE_REQUEST_FIELDS_INVALID");
+  assert.equal(cancelledProviderSubscriptionId, undefined);
+
+  const result = await callCancelController();
+  assert.ifError(result.nextError);
+  assert.equal(cancelledProviderSubscriptionId, "cc_stored_only");
+  assert.equal(existingSubscription.status, "CANCELLED");
+  assert.equal(result.res.body.subscription.providerSubscriptionId, "cc_stored_only");
+});
+
+test("Cashfree cancellation is idempotent for an already-cancelled tenant record", async () => {
+  existingSubscription = createDocument({
+    tenantId: "TENANT_001", provider: "cashfree", providerSubscriptionId: "cc_cancelled",
+    status: "CANCELLED", planId: "starter", billingCycle: "monthly", amount: 799, currency: "INR", metadata: {},
+  });
+  const { res, nextError } = await callCancelController();
+  assert.ifError(nextError);
+  assert.equal(res.body.reused, true);
+  assert.equal(cancelledProviderSubscriptionId, undefined);
+});
+
+test("Cashfree cancellation provider failures preserve the active local subscription", async () => {
+  existingSubscription = createDocument({
+    tenantId: "TENANT_001", provider: "cashfree", providerSubscriptionId: "cc_active_error",
+    status: "ACTIVE", planId: "starter", billingCycle: "monthly", amount: 799, currency: "INR", metadata: {},
+  });
+  cashfreeService.cancelSubscription = async () => {
+    throw Object.assign(new Error("provider failed"), { status: 502, providerDiagnostic: { httpStatus: 500, providerErrorCode: "internal_error" } });
+  };
+  const originalError = console.error;
+  console.error = () => {};
+  try {
+    const { nextError } = await callCancelController();
+    assert.equal(nextError?.code, "CASHFREE_SUBSCRIPTION_CANCELLATION_FAILED");
+  } finally { console.error = originalError; }
+  assert.equal(existingSubscription.status, "ACTIVE");
 });
 
 test("Cashfree subscription references are unique valid merchant subscription IDs", () => {

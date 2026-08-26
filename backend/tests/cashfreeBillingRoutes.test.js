@@ -36,6 +36,14 @@ test("Cashfree status endpoint exists and requires authentication", async () => 
   assert.equal(statusRoute.stack.length, 2);
 });
 
+test("Cashfree cancellation endpoint exists and requires authentication", async () => {
+  const cancelRoute = cashfreeBillingRoutes.stack.find(
+    (layer) => layer.route?.path === "/subscription/cancel" && layer.route?.methods?.post
+  )?.route;
+  assert.ok(cancelRoute);
+  assert.equal(cancelRoute.stack.length, 2);
+});
+
 test("Cashfree return endpoint accepts URL-encoded POST data without authentication", async () => {
   const returnRoute = cashfreeBillingRoutes.stack.find(
     (layer) => layer.route?.path === "/return" && layer.route?.methods?.post

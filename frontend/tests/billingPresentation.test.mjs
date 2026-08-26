@@ -74,6 +74,20 @@ test("failed and cancelled subscriptions preserve safe historical details", () =
   );
 });
 
+test("cancelled Cashfree subscriptions never present a future billing date", () => {
+  const subscription = {
+    provider: "cashfree",
+    status: "CANCELLED",
+    startDate: "2026-08-01T01:00:00.000Z",
+    currentPeriodEnd: "2026-09-26T01:00:00.000Z",
+    cancelledAt: "2026-08-26T01:00:00.000Z",
+  };
+  assert.deepEqual(getSubscriptionDateRows(subscription), [
+    { label: "Activated On", value: subscription.startDate },
+    { label: "Cancelled On", value: subscription.cancelledAt },
+  ]);
+});
+
 test("null provider dates are hidden and never converted into invented dates", () => {
   assert.deepEqual(
     getSubscriptionDateRows({
@@ -124,4 +138,17 @@ test("Platform Company uses authoritative Cashfree state and hides manual contro
   assert.match(pageSource, /status === "PENDING" \? 5000 : false/);
   assert.doesNotMatch(`${pageSource}${apiSource}`, /CASHFREE_SECRET_KEY|VITE_CASHFREE/);
   assert.doesNotMatch(pageSource, /SubsFetchSubscription|SubsCreateSubscription/);
+});
+
+test("Cashfree billing cancellation uses its dedicated endpoint and immediate-cancellation wording", async () => {
+  const [billingSource, apiSource] = await Promise.all([
+    readFile(new URL("../src/pages/BillingPage.jsx", import.meta.url), "utf8"),
+    readFile(new URL("../src/lib/api.js", import.meta.url), "utf8"),
+  ]);
+  assert.match(apiSource, /\/billing\/cashfree\/subscription\/cancel/);
+  assert.match(billingSource, /Cancel subscription\?/);
+  assert.match(billingSource, /stop future recurring charges/);
+  assert.match(billingSource, /Your Cashfree subscription has been cancelled/);
+  assert.doesNotMatch(billingSource, /Cashfree.*Cancel at period end/);
+  assert.match(billingSource, /record\.status !== "CANCELLED" && record\.currentPeriodEnd/);
 });

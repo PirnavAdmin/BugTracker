@@ -59,6 +59,18 @@ const rejectUnexpectedFields = (body = {}) => {
   }
 };
 
+const rejectCancellationFields = (body = {}) => {
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    throw apiError("CASHFREE_REQUEST_INVALID", "A JSON request body is required");
+  }
+  if (Object.keys(body).length > 0) {
+    throw apiError(
+      "CASHFREE_REQUEST_FIELDS_INVALID",
+      "Cashfree cancellation does not accept subscription or customer identifiers"
+    );
+  }
+};
+
 const resolveRequestedPlan = (body = {}) => {
   const planId = String(body.planId || "").trim().toLowerCase();
   const billingCycle = String(body.billingCycle || "").trim().toLowerCase();
@@ -488,6 +500,59 @@ const getSubscriptionStatus = asyncHandler(async (req, res) => {
   return res.json({ subscription: safeSubscription(subscription), verified: true });
 });
 
+const cancelSubscription = asyncHandler(async (req, res) => {
+  rejectCancellationFields(req.body || {});
+  const tenantId = requireTenant(req, res);
+  const subscription = await Subscription.findOne({
+    tenantId,
+    provider: "cashfree",
+    status: { $in: ["ACTIVE", "CANCELLED"] },
+  }).sort({ createdAt: -1 });
+  if (!subscription) {
+    throw apiError("CASHFREE_SUBSCRIPTION_NOT_FOUND", "No cancellable Cashfree subscription was found", 404);
+  }
+  if (subscription.status === "CANCELLED") {
+    const payment = await Payment.findOne({
+      tenantId,
+      subscriptionId: subscription._id,
+      provider: "cashfree",
+      providerSubscriptionId: subscription.providerSubscriptionId,
+    }).sort({ createdAt: -1 });
+    return res.status(200).json({ success: true, subscription: safeSubscription(subscription, payment), reused: true });
+  }
+
+  let providerStatus;
+  try {
+    providerStatus = await cashfreeService.cancelSubscription(subscription.providerSubscriptionId);
+  } catch (error) {
+    console.error("[billing] Cashfree subscription cancellation failed", {
+      provider: "cashfree",
+      providerSubscriptionId: subscription.providerSubscriptionId,
+      httpStatus: error?.providerDiagnostic?.httpStatus,
+      providerErrorCode: error?.providerDiagnostic?.providerErrorCode,
+      failureOrigin: error?.providerDiagnostic?.failureOrigin,
+    });
+    throw apiError(
+      "CASHFREE_SUBSCRIPTION_CANCELLATION_FAILED",
+      "Cashfree subscription cancellation failed",
+      error?.status || 502
+    );
+  }
+
+  const result = await providerSync.applyCashfreeVerifiedStatus(subscription, providerStatus);
+  if (result.subscription.status !== "CANCELLED") {
+    throw apiError(
+      "CASHFREE_SUBSCRIPTION_CANCELLATION_UNCONFIRMED",
+      "Cashfree has not confirmed subscription cancellation",
+      502
+    );
+  }
+  return res.status(200).json({
+    success: true,
+    subscription: safeSubscription(result.subscription, result.payment),
+  });
+});
+
 const webhook = asyncHandler(async (req, res) => {
   const rawBody = req.body;
   const signature = req.get("x-webhook-signature");
@@ -567,10 +632,12 @@ module.exports = {
   applyVerifiedSubscriptionStatus,
   buildReference,
   createSubscription,
+  cancelSubscription,
   getSubscriptionStatus,
   mapVerifiedStatus,
   normalizeCustomerPhone,
   rejectUnexpectedFields,
+  rejectCancellationFields,
   resolveCustomerPhone,
   resolveRequestedPlan,
   returnSubscription,

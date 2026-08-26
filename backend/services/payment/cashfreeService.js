@@ -156,6 +156,18 @@ const isSubscriptionNotFound = (error) => {
   return status === 404 || (status === 400 && providerCode === "subscription_not_found");
 };
 
+const isSubscriptionAlreadyCancelled = (error) => {
+  const status = Number(error?.response?.status);
+  const providerCode = String(diagnosticValue(error, "code") || "").toLowerCase();
+  const providerMessage = String(diagnosticValue(error, "message") || "").toLowerCase();
+  return (
+    ["subscription_cancelled", "already_cancelled", "subscription_already_cancelled"].includes(
+      providerCode
+    ) ||
+    (status === 409 && /cancel/.test(`${providerCode} ${providerMessage}`))
+  );
+};
+
 const providerErrorDiagnostic = (error, context = {}) => {
   const diagnostic = {
     environment,
@@ -403,6 +415,77 @@ const createSubscription = async ({
   }
 };
 
+const cancelSubscription = async (subscriptionId) => {
+  const normalizedSubscriptionId = requireText(subscriptionId, "subscriptionId");
+  const requestId = crypto.randomUUID();
+  const idempotencyKey = crypto.randomUUID();
+  const context = {
+    operation: "cancelSubscription",
+    endpoint: `${CASHFREE_SANDBOX_ENDPOINT}/{subscription_id}/manage`,
+    apiVersion: CASHFREE_API_VERSION,
+    requestId,
+    idempotencyKeyPresent: true,
+    startedAt: Date.now(),
+    providerSubscriptionId: normalizedSubscriptionId,
+  };
+  try {
+    console.info("[billing] Cashfree subscription cancellation requested", {
+      environment,
+      operation: context.operation,
+      provider: "cashfree",
+      providerSubscriptionId: normalizedSubscriptionId,
+      apiVersion: CASHFREE_API_VERSION,
+      requestIdPresent: true,
+      idempotencyKeyPresent: true,
+    });
+    try {
+      await cashfreeClient.SubsManageSubscription(
+        normalizedSubscriptionId,
+        { subscription_id: normalizedSubscriptionId, action: "CANCEL" },
+        requestId,
+        idempotencyKey
+      );
+    } catch (error) {
+      // A duplicate request may reach Cashfree after the first cancellation
+      // completed. Reconcile that provider response instead of changing local
+      // state based on an unverified error alone.
+      if (!isSubscriptionAlreadyCancelled(error)) throw error;
+      console.info("[billing] Cashfree cancellation already reported; reconciling", {
+        environment,
+        provider: "cashfree",
+        providerSubscriptionId: normalizedSubscriptionId,
+        apiVersion: CASHFREE_API_VERSION,
+      });
+    }
+    const verified = await fetchSubscription(normalizedSubscriptionId);
+    console.info("[billing] Cashfree subscription cancellation confirmed", {
+      environment,
+      provider: "cashfree",
+      providerSubscriptionId: normalizedSubscriptionId,
+      apiVersion: CASHFREE_API_VERSION,
+      subscriptionStatus: verified.status,
+    });
+    return verified;
+  } catch (error) {
+    if (error?.providerDiagnostic) {
+      throw Object.assign(
+        serviceError(
+          "CASHFREE_SUBSCRIPTION_CANCELLATION_FAILED",
+          "Cashfree subscription cancellation could not be verified",
+          502
+        ),
+        { providerDiagnostic: error.providerDiagnostic }
+      );
+    }
+    throw providerFailure(
+      error,
+      context,
+      "CASHFREE_SUBSCRIPTION_CANCELLATION_FAILED",
+      "Cashfree subscription cancellation failed"
+    );
+  }
+};
+
 const fetchSubscription = async (subscriptionId, { allowNotFound = false } = {}) => {
   const normalizedSubscriptionId = requireText(subscriptionId, "subscriptionId");
   try {
@@ -490,9 +573,11 @@ module.exports = {
   CASHFREE_API_VERSION,
   CASHFREE_SANDBOX_ENDPOINT,
   classifyProviderFailure,
+  cancelSubscription,
   createSubscription,
   fetchSubscription,
   isSubscriptionNotFound,
+  isSubscriptionAlreadyCancelled,
   resolvePlanBilling,
   sanitizeProviderText,
   verifyWebhookSignature,

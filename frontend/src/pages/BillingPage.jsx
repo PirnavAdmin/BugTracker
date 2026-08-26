@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { RefreshCw } from "lucide-react";
-import { cancelBillingSubscription, createBillingSubscription, fetchBillingInvoices, fetchBillingPayments, fetchBillingSubscription, fetchCashfreeBillingSubscriptionStatus, retryBillingSubscription, verifyBillingSubscriptionAuthorization } from "@/lib/api";
+import { cancelBillingSubscription, cancelCashfreeBillingSubscription, createBillingSubscription, fetchBillingInvoices, fetchBillingPayments, fetchBillingSubscription, fetchCashfreeBillingSubscriptionStatus, retryBillingSubscription, verifyBillingSubscriptionAuthorization } from "@/lib/api";
 import { formatDate } from "@/lib/utils";
 import { openSubscriptionCheckout } from "@/lib/razorpayCheckout";
 import CashfreeCheckoutButton from "@/components/billing/CashfreeCheckoutButton";
@@ -10,6 +10,7 @@ import { formatPaymentStatus, formatProviderName, getBillingCycleLabel, getBilli
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 const plans = {
   starter: { name: "Starter", monthly: 799, annual: 7990 },
@@ -40,6 +41,8 @@ const SubscriptionDetails = ({ subscription }) => {
     ["Billing Cycle", getBillingCycleLabel(subscription.billingCycle)],
     ...getSubscriptionDateRows(subscription).map(({ label, value }) => [label, formatDate(value, { fallback: "—" })]),
     ["Payment Status", getSubscriptionPaymentStatus(subscription)],
+    ["Provider", formatProviderName(subscription.provider)],
+    ["Subscription ID", subscription.providerSubscriptionId || "—"],
   ];
   return (
     <div className="mt-5 border-t border-slate-200 pt-5">
@@ -51,9 +54,11 @@ const SubscriptionDetails = ({ subscription }) => {
   );
 };
 
-const SubscriptionCard = ({ record, historical, cashfreeRecord, retry, cancel, cashfreeRetry, onShowPlans }) => {
+const SubscriptionCard = ({ record, historical, cashfreeRecord, retry, cancel, cashfreeCancel, cashfreeRetry, onShowPlans }) => {
+  const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
   const message = getSubscriptionMessage(record.status);
   const canCancel = currentStatuses.has(record.status);
+  const canCancelCashfree = cashfreeRecord && record.status === "ACTIVE";
   return (
     <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
       <p className="text-xs font-bold text-slate-500">{historical ? "PREVIOUS SUBSCRIPTION" : "CURRENT PLAN"}</p>
@@ -61,7 +66,7 @@ const SubscriptionCard = ({ record, historical, cashfreeRecord, retry, cancel, c
         <div>
           <h2 className="text-2xl font-black">{record.planName || getPlanName(record.planId)}</h2>
           <p className="mt-1 text-slate-700">{money(record.amount, record.currency)} / {getBillingIntervalLabel(record.billingCycle)}</p>
-          {record.currentPeriodEnd ? <p className="mt-2 text-sm text-slate-600">Next billing date: {formatDate(record.currentPeriodEnd, { fallback: "—" })}</p> : null}
+          {record.status !== "CANCELLED" && record.currentPeriodEnd ? <p className="mt-2 text-sm text-slate-600">Next billing date: {formatDate(record.currentPeriodEnd, { fallback: "—" })}</p> : null}
         </div>
         <Badge className={statusStyles[record.status] || ""}>{record.status}</Badge>
       </div>
@@ -70,8 +75,15 @@ const SubscriptionCard = ({ record, historical, cashfreeRecord, retry, cancel, c
       <div className="mt-5 flex flex-wrap gap-2">
         {record.status === "PENDING" && (cashfreeRecord ? cashfreeRetry : <Button disabled={retry.isPending} onClick={() => retry.mutate()}>Retry Payment</Button>)}
         {record.status === "FAILED" && cashfreeRecord ? cashfreeRetry : null}
+        {canCancelCashfree ? <Button variant="outline" disabled={cashfreeCancel.isPending} onClick={() => setCancelDialogOpen(true)}>Cancel Subscription</Button> : null}
         {canCancel && !cashfreeRecord ? <Button variant="outline" disabled={cancel.isPending || record.cancelAtPeriodEnd} onClick={() => cancel.mutate()}>{record.status === "ACTIVE" ? "Cancel at period end" : "Cancel Subscription"}</Button> : !canCancel && !(record.status === "FAILED" && cashfreeRecord) ? <Button onClick={onShowPlans}>{record.status === "EXPIRED" ? "Choose a Plan" : "Subscribe Again"}</Button> : null}
       </div>
+      <Dialog open={cancelDialogOpen} onOpenChange={setCancelDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader><DialogTitle>Cancel subscription?</DialogTitle><DialogDescription>This will cancel your Cashfree recurring subscription and stop future recurring charges.</DialogDescription></DialogHeader>
+          <DialogFooter><Button variant="outline" onClick={() => setCancelDialogOpen(false)}>Keep Subscription</Button><Button disabled={cashfreeCancel.isPending} onClick={() => cashfreeCancel.mutate(undefined, { onSuccess: () => setCancelDialogOpen(false) })}>{cashfreeCancel.isPending ? "Cancelling..." : "Cancel Subscription"}</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
     </section>
   );
 };
@@ -112,6 +124,7 @@ export default function BillingPage() {
   const create = useMutation({ mutationFn: () => createBillingSubscription({ planId, billingCycle }), onSuccess: (data) => { refresh(); checkout(data); }, onError: (error) => setNotice(errorMessage(error)) });
   const retry = useMutation({ mutationFn: retryBillingSubscription, onSuccess: checkout, onError: (error) => setNotice(errorMessage(error)) });
   const cancel = useMutation({ mutationFn: cancelBillingSubscription, onSuccess: () => { refresh(); setNotice("Subscription cancellation was confirmed."); }, onError: (error) => setNotice(errorMessage(error)) });
+  const cashfreeCancel = useMutation({ mutationFn: cancelCashfreeBillingSubscription, onSuccess: () => { refresh(); setNotice("Your Cashfree subscription has been cancelled."); }, onError: (error) => setNotice(errorMessage(error)) });
 
   const record = subscription.data;
   const cashfreeRecord = isCashfreeSubscriptionRecord(record);
@@ -138,7 +151,7 @@ export default function BillingPage() {
     <div className="mx-auto max-w-6xl space-y-5 p-4 sm:p-6">
       <div className="flex justify-between gap-4"><div><p className="font-bold text-violet-700">Billing & Subscription</p><h1 className="text-2xl font-black">Manage your CureCode plan</h1><p className="text-sm text-slate-600">Razorpay Test Mode</p></div><Button variant="outline" onClick={refresh}><RefreshCw className="h-4 w-4" />Refresh</Button></div>
       {notice ? <p className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800">{notice}</p> : null}
-      {subscription.isLoading ? <Skeleton className="h-48" /> : record ? <><SubscriptionCard record={record} historical={historical} cashfreeRecord={cashfreeRecord} retry={retry} cancel={cancel} cashfreeRetry={cashfreeRetry} onShowPlans={() => setShowPlans(true)} />{historical && showPlans ? chooser : null}</> : chooser}
+      {subscription.isLoading ? <Skeleton className="h-48" /> : record ? <><SubscriptionCard record={record} historical={historical} cashfreeRecord={cashfreeRecord} retry={retry} cancel={cancel} cashfreeCancel={cashfreeCancel} cashfreeRetry={cashfreeRetry} onShowPlans={() => setShowPlans(true)} />{historical && showPlans ? chooser : null}</> : chooser}
       <History title="Payment History" rows={payments.data} loading={payments.isLoading} empty="No payments have been recorded.">
         <table className="w-full text-left text-sm"><thead className="border-b bg-slate-50 text-xs uppercase tracking-wide text-slate-500"><tr><th className="px-4 py-3">Amount</th><th className="px-4 py-3">Status</th><th className="px-4 py-3">Date</th><th className="px-4 py-3">Provider</th></tr></thead><tbody>{payments.data?.map((payment) => <tr key={payment._id} className="border-b last:border-0"><td className="px-4 py-3 font-semibold">{money(payment.amount, payment.currency)}</td><td className="px-4 py-3">{formatPaymentStatus(payment.status)}</td><td className="px-4 py-3">{payment.createdAt ? formatDate(payment.createdAt, { fallback: "—" }) : "—"}</td><td className="px-4 py-3">{formatProviderName(payment.provider)}</td></tr>)}</tbody></table>
       </History>

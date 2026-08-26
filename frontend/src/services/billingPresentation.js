@@ -49,10 +49,10 @@ export const getSubscriptionDateRows = (subscription = {}) => {
   return [
     subscription.createdAt && { label: "Created On", value: subscription.createdAt },
     subscription.startDate && {
-      label: status === "ACTIVE" ? "Activated On" : "Subscription Started",
+      label: ["ACTIVE", "CANCELLED"].includes(status) ? "Activated On" : "Subscription Started",
       value: subscription.startDate,
     },
-    subscription.currentPeriodEnd && {
+    status !== "CANCELLED" && subscription.currentPeriodEnd && {
       label: "Next Billing Date",
       value: subscription.currentPeriodEnd,
     },

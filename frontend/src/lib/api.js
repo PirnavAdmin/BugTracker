@@ -244,6 +244,8 @@ export const createCashfreeBillingSubscription = async ({ planId, billingCycle }
   (await api.post("/billing/cashfree/create-subscription", { planId, billingCycle })).data;
 export const fetchCashfreeBillingSubscriptionStatus = async () =>
   (await api.get("/billing/cashfree/subscription/status")).data;
+export const cancelCashfreeBillingSubscription = async () =>
+  (await api.post("/billing/cashfree/subscription/cancel")).data;
 export const retryBillingSubscription = async () => (await api.post("/billing/subscription/retry")).data;
 export const verifyBillingSubscriptionAuthorization = async (payload) => (await api.post("/billing/subscription/verify-authorization", payload)).data;
 export const cancelBillingSubscription = async () => (await api.post("/billing/subscription/cancel")).data;
