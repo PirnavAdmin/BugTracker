@@ -406,6 +406,9 @@ test("failed Cashfree creation retries with a new provider attempt and preserves
     status: "FAILED",
     metadata: {},
   });
+  // A failed attempt can create a fresh merchant reference only after Cashfree
+  // confirms the original reference was not created.
+  cashfreeService.fetchSubscription = async () => null;
 
   const { res, nextError } = await callController({ planId: "starter", billingCycle: "monthly" });
 
@@ -504,6 +507,7 @@ test("legacy PENDING creation failures are not reused as checkout sessions", asy
     status: "PENDING",
     metadata: { subscriptionSessionId: "known-failed-session" },
   });
+  cashfreeService.fetchSubscription = async () => null;
 
   const { res, nextError } = await callController({ planId: "starter", billingCycle: "monthly" });
   assert.ifError(nextError);

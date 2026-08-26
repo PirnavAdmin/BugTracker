@@ -8,6 +8,11 @@ const BILLING_CYCLES = Object.freeze({
   ANNUAL: "annual",
 });
 
+// Cashfree's published Subscription API currently supports this version.  The
+// installed SDK defaults to a newer generated version, so set it explicitly.
+const CASHFREE_API_VERSION = "2025-01-01";
+const CASHFREE_SANDBOX_ENDPOINT = "https://sandbox.cashfree.com/pg/subscriptions";
+
 const serviceError = (code, message, status = 400) =>
   Object.assign(new Error(message), { code, status });
 
@@ -123,6 +128,20 @@ const cashfreeClient = new Cashfree(
   cashfreeConfig.appId,
   cashfreeConfig.secretKey
 );
+// Pin the documented Subscription API version instead of relying on an SDK default.
+cashfreeClient.XApiVersion = CASHFREE_API_VERSION;
+
+const classifyProviderFailure = (error) => {
+  if (error?.response?.status) return "CASHFREE_PROVIDER_RESPONSE";
+  if (
+    ["ECONNABORTED", "ETIMEDOUT", "ECONNRESET", "ERR_NETWORK", "ENOTFOUND", "EAI_AGAIN"].includes(
+      String(error?.code || "").toUpperCase()
+    )
+  ) {
+    return "NETWORK_TIMEOUT_OR_TRANSPORT";
+  }
+  return "LOCAL_REQUEST_FAILURE";
+};
 
 const diagnosticValue = (error, field) => {
   const response = error?.response;
@@ -134,6 +153,10 @@ const diagnosticValue = (error, field) => {
 const providerErrorDiagnostic = (error, context = {}) => {
   const diagnostic = {
     environment,
+    operation: context.operation,
+    endpoint: context.endpoint,
+    apiVersion: context.apiVersion,
+    failureOrigin: classifyProviderFailure(error),
     httpStatus: error?.response?.status ?? diagnosticValue(error, "statusCode"),
     providerErrorCode: diagnosticValue(error, "code"),
     providerErrorMessage: sanitizeProviderText(diagnosticValue(error, "message")),
@@ -144,6 +167,10 @@ const providerErrorDiagnostic = (error, context = {}) => {
     billingCycle: context.billingCycle,
     amount: context.amount,
     currency: context.currency,
+    requestIdPresent: Boolean(context.requestId),
+    idempotencyKeyPresent: Boolean(context.idempotencyKeyPresent),
+    timeoutConfigured: false,
+    durationMs: context.startedAt ? Date.now() - context.startedAt : undefined,
   };
   Object.keys(diagnostic).forEach(
     (key) => diagnostic[key] === undefined && delete diagnostic[key]
@@ -175,6 +202,28 @@ const normalizeNotificationChannels = (channels = ["EMAIL"]) => {
     );
   }
   return normalized;
+};
+
+const isAmbiguousCreateFailure = (error) => {
+  const status = Number(error?.response?.status);
+  return (
+    [502, 503, 504].includes(status) ||
+    classifyProviderFailure(error) === "NETWORK_TIMEOUT_OR_TRANSPORT"
+  );
+};
+
+const requireCompleteSubscriptionResponse = (response) => {
+  const data = response?.data || {};
+  if (!data.subscription_id || !data.subscription_session_id) {
+    throw Object.assign(new Error("Cashfree returned an incomplete subscription response"), {
+      response: {
+        status: response?.status,
+        data: { code: "incomplete_provider_response" },
+        headers: response?.headers,
+      },
+    });
+  }
+  return data;
 };
 
 const createSubscription = async ({
@@ -233,7 +282,12 @@ const createSubscription = async ({
   const requestId = crypto.randomUUID();
   const idempotencyKey = crypto.randomUUID();
   const diagnosticContext = {
+    operation: "createSubscription",
+    endpoint: CASHFREE_SANDBOX_ENDPOINT,
+    apiVersion: CASHFREE_API_VERSION,
     requestId,
+    idempotencyKeyPresent: true,
+    startedAt: Date.now(),
     providerSubscriptionId: merchantReference,
     planType: request.plan_details.plan_type,
     billingCycle: billing.billingCycle,
@@ -244,34 +298,84 @@ const createSubscription = async ({
   try {
     console.info("[billing] Cashfree create subscription request", {
       environment,
-      requestId,
+      operation: diagnosticContext.operation,
+      endpoint: diagnosticContext.endpoint,
+      apiVersion: diagnosticContext.apiVersion,
       providerSubscriptionId: merchantReference,
       planType: diagnosticContext.planType,
       billingCycle: diagnosticContext.billingCycle,
       amount: diagnosticContext.amount,
       currency: diagnosticContext.currency,
+      requestIdPresent: true,
+      idempotencyKeyPresent: true,
+      timeoutConfigured: false,
     });
-    const response = await cashfreeClient.SubsCreateSubscription(
-      request,
-      requestId,
-      idempotencyKey
-    );
-    const data = response?.data || {};
+    let response;
+    try {
+      response = await cashfreeClient.SubsCreateSubscription(request, requestId, idempotencyKey);
+    } catch (initialError) {
+      if (!isAmbiguousCreateFailure(initialError)) throw initialError;
 
-    if (!data.subscription_id || !data.subscription_session_id) {
-      throw Object.assign(new Error("Cashfree returned an incomplete subscription response"), {
-        response: {
-          status: response?.status,
-          data: { code: "incomplete_provider_response" },
-          headers: response?.headers,
-        },
+      const initialDiagnostic = providerErrorDiagnostic(initialError, diagnosticContext);
+      console.warn("[billing] Cashfree create subscription response was ambiguous", {
+        ...initialDiagnostic,
+        recovery: "fetch_same_subscription_before_retry",
       });
+
+      const lookupRequestId = crypto.randomUUID();
+      let existingResponse;
+      try {
+        existingResponse = await cashfreeClient.SubsFetchSubscription(
+          merchantReference,
+          lookupRequestId
+        );
+      } catch (lookupError) {
+        if (Number(lookupError?.response?.status) !== 404) {
+          console.warn("[billing] Cashfree ambiguous create reconciliation was inconclusive", {
+            environment,
+            operation: "fetchSubscriptionAfterAmbiguousCreate",
+            endpoint: CASHFREE_SANDBOX_ENDPOINT,
+            apiVersion: CASHFREE_API_VERSION,
+            providerSubscriptionId: merchantReference,
+            failureOrigin: classifyProviderFailure(lookupError),
+            httpStatus: lookupError?.response?.status,
+            requestIdPresent: true,
+          });
+          throw initialError;
+        }
+      }
+
+      if (existingResponse) {
+        response = existingResponse;
+        console.info("[billing] Cashfree ambiguous create reconciled to existing subscription", {
+          environment,
+          providerSubscriptionId: merchantReference,
+          apiVersion: CASHFREE_API_VERSION,
+          sessionIdConfigured: Boolean(existingResponse?.data?.subscription_session_id),
+        });
+      } else {
+        const retryRequestId = crypto.randomUUID();
+        console.info("[billing] Cashfree create subscription retrying once after confirmed absence", {
+          environment,
+          endpoint: CASHFREE_SANDBOX_ENDPOINT,
+          apiVersion: CASHFREE_API_VERSION,
+          providerSubscriptionId: merchantReference,
+          requestIdPresent: true,
+          idempotencyKeyReused: true,
+        });
+        response = await cashfreeClient.SubsCreateSubscription(
+          request,
+          retryRequestId,
+          idempotencyKey
+        );
+      }
     }
+    const data = requireCompleteSubscriptionResponse(response);
 
     console.info("[billing] Cashfree subscription created", {
       environment,
       statusCode: response?.status,
-      requestId,
+      apiVersion: CASHFREE_API_VERSION,
       providerSubscriptionId: data.subscription_id,
       subscriptionStatus: data.subscription_status,
       sessionIdConfigured: true,
@@ -293,7 +397,7 @@ const createSubscription = async ({
   }
 };
 
-const fetchSubscription = async (subscriptionId) => {
+const fetchSubscription = async (subscriptionId, { allowNotFound = false } = {}) => {
   const normalizedSubscriptionId = requireText(subscriptionId, "subscriptionId");
   try {
     const response = await cashfreeClient.SubsFetchSubscription(normalizedSubscriptionId);
@@ -311,6 +415,9 @@ const fetchSubscription = async (subscriptionId) => {
     return {
       subscriptionId: data.subscription_id || normalizedSubscriptionId,
       ...(data.cf_subscription_id ? { providerReferenceId: data.cf_subscription_id } : {}),
+      ...(data.subscription_session_id
+        ? { subscriptionSessionId: data.subscription_session_id }
+        : {}),
       status: data.subscription_status,
       authorizationStatus: authorization.authorization_status,
       ...(authorization.authorization_time
@@ -331,9 +438,15 @@ const fetchSubscription = async (subscriptionId) => {
         : {}),
     };
   } catch (error) {
+    if (allowNotFound && Number(error?.response?.status) === 404) return null;
     throw providerFailure(
       error,
-      { providerSubscriptionId: normalizedSubscriptionId },
+      {
+        operation: "fetchSubscription",
+        endpoint: `${CASHFREE_SANDBOX_ENDPOINT}/{subscription_id}`,
+        apiVersion: CASHFREE_API_VERSION,
+        providerSubscriptionId: normalizedSubscriptionId,
+      },
       "CASHFREE_SUBSCRIPTION_STATUS_FAILED",
       "Cashfree subscription status could not be verified"
     );
@@ -357,6 +470,9 @@ const verifyWebhookSignature = ({ rawBody, signature, timestamp }) => {
 
 module.exports = {
   BILLING_CYCLES,
+  CASHFREE_API_VERSION,
+  CASHFREE_SANDBOX_ENDPOINT,
+  classifyProviderFailure,
   createSubscription,
   fetchSubscription,
   resolvePlanBilling,

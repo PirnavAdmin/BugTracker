@@ -158,6 +158,55 @@ const createSubscription = asyncHandler(async (req, res) => {
     );
   }
 
+  if (retryFailedAttempt) {
+    const providerExisting = await cashfreeService.fetchSubscription(
+      currentSubscription.providerSubscriptionId,
+      { allowNotFound: true }
+    );
+    if (providerExisting) {
+      if (!providerExisting.subscriptionSessionId) {
+        throw apiError(
+          "CASHFREE_SUBSCRIPTION_RETRY_UNSAFE",
+          "The previous Cashfree subscription exists but cannot be safely resumed",
+          409
+        );
+      }
+      currentSubscription.status = "PENDING";
+      currentSubscription.providerStatus = providerExisting.status || "INITIALIZED";
+      currentSubscription.metadata = {
+        ...currentSubscription.metadata,
+        subscriptionSessionId: providerExisting.subscriptionSessionId,
+        providerReferenceId: providerExisting.providerReferenceId,
+        reconciledBeforeRetryAt: new Date(),
+      };
+      await currentSubscription.save();
+      const existingPayment = await Payment.findOne({
+        tenantId,
+        subscriptionId: currentSubscription._id,
+        provider: "cashfree",
+        providerSubscriptionId: currentSubscription.providerSubscriptionId,
+      }).sort({ createdAt: -1 });
+      if (existingPayment) {
+        existingPayment.status = "pending";
+        existingPayment.failureReason = undefined;
+        existingPayment.metadata = {
+          ...existingPayment.metadata,
+          subscriptionSessionId: providerExisting.subscriptionSessionId,
+          reconciledBeforeRetry: true,
+        };
+        await existingPayment.save();
+      }
+      return res.status(200).json(
+        safeResult({
+          subscriptionId: currentSubscription.providerSubscriptionId,
+          subscriptionSessionId: providerExisting.subscriptionSessionId,
+          status: currentSubscription.providerStatus,
+          reused: true,
+        })
+      );
+    }
+  }
+
   const customerPhone = resolveCustomerPhone({ user: req.user, company });
   if (!customerPhone) {
     console.warn("[billing] Cashfree billing phone missing", {

@@ -24,21 +24,27 @@ console.log = originalLog;
 let createSubscriptionImpl;
 let fetchSubscriptionImpl;
 let clientInitialization;
+let clientInstance;
 let lastCreateCall;
 let lastFetchCall;
+let createCalls;
+let fetchCalls;
 
 class FakeCashfree {
   constructor(environment, appId, secretKey) {
     clientInitialization = { environment, appId, secretKey };
+    clientInstance = this;
   }
 
   async SubsCreateSubscription(...args) {
     lastCreateCall = args;
+    createCalls.push(args);
     return createSubscriptionImpl(...args);
   }
 
   async SubsFetchSubscription(...args) {
     lastFetchCall = args;
+    fetchCalls.push(args);
     return fetchSubscriptionImpl(...args);
   }
 }
@@ -90,6 +96,8 @@ test.after(() => {
 test.beforeEach(() => {
   lastCreateCall = undefined;
   lastFetchCall = undefined;
+  createCalls = [];
+  fetchCalls = [];
   createSubscriptionImpl = async (request) => ({
     data: {
       subscription_id: request.subscription_id,
@@ -132,6 +140,22 @@ test("Cashfree client initializes in Sandbox mode", () => {
     appId: process.env.CASHFREE_APP_ID,
     secretKey: process.env.CASHFREE_SECRET_KEY,
   });
+  assert.equal(clientInstance.XApiVersion, cashfreeService.CASHFREE_API_VERSION);
+});
+
+test("Cashfree Subscription API endpoint and explicit supported version override the SDK default", () => {
+  assert.equal(cashfreeService.CASHFREE_API_VERSION, "2025-01-01");
+  assert.equal(
+    cashfreeService.CASHFREE_SANDBOX_ENDPOINT,
+    "https://sandbox.cashfree.com/pg/subscriptions"
+  );
+  const sdkApiSource = require("node:fs").readFileSync(
+    require("node:path").join(require("node:path").dirname(sdkPath), "api.js"),
+    "utf8"
+  );
+  assert.match(sdkApiSource, /class Cashfree/);
+  assert.match(sdkApiSource, /this\.XApiVersion = "2026-01-01"/);
+  assert.match(sdkApiSource, /localVarPath = `\/subscriptions`/);
 });
 
 test("subscription creation uses the current Cashfree Subscription API and returns safe data", async () => {
@@ -345,17 +369,96 @@ test("Cashfree API failures are normalized and credentials never reach logs or c
   const serializedLogs = JSON.stringify(logs);
   assert.equal(serializedLogs.includes(process.env.CASHFREE_APP_ID), false);
   assert.equal(serializedLogs.includes(process.env.CASHFREE_SECRET_KEY), false);
-  assert.deepEqual(logs[0][1], {
-    environment: "sandbox",
-    httpStatus: 401,
-    providerErrorCode: "authentication_error",
-    providerErrorMessage: "Invalid secret [redacted]",
-    type: "authentication_error",
-    requestId: "request_001",
-    providerSubscriptionId: "curecode_sub_001",
-    planType: "PERIODIC",
-    billingCycle: "monthly",
-    amount: 799,
-    currency: "INR",
+  assert.equal(logs[0][1].environment, "sandbox");
+  assert.equal(logs[0][1].operation, "createSubscription");
+  assert.equal(logs[0][1].endpoint, cashfreeService.CASHFREE_SANDBOX_ENDPOINT);
+  assert.equal(logs[0][1].apiVersion, "2025-01-01");
+  assert.equal(logs[0][1].failureOrigin, "CASHFREE_PROVIDER_RESPONSE");
+  assert.equal(logs[0][1].httpStatus, 401);
+  assert.equal(logs[0][1].providerErrorCode, "authentication_error");
+  assert.equal(logs[0][1].providerErrorMessage, "Invalid secret [redacted]");
+  assert.equal(logs[0][1].requestId, "request_001");
+  assert.equal(logs[0][1].requestIdPresent, true);
+  assert.equal(logs[0][1].idempotencyKeyPresent, true);
+  assert.equal(logs[0][1].timeoutConfigured, false);
+});
+
+test("HTTP 504 is classified as a provider response and retries once only after a 404 lookup", async () => {
+  let attempt = 0;
+  createSubscriptionImpl = async (request) => {
+    attempt += 1;
+    if (attempt === 1) {
+      throw Object.assign(new Error("Request failed with status code 504"), {
+        code: "ERR_BAD_RESPONSE",
+        response: { status: 504, data: {}, headers: {} },
+      });
+    }
+    return {
+      status: 200,
+      data: {
+        subscription_id: request.subscription_id,
+        subscription_session_id: "recovered_session",
+        subscription_status: "INITIALIZED",
+      },
+    };
+  };
+  fetchSubscriptionImpl = async () => {
+    throw Object.assign(new Error("not found"), { response: { status: 404 } });
+  };
+  const warnings = [];
+  const originalWarn = console.warn;
+  console.warn = (...args) => warnings.push(args);
+  let result;
+  try {
+    result = await cashfreeService.createSubscription(baseInput());
+  } finally {
+    console.warn = originalWarn;
+  }
+  assert.equal(result.subscriptionSessionId, "recovered_session");
+  assert.equal(createCalls.length, 2);
+  assert.equal(fetchCalls.length, 1);
+  assert.notEqual(createCalls[0][1], createCalls[1][1]);
+  assert.equal(createCalls[0][2], createCalls[1][2]);
+  assert.equal(warnings[0][1].failureOrigin, "CASHFREE_PROVIDER_RESPONSE");
+  assert.equal(warnings[0][1].httpStatus, 504);
+  assert.equal(JSON.stringify(warnings).includes(createCalls[0][2]), false);
+});
+
+test("ambiguous create reuses an existing provider subscription instead of retrying", async () => {
+  createSubscriptionImpl = async () => {
+    throw Object.assign(new Error("gateway unavailable"), {
+      code: "ERR_BAD_RESPONSE",
+      response: { status: 504, data: {}, headers: {} },
+    });
+  };
+  fetchSubscriptionImpl = async (subscriptionId) => ({
+    status: 200,
+    data: {
+      subscription_id: subscriptionId,
+      subscription_session_id: "existing_session",
+      subscription_status: "INITIALIZED",
+    },
   });
+  const originalWarn = console.warn;
+  console.warn = () => {};
+  try {
+    const result = await cashfreeService.createSubscription(baseInput());
+    assert.equal(result.subscriptionSessionId, "existing_session");
+  } finally {
+    console.warn = originalWarn;
+  }
+  assert.equal(createCalls.length, 1);
+  assert.equal(fetchCalls.length, 1);
+});
+
+test("provider failure classification distinguishes responses, transport, and local failures", () => {
+  assert.equal(
+    cashfreeService.classifyProviderFailure({ response: { status: 504 }, code: "ERR_BAD_RESPONSE" }),
+    "CASHFREE_PROVIDER_RESPONSE"
+  );
+  assert.equal(
+    cashfreeService.classifyProviderFailure({ code: "ETIMEDOUT" }),
+    "NETWORK_TIMEOUT_OR_TRANSPORT"
+  );
+  assert.equal(cashfreeService.classifyProviderFailure(new Error("invalid local request")), "LOCAL_REQUEST_FAILURE");
 });
