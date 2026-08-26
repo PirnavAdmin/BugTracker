@@ -297,7 +297,14 @@ test("failed Cashfree creation retries with a new provider attempt and preserves
 
 test("Cashfree failures are returned safely while the local attempt stays non-active", async () => {
   cashfreeService.createSubscription = async () => {
-    throw new Error("provider internals and credentials");
+    throw Object.assign(new Error("provider internals and credentials"), {
+      providerDiagnostic: {
+        httpStatus: 400,
+        providerErrorCode: "invalid_request",
+        type: "invalid_request_error",
+        requestId: "request-safe-001",
+      },
+    });
   };
 
   const { nextError } = await callController({ planId: "starter", billingCycle: "monthly" });
@@ -309,6 +316,59 @@ test("Cashfree failures are returned safely while the local attempt stays non-ac
   assert.equal(localSubscriptionDocument.status, "FAILED");
   assert.equal(localSubscriptionDocument.providerStatus, "CREATION_FAILED");
   assert.equal(paymentDocument.status, "failed");
+});
+
+test("local Cashfree validation errors preserve their safe code and are not provider failures", async () => {
+  const cases = [
+    ["CASHFREE_INVALID_SUBSCRIPTION_DATA", "customer.phone is required", 400],
+    ["CASHFREE_INVALID_PLAN", "A paid CureCode plan is required", 400],
+    ["CASHFREE_AMOUNT_MISMATCH", "The subscription amount does not match", 400],
+    ["CASHFREE_CURRENCY_MISMATCH", "The subscription currency does not match", 400],
+    ["CASHFREE_SANDBOX_REQUIRED", "Cashfree Sandbox is required", 503],
+  ];
+  const logs = [];
+  const originalWarn = console.warn;
+  console.warn = (...args) => logs.push(args);
+  try {
+    for (const [code, message, status] of cases) {
+      cashfreeService.createSubscription = async () => {
+        throw Object.assign(new Error(message), { code, status });
+      };
+      const { nextError } = await callController({ planId: "starter", billingCycle: "monthly" });
+      assert.equal(nextError.code, code);
+      assert.equal(nextError.message, message);
+      assert.equal(nextError.status, status);
+      assert.equal(localSubscriptionDocument.status, "FAILED");
+      assert.equal(localSubscriptionDocument.providerStatus, "VALIDATION_FAILED");
+      assert.equal(localSubscriptionDocument.metadata.validationErrorCode, code);
+      assert.equal(localSubscriptionDocument.metadata.creationErrorCode, undefined);
+      assert.equal(paymentDocument.status, "failed");
+    }
+  } finally {
+    console.warn = originalWarn;
+  }
+
+  assert.equal(logs.length, cases.length);
+  for (const [label, diagnostic] of logs) {
+    assert.equal(label, "[billing] Cashfree request validation error");
+    assert.deepEqual(Object.keys(diagnostic).sort(), ["billingCycle", "code", "message", "planId"]);
+  }
+  const serializedLogs = JSON.stringify(logs);
+  assert.equal(serializedLogs.includes("admin@example.com"), false);
+  assert.equal(serializedLogs.includes("9999999999"), false);
+  assert.equal(serializedLogs.includes(process.env.CASHFREE_SECRET_KEY || "never-match"), false);
+});
+
+test("unknown preparation errors are not mislabeled as Cashfree provider failures", async () => {
+  cashfreeService.createSubscription = async () => {
+    throw new Error("unexpected internal detail");
+  };
+  const { nextError } = await callController({ planId: "starter", billingCycle: "monthly" });
+  assert.equal(nextError.code, "CASHFREE_REQUEST_PREPARATION_FAILED");
+  assert.equal(nextError.message, "Cashfree subscription request could not be prepared");
+  assert.equal(nextError.status, 500);
+  assert.equal(localSubscriptionDocument.providerStatus, "INTERNAL_FAILED");
+  assert.equal(JSON.stringify(nextError).includes("unexpected internal detail"), false);
 });
 
 test("legacy PENDING creation failures are not reused as checkout sessions", async () => {
@@ -343,6 +403,7 @@ test("provider creation diagnostics are persisted without exposing provider inte
   };
   const { nextError } = await callController({ planId: "starter", billingCycle: "monthly" });
   assert.equal(nextError.code, "CASHFREE_SUBSCRIPTION_CREATION_FAILED");
+  assert.equal(Object.hasOwn(nextError, "providerDiagnostic"), false);
   assert.equal(localSubscriptionDocument.metadata.providerHttpStatus, 400);
   assert.equal(localSubscriptionDocument.metadata.providerErrorCode, "invalid_request");
   assert.equal(localSubscriptionDocument.metadata.providerRequestId, "request-safe-001");

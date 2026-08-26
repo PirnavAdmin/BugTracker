@@ -203,17 +203,41 @@ test("Professional and Business prices come from CureCode plan configuration", a
   assert.equal(lastCreateCall[0].plan_details.plan_amount, 3999);
 });
 
-test("missing or invalid customer information is rejected before the provider call", async () => {
-  for (const customer of [
-    { name: "Customer", email: "customer@example.com", phone: "" },
-    { name: "Customer", email: "invalid-email", phone: "9999999999" },
-    { name: "Customer", email: "customer@example.com", phone: "not-a-phone" },
-  ]) {
-    await assert.rejects(
-      () => cashfreeService.createSubscription(baseInput({ customer })),
-      (error) => error.code === "CASHFREE_INVALID_SUBSCRIPTION_DATA"
-    );
-  }
+test("invalid customer phone returns the local subscription-data error before the SDK call", async () => {
+  await assert.rejects(
+    () =>
+      cashfreeService.createSubscription(
+        baseInput({ customer: { name: "Customer", email: "customer@example.com", phone: "" } })
+      ),
+    (error) => error.code === "CASHFREE_INVALID_SUBSCRIPTION_DATA"
+  );
+  assert.equal(lastCreateCall, undefined);
+});
+
+test("invalid customer email returns the local subscription-data error before the SDK call", async () => {
+  await assert.rejects(
+    () =>
+      cashfreeService.createSubscription(
+        baseInput({ customer: { name: "Customer", email: "invalid-email", phone: "9999999999" } })
+      ),
+    (error) => error.code === "CASHFREE_INVALID_SUBSCRIPTION_DATA"
+  );
+  assert.equal(lastCreateCall, undefined);
+});
+
+test("invalid return URL returns the local subscription-data error before the SDK call", async () => {
+  await assert.rejects(
+    () => cashfreeService.createSubscription(baseInput({ returnUrl: "http://public.example.com" })),
+    (error) => error.code === "CASHFREE_INVALID_SUBSCRIPTION_DATA"
+  );
+  assert.equal(lastCreateCall, undefined);
+});
+
+test("invalid plan returns CASHFREE_INVALID_PLAN before the SDK call", async () => {
+  await assert.rejects(
+    () => cashfreeService.createSubscription(baseInput({ planId: "not-a-plan" })),
+    (error) => error.code === "CASHFREE_INVALID_PLAN"
+  );
   assert.equal(lastCreateCall, undefined);
 });
 
@@ -259,6 +283,14 @@ test("caller-supplied amount cannot override the configured CureCode plan price"
       assert.equal(error.status, 400);
       return true;
     }
+  );
+  assert.equal(lastCreateCall, undefined);
+});
+
+test("caller-supplied currency mismatch is rejected before the SDK call", async () => {
+  await assert.rejects(
+    () => cashfreeService.createSubscription(baseInput({ currency: "USD" })),
+    (error) => error.code === "CASHFREE_CURRENCY_MISMATCH"
   );
   assert.equal(lastCreateCall, undefined);
 });

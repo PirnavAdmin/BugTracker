@@ -12,6 +12,13 @@ const { requireTenant } = require("../utils/tenant");
 const ALLOWED_REQUEST_FIELDS = new Set(["planId", "billingCycle"]);
 const CURRENT_SUBSCRIPTION_STATUSES = ["TRIAL", "PENDING", "ACTIVE", "PAST_DUE", "PAUSED", "FAILED"];
 const SUPPORTED_BILLING_CYCLES = new Set(["monthly", "annual"]);
+const LOCAL_CASHFREE_ERROR_CODES = new Set([
+  "CASHFREE_INVALID_SUBSCRIPTION_DATA",
+  "CASHFREE_INVALID_PLAN",
+  "CASHFREE_AMOUNT_MISMATCH",
+  "CASHFREE_CURRENCY_MISMATCH",
+  "CASHFREE_SANDBOX_REQUIRED",
+]);
 
 const apiError = (code, message, status = 400) =>
   Object.assign(new Error(message), { code, status });
@@ -127,7 +134,7 @@ const createSubscription = asyncHandler(async (req, res) => {
   const retryFailedAttempt =
     currentSubscription?.provider === "cashfree" &&
     ["FAILED", "PENDING"].includes(currentSubscription.status) &&
-    currentSubscription.providerStatus === "CREATION_FAILED" &&
+    ["CREATION_FAILED", "VALIDATION_FAILED"].includes(currentSubscription.providerStatus) &&
     currentSubscription.planId === billing.planId &&
     currentSubscription.billingCycle === billing.billingCycle;
 
@@ -198,20 +205,61 @@ const createSubscription = asyncHandler(async (req, res) => {
       notificationChannels: ["EMAIL"],
     });
   } catch (error) {
-    const diagnostic = error?.providerDiagnostic || {};
+    const isProviderFailure = Boolean(error?.providerDiagnostic);
+    const isLocalValidationFailure = LOCAL_CASHFREE_ERROR_CODES.has(error?.code);
+    const diagnostic = isProviderFailure ? error.providerDiagnostic : {};
+
+    if (isLocalValidationFailure) {
+      console.warn("[billing] Cashfree request validation error", {
+        code: error.code,
+        message: error.message,
+        planId: billing.planId,
+        billingCycle: billing.billingCycle,
+      });
+    }
+
     localSubscription.status = "FAILED";
-    localSubscription.providerStatus = "CREATION_FAILED";
+    localSubscription.providerStatus = isProviderFailure
+      ? "CREATION_FAILED"
+      : isLocalValidationFailure
+        ? "VALIDATION_FAILED"
+        : "INTERNAL_FAILED";
     localSubscription.metadata = {
       ...localSubscription.metadata,
-      creationErrorCode: "CASHFREE_SUBSCRIPTION_CREATION_FAILED",
-      providerHttpStatus: diagnostic.httpStatus,
-      providerErrorCode: diagnostic.providerErrorCode,
-      providerErrorType: diagnostic.type,
-      providerRequestId: diagnostic.requestId,
+      ...(isProviderFailure
+        ? {
+            creationErrorCode: "CASHFREE_SUBSCRIPTION_CREATION_FAILED",
+            providerHttpStatus: diagnostic.httpStatus,
+            providerErrorCode: diagnostic.providerErrorCode,
+            providerErrorType: diagnostic.type,
+            providerRequestId: diagnostic.requestId,
+          }
+        : {
+            validationErrorCode: isLocalValidationFailure
+              ? error.code
+              : "CASHFREE_REQUEST_PREPARATION_FAILED",
+          }),
     };
     paymentAttempt.status = "failed";
-    paymentAttempt.failureReason = "Cashfree subscription creation failed";
+    paymentAttempt.failureReason = isLocalValidationFailure
+      ? error.message
+      : isProviderFailure
+        ? "Cashfree subscription creation failed"
+        : "Cashfree subscription request could not be prepared";
     await Promise.allSettled([localSubscription.save(), paymentAttempt.save()]);
+
+    if (isLocalValidationFailure) {
+      throw apiError(error.code, error.message, error.status || 400);
+    }
+
+    if (!isProviderFailure) {
+      throw apiError(
+        "CASHFREE_REQUEST_PREPARATION_FAILED",
+        "Cashfree subscription request could not be prepared",
+        500
+      );
+    }
+
     throw apiError(
       "CASHFREE_SUBSCRIPTION_CREATION_FAILED",
       "Cashfree subscription creation failed",
@@ -307,6 +355,7 @@ const getSubscriptionStatus = asyncHandler(async (req, res) => {
 });
 
 module.exports = {
+  LOCAL_CASHFREE_ERROR_CODES,
   buildReference,
   createSubscription,
   getSubscriptionStatus,
