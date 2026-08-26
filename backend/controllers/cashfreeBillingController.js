@@ -187,7 +187,7 @@ const createSubscription = asyncHandler(async (req, res) => {
       customer: {
         name: req.user?.name || company.contactPerson || company.name,
         email: req.user?.email || company.contactEmail || company.email,
-        phone: company.contactPhone,
+        phone: req.user?.phone || company.contactPhone,
       },
       planId: billing.planId,
       billingCycle: billing.billingCycle,
@@ -204,8 +204,8 @@ const createSubscription = asyncHandler(async (req, res) => {
     localSubscription.metadata = {
       ...localSubscription.metadata,
       creationErrorCode: "CASHFREE_SUBSCRIPTION_CREATION_FAILED",
-      providerHttpStatus: diagnostic.statusCode,
-      providerErrorCode: diagnostic.errorCode,
+      providerHttpStatus: diagnostic.httpStatus,
+      providerErrorCode: diagnostic.providerErrorCode,
       providerErrorType: diagnostic.type,
       providerRequestId: diagnostic.requestId,
     };
@@ -307,6 +307,7 @@ const getSubscriptionStatus = asyncHandler(async (req, res) => {
 });
 
 module.exports = {
+  buildReference,
   createSubscription,
   getSubscriptionStatus,
   mapVerifiedStatus,

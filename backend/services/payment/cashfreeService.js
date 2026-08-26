@@ -1,3 +1,4 @@
+const crypto = require("crypto");
 const { Cashfree, CFEnvironment } = require("cashfree-pg");
 const cashfreeConfig = require("../../config/cashfree");
 const { PLANS } = require("../../config/plans");
@@ -130,14 +131,19 @@ const diagnosticValue = (error, field) => {
   return typeof value === "string" || typeof value === "number" ? value : undefined;
 };
 
-const providerErrorDiagnostic = (error, operation) => {
+const providerErrorDiagnostic = (error, context = {}) => {
   const diagnostic = {
-    operation,
-    statusCode: error?.response?.status ?? diagnosticValue(error, "statusCode"),
-    errorCode: diagnosticValue(error, "code"),
+    environment,
+    httpStatus: error?.response?.status ?? diagnosticValue(error, "statusCode"),
+    providerErrorCode: diagnosticValue(error, "code"),
+    providerErrorMessage: sanitizeProviderText(diagnosticValue(error, "message")),
     type: diagnosticValue(error, "type"),
-    message: sanitizeProviderText(diagnosticValue(error, "message")),
-    requestId: error?.response?.headers?.["x-request-id"],
+    requestId: error?.response?.headers?.["x-request-id"] || context.requestId,
+    providerSubscriptionId: context.providerSubscriptionId,
+    planType: context.planType,
+    billingCycle: context.billingCycle,
+    amount: context.amount,
+    currency: context.currency,
   };
   Object.keys(diagnostic).forEach(
     (key) => diagnostic[key] === undefined && delete diagnostic[key]
@@ -145,14 +151,14 @@ const providerErrorDiagnostic = (error, operation) => {
   return diagnostic;
 };
 
-const logProviderError = (error, operation) => {
-  const diagnostic = providerErrorDiagnostic(error, operation);
+const logProviderError = (error, context) => {
+  const diagnostic = providerErrorDiagnostic(error, context);
   console.error("[billing] Cashfree provider error", diagnostic);
   return diagnostic;
 };
 
-const providerFailure = (error, operation, code, message) => {
-  const diagnostic = logProviderError(error, operation);
+const providerFailure = (error, context, code, message) => {
+  const diagnostic = logProviderError(error, context);
   return Object.assign(serviceError(code, message, 502), { providerDiagnostic: diagnostic });
 };
 
@@ -224,27 +230,31 @@ const createSubscription = async ({
       curecode_billing_cycle: billing.billingCycle,
     },
   };
+  const requestId = crypto.randomUUID();
+  const idempotencyKey = crypto.randomUUID();
+  const diagnosticContext = {
+    requestId,
+    providerSubscriptionId: merchantReference,
+    planType: request.plan_details.plan_type,
+    billingCycle: billing.billingCycle,
+    amount: request.plan_details.plan_amount,
+    currency: request.plan_details.plan_currency,
+  };
 
   try {
     console.info("[billing] Cashfree create subscription request", {
-      subscriptionId: merchantReference,
-      planType: request.plan_details.plan_type,
-      intervalType: request.plan_details.plan_interval_type,
-      intervals: request.plan_details.plan_intervals,
-      amount: request.plan_details.plan_amount,
-      maximumAmount: request.plan_details.plan_max_amount,
-      currency: request.plan_details.plan_currency,
-      customerNameConfigured: Boolean(request.customer_details.customer_name),
-      customerEmailConfigured: Boolean(request.customer_details.customer_email),
-      customerPhoneConfigured: Boolean(request.customer_details.customer_phone),
-      returnUrlOrigin: new URL(subscriptionReturnUrl).origin,
-      notificationChannels: request.subscription_meta.notification_channel,
-      tagNames: Object.keys(request.subscription_tags),
+      environment,
+      requestId,
+      providerSubscriptionId: merchantReference,
+      planType: diagnosticContext.planType,
+      billingCycle: diagnosticContext.billingCycle,
+      amount: diagnosticContext.amount,
+      currency: diagnosticContext.currency,
     });
     const response = await cashfreeClient.SubsCreateSubscription(
       request,
-      merchantReference,
-      merchantReference
+      requestId,
+      idempotencyKey
     );
     const data = response?.data || {};
 
@@ -259,8 +269,10 @@ const createSubscription = async ({
     }
 
     console.info("[billing] Cashfree subscription created", {
+      environment,
       statusCode: response?.status,
-      subscriptionId: data.subscription_id,
+      requestId,
+      providerSubscriptionId: data.subscription_id,
       subscriptionStatus: data.subscription_status,
       sessionIdConfigured: true,
     });
@@ -274,7 +286,7 @@ const createSubscription = async ({
   } catch (error) {
     throw providerFailure(
       error,
-      "createSubscription",
+      diagnosticContext,
       "CASHFREE_SUBSCRIPTION_CREATION_FAILED",
       "Cashfree subscription creation failed"
     );
@@ -306,7 +318,7 @@ const fetchSubscription = async (subscriptionId) => {
   } catch (error) {
     throw providerFailure(
       error,
-      "fetchSubscription",
+      { providerSubscriptionId: normalizedSubscriptionId },
       "CASHFREE_SUBSCRIPTION_STATUS_FAILED",
       "Cashfree subscription status could not be verified"
     );

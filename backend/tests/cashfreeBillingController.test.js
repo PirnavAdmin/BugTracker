@@ -6,6 +6,7 @@ const Subscription = require("../models/Subscription");
 const Payment = require("../models/Payment");
 const cashfreeService = require("../services/payment/cashfreeService");
 const {
+  buildReference,
   createSubscription,
   getSubscriptionStatus,
   mapVerifiedStatus,
@@ -159,6 +160,14 @@ test("authenticated tenant user creates a pending Cashfree subscription", async 
   assert.equal(paymentPayload.status, "pending");
 });
 
+test("Cashfree subscription references are unique valid merchant subscription IDs", () => {
+  const first = buildReference();
+  const second = buildReference();
+  assert.match(first, /^cc_[0-9a-f-]{36}$/i);
+  assert.match(second, /^cc_[0-9a-f-]{36}$/i);
+  assert.notEqual(first, second);
+});
+
 test("invalid and non-billable plans are rejected", async () => {
   for (const planId of ["unknown", "free", "enterprise"]) {
     const { nextError } = await callController({ planId, billingCycle: "monthly" });
@@ -198,6 +207,18 @@ test("monthly price and authenticated tenant data are passed to Cashfree", async
   assert.equal(servicePayload.amount, 1999);
   assert.equal(servicePayload.currency, "INR");
   assert.equal(servicePayload.customer.phone, "9999999999");
+});
+
+test("authenticated user customer data takes precedence over company contact data", async () => {
+  await callController(
+    { planId: "starter", billingCycle: "monthly" },
+    { name: "Authenticated Customer", email: "customer@example.com", phone: "9888888888" }
+  );
+  assert.deepEqual(servicePayload.customer, {
+    name: "Authenticated Customer",
+    email: "customer@example.com",
+    phone: "9888888888",
+  });
 });
 
 test("annual price is resolved from CureCode plan configuration", async () => {
@@ -313,8 +334,8 @@ test("provider creation diagnostics are persisted without exposing provider inte
   cashfreeService.createSubscription = async () => {
     throw Object.assign(new Error("sensitive provider response"), {
       providerDiagnostic: {
-        statusCode: 400,
-        errorCode: "invalid_request",
+        httpStatus: 400,
+        providerErrorCode: "invalid_request",
         type: "validation_error",
         requestId: "request-safe-001",
       },

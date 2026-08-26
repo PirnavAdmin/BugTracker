@@ -70,6 +70,8 @@ const baseInput = (overrides = {}) => ({
   ...overrides,
 });
 
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
 test.after(() => {
   delete require.cache[servicePath];
   if (originalConfigCache) require.cache[configPath] = originalConfigCache;
@@ -132,8 +134,11 @@ test("subscription creation uses the current Cashfree Subscription API and retur
 
   assert.equal(lastCreateCall.length, 3);
   assert.equal(lastCreateCall[0].subscription_id, "curecode_sub_001");
-  assert.equal(lastCreateCall[1], "curecode_sub_001");
-  assert.equal(lastCreateCall[2], "curecode_sub_001");
+  assert.match(lastCreateCall[1], UUID_PATTERN);
+  assert.match(lastCreateCall[2], UUID_PATTERN);
+  assert.notEqual(lastCreateCall[1], lastCreateCall[2]);
+  assert.notEqual(lastCreateCall[0].subscription_id, lastCreateCall[1]);
+  assert.notEqual(lastCreateCall[0].subscription_id, lastCreateCall[2]);
   assert.equal(lastCreateCall[0].subscription_meta.return_url, baseInput().returnUrl);
   assert.deepEqual(lastCreateCall[0].subscription_meta.notification_channel, ["EMAIL"]);
   assert.equal(Object.hasOwn(lastCreateCall[0].subscription_meta, "notify_url"), false);
@@ -143,6 +148,15 @@ test("subscription creation uses the current Cashfree Subscription API and retur
     status: "INITIALIZED",
   });
   assert.equal(Object.hasOwn(result, "customer_details"), false);
+});
+
+test("installed SDK argument order is body, x-request-id, then x-idempotency-key", async () => {
+  await cashfreeService.createSubscription(baseInput());
+  const [requestBody, requestId, idempotencyKey] = lastCreateCall;
+  assert.equal(requestBody.subscription_id, "curecode_sub_001");
+  assert.match(requestId, UUID_PATTERN);
+  assert.match(idempotencyKey, UUID_PATTERN);
+  assert.equal(lastCreateCall.length, 3);
 });
 
 test("monthly billing resolves its amount from CureCode plan configuration", async () => {
@@ -158,6 +172,13 @@ test("monthly billing resolves its amount from CureCode plan configuration", asy
     plan_interval_type: "MONTH",
     plan_note: "Starter monthly subscription",
   });
+});
+
+test("inline plan details do not depend on a dashboard plan", async () => {
+  await cashfreeService.createSubscription(baseInput());
+  assert.equal(Object.hasOwn(lastCreateCall[0].plan_details, "plan_id"), false);
+  assert.equal(lastCreateCall[0].plan_details.plan_type, "PERIODIC");
+  assert.equal(lastCreateCall[0].authorization_details, undefined);
 });
 
 test("annual billing resolves its amount from CureCode plan configuration", async () => {
@@ -283,11 +304,16 @@ test("Cashfree API failures are normalized and credentials never reach logs or c
   assert.equal(serializedLogs.includes(process.env.CASHFREE_APP_ID), false);
   assert.equal(serializedLogs.includes(process.env.CASHFREE_SECRET_KEY), false);
   assert.deepEqual(logs[0][1], {
-    operation: "createSubscription",
-    statusCode: 401,
-    errorCode: "authentication_error",
+    environment: "sandbox",
+    httpStatus: 401,
+    providerErrorCode: "authentication_error",
+    providerErrorMessage: "Invalid secret [redacted]",
     type: "authentication_error",
-    message: "Invalid secret [redacted]",
     requestId: "request_001",
+    providerSubscriptionId: "curecode_sub_001",
+    planType: "PERIODIC",
+    billingCycle: "monthly",
+    amount: 799,
+    currency: "INR",
   });
 });
