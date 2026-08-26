@@ -8,6 +8,7 @@ const Subscription = require("../models/Subscription");
 const Payment = require("../models/Payment");
 const { getPlan } = require("../services/planService");
 const cashfreeService = require("../services/payment/cashfreeService");
+const providerSync = require("../services/billingProviderSyncService");
 const { requireTenant } = require("../utils/tenant");
 
 const ALLOWED_REQUEST_FIELDS = new Set(["planId", "billingCycle"]);
@@ -326,62 +327,8 @@ const createSubscription = asyncHandler(async (req, res) => {
   );
 });
 
-const mapVerifiedStatus = ({ status, authorizationStatus }) => {
-  const providerStatus = String(status || "").trim().toUpperCase();
-  const authStatus = String(authorizationStatus || "").trim().toUpperCase();
-  if (
-    ["FAILED", "FAILURE", "CANCELLED", "EXPIRED"].includes(authStatus) ||
-    ["FAILED", "CANCELLED", "EXPIRED"].includes(providerStatus)
-  ) {
-    return "FAILED";
-  }
-  if (
-    ["ACTIVE", "SUCCESS", "AUTHORIZED", "AUTHORISED"].includes(authStatus) &&
-    ["ACTIVE", "SUCCESS"].includes(providerStatus)
-  ) {
-    return "ACTIVE";
-  }
-  return "PENDING";
-};
-
-const applyVerifiedSubscriptionStatus = async (subscription) => {
-  const provider = await cashfreeService.fetchSubscription(subscription.providerSubscriptionId);
-  const nextStatus = mapVerifiedStatus(provider);
-  subscription.status = nextStatus;
-  subscription.providerStatus =
-    provider.authorizationStatus || provider.status || subscription.providerStatus;
-  subscription.metadata = {
-    ...subscription.metadata,
-    lastStatusVerifiedAt: new Date(),
-    providerSubscriptionStatus: provider.status,
-    providerAuthorizationStatus: provider.authorizationStatus,
-  };
-  if (nextStatus === "ACTIVE" && !subscription.startDate) subscription.startDate = new Date();
-  if (nextStatus === "FAILED" && !subscription.endedAt) subscription.endedAt = new Date();
-  await subscription.save();
-
-  const payment = await Payment.findOne({
-    tenantId: subscription.tenantId,
-    subscriptionId: subscription._id,
-    provider: "cashfree",
-    providerSubscriptionId: subscription.providerSubscriptionId,
-  }).sort({ createdAt: -1 });
-  if (payment) {
-    payment.status =
-      nextStatus === "ACTIVE" ? "authorized" : nextStatus === "FAILED" ? "failed" : "pending";
-    payment.providerPaymentId = provider.paymentId || payment.providerPaymentId;
-    payment.paymentMethod = provider.paymentMethod || payment.paymentMethod;
-    payment.failureReason = nextStatus === "FAILED" ? "Cashfree authorization failed" : undefined;
-    payment.metadata = {
-      ...payment.metadata,
-      authorizationVerified: nextStatus === "ACTIVE",
-      providerAuthorizationStatus: provider.authorizationStatus,
-    };
-    await payment.save();
-  }
-
-  return { nextStatus, payment, provider };
-};
+const mapVerifiedStatus = providerSync.mapCashfreeVerifiedStatus;
+const applyVerifiedSubscriptionStatus = providerSync.syncCashfreeSubscription;
 
 const redirectCashfreeReturn = (res, status) =>
   res.redirect(
