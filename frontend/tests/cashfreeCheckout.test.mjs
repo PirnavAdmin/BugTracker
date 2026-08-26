@@ -4,10 +4,13 @@ import { readFile } from "node:fs/promises";
 import {
   CASHFREE_BILLING_PHONE_REQUIRED_MESSAGE,
   CASHFREE_CHECKOUT_MODE,
+  CASHFREE_RETURN_MESSAGES,
   CASHFREE_PROCESSING_MESSAGE,
   createSingleFlight,
   getCashfreeCheckoutErrorMessage,
   getCashfreeInitialNotice,
+  getCashfreeReturnStatus,
+  getCashfreeVerifiedNotice,
   isCashfreeReturn,
   isCashfreeSubscriptionRecord,
   openCashfreeSubscriptionCheckout,
@@ -153,11 +156,43 @@ test("missing Cashfree billing phone displays clear company-contact guidance", a
 
 test("Cashfree return state remains processing until backend confirmation", () => {
   assert.equal(getCashfreeInitialNotice("?cashfree=return"), CASHFREE_PROCESSING_MESSAGE);
+  assert.equal(
+    getCashfreeInitialNotice("?cashfree=return&status=success"),
+    CASHFREE_PROCESSING_MESSAGE
+  );
   assert.match(CASHFREE_PROCESSING_MESSAGE, /confirming your subscription/i);
   assert.doesNotMatch(CASHFREE_PROCESSING_MESSAGE, /payment successful/i);
   assert.equal(getCashfreeInitialNotice(""), "");
   assert.equal(isCashfreeReturn("?cashfree=return"), true);
   assert.equal(isCashfreeReturn(""), false);
+});
+
+test("Cashfree return status is allow-listed but never treated as verification", () => {
+  assert.equal(getCashfreeReturnStatus("?cashfree=return&status=success"), "success");
+  assert.equal(getCashfreeReturnStatus("?cashfree=return&status=pending"), "pending");
+  assert.equal(getCashfreeReturnStatus("?cashfree=return&status=failed"), "failed");
+  assert.equal(getCashfreeReturnStatus("?cashfree=return&status=ACTIVE"), "");
+  assert.equal(getCashfreeReturnStatus("?cashfree=return&status=payment_success"), "");
+  assert.equal(
+    getCashfreeInitialNotice("?cashfree=return&status=success"),
+    CASHFREE_PROCESSING_MESSAGE
+  );
+});
+
+test("server-verified Cashfree states map to exact authorization notices", () => {
+  assert.equal(getCashfreeVerifiedNotice("ACTIVE"), CASHFREE_RETURN_MESSAGES.ACTIVE);
+  assert.equal(getCashfreeVerifiedNotice("PENDING"), CASHFREE_RETURN_MESSAGES.PENDING);
+  assert.equal(getCashfreeVerifiedNotice("FAILED"), CASHFREE_RETURN_MESSAGES.FAILED);
+  assert.equal(CASHFREE_RETURN_MESSAGES.ACTIVE, "Cashfree subscription authorization completed.");
+  assert.equal(
+    CASHFREE_RETURN_MESSAGES.PENDING,
+    "Cashfree subscription authorization is still being processed."
+  );
+  assert.equal(
+    CASHFREE_RETURN_MESSAGES.FAILED,
+    "Cashfree subscription authorization was not completed."
+  );
+  assert.doesNotMatch(Object.values(CASHFREE_RETURN_MESSAGES).join(" "), /payment successful/i);
 });
 
 test("Cashfree records are identified for provider-specific retry without changing Razorpay retry", () => {
@@ -183,6 +218,8 @@ test("Cashfree UI has duplicate-click loading protection and no frontend secret"
   assert.match(buttonSource, /Creating subscription\.\.\." : label/);
   assert.match(apiSource, /\/billing\/cashfree\/subscription\/status/);
   assert.match(billingSource, /fetchCashfreeBillingSubscriptionStatus/);
+  assert.match(billingSource, /getCashfreeVerifiedNotice\(data\?\.subscription\?\.status\)/);
+  assert.match(billingSource, /\["billing-subscription"\], \["billing-payments"\], \["billing-invoices"\]/);
   assert.match(billingSource, /Retry Cashfree Payment/);
   assert.match(billingSource, /CashfreeCheckoutButton/);
   assert.doesNotMatch(`${buttonSource}${apiSource}${billingSource}${checkoutSource}`, /CASHFREE_SECRET_KEY/);

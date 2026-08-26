@@ -12,6 +12,7 @@ const {
   mapVerifiedStatus,
   normalizeCustomerPhone,
   resolveCustomerPhone,
+  returnSubscription,
 } = require("../controllers/cashfreeBillingController");
 
 const originalCompanyFindOne = PlatformCompany.findOne;
@@ -31,6 +32,7 @@ let existingSubscription;
 let localSubscriptionDocument;
 let paymentDocument;
 let companyDocument;
+let paymentQuery;
 
 const createDocument = (payload) => ({
   _id: payload._id || "local-subscription-1",
@@ -51,6 +53,11 @@ const createResponse = () => ({
   },
   json(payload) {
     this.body = payload;
+    return this;
+  },
+  redirect(code, location) {
+    this.statusCode = code;
+    this.redirectLocation = location;
     return this;
   },
 });
@@ -85,6 +92,16 @@ const callStatusController = async (userOverrides = {}) => {
   return { res, nextError };
 };
 
+const callReturnController = async (body = {}) => {
+  const req = { body, method: "POST" };
+  const res = createResponse();
+  let nextError;
+  await returnSubscription(req, res, (error) => {
+    nextError = error;
+  });
+  return { req, res, nextError };
+};
+
 test.beforeEach(() => {
   companyQuery = undefined;
   subscriptionQuery = undefined;
@@ -94,6 +111,7 @@ test.beforeEach(() => {
   existingSubscription = null;
   localSubscriptionDocument = undefined;
   paymentDocument = undefined;
+  paymentQuery = undefined;
   companyDocument = {
     _id: "company-001",
     tenantId: "TENANT_001",
@@ -123,7 +141,10 @@ test.beforeEach(() => {
     paymentDocument = createDocument({ _id: "payment-attempt-1", ...payload });
     return paymentDocument;
   };
-  Payment.findOne = () => ({ sort: async () => paymentDocument });
+  Payment.findOne = (filter) => {
+    paymentQuery = filter;
+    return { sort: async () => paymentDocument };
+  };
   cashfreeService.createSubscription = async (payload) => {
     servicePayload = payload;
     return {
@@ -211,6 +232,8 @@ test("monthly price and authenticated tenant data are passed to Cashfree", async
   assert.equal(servicePayload.amount, 1999);
   assert.equal(servicePayload.currency, "INR");
   assert.equal(servicePayload.customer.phone, "9999999999");
+  assert.match(servicePayload.returnUrl, /\/api\/billing\/cashfree\/return$/);
+  assert.equal(servicePayload.returnUrl.includes("/settings/billing"), false);
 });
 
 test("authenticated user customer data takes precedence over company contact data", async () => {
@@ -534,6 +557,192 @@ test("pending or failed provider authorization maps without premature activation
   assert.equal(mapVerifiedStatus({ status: "ACTIVE", authorizationStatus: "PENDING" }), "PENDING");
   assert.equal(mapVerifiedStatus({ status: "ACTIVE", authorizationStatus: "FAILED" }), "FAILED");
   assert.equal(mapVerifiedStatus({ status: "ACTIVE", authorizationStatus: "ACTIVE" }), "ACTIVE");
+  assert.equal(mapVerifiedStatus({ status: "SUCCESS", authorizationStatus: "AUTHORIZED" }), "ACTIVE");
+});
+
+test("Cashfree return requires the documented cf_subscriptionId field", async () => {
+  const originalInfo = console.info;
+  console.info = () => {};
+  try {
+    const { res, nextError } = await callReturnController({
+      subscription_id: "cashfree-subscription-001",
+      cf_status: "ACTIVE",
+    });
+    assert.ifError(nextError);
+    assert.equal(res.statusCode, 303);
+    assert.match(res.redirectLocation, /cashfree=return&status=failed$/);
+  } finally {
+    console.info = originalInfo;
+  }
+  assert.equal(subscriptionQuery, undefined);
+  assert.equal(servicePayload, undefined);
+});
+
+test("unknown Cashfree return subscription is rejected without creating local records", async () => {
+  const originalInfo = console.info;
+  console.info = () => {};
+  try {
+    const { res, nextError } = await callReturnController({
+      cf_subscriptionId: "cashfree-unknown",
+    });
+    assert.ifError(nextError);
+    assert.equal(res.statusCode, 303);
+    assert.match(res.redirectLocation, /cashfree=return&status=failed$/);
+  } finally {
+    console.info = originalInfo;
+  }
+  assert.deepEqual(subscriptionQuery, {
+    provider: "cashfree",
+    providerSubscriptionId: "cashfree-unknown",
+  });
+  assert.equal(subscriptionPayload, undefined);
+  assert.equal(paymentPayload, undefined);
+});
+
+test("Cashfree return verifies ACTIVE server-side and updates the tenant-scoped existing payment", async () => {
+  existingSubscription = createDocument({
+    _id: "pending-cashfree-subscription",
+    tenantId: "TENANT_001",
+    provider: "cashfree",
+    providerSubscriptionId: "cashfree-subscription-001",
+    status: "PENDING",
+    metadata: {},
+  });
+  paymentDocument = createDocument({ status: "pending", metadata: {} });
+  const originalInfo = console.info;
+  console.info = () => {};
+  try {
+    const { res, nextError } = await callReturnController({
+      cf_subscriptionId: "cashfree-subscription-001",
+      cf_status: "FAILED",
+    });
+    assert.ifError(nextError);
+    assert.equal(res.statusCode, 303);
+    assert.match(res.redirectLocation, /cashfree=return&status=success$/);
+  } finally {
+    console.info = originalInfo;
+  }
+  assert.equal(existingSubscription.status, "ACTIVE");
+  assert.equal(paymentDocument.status, "authorized");
+  assert.deepEqual(paymentQuery, {
+    tenantId: "TENANT_001",
+    subscriptionId: "pending-cashfree-subscription",
+    provider: "cashfree",
+    providerSubscriptionId: "cashfree-subscription-001",
+  });
+});
+
+test("browser return status cannot force success when Cashfree verification is pending", async () => {
+  existingSubscription = createDocument({
+    _id: "pending-cashfree-subscription",
+    tenantId: "TENANT_001",
+    provider: "cashfree",
+    providerSubscriptionId: "cashfree-subscription-001",
+    status: "PENDING",
+    metadata: {},
+  });
+  paymentDocument = createDocument({ status: "pending", metadata: {} });
+  cashfreeService.fetchSubscription = async () => ({
+    status: "ACTIVE",
+    authorizationStatus: "PENDING",
+  });
+  const originalInfo = console.info;
+  console.info = () => {};
+  try {
+    const { res } = await callReturnController({
+      cf_subscriptionId: "cashfree-subscription-001",
+      cf_status: "ACTIVE",
+      cf_checkoutStatus: "SUCCESS",
+    });
+    assert.match(res.redirectLocation, /cashfree=return&status=pending$/);
+  } finally {
+    console.info = originalInfo;
+  }
+  assert.equal(existingSubscription.status, "PENDING");
+  assert.equal(paymentDocument.status, "pending");
+});
+
+test("Cashfree return maps verified failure and remains idempotent on duplicate POSTs", async () => {
+  existingSubscription = createDocument({
+    _id: "pending-cashfree-subscription",
+    tenantId: "TENANT_001",
+    provider: "cashfree",
+    providerSubscriptionId: "cashfree-subscription-001",
+    status: "PENDING",
+    metadata: {},
+  });
+  paymentDocument = createDocument({ status: "pending", metadata: {} });
+  cashfreeService.fetchSubscription = async () => ({
+    status: "ACTIVE",
+    authorizationStatus: "FAILED",
+  });
+  const originalInfo = console.info;
+  console.info = () => {};
+  try {
+    const first = await callReturnController({ cf_subscriptionId: "cashfree-subscription-001" });
+    const second = await callReturnController({ cf_subscriptionId: "cashfree-subscription-001" });
+    assert.match(first.res.redirectLocation, /cashfree=return&status=failed$/);
+    assert.match(second.res.redirectLocation, /cashfree=return&status=failed$/);
+  } finally {
+    console.info = originalInfo;
+  }
+  assert.equal(existingSubscription.status, "FAILED");
+  assert.equal(paymentDocument.status, "failed");
+  assert.equal(subscriptionPayload, undefined);
+  assert.equal(paymentPayload, undefined);
+  assert.equal(existingSubscription.startDate, undefined);
+});
+
+test("Cashfree return verification failures are sanitized and leave local state pending", async () => {
+  existingSubscription = createDocument({
+    _id: "pending-cashfree-subscription",
+    tenantId: "TENANT_001",
+    provider: "cashfree",
+    providerSubscriptionId: "cashfree-subscription-001",
+    status: "PENDING",
+    metadata: {},
+  });
+  cashfreeService.fetchSubscription = async () => {
+    throw Object.assign(new Error("raw secret provider failure"), {
+      providerDiagnostic: {
+        httpStatus: 502,
+        providerErrorCode: "provider_unavailable",
+        providerErrorMessage: "sanitized provider unavailable",
+        requestId: "request-safe-002",
+      },
+    });
+  };
+  const logs = [];
+  const originalInfo = console.info;
+  const originalError = console.error;
+  console.info = () => {};
+  console.error = (...args) => logs.push(args);
+  try {
+    const { res } = await callReturnController({
+      cf_subscriptionId: "cashfree-subscription-001",
+      cf_message: "customer@example.com 9999999999",
+    });
+    assert.match(res.redirectLocation, /cashfree=return&status=pending$/);
+  } finally {
+    console.info = originalInfo;
+    console.error = originalError;
+  }
+  assert.equal(existingSubscription.status, "PENDING");
+  assert.deepEqual(logs, [
+    [
+      "[billing] Cashfree return verification failed",
+      {
+        httpStatus: 502,
+        providerErrorCode: "provider_unavailable",
+        sanitizedMessage: "sanitized provider unavailable",
+        requestId: "request-safe-002",
+      },
+    ],
+  ]);
+  const serializedLogs = JSON.stringify(logs);
+  assert.equal(serializedLogs.includes("customer@example.com"), false);
+  assert.equal(serializedLogs.includes("9999999999"), false);
+  assert.equal(serializedLogs.includes(process.env.CASHFREE_SECRET_KEY || "never-match"), false);
 });
 
 test("provider and session identifiers are persisted while subscription remains pending", async () => {

@@ -3,6 +3,11 @@ import { load } from "@cashfreepayments/cashfree-js";
 export const CASHFREE_CHECKOUT_MODE = "sandbox";
 export const CASHFREE_PROCESSING_MESSAGE =
   "Payment processing... We're confirming your subscription. Please wait.";
+export const CASHFREE_RETURN_MESSAGES = Object.freeze({
+  ACTIVE: "Cashfree subscription authorization completed.",
+  PENDING: "Cashfree subscription authorization is still being processed.",
+  FAILED: "Cashfree subscription authorization was not completed.",
+});
 export const CASHFREE_BILLING_PHONE_REQUIRED_MESSAGE =
   "Please ask your CureCode platform administrator to add a billing contact phone number for your company before continuing with Cashfree.";
 
@@ -111,6 +116,17 @@ export const isCashfreeReturn = (search) => {
     search === undefined && typeof window !== "undefined" ? window.location.search : search || "";
   return new URLSearchParams(query).get("cashfree") === "return";
 };
+
+export const getCashfreeReturnStatus = (search) => {
+  const query =
+    search === undefined && typeof window !== "undefined" ? window.location.search : search || "";
+  const status = String(new URLSearchParams(query).get("status") || "").toLowerCase();
+  return ["success", "pending", "failed"].includes(status) ? status : "";
+};
+
+export const getCashfreeVerifiedNotice = (status) =>
+  CASHFREE_RETURN_MESSAGES[String(status || "").trim().toUpperCase()] ||
+  CASHFREE_RETURN_MESSAGES.PENDING;
 
 export const isCashfreeSubscriptionRecord = (subscription) =>
   subscription?.provider === "cashfree" ||
