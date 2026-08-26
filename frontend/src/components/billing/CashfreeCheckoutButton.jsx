@@ -14,6 +14,7 @@ export default function CashfreeCheckoutButton({
   billingCycle,
   onNotice,
   onStarted,
+  label = "Choose Plan with Cashfree",
 }) {
   const startOnce = useMemo(() => createSingleFlight(), []);
   const create = useMutation({
@@ -39,7 +40,7 @@ export default function CashfreeCheckoutButton({
       disabled={create.isPending}
       onClick={() => create.mutate()}
     >
-      {create.isPending ? "Creating subscription..." : "Choose Plan"}
+      {create.isPending ? "Creating subscription..." : label}
     </Button>
   );
 }

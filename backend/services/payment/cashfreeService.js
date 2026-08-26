@@ -10,6 +10,21 @@ const BILLING_CYCLES = Object.freeze({
 const serviceError = (code, message, status = 400) =>
   Object.assign(new Error(message), { code, status });
 
+const EMAIL_PATTERN = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi;
+const PHONE_PATTERN = /(?:\+?\d[\d\s()-]{7,}\d)/g;
+
+const sanitizeProviderText = (value) => {
+  if (typeof value !== "string") return undefined;
+  let sanitized = value;
+  for (const secret of [cashfreeConfig.appId, cashfreeConfig.secretKey]) {
+    if (secret) sanitized = sanitized.split(secret).join("[redacted]");
+  }
+  return sanitized
+    .replace(EMAIL_PATTERN, "[redacted-email]")
+    .replace(PHONE_PATTERN, "[redacted-phone]")
+    .slice(0, 500);
+};
+
 const requireText = (value, field) => {
   const normalized = String(value || "").trim();
   if (!normalized) {
@@ -25,8 +40,27 @@ const requireUrl = (value, field) => {
     if (!new Set(["http:", "https:"]).has(url.protocol)) {
       throw new Error("Unsupported URL protocol");
     }
+    if (url.protocol !== "https:" && !["localhost", "127.0.0.1"].includes(url.hostname)) {
+      throw new Error("Public return URLs must use HTTPS");
+    }
   } catch {
     throw serviceError("CASHFREE_INVALID_SUBSCRIPTION_DATA", `${field} must be a valid HTTP URL`);
+  }
+  return normalized;
+};
+
+const requireEmail = (value, field) => {
+  const normalized = requireText(value, field).toLowerCase();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized)) {
+    throw serviceError("CASHFREE_INVALID_SUBSCRIPTION_DATA", `${field} must be a valid email`);
+  }
+  return normalized;
+};
+
+const requirePhone = (value, field) => {
+  const normalized = requireText(value, field).replace(/[\s()-]/g, "");
+  if (!/^\+?\d{8,15}$/.test(normalized)) {
+    throw serviceError("CASHFREE_INVALID_SUBSCRIPTION_DATA", `${field} must be a valid phone number`);
   }
   return normalized;
 };
@@ -96,18 +130,30 @@ const diagnosticValue = (error, field) => {
   return typeof value === "string" || typeof value === "number" ? value : undefined;
 };
 
-const logProviderError = (error) => {
+const providerErrorDiagnostic = (error, operation) => {
   const diagnostic = {
-    operation: "createSubscription",
+    operation,
     statusCode: error?.response?.status ?? diagnosticValue(error, "statusCode"),
     errorCode: diagnosticValue(error, "code"),
     type: diagnosticValue(error, "type"),
+    message: sanitizeProviderText(diagnosticValue(error, "message")),
     requestId: error?.response?.headers?.["x-request-id"],
   };
   Object.keys(diagnostic).forEach(
     (key) => diagnostic[key] === undefined && delete diagnostic[key]
   );
+  return diagnostic;
+};
+
+const logProviderError = (error, operation) => {
+  const diagnostic = providerErrorDiagnostic(error, operation);
   console.error("[billing] Cashfree provider error", diagnostic);
+  return diagnostic;
+};
+
+const providerFailure = (error, operation, code, message) => {
+  const diagnostic = logProviderError(error, operation);
+  return Object.assign(serviceError(code, message, 502), { providerDiagnostic: diagnostic });
 };
 
 const normalizeNotificationChannels = (channels = ["EMAIL"]) => {
@@ -154,8 +200,8 @@ const createSubscription = async ({
     subscription_id: merchantReference,
     customer_details: {
       customer_name: requireText(customer?.name, "customer.name"),
-      customer_email: requireText(customer?.email, "customer.email"),
-      customer_phone: requireText(customer?.phone, "customer.phone"),
+      customer_email: requireEmail(customer?.email, "customer.email"),
+      customer_phone: requirePhone(customer?.phone, "customer.phone"),
     },
     plan_details: {
       plan_name: `CureCode ${billing.plan.name} ${billing.billingCycle}`,
@@ -180,6 +226,21 @@ const createSubscription = async ({
   };
 
   try {
+    console.info("[billing] Cashfree create subscription request", {
+      subscriptionId: merchantReference,
+      planType: request.plan_details.plan_type,
+      intervalType: request.plan_details.plan_interval_type,
+      intervals: request.plan_details.plan_intervals,
+      amount: request.plan_details.plan_amount,
+      maximumAmount: request.plan_details.plan_max_amount,
+      currency: request.plan_details.plan_currency,
+      customerNameConfigured: Boolean(request.customer_details.customer_name),
+      customerEmailConfigured: Boolean(request.customer_details.customer_email),
+      customerPhoneConfigured: Boolean(request.customer_details.customer_phone),
+      returnUrlOrigin: new URL(subscriptionReturnUrl).origin,
+      notificationChannels: request.subscription_meta.notification_channel,
+      tagNames: Object.keys(request.subscription_tags),
+    });
     const response = await cashfreeClient.SubsCreateSubscription(
       request,
       merchantReference,
@@ -187,17 +248,67 @@ const createSubscription = async ({
     );
     const data = response?.data || {};
 
+    if (!data.subscription_id || !data.subscription_session_id) {
+      throw Object.assign(new Error("Cashfree returned an incomplete subscription response"), {
+        response: {
+          status: response?.status,
+          data: { code: "incomplete_provider_response" },
+          headers: response?.headers,
+        },
+      });
+    }
+
+    console.info("[billing] Cashfree subscription created", {
+      statusCode: response?.status,
+      subscriptionId: data.subscription_id,
+      subscriptionStatus: data.subscription_status,
+      sessionIdConfigured: true,
+    });
+
     return {
-      subscriptionId: data.subscription_id || merchantReference,
+      subscriptionId: data.subscription_id,
       subscriptionSessionId: data.subscription_session_id,
       status: data.subscription_status,
+      ...(data.cf_subscription_id ? { providerReferenceId: data.cf_subscription_id } : {}),
     };
   } catch (error) {
-    logProviderError(error);
-    throw serviceError(
+    throw providerFailure(
+      error,
+      "createSubscription",
       "CASHFREE_SUBSCRIPTION_CREATION_FAILED",
-      "Cashfree subscription creation failed",
-      502
+      "Cashfree subscription creation failed"
+    );
+  }
+};
+
+const fetchSubscription = async (subscriptionId) => {
+  const normalizedSubscriptionId = requireText(subscriptionId, "subscriptionId");
+  try {
+    const response = await cashfreeClient.SubsFetchSubscription(normalizedSubscriptionId);
+    const data = response?.data || {};
+    const authorization = data.authorization_details || data.authorisation_details || {};
+
+    console.info("[billing] Cashfree subscription status fetched", {
+      statusCode: response?.status,
+      subscriptionId: data.subscription_id || normalizedSubscriptionId,
+      subscriptionStatus: data.subscription_status,
+      authorizationStatus: authorization.authorization_status,
+      paymentMethodConfigured: Boolean(authorization.payment_method),
+    });
+
+    return {
+      subscriptionId: data.subscription_id || normalizedSubscriptionId,
+      status: data.subscription_status,
+      authorizationStatus: authorization.authorization_status,
+      paymentId: authorization.payment_id,
+      paymentMethod: authorization.payment_method,
+    };
+  } catch (error) {
+    throw providerFailure(
+      error,
+      "fetchSubscription",
+      "CASHFREE_SUBSCRIPTION_STATUS_FAILED",
+      "Cashfree subscription status could not be verified"
     );
   }
 };
@@ -205,5 +316,7 @@ const createSubscription = async ({
 module.exports = {
   BILLING_CYCLES,
   createSubscription,
+  fetchSubscription,
   resolvePlanBilling,
+  sanitizeProviderText,
 };

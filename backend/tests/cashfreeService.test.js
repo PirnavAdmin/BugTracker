@@ -22,8 +22,10 @@ const cashfreeConfig = require("../config/cashfree");
 console.log = originalLog;
 
 let createSubscriptionImpl;
+let fetchSubscriptionImpl;
 let clientInitialization;
 let lastCreateCall;
+let lastFetchCall;
 
 class FakeCashfree {
   constructor(environment, appId, secretKey) {
@@ -33,6 +35,11 @@ class FakeCashfree {
   async SubsCreateSubscription(...args) {
     lastCreateCall = args;
     return createSubscriptionImpl(...args);
+  }
+
+  async SubsFetchSubscription(...args) {
+    lastFetchCall = args;
+    return fetchSubscriptionImpl(...args);
   }
 }
 
@@ -80,12 +87,25 @@ test.after(() => {
 
 test.beforeEach(() => {
   lastCreateCall = undefined;
+  lastFetchCall = undefined;
   createSubscriptionImpl = async (request) => ({
     data: {
       subscription_id: request.subscription_id,
       subscription_session_id: "session_001",
       subscription_status: "INITIALIZED",
       customer_details: request.customer_details,
+    },
+  });
+  fetchSubscriptionImpl = async (subscriptionId) => ({
+    status: 200,
+    data: {
+      subscription_id: subscriptionId,
+      subscription_status: "ACTIVE",
+      authorization_details: {
+        authorization_status: "ACTIVE",
+        payment_id: "payment_001",
+        payment_method: "upi",
+      },
     },
   });
 });
@@ -150,6 +170,66 @@ test("annual billing resolves its amount from CureCode plan configuration", asyn
   assert.equal(lastCreateCall[0].subscription_tags.curecode_billing_cycle, "annual");
 });
 
+test("Professional and Business prices come from CureCode plan configuration", async () => {
+  await cashfreeService.createSubscription(
+    baseInput({ planId: "professional", amount: 1999, reference: "professional_monthly" })
+  );
+  assert.equal(lastCreateCall[0].plan_details.plan_amount, 1999);
+
+  await cashfreeService.createSubscription(
+    baseInput({ planId: "business", amount: 3999, reference: "business_monthly" })
+  );
+  assert.equal(lastCreateCall[0].plan_details.plan_amount, 3999);
+});
+
+test("missing or invalid customer information is rejected before the provider call", async () => {
+  for (const customer of [
+    { name: "Customer", email: "customer@example.com", phone: "" },
+    { name: "Customer", email: "invalid-email", phone: "9999999999" },
+    { name: "Customer", email: "customer@example.com", phone: "not-a-phone" },
+  ]) {
+    await assert.rejects(
+      () => cashfreeService.createSubscription(baseInput({ customer })),
+      (error) => error.code === "CASHFREE_INVALID_SUBSCRIPTION_DATA"
+    );
+  }
+  assert.equal(lastCreateCall, undefined);
+});
+
+test("provider and session identifiers are extracted only from a complete response", async () => {
+  createSubscriptionImpl = async (request) => ({
+    status: 200,
+    data: {
+      subscription_id: request.subscription_id,
+      cf_subscription_id: "cf_subscription_001",
+      subscription_session_id: "session_001",
+      subscription_status: "INITIALIZED",
+    },
+  });
+  const result = await cashfreeService.createSubscription(baseInput());
+  assert.equal(result.subscriptionId, "curecode_sub_001");
+  assert.equal(result.providerReferenceId, "cf_subscription_001");
+  assert.equal(result.subscriptionSessionId, "session_001");
+
+  createSubscriptionImpl = async (request) => ({ data: { subscription_id: request.subscription_id } });
+  await assert.rejects(
+    () => cashfreeService.createSubscription(baseInput()),
+    (error) => error.code === "CASHFREE_SUBSCRIPTION_CREATION_FAILED"
+  );
+});
+
+test("subscription status is fetched server-side and reduced to safe authorization data", async () => {
+  const result = await cashfreeService.fetchSubscription("curecode_sub_001");
+  assert.deepEqual(lastFetchCall, ["curecode_sub_001"]);
+  assert.deepEqual(result, {
+    subscriptionId: "curecode_sub_001",
+    status: "ACTIVE",
+    authorizationStatus: "ACTIVE",
+    paymentId: "payment_001",
+    paymentMethod: "upi",
+  });
+});
+
 test("caller-supplied amount cannot override the configured CureCode plan price", async () => {
   await assert.rejects(
     () => cashfreeService.createSubscription(baseInput({ amount: 1 })),
@@ -207,6 +287,7 @@ test("Cashfree API failures are normalized and credentials never reach logs or c
     statusCode: 401,
     errorCode: "authentication_error",
     type: "authentication_error",
+    message: "Invalid secret [redacted]",
     requestId: "request_001",
   });
 });

@@ -5,13 +5,19 @@ const PlatformCompany = require("../models/PlatformCompany");
 const Subscription = require("../models/Subscription");
 const Payment = require("../models/Payment");
 const cashfreeService = require("../services/payment/cashfreeService");
-const { createSubscription } = require("../controllers/cashfreeBillingController");
+const {
+  createSubscription,
+  getSubscriptionStatus,
+  mapVerifiedStatus,
+} = require("../controllers/cashfreeBillingController");
 
 const originalCompanyFindOne = PlatformCompany.findOne;
 const originalSubscriptionFindOne = Subscription.findOne;
 const originalSubscriptionCreate = Subscription.create;
 const originalPaymentCreate = Payment.create;
+const originalPaymentFindOne = Payment.findOne;
 const originalCashfreeCreate = cashfreeService.createSubscription;
+const originalCashfreeFetch = cashfreeService.fetchSubscription;
 
 let companyQuery;
 let subscriptionQuery;
@@ -65,6 +71,16 @@ const callController = async (body = {}, userOverrides = {}) => {
   return { req, res, nextError };
 };
 
+const callStatusController = async (userOverrides = {}) => {
+  const req = { user: { _id: "user-001", tenantId: "TENANT_001", ...userOverrides } };
+  const res = createResponse();
+  let nextError;
+  await getSubscriptionStatus(req, res, (error) => {
+    nextError = error;
+  });
+  return { res, nextError };
+};
+
 test.beforeEach(() => {
   companyQuery = undefined;
   subscriptionQuery = undefined;
@@ -102,6 +118,7 @@ test.beforeEach(() => {
     paymentDocument = createDocument({ _id: "payment-attempt-1", ...payload });
     return paymentDocument;
   };
+  Payment.findOne = () => ({ sort: async () => paymentDocument });
   cashfreeService.createSubscription = async (payload) => {
     servicePayload = payload;
     return {
@@ -110,6 +127,13 @@ test.beforeEach(() => {
       status: "INITIALIZED",
     };
   };
+  cashfreeService.fetchSubscription = async (subscriptionId) => ({
+    subscriptionId,
+    status: "ACTIVE",
+    authorizationStatus: "ACTIVE",
+    paymentId: "cashfree-payment-001",
+    paymentMethod: "upi",
+  });
 });
 
 test.after(() => {
@@ -117,7 +141,9 @@ test.after(() => {
   Subscription.findOne = originalSubscriptionFindOne;
   Subscription.create = originalSubscriptionCreate;
   Payment.create = originalPaymentCreate;
+  Payment.findOne = originalPaymentFindOne;
   cashfreeService.createSubscription = originalCashfreeCreate;
+  cashfreeService.fetchSubscription = originalCashfreeFetch;
 });
 
 test("authenticated tenant user creates a pending Cashfree subscription", async () => {
@@ -221,7 +247,7 @@ test("usable pending Cashfree subscription is reused without creating another", 
   assert.equal(subscriptionPayload, undefined);
 });
 
-test("failed Cashfree creation retries the same idempotent provider reference", async () => {
+test("failed Cashfree creation retries with a new provider attempt and preserves history", async () => {
   existingSubscription = createDocument({
     _id: "failed-subscription",
     tenantId: "TENANT_001",
@@ -234,7 +260,7 @@ test("failed Cashfree creation retries the same idempotent provider reference", 
     billingCycle: "monthly",
     amount: 799,
     currency: "INR",
-    status: "PENDING",
+    status: "FAILED",
     metadata: {},
   });
 
@@ -242,10 +268,10 @@ test("failed Cashfree creation retries the same idempotent provider reference", 
 
   assert.ifError(nextError);
   assert.equal(res.statusCode, 201);
-  assert.equal(servicePayload.reference, "cashfree-failed-reference");
-  assert.equal(paymentPayload.providerOrderId, "cashfree-failed-reference");
-  assert.equal(subscriptionPayload, undefined);
-  assert.equal(existingSubscription.status, "PENDING");
+  assert.notEqual(servicePayload.reference, "cashfree-failed-reference");
+  assert.equal(paymentPayload.providerOrderId, servicePayload.reference);
+  assert.equal(subscriptionPayload.metadata.retryOfSubscriptionId, "failed-subscription");
+  assert.equal(existingSubscription.status, "FAILED");
 });
 
 test("Cashfree failures are returned safely while the local attempt stays non-active", async () => {
@@ -259,9 +285,78 @@ test("Cashfree failures are returned safely while the local attempt stays non-ac
   assert.equal(nextError?.message, "Cashfree subscription creation failed");
   assert.equal(nextError?.status, 502);
   assert.equal(String(nextError).includes("provider internals"), false);
-  assert.equal(localSubscriptionDocument.status, "PENDING");
+  assert.equal(localSubscriptionDocument.status, "FAILED");
   assert.equal(localSubscriptionDocument.providerStatus, "CREATION_FAILED");
   assert.equal(paymentDocument.status, "failed");
+});
+
+test("legacy PENDING creation failures are not reused as checkout sessions", async () => {
+  existingSubscription = createDocument({
+    _id: "legacy-failed-subscription",
+    provider: "cashfree",
+    providerSubscriptionId: "legacy-failed-reference",
+    providerStatus: "CREATION_FAILED",
+    planId: "starter",
+    billingCycle: "monthly",
+    status: "PENDING",
+    metadata: { subscriptionSessionId: "known-failed-session" },
+  });
+
+  const { res, nextError } = await callController({ planId: "starter", billingCycle: "monthly" });
+  assert.ifError(nextError);
+  assert.equal(res.body.reused, undefined);
+  assert.notEqual(servicePayload.reference, "legacy-failed-reference");
+  assert.notEqual(res.body.subscriptionSessionId, "known-failed-session");
+});
+
+test("provider creation diagnostics are persisted without exposing provider internals", async () => {
+  cashfreeService.createSubscription = async () => {
+    throw Object.assign(new Error("sensitive provider response"), {
+      providerDiagnostic: {
+        statusCode: 400,
+        errorCode: "invalid_request",
+        type: "validation_error",
+        requestId: "request-safe-001",
+      },
+    });
+  };
+  const { nextError } = await callController({ planId: "starter", billingCycle: "monthly" });
+  assert.equal(nextError.code, "CASHFREE_SUBSCRIPTION_CREATION_FAILED");
+  assert.equal(localSubscriptionDocument.metadata.providerHttpStatus, 400);
+  assert.equal(localSubscriptionDocument.metadata.providerErrorCode, "invalid_request");
+  assert.equal(localSubscriptionDocument.metadata.providerRequestId, "request-safe-001");
+  assert.equal(JSON.stringify(localSubscriptionDocument.metadata).includes("sensitive"), false);
+});
+
+test("verified Cashfree authorization activates only after a server-side status fetch", async () => {
+  existingSubscription = createDocument({
+    _id: "pending-cashfree-subscription",
+    tenantId: "TENANT_001",
+    provider: "cashfree",
+    providerSubscriptionId: "cashfree-subscription-001",
+    planId: "starter",
+    billingCycle: "monthly",
+    amount: 799,
+    currency: "INR",
+    status: "PENDING",
+    metadata: {},
+  });
+  paymentDocument = createDocument({ status: "pending", metadata: {} });
+  const { res, nextError } = await callStatusController();
+  assert.ifError(nextError);
+  assert.equal(res.body.verified, true);
+  assert.equal(existingSubscription.status, "ACTIVE");
+  assert.equal(paymentDocument.status, "authorized");
+  assert.equal(paymentDocument.metadata.authorizationVerified, true);
+  assert.equal(subscriptionQuery.tenantId, "TENANT_001");
+  assert.equal(subscriptionQuery.provider, "cashfree");
+});
+
+test("pending or failed provider authorization maps without premature activation", () => {
+  assert.equal(mapVerifiedStatus({ status: "INITIALIZED", authorizationStatus: "PENDING" }), "PENDING");
+  assert.equal(mapVerifiedStatus({ status: "ACTIVE", authorizationStatus: "PENDING" }), "PENDING");
+  assert.equal(mapVerifiedStatus({ status: "ACTIVE", authorizationStatus: "FAILED" }), "FAILED");
+  assert.equal(mapVerifiedStatus({ status: "ACTIVE", authorizationStatus: "ACTIVE" }), "ACTIVE");
 });
 
 test("provider and session identifiers are persisted while subscription remains pending", async () => {

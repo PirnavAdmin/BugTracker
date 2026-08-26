@@ -7,6 +7,8 @@ import {
   createSingleFlight,
   getCashfreeCheckoutErrorMessage,
   getCashfreeInitialNotice,
+  isCashfreeReturn,
+  isCashfreeSubscriptionRecord,
   openCashfreeSubscriptionCheckout,
   startCashfreeSubscriptionCheckout,
 } from "../src/services/cashfreeCheckoutService.js";
@@ -101,7 +103,7 @@ test("backend and checkout failures produce only safe messages", async () => {
         },
       }),
     (error) => {
-      assert.equal(getCashfreeCheckoutErrorMessage(error), "Unable to start payment. Please try again.");
+      assert.equal(getCashfreeCheckoutErrorMessage(error), "Unable to start Cashfree payment. Please try again.");
       assert.equal(error.message.includes("provider secret"), false);
       return true;
     }
@@ -133,6 +135,14 @@ test("Cashfree return state remains processing until backend confirmation", () =
   assert.match(CASHFREE_PROCESSING_MESSAGE, /confirming your subscription/i);
   assert.doesNotMatch(CASHFREE_PROCESSING_MESSAGE, /payment successful/i);
   assert.equal(getCashfreeInitialNotice(""), "");
+  assert.equal(isCashfreeReturn("?cashfree=return"), true);
+  assert.equal(isCashfreeReturn(""), false);
+});
+
+test("Cashfree records are identified for provider-specific retry without changing Razorpay retry", () => {
+  assert.equal(isCashfreeSubscriptionRecord({ provider: "cashfree" }), true);
+  assert.equal(isCashfreeSubscriptionRecord({ providerSubscriptionId: "cc_attempt_001" }), true);
+  assert.equal(isCashfreeSubscriptionRecord({ provider: "razorpay", providerSubscriptionId: "sub_001" }), false);
 });
 
 test("Cashfree UI has duplicate-click loading protection and no frontend secret", async () => {
@@ -148,7 +158,11 @@ test("Cashfree UI has duplicate-click loading protection and no frontend secret"
   assert.match(apiSource, /\/billing\/cashfree\/create-subscription/);
   assert.match(apiSource, /\{ planId, billingCycle \}/);
   assert.match(billingSource, /Starting checkout\.\.\." : "Choose Plan with Razorpay"/);
-  assert.match(buttonSource, /Creating subscription\.\.\." : "Choose Plan"/);
+  assert.match(buttonSource, /label = "Choose Plan with Cashfree"/);
+  assert.match(buttonSource, /Creating subscription\.\.\." : label/);
+  assert.match(apiSource, /\/billing\/cashfree\/subscription\/status/);
+  assert.match(billingSource, /fetchCashfreeBillingSubscriptionStatus/);
+  assert.match(billingSource, /Retry Cashfree Payment/);
   assert.match(billingSource, /CashfreeCheckoutButton/);
   assert.doesNotMatch(`${buttonSource}${apiSource}${billingSource}${checkoutSource}`, /CASHFREE_SECRET_KEY/);
   assert.doesNotMatch(`${buttonSource}${apiSource}${billingSource}${checkoutSource}`, /VITE_CASHFREE/);

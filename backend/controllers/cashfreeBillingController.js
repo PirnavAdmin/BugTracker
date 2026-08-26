@@ -10,7 +10,7 @@ const cashfreeService = require("../services/payment/cashfreeService");
 const { requireTenant } = require("../utils/tenant");
 
 const ALLOWED_REQUEST_FIELDS = new Set(["planId", "billingCycle"]);
-const CURRENT_SUBSCRIPTION_STATUSES = ["TRIAL", "PENDING", "ACTIVE", "PAST_DUE", "PAUSED"];
+const CURRENT_SUBSCRIPTION_STATUSES = ["TRIAL", "PENDING", "ACTIVE", "PAST_DUE", "PAUSED", "FAILED"];
 const SUPPORTED_BILLING_CYCLES = new Set(["monthly", "annual"]);
 
 const apiError = (code, message, status = 400) =>
@@ -61,11 +61,25 @@ const safeResult = ({ subscriptionId, subscriptionSessionId, status, reused = fa
   ...(reused ? { reused: true } : {}),
 });
 
+const safeSubscription = (subscription) =>
+  subscription && {
+    id: subscription._id,
+    provider: subscription.provider,
+    planId: subscription.planId,
+    billingCycle: subscription.billingCycle,
+    status: subscription.status,
+    providerStatus: subscription.providerStatus,
+    currency: subscription.currency,
+    amount: subscription.amount,
+    providerSubscriptionId: subscription.providerSubscriptionId,
+  };
+
 const reusablePendingResult = (subscription) => {
   const subscriptionSessionId = subscription?.metadata?.subscriptionSessionId;
   if (
     subscription?.provider === "cashfree" &&
     subscription.status === "PENDING" &&
+    subscription.providerStatus !== "CREATION_FAILED" &&
     subscriptionSessionId &&
     subscription.providerSubscriptionId
   ) {
@@ -112,11 +126,10 @@ const createSubscription = asyncHandler(async (req, res) => {
 
   const retryFailedAttempt =
     currentSubscription?.provider === "cashfree" &&
-    currentSubscription.status === "PENDING" &&
+    ["FAILED", "PENDING"].includes(currentSubscription.status) &&
     currentSubscription.providerStatus === "CREATION_FAILED" &&
     currentSubscription.planId === billing.planId &&
-    currentSubscription.billingCycle === billing.billingCycle &&
-    currentSubscription.providerSubscriptionId;
+    currentSubscription.billingCycle === billing.billingCycle;
 
   if (currentSubscription && !retryFailedAttempt) {
     throw apiError(
@@ -126,13 +139,9 @@ const createSubscription = asyncHandler(async (req, res) => {
     );
   }
 
-  const reference = retryFailedAttempt
-    ? currentSubscription.providerSubscriptionId
-    : buildReference();
+  const reference = buildReference();
   const providerPlanId = `cashfree-inline:${billing.planId}:${billing.billingCycle}`;
-  const localSubscription = retryFailedAttempt
-    ? currentSubscription
-    : await Subscription.create({
+  const localSubscription = await Subscription.create({
         tenantId,
         companyId: company._id,
         planId: billing.planId,
@@ -147,17 +156,11 @@ const createSubscription = asyncHandler(async (req, res) => {
         metadata: {
           createdByUserId: userId,
           providerPlanType: "inline",
+          ...(retryFailedAttempt
+            ? { retryOfSubscriptionId: String(currentSubscription._id), retriedByUserId: userId }
+            : {}),
         },
       });
-
-  if (retryFailedAttempt) {
-    localSubscription.providerStatus = "CREATING";
-    localSubscription.metadata = {
-      ...localSubscription.metadata,
-      retriedByUserId: userId,
-    };
-    await localSubscription.save();
-  }
 
   const paymentAttempt = await Payment.create({
     tenantId,
@@ -194,11 +197,17 @@ const createSubscription = asyncHandler(async (req, res) => {
       reference,
       notificationChannels: ["EMAIL"],
     });
-  } catch {
+  } catch (error) {
+    const diagnostic = error?.providerDiagnostic || {};
+    localSubscription.status = "FAILED";
     localSubscription.providerStatus = "CREATION_FAILED";
     localSubscription.metadata = {
       ...localSubscription.metadata,
       creationErrorCode: "CASHFREE_SUBSCRIPTION_CREATION_FAILED",
+      providerHttpStatus: diagnostic.statusCode,
+      providerErrorCode: diagnostic.errorCode,
+      providerErrorType: diagnostic.type,
+      providerRequestId: diagnostic.requestId,
     };
     paymentAttempt.status = "failed";
     paymentAttempt.failureReason = "Cashfree subscription creation failed";
@@ -216,6 +225,7 @@ const createSubscription = asyncHandler(async (req, res) => {
   localSubscription.metadata = {
     ...localSubscription.metadata,
     subscriptionSessionId: providerResult.subscriptionSessionId,
+    providerReferenceId: providerResult.providerReferenceId,
   };
   await localSubscription.save();
 
@@ -235,8 +245,71 @@ const createSubscription = asyncHandler(async (req, res) => {
   );
 });
 
+const mapVerifiedStatus = ({ status, authorizationStatus }) => {
+  const providerStatus = String(status || "").trim().toUpperCase();
+  const authStatus = String(authorizationStatus || "").trim().toUpperCase();
+  if (["FAILED", "FAILURE"].includes(authStatus) || ["FAILED", "CANCELLED", "EXPIRED"].includes(providerStatus)) {
+    return "FAILED";
+  }
+  if (["ACTIVE", "SUCCESS"].includes(authStatus) && ["ACTIVE", "SUCCESS"].includes(providerStatus)) {
+    return "ACTIVE";
+  }
+  return "PENDING";
+};
+
+const getSubscriptionStatus = asyncHandler(async (req, res) => {
+  const tenantId = requireTenant(req, res);
+  const subscription = await Subscription.findOne({
+    tenantId,
+    provider: "cashfree",
+  }).sort({ createdAt: -1 });
+
+  if (!subscription) {
+    throw apiError("CASHFREE_SUBSCRIPTION_NOT_FOUND", "No Cashfree subscription was found", 404);
+  }
+
+  if (subscription.status !== "PENDING") {
+    return res.json({ subscription: safeSubscription(subscription), verified: false });
+  }
+
+  const provider = await cashfreeService.fetchSubscription(subscription.providerSubscriptionId);
+  const nextStatus = mapVerifiedStatus(provider);
+  subscription.status = nextStatus;
+  subscription.providerStatus = provider.authorizationStatus || provider.status || subscription.providerStatus;
+  subscription.metadata = {
+    ...subscription.metadata,
+    lastStatusVerifiedAt: new Date(),
+    providerSubscriptionStatus: provider.status,
+    providerAuthorizationStatus: provider.authorizationStatus,
+  };
+  if (nextStatus === "ACTIVE" && !subscription.startDate) subscription.startDate = new Date();
+  if (nextStatus === "FAILED") subscription.endedAt = new Date();
+  await subscription.save();
+
+  const payment = await Payment.findOne({
+    tenantId,
+    subscriptionId: subscription._id,
+    provider: "cashfree",
+  }).sort({ createdAt: -1 });
+  if (payment) {
+    payment.status = nextStatus === "ACTIVE" ? "authorized" : nextStatus.toLowerCase();
+    payment.providerPaymentId = provider.paymentId || payment.providerPaymentId;
+    payment.paymentMethod = provider.paymentMethod || payment.paymentMethod;
+    payment.metadata = {
+      ...payment.metadata,
+      authorizationVerified: nextStatus === "ACTIVE",
+      providerAuthorizationStatus: provider.authorizationStatus,
+    };
+    await payment.save();
+  }
+
+  return res.json({ subscription: safeSubscription(subscription), verified: true });
+});
+
 module.exports = {
   createSubscription,
+  getSubscriptionStatus,
+  mapVerifiedStatus,
   rejectUnexpectedFields,
   resolveRequestedPlan,
 };

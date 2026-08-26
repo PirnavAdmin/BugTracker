@@ -25,3 +25,11 @@ test("Cashfree create-subscription endpoint exists and requires authentication",
   assert.equal(res.statusCode, 401);
   assert.match(nextError?.message || "", /No token provided/);
 });
+
+test("Cashfree status endpoint exists and requires authentication", async () => {
+  const statusRoute = cashfreeBillingRoutes.stack.find(
+    (layer) => layer.route?.path === "/subscription/status" && layer.route?.methods?.get
+  )?.route;
+  assert.ok(statusRoute);
+  assert.equal(statusRoute.stack.length, 2);
+});

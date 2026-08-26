@@ -97,13 +97,19 @@ export const getCashfreeCheckoutErrorMessage = (error) => {
 
   return error?.stage === "checkout"
     ? "Unable to open Cashfree checkout. Please try again."
-    : "Unable to start payment. Please try again.";
+    : "Unable to start Cashfree payment. Please try again.";
 };
 
-export const getCashfreeInitialNotice = (search) => {
+export const isCashfreeReturn = (search) => {
   const query =
     search === undefined && typeof window !== "undefined" ? window.location.search : search || "";
-  return new URLSearchParams(query).get("cashfree") === "return"
-    ? CASHFREE_PROCESSING_MESSAGE
-    : "";
+  return new URLSearchParams(query).get("cashfree") === "return";
+};
+
+export const isCashfreeSubscriptionRecord = (subscription) =>
+  subscription?.provider === "cashfree" ||
+  String(subscription?.providerSubscriptionId || "").startsWith("cc_");
+
+export const getCashfreeInitialNotice = (search) => {
+  return isCashfreeReturn(search) ? CASHFREE_PROCESSING_MESSAGE : "";
 };
