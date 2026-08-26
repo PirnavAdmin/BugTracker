@@ -29,6 +29,7 @@ const originalCashfreeCancel = cashfreeService.cancelSubscription;
 
 let companyQuery;
 let subscriptionQuery;
+let subscriptionQueries;
 let subscriptionPayload;
 let paymentPayload;
 let servicePayload;
@@ -118,6 +119,7 @@ const callReturnController = async (body = {}) => {
 test.beforeEach(() => {
   companyQuery = undefined;
   subscriptionQuery = undefined;
+  subscriptionQueries = [];
   subscriptionPayload = undefined;
   paymentPayload = undefined;
   servicePayload = undefined;
@@ -143,7 +145,15 @@ test.beforeEach(() => {
   };
   Subscription.findOne = (filter) => {
     subscriptionQuery = filter;
-    return { sort: async () => existingSubscription };
+    subscriptionQueries.push(filter);
+    return {
+      sort: async () =>
+        existingSubscription?.tenantId &&
+        filter.tenantId &&
+        existingSubscription.tenantId !== filter.tenantId
+          ? null
+          : existingSubscription,
+    };
   };
   Subscription.create = async (payload) => {
     subscriptionPayload = payload;
@@ -426,6 +436,107 @@ test("existing active subscription prevents a second provider subscription", asy
   assert.equal(nextError?.code, "CASHFREE_ALREADY_SUBSCRIBED");
   assert.equal(nextError?.status, 409);
   assert.equal(servicePayload, undefined);
+});
+
+test("pending Cashfree subscription remains current and is reused instead of creating another", async () => {
+  existingSubscription = createDocument({
+    tenantId: "TENANT_001",
+    provider: "cashfree",
+    providerSubscriptionId: "cc_pending_current",
+    providerStatus: "INITIALIZED",
+    status: "PENDING",
+    planId: "starter",
+    billingCycle: "monthly",
+    metadata: { subscriptionSessionId: "pending-session" },
+  });
+
+  const { res, nextError } = await callController({ planId: "starter", billingCycle: "monthly" });
+
+  assert.ifError(nextError);
+  assert.equal(res.body.reused, true);
+  assert.equal(servicePayload, undefined);
+});
+
+test("terminal Cashfree history permits a new subscription without altering the old record", async () => {
+  for (const [status, providerStatus] of [
+    ["CANCELLED", "CANCELLED"],
+    ["FAILED", "AUTHORIZATION_FAILED"],
+    ["EXPIRED", "EXPIRED"],
+    ["FAILED", "STALE_PROVIDER_REFERENCE"],
+  ]) {
+    existingSubscription = createDocument({
+      _id: `old-${status}-${providerStatus}`,
+      tenantId: "TENANT_001",
+      provider: "cashfree",
+      providerSubscriptionId: `cc_old_${status}_${providerStatus}`,
+      providerStatus,
+      status,
+      planId: "starter",
+      billingCycle: "monthly",
+      amount: 799,
+      currency: "INR",
+      metadata: { historical: true },
+    });
+    const historicalSnapshot = JSON.stringify(existingSubscription);
+
+    const { res, nextError } = await callController({ planId: "starter", billingCycle: "monthly" });
+
+    assert.ifError(nextError);
+    assert.equal(res.statusCode, 201);
+    assert.notEqual(servicePayload.reference, existingSubscription.providerSubscriptionId);
+    assert.equal(subscriptionPayload.providerSubscriptionId, servicePayload.reference);
+    assert.equal(existingSubscription.saveCount, 0);
+    assert.equal(JSON.stringify(existingSubscription), historicalSnapshot);
+  }
+});
+
+test("an active subscription belonging to another tenant does not block a new Cashfree subscription", async () => {
+  existingSubscription = createDocument({
+    tenantId: "TENANT_999",
+    provider: "cashfree",
+    providerSubscriptionId: "cc_other_tenant_active",
+    status: "ACTIVE",
+    metadata: {},
+  });
+
+  const { res, nextError } = await callController({ planId: "starter", billingCycle: "monthly" });
+
+  assert.ifError(nextError);
+  assert.equal(res.statusCode, 201);
+  assert.equal(servicePayload.tenantId, "TENANT_001");
+  assert.ok(subscriptionQueries.every((query) => query.tenantId === "TENANT_001"));
+});
+
+test("repeated Subscribe Again requests reuse the new pending Cashfree subscription", async () => {
+  existingSubscription = createDocument({
+    tenantId: "TENANT_001",
+    provider: "cashfree",
+    providerSubscriptionId: "cc_cancelled_history",
+    providerStatus: "CANCELLED",
+    status: "CANCELLED",
+    planId: "starter",
+    billingCycle: "monthly",
+    metadata: {},
+  });
+  const first = await callController({ planId: "starter", billingCycle: "monthly" });
+  assert.ifError(first.nextError);
+  const firstProviderSubscriptionId = subscriptionPayload.providerSubscriptionId;
+
+  existingSubscription = createDocument({
+    ...subscriptionPayload,
+    metadata: { subscriptionSessionId: first.res.body.subscriptionSessionId },
+    providerStatus: "INITIALIZED",
+    status: "PENDING",
+  });
+  servicePayload = undefined;
+  subscriptionPayload = undefined;
+  const second = await callController({ planId: "starter", billingCycle: "monthly" });
+
+  assert.ifError(second.nextError);
+  assert.equal(second.res.body.reused, true);
+  assert.equal(second.res.body.subscriptionId, firstProviderSubscriptionId);
+  assert.equal(servicePayload, undefined);
+  assert.equal(subscriptionPayload, undefined);
 });
 
 test("usable pending Cashfree subscription is reused without creating another", async () => {

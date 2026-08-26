@@ -16,7 +16,20 @@ const { recordPlatformAudit } = require("../services/platformAuditService");
 const { requireTenant } = require("../utils/tenant");
 
 const ALLOWED_REQUEST_FIELDS = new Set(["planId", "billingCycle"]);
-const CURRENT_SUBSCRIPTION_STATUSES = ["TRIAL", "PENDING", "ACTIVE", "PAST_DUE", "PAUSED", "FAILED"];
+// These are the lifecycle states that can still own a tenant's billing
+// entitlement. Terminal Cashfree records are deliberately excluded so their
+// history cannot prevent a new authorization attempt.
+const CURRENT_SUBSCRIPTION_STATUSES = Object.freeze([
+  "TRIAL",
+  "PENDING",
+  "ACTIVE",
+  "PAST_DUE",
+  "PAUSED",
+]);
+const RETRYABLE_CASHFREE_FAILURE_STATUSES = Object.freeze([
+  "CREATION_FAILED",
+  "VALIDATION_FAILED",
+]);
 const SUPPORTED_BILLING_CYCLES = new Set(["monthly", "annual"]);
 const LOCAL_CASHFREE_ERROR_CODES = new Set([
   "CASHFREE_INVALID_SUBSCRIPTION_DATA",
@@ -124,6 +137,42 @@ const reusablePendingResult = (subscription) => {
   return null;
 };
 
+const isCurrentSubscription = (subscription) =>
+  CURRENT_SUBSCRIPTION_STATUSES.includes(String(subscription?.status || "").toUpperCase()) &&
+  !(
+    subscription?.provider === "cashfree" &&
+    RETRYABLE_CASHFREE_FAILURE_STATUSES.includes(subscription?.providerStatus)
+  );
+
+const isRetryableCashfreeFailure = (subscription, billing) =>
+  subscription?.provider === "cashfree" &&
+  ["FAILED", "PENDING"].includes(subscription.status) &&
+  RETRYABLE_CASHFREE_FAILURE_STATUSES.includes(subscription.providerStatus) &&
+  subscription.planId === billing.planId &&
+  subscription.billingCycle === billing.billingCycle;
+
+const findCurrentTenantSubscription = async (tenantId) => {
+  const subscription = await Subscription.findOne({
+    tenantId,
+    status: { $in: CURRENT_SUBSCRIPTION_STATUSES },
+    $nor: [
+      {
+        provider: "cashfree",
+        providerStatus: { $in: RETRYABLE_CASHFREE_FAILURE_STATUSES },
+      },
+    ],
+  }).sort({ createdAt: -1 });
+  return isCurrentSubscription(subscription) ? subscription : null;
+};
+
+const findRetryableCashfreeFailure = async (tenantId) =>
+  Subscription.findOne({
+    tenantId,
+    provider: "cashfree",
+    status: { $in: ["FAILED", "PENDING"] },
+    providerStatus: { $in: RETRYABLE_CASHFREE_FAILURE_STATUSES },
+  }).sort({ createdAt: -1 });
+
 const buildReference = () => `cc_${crypto.randomUUID()}`;
 
 const createSubscription = asyncHandler(async (req, res) => {
@@ -145,24 +194,14 @@ const createSubscription = asyncHandler(async (req, res) => {
     );
   }
 
-  const currentSubscription = await Subscription.findOne({
-    tenantId,
-    status: { $in: CURRENT_SUBSCRIPTION_STATUSES },
-  }).sort({ createdAt: -1 });
+  const currentSubscription = await findCurrentTenantSubscription(tenantId);
 
   const reusable = reusablePendingResult(currentSubscription);
   if (reusable) {
     return res.status(200).json(reusable);
   }
 
-  const retryFailedAttempt =
-    currentSubscription?.provider === "cashfree" &&
-    ["FAILED", "PENDING"].includes(currentSubscription.status) &&
-    ["CREATION_FAILED", "VALIDATION_FAILED"].includes(currentSubscription.providerStatus) &&
-    currentSubscription.planId === billing.planId &&
-    currentSubscription.billingCycle === billing.billingCycle;
-
-  if (currentSubscription && !retryFailedAttempt) {
+  if (currentSubscription) {
     throw apiError(
       "CASHFREE_ALREADY_SUBSCRIBED",
       "A current billing subscription already exists",
@@ -170,16 +209,19 @@ const createSubscription = asyncHandler(async (req, res) => {
     );
   }
 
+  const retrySubscription = await findRetryableCashfreeFailure(tenantId);
+  const retryFailedAttempt = isRetryableCashfreeFailure(retrySubscription, billing);
+
   if (retryFailedAttempt) {
     const providerExisting = await cashfreeService.fetchSubscription(
-      currentSubscription.providerSubscriptionId,
+      retrySubscription.providerSubscriptionId,
       { allowNotFound: true }
     );
     if (providerExisting) {
       console.info("[billing] Cashfree subscription reconciliation", {
         operation: "fetchSubscription",
         provider: "cashfree",
-        providerSubscriptionId: currentSubscription.providerSubscriptionId,
+        providerSubscriptionId: retrySubscription.providerSubscriptionId,
         apiVersion: cashfreeService.CASHFREE_API_VERSION,
         reconciliationResult: "EXISTING",
       });
@@ -190,20 +232,20 @@ const createSubscription = asyncHandler(async (req, res) => {
           409
         );
       }
-      currentSubscription.status = "PENDING";
-      currentSubscription.providerStatus = providerExisting.status || "INITIALIZED";
-      currentSubscription.metadata = {
-        ...currentSubscription.metadata,
+      retrySubscription.status = "PENDING";
+      retrySubscription.providerStatus = providerExisting.status || "INITIALIZED";
+      retrySubscription.metadata = {
+        ...retrySubscription.metadata,
         subscriptionSessionId: providerExisting.subscriptionSessionId,
         providerReferenceId: providerExisting.providerReferenceId,
         reconciledBeforeRetryAt: new Date(),
       };
-      await currentSubscription.save();
+      await retrySubscription.save();
       const existingPayment = await Payment.findOne({
         tenantId,
-        subscriptionId: currentSubscription._id,
+        subscriptionId: retrySubscription._id,
         provider: "cashfree",
-        providerSubscriptionId: currentSubscription.providerSubscriptionId,
+        providerSubscriptionId: retrySubscription.providerSubscriptionId,
       }).sort({ createdAt: -1 });
       if (existingPayment) {
         existingPayment.status = "pending";
@@ -217,22 +259,22 @@ const createSubscription = asyncHandler(async (req, res) => {
       }
       return res.status(200).json(
         safeResult({
-          subscriptionId: currentSubscription.providerSubscriptionId,
+          subscriptionId: retrySubscription.providerSubscriptionId,
           subscriptionSessionId: providerExisting.subscriptionSessionId,
-          status: currentSubscription.providerStatus,
+          status: retrySubscription.providerStatus,
           reused: true,
         })
       );
     }
 
-    currentSubscription.status = "FAILED";
-    currentSubscription.providerStatus = "STALE_PROVIDER_REFERENCE";
-    currentSubscription.metadata = {
-      ...currentSubscription.metadata,
-      staleProviderReference: currentSubscription.providerSubscriptionId,
+    retrySubscription.status = "FAILED";
+    retrySubscription.providerStatus = "STALE_PROVIDER_REFERENCE";
+    retrySubscription.metadata = {
+      ...retrySubscription.metadata,
+      staleProviderReference: retrySubscription.providerSubscriptionId,
       staleProviderReferenceDetectedAt: new Date(),
     };
-    await currentSubscription.save();
+    await retrySubscription.save();
   }
 
   const customerPhone = resolveCustomerPhone({ user: req.user, company });
@@ -271,7 +313,7 @@ const createSubscription = asyncHandler(async (req, res) => {
           createdByUserId: userId,
           providerPlanType: "inline",
           ...(retryFailedAttempt
-            ? { retryOfSubscriptionId: String(currentSubscription._id), retriedByUserId: userId }
+            ? { retryOfSubscriptionId: String(retrySubscription._id), retriedByUserId: userId }
             : {}),
         },
       });
@@ -629,11 +671,16 @@ const webhook = asyncHandler(async (req, res) => {
 
 module.exports = {
   LOCAL_CASHFREE_ERROR_CODES,
+  CURRENT_SUBSCRIPTION_STATUSES,
   applyVerifiedSubscriptionStatus,
   buildReference,
   createSubscription,
+  findCurrentTenantSubscription,
+  findRetryableCashfreeFailure,
   cancelSubscription,
   getSubscriptionStatus,
+  isCurrentSubscription,
+  isRetryableCashfreeFailure,
   mapVerifiedStatus,
   normalizeCustomerPhone,
   rejectUnexpectedFields,
