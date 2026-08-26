@@ -4,6 +4,7 @@ require("../config/env");
 const PlatformCompany = require("../models/PlatformCompany");
 const Subscription = require("../models/Subscription");
 const Payment = require("../models/Payment");
+const PlatformAuditLog = require("../models/PlatformAuditLog");
 const cashfreeService = require("../services/payment/cashfreeService");
 const {
   buildReference,
@@ -20,6 +21,7 @@ const originalSubscriptionFindOne = Subscription.findOne;
 const originalSubscriptionCreate = Subscription.create;
 const originalPaymentCreate = Payment.create;
 const originalPaymentFindOne = Payment.findOne;
+const originalPlatformAuditCreate = PlatformAuditLog.create;
 const originalCashfreeCreate = cashfreeService.createSubscription;
 const originalCashfreeFetch = cashfreeService.fetchSubscription;
 
@@ -145,6 +147,7 @@ test.beforeEach(() => {
     paymentQuery = filter;
     return { sort: async () => paymentDocument };
   };
+  PlatformAuditLog.create = async () => ({});
   cashfreeService.createSubscription = async (payload) => {
     servicePayload = payload;
     return {
@@ -168,6 +171,7 @@ test.after(() => {
   Subscription.create = originalSubscriptionCreate;
   Payment.create = originalPaymentCreate;
   Payment.findOne = originalPaymentFindOne;
+  PlatformAuditLog.create = originalPlatformAuditCreate;
   cashfreeService.createSubscription = originalCashfreeCreate;
   cashfreeService.fetchSubscription = originalCashfreeFetch;
 });

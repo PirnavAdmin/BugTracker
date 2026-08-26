@@ -5,6 +5,7 @@ const { test, beforeEach, afterEach } = require("node:test");
 const assert = require("node:assert");
 const PlatformCompany = require("../models/PlatformCompany");
 const PlatformSubscription = require("../models/PlatformSubscription");
+const ProviderSubscription = require("../models/Subscription");
 const User = require("../models/User");
 const { PLANS } = require("../config/plans");
 const {
@@ -21,7 +22,9 @@ const originalCompanyFindById = PlatformCompany.findById;
 const originalCompanyFindByIdAndUpdate = PlatformCompany.findByIdAndUpdate;
 const originalSubscriptionCreate = PlatformSubscription.create;
 const originalSubscriptionFindOne = PlatformSubscription.findOne;
+const originalSubscriptionFindById = PlatformSubscription.findById;
 const originalSubscriptionFindByIdAndUpdate = PlatformSubscription.findByIdAndUpdate;
+const originalProviderSubscriptionFindOne = ProviderSubscription.findOne;
 const originalUserCreate = User.create;
 const originalUserFindOne = User.findOne;
 
@@ -62,6 +65,12 @@ beforeEach(() => {
       lean: async () => null,
     }),
   });
+  PlatformSubscription.findById = () => ({
+    lean: async () => ({ companyId: "507f1f77bcf86cd799439011" }),
+  });
+  ProviderSubscription.findOne = () => ({
+    sort: () => ({ lean: async () => null }),
+  });
   PlatformCompany.findByIdAndUpdate = async () => ({});
   User.findOne = async () => null;
 });
@@ -73,7 +82,9 @@ afterEach(() => {
   PlatformCompany.findByIdAndUpdate = originalCompanyFindByIdAndUpdate;
   PlatformSubscription.create = originalSubscriptionCreate;
   PlatformSubscription.findOne = originalSubscriptionFindOne;
+  PlatformSubscription.findById = originalSubscriptionFindById;
   PlatformSubscription.findByIdAndUpdate = originalSubscriptionFindByIdAndUpdate;
+  ProviderSubscription.findOne = originalProviderSubscriptionFindOne;
   User.create = originalUserCreate;
   User.findOne = originalUserFindOne;
 });
@@ -175,6 +186,35 @@ test("updateSubscription can change plan and suspend company status", async () =
 
   assert.strictEqual(subscription.planId, "business");
   assert.strictEqual(subscription.status, "Suspended");
+});
+
+test("provider-managed Cashfree subscriptions cannot be overwritten by manual Platform controls", async () => {
+  let updateCalls = 0;
+  ProviderSubscription.findOne = () => ({
+    sort: () => ({
+      lean: async () => ({
+        _id: "507f1f77bcf86cd799439044",
+        provider: "cashfree",
+        status: "ACTIVE",
+      }),
+    }),
+  });
+  PlatformSubscription.findByIdAndUpdate = async () => {
+    updateCalls += 1;
+    return null;
+  };
+  const res = createResponse();
+  await assert.rejects(
+    () =>
+      updateSubscription(
+        "507f1f77bcf86cd799439022",
+        { planId: "free", status: "Trial", amount: 0 },
+        res
+      ),
+    /Cashfree-managed subscriptions are read-only/
+  );
+  assert.equal(res.statusCode, 409);
+  assert.equal(updateCalls, 0);
 });
 
 test("createCompanyAdminUser creates a normal admin user linked to the company tenant", async () => {

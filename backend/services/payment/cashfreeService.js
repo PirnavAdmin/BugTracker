@@ -310,10 +310,25 @@ const fetchSubscription = async (subscriptionId) => {
 
     return {
       subscriptionId: data.subscription_id || normalizedSubscriptionId,
+      ...(data.cf_subscription_id ? { providerReferenceId: data.cf_subscription_id } : {}),
       status: data.subscription_status,
       authorizationStatus: authorization.authorization_status,
+      ...(authorization.authorization_time
+        ? { authorizationTime: authorization.authorization_time }
+        : {}),
       paymentId: authorization.payment_id,
-      paymentMethod: authorization.payment_method,
+      paymentMethod:
+        authorization.payment_group ||
+        (authorization.payment_method && typeof authorization.payment_method === "object"
+          ? Object.keys(authorization.payment_method)[0]
+          : authorization.payment_method),
+      ...(data.subscription_first_charge_time
+        ? { firstChargeTime: data.subscription_first_charge_time }
+        : {}),
+      ...(data.next_schedule_date ? { nextScheduleDate: data.next_schedule_date } : {}),
+      ...(data.subscription_expiry_time
+        ? { expiryDate: data.subscription_expiry_time }
+        : {}),
     };
   } catch (error) {
     throw providerFailure(
@@ -325,10 +340,26 @@ const fetchSubscription = async (subscriptionId) => {
   }
 };
 
+const verifyWebhookSignature = ({ rawBody, signature, timestamp }) => {
+  const body = Buffer.isBuffer(rawBody) ? rawBody.toString("utf8") : String(rawBody || "");
+  const normalizedSignature = requireText(signature, "x-webhook-signature");
+  const normalizedTimestamp = requireText(timestamp, "x-webhook-timestamp");
+  if (!body) {
+    throw serviceError("CASHFREE_WEBHOOK_INVALID_PAYLOAD", "Cashfree webhook payload is required");
+  }
+  try {
+    cashfreeClient.PGVerifyWebhookSignature(normalizedSignature, body, normalizedTimestamp);
+    return JSON.parse(body);
+  } catch {
+    throw serviceError("CASHFREE_WEBHOOK_INVALID_SIGNATURE", "Invalid Cashfree webhook signature");
+  }
+};
+
 module.exports = {
   BILLING_CYCLES,
   createSubscription,
   fetchSubscription,
   resolvePlanBilling,
   sanitizeProviderText,
+  verifyWebhookSignature,
 };

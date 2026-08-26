@@ -11,6 +11,7 @@ const {
 } = require("../constants/platformSubscriptions");
 const PlatformCompany = require("../models/PlatformCompany");
 const PlatformSubscription = require("../models/PlatformSubscription");
+const ProviderSubscription = require("../models/Subscription");
 const User = require("../models/User");
 const Project = require("../models/Project");
 const StorageUsage = require("../models/StorageUsage");
@@ -49,6 +50,19 @@ const requireValidPlan = (planId, res) => {
   }
 
   return plan;
+};
+
+const rejectProviderManagedSubscriptionMutation = async (companyId, res) => {
+  const providerSubscription = await ProviderSubscription.findOne({
+    companyId,
+    provider: "cashfree",
+  })
+    .sort({ createdAt: -1 })
+    .lean();
+  if (providerSubscription) {
+    res.status(409);
+    throw new Error("Cashfree-managed subscriptions are read-only in the Platform console");
+  }
 };
 
 const validateEmail = (email, fieldName, res, { required = true } = {}) => {
@@ -358,6 +372,7 @@ const updateCompany = async (id, payload = {}, res) => {
   }
 
   if (payload.planId !== undefined) {
+    await rejectProviderManagedSubscriptionMutation(id, res);
     updates.planId = normalizePlanId(payload.planId);
     requireValidPlan(updates.planId, res);
   }
@@ -422,6 +437,8 @@ const createSubscription = async (payload = {}, res) => {
     throw new Error("Platform company not found");
   }
 
+  await rejectProviderManagedSubscriptionMutation(company._id, res);
+
   const planId = normalizePlanId(payload.planId || company.planId);
   requireValidPlan(planId, res);
 
@@ -459,6 +476,13 @@ const createSubscription = async (payload = {}, res) => {
 
 const updateSubscription = async (id, payload = {}, res) => {
   ensureObjectId(id, res);
+
+  const existingSubscription = await PlatformSubscription.findById(id).lean();
+  if (!existingSubscription) {
+    res.status(404);
+    throw new Error("Platform subscription not found");
+  }
+  await rejectProviderManagedSubscriptionMutation(existingSubscription.companyId, res);
 
   const updates = {};
 

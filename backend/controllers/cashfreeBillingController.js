@@ -6,9 +6,13 @@ const { PLATFORM_COMPANY_STATUSES } = require("../constants/platformSubscription
 const PlatformCompany = require("../models/PlatformCompany");
 const Subscription = require("../models/Subscription");
 const Payment = require("../models/Payment");
+const BillingWebhookEvent = require("../models/BillingWebhookEvent");
 const { getPlan } = require("../services/planService");
 const cashfreeService = require("../services/payment/cashfreeService");
 const providerSync = require("../services/billingProviderSyncService");
+const { serializeBillingSubscription } = require("../services/billingSubscriptionPresentationService");
+const cashfreeWebhookService = require("../services/cashfreeWebhookService");
+const { recordPlatformAudit } = require("../services/platformAuditService");
 const { requireTenant } = require("../utils/tenant");
 
 const ALLOWED_REQUEST_FIELDS = new Set(["planId", "billingCycle"]);
@@ -87,25 +91,7 @@ const safeResult = ({ subscriptionId, subscriptionSessionId, status, reused = fa
   ...(reused ? { reused: true } : {}),
 });
 
-const safeSubscription = (subscription) =>
-  subscription && {
-    id: subscription._id,
-    provider: subscription.provider,
-    planId: subscription.planId,
-    billingCycle: subscription.billingCycle,
-    status: subscription.status,
-    providerStatus: subscription.providerStatus,
-    currency: subscription.currency,
-    amount: subscription.amount,
-    createdAt: subscription.createdAt,
-    startDate: subscription.startDate,
-    currentPeriodStart: subscription.currentPeriodStart,
-    currentPeriodEnd: subscription.currentPeriodEnd,
-    cancelledAt: subscription.cancelledAt,
-    endedAt: subscription.endedAt,
-    cancelAtPeriodEnd: subscription.cancelAtPeriodEnd,
-    providerSubscriptionId: subscription.providerSubscriptionId,
-  };
+const safeSubscription = serializeBillingSubscription;
 
 const reusablePendingResult = (subscription) => {
   const subscriptionSessionId = subscription?.metadata?.subscriptionSessionId;
@@ -325,6 +311,23 @@ const createSubscription = asyncHandler(async (req, res) => {
   };
   await paymentAttempt.save();
 
+  const auditMetadata = {
+    companyId: String(company._id),
+    tenantId,
+    subscriptionId: String(localSubscription._id),
+    providerSubscriptionId: localSubscription.providerSubscriptionId,
+    planId: localSubscription.planId,
+    billingCycle: localSubscription.billingCycle,
+  };
+  await recordPlatformAudit({
+    action: "CASHFREE_SUBSCRIPTION_CREATED",
+    metadata: auditMetadata,
+  });
+  await recordPlatformAudit({
+    action: "CASHFREE_AUTHORIZATION_PENDING",
+    metadata: auditMetadata,
+  });
+
   return res.status(201).json(
     safeResult({
       subscriptionId: localSubscription.providerSubscriptionId,
@@ -408,6 +411,80 @@ const getSubscriptionStatus = asyncHandler(async (req, res) => {
   return res.json({ subscription: safeSubscription(subscription), verified: true });
 });
 
+const webhook = asyncHandler(async (req, res) => {
+  const rawBody = req.body;
+  const signature = req.get("x-webhook-signature");
+  const timestamp = req.get("x-webhook-timestamp");
+  if (!Buffer.isBuffer(rawBody) || !signature || !timestamp) {
+    return res.status(400).json({
+      code: "CASHFREE_WEBHOOK_INVALID_SIGNATURE",
+      message: "Invalid Cashfree webhook signature",
+    });
+  }
+
+  let payload;
+  try {
+    payload = cashfreeService.verifyWebhookSignature({ rawBody, signature, timestamp });
+  } catch (error) {
+    console.warn("[billing] Cashfree webhook signature rejected", {
+      code: error?.code || "CASHFREE_WEBHOOK_INVALID_SIGNATURE",
+      webhookVersion: req.get("x-webhook-version") || undefined,
+    });
+    return res.status(400).json({
+      code: "CASHFREE_WEBHOOK_INVALID_SIGNATURE",
+      message: "Invalid Cashfree webhook signature",
+    });
+  }
+
+  const payloadHash = crypto.createHash("sha256").update(rawBody).digest("hex");
+  const eventId = String(req.get("x-idempotency-key") || payloadHash).trim();
+  let event;
+  try {
+    event = await BillingWebhookEvent.create({
+      provider: "cashfree",
+      eventId,
+      eventType: String(payload?.type || "").toUpperCase(),
+      payloadHash,
+      status: "received",
+    });
+  } catch (error) {
+    if (error?.code === 11000) {
+      return res.status(200).json({ received: true, duplicate: true });
+    }
+    throw error;
+  }
+
+  try {
+    const result = await cashfreeWebhookService.processCashfreeWebhook(payload);
+    event.status = result.ignored ? "ignored" : "processed";
+    event.tenantId = result.subscription?.tenantId;
+    event.providerResourceId = result.subscription?.providerSubscriptionId;
+    event.metadata = {
+      eventType: result.type,
+      localSubscriptionId: result.subscription?._id
+        ? String(result.subscription._id)
+        : undefined,
+      localPaymentId: result.payment?._id ? String(result.payment._id) : undefined,
+    };
+    event.processedAt = new Date();
+    await event.save();
+    return res.status(200).json({ received: true, ...(result.ignored ? { ignored: true } : {}) });
+  } catch (error) {
+    event.status = error?.status === 404 ? "ignored" : "failed";
+    event.processingError = error?.code || "CASHFREE_WEBHOOK_PROCESSING_FAILED";
+    event.processedAt = new Date();
+    await event.save();
+    console.warn("[billing] Cashfree webhook processing rejected", {
+      eventType: event.eventType,
+      code: event.processingError,
+    });
+    if (error?.status === 404) {
+      return res.status(404).json({ code: error.code, message: error.message });
+    }
+    throw error;
+  }
+});
+
 module.exports = {
   LOCAL_CASHFREE_ERROR_CODES,
   applyVerifiedSubscriptionStatus,
@@ -420,4 +497,5 @@ module.exports = {
   resolveCustomerPhone,
   resolveRequestedPlan,
   returnSubscription,
+  webhook,
 };

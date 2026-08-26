@@ -35,11 +35,11 @@ const History = ({ title, rows, loading, empty, children }) => (
 
 const SubscriptionDetails = ({ subscription }) => {
   const details = [
-    ["Plan", getPlanName(subscription.planId)],
+    ["Plan", subscription.planName || getPlanName(subscription.planId)],
     ["Amount", money(subscription.amount, subscription.currency)],
     ["Billing Cycle", getBillingCycleLabel(subscription.billingCycle)],
     ...getSubscriptionDateRows(subscription).map(({ label, value }) => [label, formatDate(value, { fallback: "—" })]),
-    ["Payment Status", getSubscriptionPaymentStatus(subscription.status)],
+    ["Payment Status", getSubscriptionPaymentStatus(subscription)],
   ];
   return (
     <div className="mt-5 border-t border-slate-200 pt-5">
@@ -59,7 +59,7 @@ const SubscriptionCard = ({ record, historical, cashfreeRecord, retry, cancel, c
       <p className="text-xs font-bold text-slate-500">{historical ? "PREVIOUS SUBSCRIPTION" : "CURRENT PLAN"}</p>
       <div className="mt-2 flex items-start justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-black">{getPlanName(record.planId)}</h2>
+          <h2 className="text-2xl font-black">{record.planName || getPlanName(record.planId)}</h2>
           <p className="mt-1 text-slate-700">{money(record.amount, record.currency)} / {getBillingIntervalLabel(record.billingCycle)}</p>
           {record.currentPeriodEnd ? <p className="mt-2 text-sm text-slate-600">Next billing date: {formatDate(record.currentPeriodEnd, { fallback: "—" })}</p> : null}
         </div>
@@ -70,7 +70,7 @@ const SubscriptionCard = ({ record, historical, cashfreeRecord, retry, cancel, c
       <div className="mt-5 flex flex-wrap gap-2">
         {record.status === "PENDING" && (cashfreeRecord ? cashfreeRetry : <Button disabled={retry.isPending} onClick={() => retry.mutate()}>Retry Payment</Button>)}
         {record.status === "FAILED" && cashfreeRecord ? cashfreeRetry : null}
-        {canCancel ? <Button variant="outline" disabled={cancel.isPending || record.cancelAtPeriodEnd} onClick={() => cancel.mutate()}>{record.status === "ACTIVE" ? "Cancel at period end" : "Cancel Subscription"}</Button> : record.status === "FAILED" && cashfreeRecord ? null : <Button onClick={onShowPlans}>{record.status === "EXPIRED" ? "Choose a Plan" : "Subscribe Again"}</Button>}
+        {canCancel && !cashfreeRecord ? <Button variant="outline" disabled={cancel.isPending || record.cancelAtPeriodEnd} onClick={() => cancel.mutate()}>{record.status === "ACTIVE" ? "Cancel at period end" : "Cancel Subscription"}</Button> : !canCancel && !(record.status === "FAILED" && cashfreeRecord) ? <Button onClick={onShowPlans}>{record.status === "EXPIRED" ? "Choose a Plan" : "Subscribe Again"}</Button> : null}
       </div>
     </section>
   );

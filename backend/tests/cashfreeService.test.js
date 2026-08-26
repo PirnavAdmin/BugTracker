@@ -102,9 +102,14 @@ test.beforeEach(() => {
     status: 200,
     data: {
       subscription_id: subscriptionId,
+      cf_subscription_id: "23639858",
       subscription_status: "ACTIVE",
+      subscription_first_charge_time: "2026-08-26T10:00:00+05:30",
+      next_schedule_date: "2026-09-26T10:00:00+05:30",
+      subscription_expiry_time: "2050-12-31T00:00:00+05:30",
       authorization_details: {
         authorization_status: "ACTIVE",
+        authorization_time: "2026-08-26T09:55:00+05:30",
         payment_id: "payment_001",
         payment_method: "upi",
       },
@@ -268,10 +273,15 @@ test("subscription status is fetched server-side and reduced to safe authorizati
   assert.deepEqual(lastFetchCall, ["curecode_sub_001"]);
   assert.deepEqual(result, {
     subscriptionId: "curecode_sub_001",
+    providerReferenceId: "23639858",
     status: "ACTIVE",
     authorizationStatus: "ACTIVE",
+    authorizationTime: "2026-08-26T09:55:00+05:30",
     paymentId: "payment_001",
     paymentMethod: "upi",
+    firstChargeTime: "2026-08-26T10:00:00+05:30",
+    nextScheduleDate: "2026-09-26T10:00:00+05:30",
+    expiryDate: "2050-12-31T00:00:00+05:30",
   });
 });
 

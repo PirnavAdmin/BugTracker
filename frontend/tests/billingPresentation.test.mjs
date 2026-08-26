@@ -45,12 +45,14 @@ test("active subscription presents its plan, activation date, and next billing d
     status: "ACTIVE",
     startDate: "2026-08-26T01:00:00.000Z",
     currentPeriodEnd: "2026-09-26T01:00:00.000Z",
+    expiryDate: "2050-12-31T00:00:00.000Z",
   };
   assert.equal(getPlanName(subscription.planId), "Professional");
   assert.equal(getSubscriptionPaymentStatus(subscription.status), "Authorized");
   assert.deepEqual(getSubscriptionDateRows(subscription), [
     { label: "Activated On", value: subscription.startDate },
     { label: "Next Billing Date", value: subscription.currentPeriodEnd },
+    { label: "Expiry Date", value: subscription.expiryDate },
   ]);
 });
 
@@ -105,4 +107,21 @@ test("Billing UI uses server dates, shared formatting, both checkout choices, an
   assert.match(source, /formatProviderName\(payment\.provider\)/);
   assert.doesNotMatch(source, /CASHFREE_SECRET_KEY|VITE_CASHFREE/);
   assert.doesNotMatch(source, /SubsFetchSubscription|SubsCreateSubscription/);
+});
+
+test("Platform Company uses authoritative Cashfree state and hides manual controls for provider-managed records", async () => {
+  const [pageSource, apiSource] = await Promise.all([
+    readFile(new URL("../src/pages/PlatformCompanyDetailsPage.jsx", import.meta.url), "utf8"),
+    readFile(new URL("../src/lib/api.js", import.meta.url), "utf8"),
+  ]);
+  assert.match(apiSource, /\/platform\/billing\/companies\/\$\{companyId\}\/status/);
+  assert.match(pageSource, /ProviderManagedSubscription/);
+  assert.match(pageSource, /Provider-managed subscription · Read only/);
+  assert.match(pageSource, /providerManaged \? \(/);
+  assert.match(pageSource, /getSubscriptionDateRows\(subscription\)/);
+  assert.match(pageSource, /getSubscriptionPaymentStatus\(subscription\)/);
+  assert.match(pageSource, /subscription\.providerSubscriptionId/);
+  assert.match(pageSource, /status === "PENDING" \? 5000 : false/);
+  assert.doesNotMatch(`${pageSource}${apiSource}`, /CASHFREE_SECRET_KEY|VITE_CASHFREE/);
+  assert.doesNotMatch(pageSource, /SubsFetchSubscription|SubsCreateSubscription/);
 });

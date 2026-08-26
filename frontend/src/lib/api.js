@@ -1467,4 +1467,9 @@ export const fetchPlatformBillingSubscriptions = async (params = {}) => {
   return response.data?.subscriptions || [];
 };
 
+export const fetchPlatformBillingCompanyStatus = async (companyId) => {
+  const response = await platformApi.get(`/platform/billing/companies/${companyId}/status`);
+  return response.data;
+};
+
 export default api;

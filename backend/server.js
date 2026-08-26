@@ -32,6 +32,7 @@ const webhookRoutes = require("./routes/webhookRoutes");
 const billingRoutes = require("./routes/billingRoutes");
 const cashfreeBillingRoutes = require("./routes/cashfreeBillingRoutes");
 const { webhook: razorpayBillingWebhook } = require("./controllers/billingController");
+const { webhook: cashfreeBillingWebhook } = require("./controllers/cashfreeBillingController");
 const workspaceRoutes = require("./routes/workspaceRoutes");
 const { startSprintNotificationWorker } = require("./services/sprintNotificationQueue");
 const { setupChatSocket } = require("./socket");
@@ -51,6 +52,8 @@ app.disable("x-powered-by");
 app.use(cors());
 // Razorpay signs the exact bytes sent. This route intentionally precedes JSON parsing.
 app.post("/api/billing/webhooks/razorpay", express.raw({ type: "application/json", limit: "2mb" }), razorpayBillingWebhook);
+// Cashfree signs the timestamp concatenated with the exact, unparsed request bytes.
+app.post("/api/billing/cashfree/webhook", express.raw({ type: "application/json", limit: "2mb" }), cashfreeBillingWebhook);
 app.use(express.json({ limit: "25mb" }));
 app.use(express.urlencoded({ limit: "25mb", extended: true }));
 

@@ -3,10 +3,12 @@ const assert = require("node:assert/strict");
 require("../config/env");
 
 const Subscription = require("../models/Subscription");
+const Payment = require("../models/Payment");
 const providerSync = require("../services/billingProviderSyncService");
 const { getSubscription } = require("../controllers/billingController");
 
 const originalFindOne = Subscription.findOne;
+const originalPaymentFindOne = Payment.findOne;
 const originalSyncPending = providerSync.syncPendingSubscription;
 
 let subscription;
@@ -55,6 +57,7 @@ test.beforeEach(() => {
     subscriptionQuery = filter;
     return { sort: async () => subscription };
   };
+  Payment.findOne = () => ({ sort: () => ({ lean: async () => null }) });
   providerSync.syncPendingSubscription = async (record) => {
     syncCalls.push(record);
     return { ...record, status: "ACTIVE", providerStatus: "ACTIVE" };
@@ -63,6 +66,7 @@ test.beforeEach(() => {
 
 test.after(() => {
   Subscription.findOne = originalFindOne;
+  Payment.findOne = originalPaymentFindOne;
   providerSync.syncPendingSubscription = originalSyncPending;
 });
 

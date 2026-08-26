@@ -8,7 +8,7 @@ import {
   fetchPlatformCompany,
   fetchPlatformCompanies,
   fetchPlatformPlans,
-  fetchPlatformBillingSubscriptions,
+  fetchPlatformBillingCompanyStatus,
   updatePlatformCompany,
   updatePlatformSubscription,
 } from "@/lib/api";
@@ -17,15 +17,22 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
+import { formatDate } from "@/lib/utils";
+import {
+  formatProviderName,
+  getBillingCycleLabel,
+  getBillingIntervalLabel,
+  getPlanName,
+  getSubscriptionDateRows,
+  getSubscriptionPaymentStatus,
+} from "@/services/billingPresentation";
 
 const companyStatuses = ["Active", "Suspended"];
 const subscriptionStatuses = ["Trial", "Active", "Past Due", "Suspended", "Cancelled", "Expired"];
 const billingCycles = ["Monthly", "Yearly"];
 
-const formatDate = (value) =>
-  value
-    ? new Intl.DateTimeFormat("en-IN", { dateStyle: "medium" }).format(new Date(value))
-    : "N/A";
+const money = (amount, currency = "INR") =>
+  new Intl.NumberFormat("en-IN", { style: "currency", currency }).format(Number(amount || 0));
 
 const limitText = (value, suffix = "") =>
   value === null || value === undefined ? "N/A" : `${value}${suffix}`;
@@ -50,9 +57,33 @@ const FutureSection = ({ title }) => (
 const BillingSection = ({ subscription }) => (
   <section className="rounded-lg border border-slate-200 bg-white p-4">
     <p className="text-sm font-bold text-slate-950">Payments</p>
-    {subscription ? <dl className="mt-2 space-y-1 text-sm"><div><dt className="inline text-slate-500">Status: </dt><dd className="inline font-semibold">{subscription.status}</dd></div><div><dt className="inline text-slate-500">Cycle: </dt><dd className="inline font-semibold capitalize">{subscription.billingCycle}</dd></div><div><dt className="inline text-slate-500">Amount: </dt><dd className="inline font-semibold">₹{subscription.amount}</dd></div></dl> : <p className="mt-2 text-sm text-slate-500">No Razorpay billing subscription.</p>}
+    {subscription ? <dl className="mt-2 space-y-1 text-sm"><div><dt className="inline text-slate-500">Provider: </dt><dd className="inline font-semibold">{formatProviderName(subscription.provider)}</dd></div><div><dt className="inline text-slate-500">Payment: </dt><dd className="inline font-semibold">{getSubscriptionPaymentStatus(subscription)}</dd></div><div><dt className="inline text-slate-500">Amount: </dt><dd className="inline font-semibold">{money(subscription.amount, subscription.currency)}</dd></div></dl> : <p className="mt-2 text-sm text-slate-500">No provider billing subscription.</p>}
   </section>
 );
+
+const ProviderManagedSubscription = ({ subscription }) => {
+  const details = [
+    ["Provider", formatProviderName(subscription.provider)],
+    ["Plan", subscription.planName || getPlanName(subscription.planId)],
+    ["Status", subscription.status],
+    ["Amount", `${money(subscription.amount, subscription.currency)} / ${getBillingIntervalLabel(subscription.billingCycle)}`],
+    ["Billing Cycle", getBillingCycleLabel(subscription.billingCycle)],
+    ...getSubscriptionDateRows(subscription).map(({ label, value }) => [label, formatDate(value, { fallback: "N/A" })]),
+    ["Payment Status", getSubscriptionPaymentStatus(subscription)],
+  ];
+  return (
+    <section className="rounded-lg border border-slate-200 bg-white p-4">
+      <div className="flex items-center justify-between gap-3">
+        <div><h2 className="text-base font-bold tracking-normal">Subscription</h2><p className="mt-1 text-xs font-semibold text-slate-500">Provider-managed subscription · Read only</p></div>
+        <Badge>{subscription.status}</Badge>
+      </div>
+      <dl className="mt-4 grid gap-4 md:grid-cols-2">
+        {details.map(([label, value]) => <div key={label}><dt className="text-xs font-bold uppercase tracking-wide text-slate-500">{label}</dt><dd className="mt-1 text-sm font-semibold text-slate-950">{value}</dd></div>)}
+      </dl>
+      <div className="mt-4 border-t border-slate-200 pt-4"><p className="text-xs font-bold uppercase tracking-wide text-slate-500">Subscription ID</p><p className="mt-1 break-all font-mono text-sm font-semibold text-slate-900">{subscription.providerSubscriptionId}</p></div>
+    </section>
+  );
+};
 
 const StorageSection = ({ company, storage }) => {
   if (!company?.linked || !storage) {
@@ -91,16 +122,30 @@ const PlatformCompanyDetailsPage = () => {
     queryKey: ["platform-plans"],
     queryFn: fetchPlatformPlans,
   });
-  const billingSubscriptionsQuery = useQuery({ queryKey: ["platform-billing-subscriptions"], queryFn: fetchPlatformBillingSubscriptions });
-  const billingSubscription = (billingSubscriptionsQuery.data || []).find((item) => String(item.companyId) === String(companyId));
+  const billingStatusQuery = useQuery({
+    queryKey: ["platform-billing-company-status", companyId],
+    queryFn: () => fetchPlatformBillingCompanyStatus(companyId),
+    enabled: Boolean(companyId),
+    refetchInterval: (query) =>
+      query.state.data?.subscription?.status === "PENDING" ? 5000 : false,
+  });
+  const billingSubscription = billingStatusQuery.data?.subscription || null;
+  const providerManaged = billingSubscription?.provider === "cashfree";
 
   const companyStorage = companyUsageQuery.data?.companies?.find(
     (candidate) => String(candidate._id) === String(companyId)
   )?.usage?.storage || null;
   const plans = plansQuery.data || [];
   const selectedPlan = useMemo(
-    () => plans.find((plan) => plan.id === (subscriptionForm?.planId || company?.planId)) || company?.plan,
-    [company?.plan, company?.planId, plans, subscriptionForm?.planId]
+    () =>
+      plans.find(
+        (plan) =>
+          plan.id ===
+          (providerManaged
+            ? billingSubscription?.planId
+            : subscriptionForm?.planId || company?.planId)
+      ) || company?.plan,
+    [billingSubscription?.planId, company?.plan, company?.planId, plans, providerManaged, subscriptionForm?.planId]
   );
 
   useEffect(() => {
@@ -114,7 +159,6 @@ const PlatformCompanyDetailsPage = () => {
       contactPerson: company.contactPerson || "",
       contactEmail: company.contactEmail || "",
       contactPhone: company.contactPhone || "",
-      planId: company.planId || "starter",
       status: company.status || "Active",
     });
   }, [company]);
@@ -141,6 +185,7 @@ const PlatformCompanyDetailsPage = () => {
 
   const invalidateCompany = () => {
     queryClient.invalidateQueries({ queryKey: ["platform-company", companyId] });
+    queryClient.invalidateQueries({ queryKey: ["platform-billing-company-status", companyId] });
     queryClient.invalidateQueries({ queryKey: ["platform-companies"] });
     queryClient.invalidateQueries({ queryKey: ["platform-subscriptions"] });
     queryClient.invalidateQueries({ queryKey: ["platform-dashboard-summary"] });
@@ -287,6 +332,9 @@ const PlatformCompanyDetailsPage = () => {
                 </div>
               </form>
 
+              {providerManaged ? (
+                <ProviderManagedSubscription subscription={billingSubscription} />
+              ) : (
               <form className="rounded-lg border border-slate-200 bg-white p-4" onSubmit={saveSubscription}>
                 <div className="flex items-center justify-between gap-3">
                   <h2 className="text-base font-bold tracking-normal">Subscription</h2>
@@ -343,6 +391,7 @@ const PlatformCompanyDetailsPage = () => {
                   </Button>
                 </div>
               </form>
+              )}
             </section>
 
             <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
@@ -421,7 +470,7 @@ const PlatformCompanyDetailsPage = () => {
                 </div>
                 <div>
                   <dt className="font-bold text-slate-500">Subscription Status</dt>
-                  <dd className="mt-1">{company.subscription?.status || "N/A"}</dd>
+                  <dd className="mt-1">{providerManaged ? billingSubscription.status : company.subscription?.status || "N/A"}</dd>
                 </div>
                 <div>
                   <dt className="font-bold text-slate-500">Company Status</dt>

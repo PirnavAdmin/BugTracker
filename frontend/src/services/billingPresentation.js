@@ -25,8 +25,18 @@ export const getBillingIntervalLabel = (billingCycle) =>
 
 export const getSubscriptionMessage = (status) => STATUS_MESSAGES[String(status || "").toUpperCase()] || "";
 
-export const getSubscriptionPaymentStatus = (status) => {
-  const normalized = String(status || "").toUpperCase();
+export const getSubscriptionPaymentStatus = (subscriptionOrStatus) => {
+  const subscription =
+    subscriptionOrStatus && typeof subscriptionOrStatus === "object"
+      ? subscriptionOrStatus
+      : { status: subscriptionOrStatus };
+  const storedPaymentStatus = String(subscription.paymentStatus || "").toLowerCase();
+  if (storedPaymentStatus === "authorized") return "Authorized";
+  if (storedPaymentStatus === "captured") return "Captured";
+  if (storedPaymentStatus === "pending") return "Pending authorization";
+  if (storedPaymentStatus === "failed") return "Failed";
+  if (storedPaymentStatus === "cancelled") return "Cancelled";
+  const normalized = String(subscription.status || "").toUpperCase();
   if (normalized === "ACTIVE") return "Authorized";
   if (normalized === "PENDING") return "Pending authorization";
   if (normalized === "FAILED") return "Failed";
@@ -46,6 +56,7 @@ export const getSubscriptionDateRows = (subscription = {}) => {
       label: "Next Billing Date",
       value: subscription.currentPeriodEnd,
     },
+    subscription.expiryDate && { label: "Expiry Date", value: subscription.expiryDate },
     subscription.cancelledAt && { label: "Cancelled On", value: subscription.cancelledAt },
     subscription.endedAt && {
       label: status === "EXPIRED" ? "Expiry Date" : "Ended On",
