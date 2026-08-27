@@ -1,4 +1,4 @@
-import { ArrowRight, BarChart3, Bot, Bug, CalendarDays, Check, FolderKanban, GitBranch, MessageCircle, ShieldCheck, Sparkles, Video } from "lucide-react";
+import { ArrowRight, BarChart3, Bot, Bug, CalendarDays, Check, Code2, FolderKanban, GitBranch, MessageCircle, ShieldCheck, Sparkles, Video } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Header } from "@/pages/PublicSite";
 
