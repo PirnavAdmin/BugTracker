@@ -55,8 +55,8 @@ services:
       EMAIL_SECURE: ${EMAIL_SECURE:-true}
       EMAIL_FROM: ${EMAIL_FROM:-Pirnav Support <no-reply@example.com>}
 
-      APP_URL: ${APP_URL:-https://app.renivval.com}
-      FRONTEND_URL: ${FRONTEND_URL:-https://app.renivval.com}
+      APP_URL: ${APP_URL:-https://curecode.site}
+      FRONTEND_URL: ${FRONTEND_URL:-https://curecode.site,https://www.curecode.site}
 
       RAZORPAY_MODE: ${RAZORPAY_MODE:-test}
       RAZORPAY_KEY_ID: ${RAZORPAY_KEY_ID:-}
@@ -111,7 +111,7 @@ services:
     network_mode: host
     command: >
       -n
-      --realm=app.renivval.com
+      --realm=curecode.site
       --external-ip=65.2.115.155
       --listening-port=3478
       --tls-listening-port=5349
@@ -132,7 +132,7 @@ services:
         VITE_ENABLE_ADMIN_DEFAULT_LOGIN: ${VITE_ENABLE_ADMIN_DEFAULT_LOGIN:-true}
         VITE_DEBUG_TEAM_SELECTION: ${VITE_DEBUG_TEAM_SELECTION:-false}
         VITE_STUN_URL: ${VITE_STUN_URL:-stun:stun.l.google.com:19302}
-        VITE_TURN_URL: ${VITE_TURN_URL:-turn:app.renivval.com:3478?transport=udp}
+        VITE_TURN_URL: ${VITE_TURN_URL:-turn:curecode.site:3478?transport=udp}
         VITE_TURN_USERNAME: ${VITE_TURN_USERNAME:-turnuser}
         VITE_TURN_CREDENTIAL: ${VITE_TURN_CREDENTIAL:-StrongTurnPassword123}
         VITE_ICE_TRANSPORT_POLICY: ${VITE_ICE_TRANSPORT_POLICY:-all}
