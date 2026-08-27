@@ -18,16 +18,16 @@ const SettingsPanel = ({
 }) => (
   <Card
     className={cn(
-      "overflow-hidden rounded-[16px] border-slate-200/90 bg-white shadow-[0_18px_48px_-36px_rgba(15,23,42,0.24)]",
+      "overflow-hidden rounded-[18px] border-slate-200/90 bg-white shadow-none",
       className
     )}
   >
     <CardHeader
-      className={cn("border-b border-slate-100 px-5 py-5 sm:px-6", headerClassName)}
+      className={cn("border-b border-slate-100 px-6 py-6 sm:px-7", headerClassName)}
     >
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div className="min-w-0">
-          <CardTitle className="text-xl font-semibold tracking-tight text-slate-950">
+          <CardTitle className="text-[26px] font-bold tracking-tight text-slate-950">
             {title}
           </CardTitle>
           {description ? (
@@ -41,7 +41,7 @@ const SettingsPanel = ({
       </div>
     </CardHeader>
 
-    <CardContent className={cn("p-5 sm:p-6", contentClassName)}>
+    <CardContent className={cn("p-5 sm:p-7", contentClassName)}>
       {children}
     </CardContent>
   </Card>

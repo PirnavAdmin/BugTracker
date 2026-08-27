@@ -15,7 +15,7 @@ const serializeBillingSubscription = (subscription, payment = null) => {
   const plan = getPlan(subscription.planId);
   return {
     id: subscription._id,
-    provider: subscription.provider || "razorpay",
+    provider: subscription.provider || "cashfree",
     planId: subscription.planId,
     planName: plan?.name || subscription.planId,
     billingCycle: subscription.billingCycle,

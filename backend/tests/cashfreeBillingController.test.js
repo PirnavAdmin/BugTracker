@@ -426,7 +426,7 @@ test("annual price is resolved from CureCode plan configuration", async () => {
 
 test("existing active subscription prevents a second provider subscription", async () => {
   existingSubscription = createDocument({
-    provider: "razorpay",
+    provider: "legacy-provider",
     providerSubscriptionId: "sub_existing",
     status: "ACTIVE",
   });

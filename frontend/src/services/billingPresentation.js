@@ -71,8 +71,6 @@ export const formatPaymentStatus = (status) => {
 };
 
 export const formatProviderName = (provider) => {
-  const normalized = String(provider || "razorpay").trim().toLowerCase();
-  if (normalized === "cashfree") return "Cashfree";
-  if (normalized === "razorpay") return "Razorpay";
-  return normalized ? normalized.charAt(0).toUpperCase() + normalized.slice(1) : "Razorpay";
+  const normalized = String(provider || "cashfree").trim().toLowerCase();
+  return normalized === "cashfree" ? "Cashfree" : "Legacy provider";
 };

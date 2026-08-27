@@ -235,11 +235,11 @@ test("ACTIVE lifecycle stores verified provider dates and synchronizes existing 
   ]);
 });
 
-test("unknown, Razorpay, and cross-tenant payload ownership cannot select another subscription", async () => {
-  const razorpay = createSubscription({ provider: "razorpay", tenantId: "TENANT_002" });
+test("unknown and cross-tenant payload ownership cannot select another subscription", async () => {
+  const otherProvider = createSubscription({ provider: "legacy-provider", tenantId: "TENANT_002" });
   Subscription.findOne = async (filter) => {
     subscriptionQuery = filter;
-    return filter.provider === "cashfree" ? null : razorpay;
+    return filter.provider === "cashfree" ? null : otherProvider;
   };
   const payload = webhookPayload();
   payload.data.subscription_details.subscription_tags = { tenantId: "TENANT_002" };
@@ -251,7 +251,7 @@ test("unknown, Razorpay, and cross-tenant payload ownership cannot select anothe
     provider: "cashfree",
     providerSubscriptionId: "cc_webhook_subscription",
   });
-  assert.equal(razorpay.saveCount, 0);
+  assert.equal(otherProvider.saveCount, 0);
 });
 
 test("recurring success creates one Cashfree Payment and updates the existing Subscription", async () => {

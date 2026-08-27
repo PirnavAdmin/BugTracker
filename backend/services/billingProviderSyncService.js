@@ -1,13 +1,10 @@
 const Payment = require("../models/Payment");
 const PlatformCompany = require("../models/PlatformCompany");
-const razorpayService = require("./razorpayService");
-const billingLifecycle = require("./billingLifecycleService");
 const { recordPlatformAudit } = require("./platformAuditService");
 
 const getCashfreeService = () => require("./payment/cashfreeService");
 
 const BILLING_PROVIDERS = Object.freeze({
-  RAZORPAY: "razorpay",
   CASHFREE: "cashfree",
 });
 
@@ -16,7 +13,7 @@ const billingError = (code, message, status = 400) =>
 
 const resolveSubscriptionProvider = (subscription) => {
   const provider = String(subscription?.provider || "").trim().toLowerCase();
-  return provider || BILLING_PROVIDERS.RAZORPAY;
+  return provider || BILLING_PROVIDERS.CASHFREE;
 };
 
 const mapCashfreeVerifiedStatus = ({ status, authorizationStatus }) => {
@@ -166,22 +163,6 @@ const syncPendingSubscription = async (subscription) => {
     providerSubscriptionId: subscription.providerSubscriptionId,
     localSubscriptionId: String(subscription._id),
   });
-
-  if (provider === BILLING_PROVIDERS.RAZORPAY) {
-    const providerSubscription = await razorpayService.fetchSubscription(
-      subscription.providerSubscriptionId
-    );
-    const syncedSubscription = await billingLifecycle.applyProviderSubscription(
-      providerSubscription
-    );
-    console.info("[billing] Razorpay subscription status verified", {
-      provider: "RAZORPAY",
-      providerSubscriptionId: subscription.providerSubscriptionId,
-      verifiedStatus: syncedSubscription.status,
-      localSubscriptionId: String(syncedSubscription._id),
-    });
-    return syncedSubscription;
-  }
 
   if (provider === BILLING_PROVIDERS.CASHFREE) {
     const result = await syncCashfreeSubscription(subscription);
