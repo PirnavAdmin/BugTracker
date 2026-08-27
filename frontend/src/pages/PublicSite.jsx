@@ -13,7 +13,7 @@ const plans = [
   ["Enterprise", "Custom", ["Everything in Business", "Custom user limits and storage", "Custom AI usage", "SSO and advanced security", "Custom integrations", "On-premise option", "Dedicated support"]],
 ];
 
-const Header = () => {
+export const Header = () => {
   const [open, setOpen] = useState(false);
   const { pathname } = useLocation();
   const nav = [["Features", "/features"], ["Pricing", "/pricing"], ["Resources", "/resources"], ["Enterprise", "/enterprise"], ["Contact Sales", "/contact"]];
