@@ -3462,53 +3462,32 @@ const ProjectsPage = () => {
           id="teams-panel"
           role="tabpanel"
         >
-          <div className="grid gap-3 md:grid-cols-3">
-            {isTeamsLoading ? (
-              <>
-                <Skeleton className="h-[110px] w-full rounded-2xl" />
-                <Skeleton className="h-[110px] w-full rounded-2xl" />
-                <Skeleton className="h-[110px] w-full rounded-2xl" />
-              </>
-            ) : (
-              <>
-                <Card className="stats-card stats-tile">
-                  <CardContent className="flex h-full flex-col justify-between p-4">
-                    <div className="flex items-center gap-2 text-sm font-semibold text-slate-600">
-                      <Users2 className="h-4 w-4 text-emerald-600" />
-                      <span>Total teams</span>
-                    </div>
-                    <p className="text-3xl font-semibold leading-none text-slate-950">
-                      {teamStats.totalTeams}
-                    </p>
-                  </CardContent>
-                </Card>
-
-                <Card className="stats-card stats-tile">
-                  <CardContent className="flex h-full flex-col justify-between p-4">
-                    <div className="flex items-center gap-2 text-sm font-semibold text-slate-600">
-                      <UserRoundPlus className="h-4 w-4 text-sky-600" />
-                      <span>Members assigned</span>
-                    </div>
-                    <p className="text-3xl font-semibold leading-none text-slate-950">
-                      {teamStats.totalMembersAssigned}
-                    </p>
-                  </CardContent>
-                </Card>
-
-                <Card className="stats-card stats-tile">
-                  <CardContent className="flex h-full flex-col justify-between p-4">
-                    <div className="flex items-center gap-2 text-sm font-semibold text-slate-600">
-                      <Users2 className="h-4 w-4 text-amber-600" />
-                      <span>Empty teams</span>
-                    </div>
-                    <p className="text-3xl font-semibold leading-none text-slate-950">
-                      {teamStats.emptyTeams}
-                    </p>
-                  </CardContent>
-                </Card>
-              </>
-            )}
-          </div>
+          {isTeamsLoading ? (
+            <Skeleton className="h-12 w-full rounded-xl" />
+          ) : (
+            <div
+              className="grid min-h-12 grid-cols-3 items-center border-b border-slate-300/80 pb-3"
+              aria-label="Team summary"
+            >
+              <div className="flex items-center justify-center gap-2 px-2 text-sm text-slate-600">
+                <Users2 className="h-4 w-4 shrink-0 text-emerald-600" />
+                <span className="hidden sm:inline">Total teams</span>
+                <span className="font-semibold text-slate-950">{teamStats.totalTeams}</span>
+              </div>
+              <div className="flex items-center justify-center gap-2 border-x border-slate-200 px-2 text-sm text-slate-600">
+                <UserRoundPlus className="h-4 w-4 shrink-0 text-sky-600" />
+                <span className="hidden sm:inline">Members assigned</span>
+                <span className="font-semibold text-slate-950">
+                  {teamStats.totalMembersAssigned}
+                </span>
+              </div>
+              <div className="flex items-center justify-center gap-2 px-2 text-sm text-slate-600">
+                <Users2 className="h-4 w-4 shrink-0 text-amber-600" />
+                <span className="hidden sm:inline">Empty teams</span>
+                <span className="font-semibold text-slate-950">{teamStats.emptyTeams}</span>
+              </div>
+            </div>
+          )}
 
           {teamsErrorMessage && !isTeamsLoading ? (
             <Card>
@@ -3523,7 +3502,7 @@ const ProjectsPage = () => {
               Array.from({ length: TEAM_PANEL_SKELETON_COUNT }).map((_, index) => (
                 <Skeleton
                   key={`team-skeleton-${index}`}
-                  className="h-[170px] w-full rounded-2xl"
+                  className="h-[104px] w-full rounded-2xl"
                 />
               ))
             ) : teams.length ? (
