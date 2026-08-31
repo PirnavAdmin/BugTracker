@@ -290,7 +290,20 @@
   }
 
   main.isolate > section:first-child > div:last-child > h1:first-of-type {
+    font-size: clamp(2.75rem, 6vw, 5.75rem);
     margin-top: 0;
+  }
+
+  main.isolate {
+    background: #fff;
+  }
+
+  main.isolate > section:first-child {
+    background: #fff;
+  }
+
+  main.isolate > section:first-child > div:not(:last-child) {
+    display: none;
   }
 
   .page-shell-enter {
