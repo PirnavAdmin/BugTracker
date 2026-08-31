@@ -1733,8 +1733,8 @@ const ProjectsPage = () => {
       <ToastNotice toast={toast} onDismiss={() => setToast(null)} />
 
       <div className="grid h-full min-h-0 w-full gap-4 lg:grid-cols-[200px_minmax(0,1fr)]">
-        <aside className="min-h-0 min-w-0 border-r border-[#EEF2F7] bg-white/72 pr-3">
-          <div className="sticky top-0 flex h-full min-h-0 flex-col gap-4 py-3">
+        <aside className="min-h-0 min-w-0 overflow-hidden rounded-[20px] border border-slate-200/80 bg-white/90 p-2 shadow-[0_16px_40px_-30px_rgba(15,23,42,0.38)] backdrop-blur-sm">
+          <div className="sticky top-0 flex h-full min-h-0 flex-col gap-4 py-1">
             <nav className="space-y-1" aria-label="Project page sidebar">
               {[
                 {
@@ -1831,7 +1831,7 @@ const ProjectsPage = () => {
               ))}
             </nav>
 
-            <div className="mx-2 rounded-xl border border-[#EEF2F7] bg-blue-50/55 p-3 shadow-[0_2px_12px_rgba(0,0,0,.04)]">
+            <div className="rounded-xl border border-[#EEF2F7] bg-blue-50/55 p-3 shadow-[0_2px_12px_rgba(0,0,0,.04)]">
               <p className="text-sm font-semibold text-slate-950">Need a new lane?</p>
               <p className="mt-1 text-xs leading-5 text-slate-500">
               

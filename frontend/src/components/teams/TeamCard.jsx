@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
-import { AlertTriangle, ArrowRight, CalendarDays, LoaderCircle, Trash2, Users2 } from "lucide-react";
+import { AlertTriangle, ArrowRight, CalendarDays, LoaderCircle, Trash2 } from "lucide-react";
 import { Link } from "react-router-dom";
-import TeamMemberStack from "@/components/teams/TeamMemberStack";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -41,10 +40,7 @@ const TeamCard = ({ canManageTeam = false, isDeleting = false, onDeleteTeam, tea
   <Card className="team-card overflow-hidden border-purple-100 bg-[radial-gradient(circle_at_top_left,_rgba(168,85,247,0.14),transparent_48%),linear-gradient(135deg,_#ffffff_42%,_#faf5ff_100%)] shadow-sm transition-all duration-200 ease-out hover:-translate-y-1 hover:border-purple-200 hover:shadow-[0_20px_44px_-22px_rgba(147,51,234,0.55)]">
     <CardContent className="relative flex min-h-[104px] items-center gap-3 p-3">
       <div className="min-w-0 flex-1">
-        <div className="inline-flex items-center rounded-full border border-emerald-100 bg-emerald-50/90 px-2 py-0.5 text-[8px] font-bold uppercase tracking-[0.16em] text-emerald-700">
-          Workspace Team
-        </div>
-        <h3 className="mt-1 truncate text-base font-semibold leading-5 text-slate-950">
+        <h3 className="truncate text-base font-semibold leading-5 text-slate-950">
           {team.name}
         </h3>
         <p className="truncate text-[11px] font-medium leading-4 text-slate-500">
@@ -56,10 +52,8 @@ const TeamCard = ({ canManageTeam = false, isDeleting = false, onDeleteTeam, tea
         </div>
       </div>
 
-      <div className="flex shrink-0 flex-col items-end gap-1.5 border-l border-slate-100 pl-3">
-        <TeamMemberStack members={team.members || []} max={3} size="sm" />
+      <div className="flex shrink-0 items-center border-l border-slate-100 pl-3">
         <Badge className="border border-sky-100 bg-sky-50 px-1.5 py-0 text-[9px] leading-4 text-sky-700 hover:bg-sky-50">
-          <Users2 className="mr-1 h-3 w-3" />
           {team.memberCount || team.members?.length || 0} members
         </Badge>
       </div>
