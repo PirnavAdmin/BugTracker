@@ -957,7 +957,7 @@ const UserSettingsPage = () => {
   }
 
   return (
-    <div className="-mx-6 space-y-6">
+    <div className="w-full space-y-6">
       <ToastNotice toast={toast} onDismiss={() => setToast(null)} />
 
       <AdminSettingsLayout
