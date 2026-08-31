@@ -38,11 +38,9 @@ const TeamCard = ({ canManageTeam = false, isDeleting = false, onDeleteTeam, tea
 
   return (
   <>
-  <Card className="team-card group overflow-hidden border-white/70 bg-white/86 shadow-[0_18px_48px_-32px_rgba(15,23,42,0.34)] backdrop-blur-xl transition duration-200 hover:-translate-y-0.5 hover:border-emerald-100 hover:shadow-[0_22px_56px_-34px_rgba(15,23,42,0.42)]">
+  <Card className="team-card overflow-hidden border-purple-100 bg-[radial-gradient(circle_at_top_left,_rgba(168,85,247,0.14),transparent_48%),linear-gradient(135deg,_#ffffff_42%,_#faf5ff_100%)] shadow-sm transition-all duration-200 ease-out hover:-translate-y-1 hover:border-purple-200 hover:shadow-[0_20px_44px_-22px_rgba(147,51,234,0.55)]">
     <CardContent className="relative flex min-h-[104px] items-center gap-3 p-3">
-      <div className="pointer-events-none absolute inset-y-0 left-0 w-24 bg-[radial-gradient(circle_at_left,_rgba(16,185,129,0.13),transparent_70%)]" />
-
-      <div className="relative min-w-0 flex-1">
+      <div className="min-w-0 flex-1">
         <div className="inline-flex items-center rounded-full border border-emerald-100 bg-emerald-50/90 px-2 py-0.5 text-[8px] font-bold uppercase tracking-[0.16em] text-emerald-700">
           Workspace Team
         </div>
