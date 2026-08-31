@@ -443,7 +443,10 @@ const baseSelectProps = {
   components: {
     MenuList: ScrollableMenuList,
   },
-  menuPlacement: "bottom",
+  // Let react-select open upward when a field is close to the bottom of the
+  // create dialog. This keeps the Epic and Sprint options inside the viewport
+  // at 100% browser zoom.
+  menuPlacement: "auto",
   menuPosition: "absolute",
   menuShouldScrollIntoView: false,
   menuShouldBlockScroll: false,

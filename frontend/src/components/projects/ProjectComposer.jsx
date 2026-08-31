@@ -203,7 +203,14 @@ const ProjectComposer = ({
       setError("Start date is required.");
       return;
     }
-    if (canManageGitConfiguration) {
+    const hasGitConfiguration = canManageGitConfiguration && [
+      deliveryConfig.git.repositoryOwner,
+      deliveryConfig.git.repositoryName,
+      deliveryConfig.git.repositoryUrl,
+      deliveryConfig.git.token,
+    ].some((value) => value?.trim());
+
+    if (hasGitConfiguration) {
       if (!deliveryConfig.git.repositoryOwner.trim()) {
         setError("Repository owner is required.");
         return;
@@ -249,7 +256,7 @@ const ProjectComposer = ({
         themeColor: formData.themeColor,
         startDate: formData.startDate || null,
         targetDate: formData.targetDate || null,
-        ...(canManageGitConfiguration ? { git: deliveryConfig.git } : {}),
+        ...(hasGitConfiguration ? { git: deliveryConfig.git } : {}),
         repository: deliveryConfig.repository,
         deliveryWorkflow: deliveryConfig.deliveryWorkflow,
         deliveryModules: deliveryConfig.deliveryModules,

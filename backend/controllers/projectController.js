@@ -1236,7 +1236,7 @@ const createProject = asyncHandler(async (req, res) => {
   }
 
   const repositoryInput = repository || git || {};
-  const shouldRequireRepository = req.user.role === ROLE_MANAGER || Boolean(git);
+  const shouldRequireRepository = Boolean(git);
 
   if (shouldRequireRepository) {
     const requiredRepositoryFields = [

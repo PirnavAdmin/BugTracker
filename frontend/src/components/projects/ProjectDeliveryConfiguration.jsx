@@ -434,16 +434,20 @@ const ProjectDeliveryConfiguration = ({
             <div>
               <h3 className="text-sm font-semibold text-slate-950">Git Configuration</h3>
               <p className="text-xs text-slate-500">
-                {readOnly ? "Repository settings are read-only for this role." : "Manager-owned repository setup."}
+                {readOnly
+                  ? "Repository settings are read-only for this role."
+                  : mode === "create"
+                    ? "Optional repository setup. You can configure this later."
+                    : "Manager-owned repository setup."}
               </p>
             </div>
           </div>
-          <span className={chipClassName}>{mode === "create" ? "Required" : "Manager Only"}</span>
+          <span className={chipClassName}>{mode === "create" ? "Optional" : "Manager Only"}</span>
         </div>
 
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
           <label className="space-y-1.5">
-            <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">Git Provider *</span>
+            <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">Git Provider{mode === "create" ? "" : " *"}</span>
             <select
               className={`${fieldClassName} w-full px-3`}
               value="GitHub"
@@ -453,23 +457,23 @@ const ProjectDeliveryConfiguration = ({
             </select>
           </label>
           <label className="space-y-1.5">
-            <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">Repository Owner *</span>
+            <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">Repository Owner{mode === "create" ? "" : " *"}</span>
             <Input className={fieldClassName} value={config.git.repositoryOwner} disabled={readOnly} onChange={(event) => updateGit("repositoryOwner", event.target.value)} />
           </label>
           <label className="space-y-1.5">
-            <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">Repository Name *</span>
+            <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">Repository Name{mode === "create" ? "" : " *"}</span>
             <Input className={fieldClassName} value={config.git.repositoryName} disabled={readOnly} onChange={(event) => updateGit("repositoryName", event.target.value)} />
           </label>
           <label className="space-y-1.5">
-            <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">Default Branch *</span>
+            <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">Default Branch{mode === "create" ? "" : " *"}</span>
             <Input className={fieldClassName} value={config.git.defaultBranch} disabled={readOnly} onChange={(event) => updateGit("defaultBranch", event.target.value)} />
           </label>
           <label className="space-y-1.5 md:col-span-2 xl:col-span-3">
-            <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">Repository URL *</span>
+            <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">Repository URL{mode === "create" ? "" : " *"}</span>
             <Input className={fieldClassName} value={config.git.repositoryUrl} disabled={readOnly} placeholder="https://github.com/company/project" onChange={(event) => updateGit("repositoryUrl", event.target.value)} />
           </label>
           <label className="space-y-1.5">
-            <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">GitHub PAT *</span>
+            <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">GitHub PAT{mode === "create" ? "" : " *"}</span>
             <Input
               className={fieldClassName}
               value={config.git.token || ""}
