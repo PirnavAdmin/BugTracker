@@ -29,6 +29,7 @@ import { useAuth } from "@/hooks/use-auth";
 import {
   ADMIN_PANEL_ROLES,
   ROLE_DEVELOPER,
+  ROLE_TEAM_LEAD,
   hasTaskStoryLeadAccess,
   hasTesterPanelAccess,
 } from "@/lib/roles";
