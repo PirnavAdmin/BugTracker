@@ -48,6 +48,7 @@ const PlatformSubscriptionsPage = lazy(() => import("@/pages/PlatformSubscriptio
 const PlatformStoragePage = lazy(() => import("@/pages/PlatformStoragePage"));
 const PlatformPaymentsPage = lazy(() => import("@/pages/PlatformPaymentsPage"));
 const BillingPage = lazy(() => import("@/pages/BillingPage"));
+const CompanyCheckoutPage = lazy(() => import("@/pages/CompanyCheckoutPage"));
 
 const PublicRouteFallback = () => (
   <main className="grid min-h-screen place-items-center bg-[#111113] px-6 py-12 text-white">
@@ -289,6 +290,7 @@ const App = () => (
     <Route path="/resources" element={<Suspense fallback={<PublicRouteFallback />}><PublicSite /></Suspense>} />
     <Route path="/enterprise" element={<Suspense fallback={<PublicRouteFallback />}><PublicSite /></Suspense>} />
     <Route path="/contact" element={<Suspense fallback={<PublicRouteFallback />}><PublicSite /></Suspense>} />
+    <Route path="/subscribe" element={<Suspense fallback={<PublicRouteFallback />}><CompanyCheckoutPage /></Suspense>} />
     <Route
       path="/platform/login"
       element={

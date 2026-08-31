@@ -235,6 +235,11 @@ export const registerRequest = async (payload) => {
   return response.data;
 };
 
+export const createCompanyOnboardingAccount = async (payload) => {
+  const response = await api.post("/onboarding/company", payload);
+  return response.data;
+};
+
 export const fetchBillingSubscription = async () => (await api.get("/billing/subscription")).data?.subscription || null;
 export const fetchBillingPayments = async () => (await api.get("/billing/payments")).data?.payments || [];
 export const fetchBillingInvoices = async () => (await api.get("/billing/invoices")).data?.invoices || [];
