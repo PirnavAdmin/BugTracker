@@ -278,6 +278,21 @@
     @apply border border-blue-200 bg-blue-50;
   }
 
+  main.isolate > section:first-child > div:last-child {
+    min-height: 0;
+    justify-content: flex-start;
+    padding-bottom: 3rem;
+    padding-top: 2rem;
+  }
+
+  main.isolate > section:first-child > div:last-child > p:first-child {
+    display: none;
+  }
+
+  main.isolate > section:first-child > div:last-child > h1:first-of-type {
+    margin-top: 0;
+  }
+
   .page-shell-enter {
     animation: page-shell-enter 220ms ease-out both;
   }
