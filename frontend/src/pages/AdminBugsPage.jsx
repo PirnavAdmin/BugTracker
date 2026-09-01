@@ -131,6 +131,24 @@ const getDashboardFilterQueryValue = (value) => {
   return ["reopened", "critical"].includes(filterAlias) ? filterAlias : "all";
 };
 
+const resolveProjectFilterId = (projects = [], projectReference = "") => {
+  const normalizedReference = String(projectReference || "").trim();
+
+  if (!normalizedReference || normalizedReference.toLowerCase() === "all") {
+    return ALL_PROJECTS_VALUE;
+  }
+
+  const matchedProject =
+    findProjectById(projects, normalizedReference) ||
+    projects.find(
+      (project) =>
+        String(project?.name || "").trim().toLowerCase() ===
+        normalizedReference.toLowerCase()
+    );
+
+  return matchedProject?._id || ALL_PROJECTS_VALUE;
+};
+
 const getNestedUser = (value) => (value && typeof value === "object" ? value : null);
 const getNamedFallbackUser = (name = "", fallback = null) =>
   name ? { ...(fallback || {}), name } : fallback;
@@ -952,6 +970,9 @@ const AdminBugsPage = () => {
         search: debouncedSearch.trim(),
         sortBy,
     }),
+    enabled:
+      !isProjectsLoading &&
+      (filters.projectId === ALL_PROJECTS_VALUE || Boolean(selectedProject)),
     placeholderData: keepPreviousData,
   });
   const { data: cardSummaryData = null } = useQuery({
@@ -982,6 +1003,9 @@ const AdminBugsPage = () => {
         search: debouncedSearch.trim(),
         sortBy,
       }),
+    enabled:
+      !isProjectsLoading &&
+      (filters.projectId === ALL_PROJECTS_VALUE || Boolean(selectedProject)),
     placeholderData: keepPreviousData,
   });
 
@@ -1034,17 +1058,10 @@ const AdminBugsPage = () => {
     const currentParams = new URLSearchParams(searchParamString);
     const requestedProjectId = currentParams.get("projectId");
     const requestedProjectName = currentParams.get("project");
-    const matchedProjectByName = requestedProjectName
-      ? projects.find(
-          (project) =>
-            String(project.name || "").trim().toLowerCase() ===
-            requestedProjectName.trim().toLowerCase()
-        )
-      : null;
-    const nextProjectId =
-      requestedProjectId ||
-      matchedProjectByName?._id ||
-      (requestedProjectName ? ALL_PROJECTS_VALUE : filters.projectId);
+    const nextProjectId = resolveProjectFilterId(
+      projects,
+      requestedProjectId || requestedProjectName || filters.projectId
+    );
     const statusQuery = normalizeStatusQueryValue(currentParams.get("status"));
     const lifecycleQuery = normalizeLifecycleQueryValue(currentParams.get("lifecycle"));
     const dashboardFilter = getDashboardFilterQueryValue(
