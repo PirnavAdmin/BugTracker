@@ -47,6 +47,7 @@ const PlatformPlaceholderPage = lazy(() => import("@/pages/PlatformPlaceholderPa
 const PlatformSubscriptionsPage = lazy(() => import("@/pages/PlatformSubscriptionsPage"));
 const PlatformStoragePage = lazy(() => import("@/pages/PlatformStoragePage"));
 const PlatformPaymentsPage = lazy(() => import("@/pages/PlatformPaymentsPage"));
+const PlatformAIUsagePage = lazy(() => import("@/pages/PlatformAIUsagePage"));
 const BillingPage = lazy(() => import("@/pages/BillingPage"));
 const CompanyCheckoutPage = lazy(() => import("@/pages/CompanyCheckoutPage"));
 
@@ -346,6 +347,7 @@ const App = () => (
       element={<PlatformProtectedRoute><Suspense fallback={<PublicRouteFallback />}><PlatformStoragePage /></Suspense></PlatformProtectedRoute>}
     />
     <Route path="/platform/payments" element={<PlatformProtectedRoute><Suspense fallback={<PublicRouteFallback />}><PlatformPaymentsPage /></Suspense></PlatformProtectedRoute>} />
+    <Route path="/platform/ai-usage" element={<PlatformProtectedRoute><Suspense fallback={<PublicRouteFallback />}><PlatformAIUsagePage /></Suspense></PlatformProtectedRoute>} />
     <Route
       path="/platform/:platformModule"
       element={
