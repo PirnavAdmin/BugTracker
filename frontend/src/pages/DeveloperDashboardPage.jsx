@@ -52,7 +52,6 @@ import {
   filterIssues,
   getIssueDisplayKey,
   getIssueStatusLabel,
-  getIssueStatusMetrics,
   isBugIssue,
   isIssueClosed,
   isIssueOverdue,
@@ -559,32 +558,6 @@ const SprintProgressWidget = ({ metrics, isLoading }) => {
     </div>
   );
 };
-
-const StatCard = ({ label, value, helper, Icon, className }) => (
-  <Card className="group overflow-hidden border-white/70 bg-white/86 shadow-[0_20px_52px_-36px_rgba(15,23,42,0.34)] backdrop-blur-xl transition duration-300 hover:-translate-y-1 hover:border-blue-100 hover:shadow-[0_24px_54px_-30px_rgba(37,99,235,0.32)]">
-    <CardContent className="relative overflow-hidden p-4">
-      <div className={cn("absolute inset-x-0 top-0 h-1", className)} />
-      <div className={cn("absolute -right-8 -top-8 h-24 w-24 rounded-full opacity-10 blur-2xl transition group-hover:opacity-20", className)} />
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
-            {label}
-          </p>
-          <p className="mt-3 text-3xl font-semibold tracking-tight text-slate-950">
-            {value}
-          </p>
-        </div>
-        <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-white/80 bg-slate-50 text-slate-700 shadow-sm">
-          <Icon className="h-5 w-5" />
-        </div>
-      </div>
-      <div className="mt-3 flex items-center justify-between gap-2">
-        <p className="text-sm text-slate-500">{helper}</p>
-        <span className="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-400">Live</span>
-      </div>
-    </CardContent>
-  </Card>
-);
 
 const shortSha = (value) => String(value || "").slice(0, 7) || "-";
 const formatCompactDuration = (value) => {
@@ -1975,7 +1948,6 @@ const DeveloperDashboardPage = () => {
     queryKey: myIssuesQueryKey,
     queryFn: () =>
       fetchMyIssues({
-        excludeClosedBugs: true,
         limit: 200,
         sortBy: "recently-updated",
       }),
@@ -2028,6 +2000,10 @@ const DeveloperDashboardPage = () => {
   );
   const bugIssues = useMemo(
     () => allIssues.filter((issue) => isBugIssue(issue) && !isIssueClosed(issue)),
+    [allIssues]
+  );
+  const closedBugCount = useMemo(
+    () => allIssues.filter((issue) => isBugIssue(issue) && isIssueClosed(issue)).length,
     [allIssues]
   );
   const taskIssues = useMemo(
@@ -2203,7 +2179,6 @@ const DeveloperDashboardPage = () => {
     () => [...bugIssues, ...taskIssues, ...storyIssues],
     [bugIssues, storyIssues, taskIssues]
   );
-  const stats = useMemo(() => getIssueStatusMetrics(workflowIssues), [workflowIssues]);
   useEffect(() => {
     setActiveTab(preferredWorkOverviewTab);
   }, [preferredWorkOverviewTab]);
@@ -2250,60 +2225,6 @@ const DeveloperDashboardPage = () => {
       ).length,
     [workflowIssues]
   );
-  const statCards = useMemo(
-    () => [
-      {
-        label: "Open Work",
-        value: stats.open,
-        helper: "Needs developer action",
-        Icon: CircleDotDashed,
-        className: "bg-blue-500",
-      },
-      {
-        label: "In Progress",
-        value: stats.inProgress,
-        helper: "Currently moving",
-        Icon: TimerReset,
-        className: "bg-violet-500",
-      },
-      {
-        label: "Waiting for QA",
-        value: waitingForQaCount,
-        helper: "Submitted for testing",
-        Icon: CheckCircle2,
-        className: "bg-cyan-500",
-      },
-      {
-        label: "QA Rework",
-        value: qaReworkCount,
-        helper: "Returned by QA",
-        Icon: RefreshCcw,
-        className: "bg-amber-500",
-      },
-      {
-        label: "Open Bugs",
-        value: bugIssues.length,
-        helper: "Assigned active bugs",
-        Icon: Bug,
-        className: "bg-rose-500",
-      },
-      {
-        label: "Completed",
-        value: stats.closed,
-        helper: "Closed work items",
-        Icon: CheckCircle2,
-        className: "bg-emerald-500",
-      },
-    ],
-    [
-      bugIssues.length,
-      qaReworkCount,
-      stats.closed,
-      stats.inProgress,
-      stats.open,
-      waitingForQaCount,
-    ]
-  );
   const latestDeliveryProject = useMemo(
     () =>
       [...projects].sort(
@@ -2319,6 +2240,7 @@ const DeveloperDashboardPage = () => {
       { label: "Active Projects", value: projects.length, tone: "bg-blue-50 text-blue-700" },
       { label: "Open Tasks", value: taskIssues.filter((issue) => !isIssueClosed(issue)).length, tone: "bg-slate-100 text-slate-700" },
       { label: "Open Bugs", value: bugIssues.length, tone: "bg-rose-50 text-rose-700" },
+      { label: "Closed Bugs", value: closedBugCount, tone: "bg-emerald-50 text-emerald-700" },
       {
         label: "Waiting for QA",
         value: waitingForQaCount,
@@ -2330,7 +2252,7 @@ const DeveloperDashboardPage = () => {
         tone: "bg-amber-50 text-amber-700",
       },
     ],
-    [bugIssues.length, projects.length, qaReworkCount, taskIssues, waitingForQaCount]
+    [bugIssues.length, closedBugCount, projects.length, qaReworkCount, taskIssues, waitingForQaCount]
   );
   const activeStatusLabel =
     activeTab === "bugs"
@@ -2495,17 +2417,6 @@ const DeveloperDashboardPage = () => {
       <JenkinsPipelineSuccessCard project={latestDeliveryProject} />
 
       <section className="space-y-5">
-          <section className="grid grid-flow-col auto-cols-[minmax(220px,1fr)] gap-3 overflow-x-auto pb-2 md:[grid-template-columns:repeat(6,minmax(0,1fr))] md:gap-4 md:overflow-visible md:pb-0 md:[&>*]:min-w-0 [&>*]:snap-start">
-            {isLoading
-              ? Array.from({ length: 6 }, (_, index) => (
-                  <Skeleton
-                    key={`developer-stat-${index}`}
-                    className="h-[132px] w-full rounded-[24px]"
-                  />
-                ))
-              : statCards.map((card) => <StatCard key={card.label} {...card} />)}
-          </section>
-
           <Card className="min-w-0 overflow-hidden border-white/70 bg-white/90 shadow-[0_22px_64px_-42px_rgba(15,23,42,0.42)] backdrop-blur-xl">
             <CardHeader className="border-b border-slate-200/80 bg-[linear-gradient(135deg,rgba(255,255,255,0.96),rgba(239,246,255,0.9),rgba(240,253,250,0.78))]">
               <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
