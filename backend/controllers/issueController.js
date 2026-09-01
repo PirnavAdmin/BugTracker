@@ -2897,7 +2897,46 @@ const buildIssueQueryFromRequest = async (
       throw new Error("You do not have access to that project");
     }
 
-    query.projectId = req.query.projectId;
+    // Older workspaces can contain duplicate project records created during an
+    // import or migration. Bugs may still reference the older record while the
+    // UI selects the newer one. Treat same-name records in the same tenant as
+    // the same project for list filtering, without widening access outside the
+    // user's project scope.
+    const selectedProject = await Project.findOne(
+      withTenantFilter(
+        {
+          _id: req.query.projectId,
+          workspaceId: normalizeWorkspaceId(req.user.workspaceId),
+        },
+        req.user
+      )
+    )
+      .select("name")
+      .lean();
+    const selectedProjectName = String(selectedProject?.name || "").trim();
+    let matchingProjectIds = [req.query.projectId];
+
+    if (selectedProjectName) {
+      const sameNameProjectIds = await Project.find(
+        withTenantFilter(
+          {
+            workspaceId: normalizeWorkspaceId(req.user.workspaceId),
+            name: buildExactMatchRegex(selectedProjectName),
+          },
+          req.user
+        )
+      ).distinct("_id");
+      const accessibleProjectIdSet = new Set(
+        accessibleProjectIds.map((projectId) => String(projectId))
+      );
+
+      matchingProjectIds = sameNameProjectIds.filter(
+        (projectId) =>
+          isGlobalAdminBugQuery || accessibleProjectIdSet.has(String(projectId))
+      );
+    }
+
+    query.projectId = { $in: matchingProjectIds };
   }
 
   if (req.query.statusGroup && req.query.statusGroup !== "all") {
