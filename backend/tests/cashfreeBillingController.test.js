@@ -618,6 +618,29 @@ test("Cashfree failures are returned safely while the local attempt stays non-ac
   assert.equal(paymentDocument.status, "failed");
 });
 
+test("Cashfree credential rejection is reported as payment-service unavailability", async () => {
+  cashfreeService.createSubscription = async () => {
+    throw Object.assign(new Error("provider credentials rejected"), {
+      code: "CASHFREE_PROVIDER_AUTHENTICATION_FAILED",
+      status: 503,
+      providerDiagnostic: {
+        httpStatus: 401,
+        providerErrorCode: "request_failed",
+        type: "authentication_error",
+      },
+    });
+  };
+
+  const { nextError } = await callController({ planId: "starter", billingCycle: "monthly" });
+
+  assert.equal(nextError?.code, "CASHFREE_PROVIDER_AUTHENTICATION_FAILED");
+  assert.equal(nextError?.message, "Payment service authentication is unavailable");
+  assert.equal(nextError?.status, 503);
+  assert.equal(localSubscriptionDocument.metadata.creationErrorCode, "CASHFREE_PROVIDER_AUTHENTICATION_FAILED");
+  assert.equal(localSubscriptionDocument.status, "FAILED");
+  assert.equal(paymentDocument.status, "failed");
+});
+
 test("local Cashfree validation errors preserve their safe code and are not provider failures", async () => {
   const cases = [
     ["CASHFREE_INVALID_SUBSCRIPTION_DATA", "customer.phone is required", 400],

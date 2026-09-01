@@ -383,7 +383,7 @@ const createSubscription = asyncHandler(async (req, res) => {
         ...localSubscription.metadata,
         ...(isProviderFailure
           ? {
-              creationErrorCode: "CASHFREE_SUBSCRIPTION_CREATION_FAILED",
+              creationErrorCode: error.code || "CASHFREE_SUBSCRIPTION_CREATION_FAILED",
               providerHttpStatus: diagnostic.httpStatus,
               providerErrorCode: diagnostic.providerErrorCode,
               providerErrorType: diagnostic.type,
@@ -416,10 +416,16 @@ const createSubscription = asyncHandler(async (req, res) => {
       );
     }
 
+    const providerAuthenticationFailed =
+      error.code === "CASHFREE_PROVIDER_AUTHENTICATION_FAILED";
     throw apiError(
-      "CASHFREE_SUBSCRIPTION_CREATION_FAILED",
-      "Cashfree subscription creation failed",
-      502
+      providerAuthenticationFailed
+        ? "CASHFREE_PROVIDER_AUTHENTICATION_FAILED"
+        : "CASHFREE_SUBSCRIPTION_CREATION_FAILED",
+      providerAuthenticationFailed
+        ? "Payment service authentication is unavailable"
+        : "Cashfree subscription creation failed",
+      providerAuthenticationFailed ? 503 : 502
     );
   }
 

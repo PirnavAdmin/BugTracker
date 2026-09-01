@@ -99,6 +99,10 @@ export const getCashfreeCheckoutErrorMessage = (error) => {
     return "A current billing subscription already exists.";
   }
 
+  if (error?.backendCode === "CASHFREE_PROVIDER_AUTHENTICATION_FAILED") {
+    return "Payment service is temporarily unavailable. Please contact CureCode support.";
+  }
+
   if (
     ["CASHFREE_PLAN_NOT_SUPPORTED", "CASHFREE_BILLING_CYCLE_NOT_SUPPORTED"].includes(
       error?.backendCode

@@ -204,7 +204,17 @@ const logProviderError = (error, context) => {
 
 const providerFailure = (error, context, code, message) => {
   const diagnostic = logProviderError(error, context);
-  return Object.assign(serviceError(code, message, 502), { providerDiagnostic: diagnostic });
+  const authenticationFailure =
+    [401, 403].includes(Number(diagnostic.httpStatus)) ||
+    String(diagnostic.type || "").toLowerCase() === "authentication_error";
+  return Object.assign(
+    serviceError(
+      authenticationFailure ? "CASHFREE_PROVIDER_AUTHENTICATION_FAILED" : code,
+      authenticationFailure ? "Cashfree provider authentication failed" : message,
+      authenticationFailure ? 503 : 502
+    ),
+    { providerDiagnostic: diagnostic }
+  );
 };
 
 const normalizeNotificationChannels = (channels = ["EMAIL"]) => {

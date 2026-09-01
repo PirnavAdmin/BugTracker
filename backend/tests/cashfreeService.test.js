@@ -456,9 +456,9 @@ test("Cashfree API failures are normalized and credentials never reach logs or c
   console.error = (...args) => logs.push(args);
   try {
     await assert.rejects(() => cashfreeService.createSubscription(baseInput()), (error) => {
-      assert.equal(error.code, "CASHFREE_SUBSCRIPTION_CREATION_FAILED");
-      assert.equal(error.message, "Cashfree subscription creation failed");
-      assert.equal(error.status, 502);
+      assert.equal(error.code, "CASHFREE_PROVIDER_AUTHENTICATION_FAILED");
+      assert.equal(error.message, "Cashfree provider authentication failed");
+      assert.equal(error.status, 503);
       assert.equal(JSON.stringify(error).includes(process.env.CASHFREE_SECRET_KEY), false);
       return true;
     });
