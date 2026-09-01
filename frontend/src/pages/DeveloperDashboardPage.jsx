@@ -2420,9 +2420,7 @@ const DeveloperDashboardPage = () => {
               {developerName}
             </span>
           </p>
-          <p className="mt-1 inline-flex max-w-full rounded-lg bg-white/80 px-2 py-1 text-xs font-semibold text-slate-900 shadow-sm backdrop-blur-sm sm:text-sm">
-            Welcome back. Here’s what’s happening with your work today.
-          </p>
+         
         </div>
         <div className="relative z-10 flex w-full flex-wrap items-center justify-start gap-2 sm:ml-auto sm:w-auto sm:justify-end sm:gap-3">
           <Button
