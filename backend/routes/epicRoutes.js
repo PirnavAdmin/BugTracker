@@ -6,10 +6,19 @@ const {
   updateEpic,
 } = require("../controllers/epicController");
 const { protect } = require("../middleware/authMiddleware");
+const { tenantCache, tenantCacheInvalidation } = require("../middleware/tenantCache");
 
 const router = express.Router();
 
-router.route("/").get(protect, getEpics).post(protect, createEpic);
-router.route("/:id").patch(protect, updateEpic).delete(protect, deleteEpic);
+const EPIC_CACHE_RESOURCES = ["dashboard", "tasks", "bugs", "triage-board", "projects", "epics", "sprints"];
+
+router
+  .route("/")
+  .get(protect, tenantCache({ resource: "epics" }), getEpics)
+  .post(protect, tenantCacheInvalidation(EPIC_CACHE_RESOURCES), createEpic);
+router
+  .route("/:id")
+  .patch(protect, tenantCacheInvalidation(EPIC_CACHE_RESOURCES), updateEpic)
+  .delete(protect, tenantCacheInvalidation(EPIC_CACHE_RESOURCES), deleteEpic);
 
 module.exports = router;

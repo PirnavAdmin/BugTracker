@@ -13,11 +13,17 @@ const {
   getDeveloperDashboardAnalytics,
 } = require("../controllers/reportController");
 const { protect } = require("../middleware/authMiddleware");
+const { tenantCache } = require("../middleware/tenantCache");
 
 const router = express.Router();
 
 router.get("/", protect, getReports);
-router.get("/developer/dashboard", protect, getDeveloperDashboardAnalytics);
+router.get(
+  "/developer/dashboard",
+  protect,
+  tenantCache({ resource: "dashboard" }),
+  getDeveloperDashboardAnalytics
+);
 router.get("/projects", protect, getProjectReports);
 router.get("/users", protect, getUserReports);
 router.get("/team", protect, getTeamReports);
