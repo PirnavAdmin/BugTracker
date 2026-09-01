@@ -2,6 +2,7 @@ const crypto = require("crypto");
 const { Cashfree, CFEnvironment } = require("cashfree-pg");
 const cashfreeConfig = require("../../config/cashfree");
 const { PLANS } = require("../../config/plans");
+const { normalizeCashfreeCustomerPhone } = require("../../utils/customerPhone");
 
 const BILLING_CYCLES = Object.freeze({
   MONTHLY: "monthly",
@@ -64,9 +65,12 @@ const requireEmail = (value, field) => {
 };
 
 const requirePhone = (value, field) => {
-  const normalized = requireText(value, field).replace(/[\s()-]/g, "");
-  if (!/^\+?\d{8,15}$/.test(normalized)) {
-    throw serviceError("CASHFREE_INVALID_SUBSCRIPTION_DATA", `${field} must be a valid phone number`);
+  const normalized = normalizeCashfreeCustomerPhone(value);
+  if (!normalized) {
+    throw serviceError(
+      "CASHFREE_CUSTOMER_PHONE_INVALID",
+      `${field} must be a valid phone number`
+    );
   }
   return normalized;
 };
@@ -204,15 +208,53 @@ const logProviderError = (error, context) => {
 
 const providerFailure = (error, context, code, message) => {
   const diagnostic = logProviderError(error, context);
+  const httpStatus = Number(diagnostic.httpStatus);
+  const providerCode = String(diagnostic.providerErrorCode || "").toLowerCase();
+  const providerType = String(diagnostic.type || "").toLowerCase();
   const authenticationFailure =
-    [401, 403].includes(Number(diagnostic.httpStatus)) ||
-    String(diagnostic.type || "").toLowerCase() === "authentication_error";
+    [401, 403].includes(httpStatus) || providerType === "authentication_error";
+  const phoneValidationFailure =
+    httpStatus === 400 && providerCode === "customer_details.customer_phone_invalid";
+  const requestValidationFailure =
+    httpStatus === 400 || providerType.includes("validation") || providerType.includes("invalid_request");
+  const missingReference = httpStatus === 404;
+  const connectivityFailure = diagnostic.failureOrigin === "NETWORK_TIMEOUT_OR_TRANSPORT";
+
+  let classified = { code, message, status: 502 };
+  if (authenticationFailure) {
+    classified = {
+      code: "CASHFREE_PROVIDER_AUTHENTICATION_FAILED",
+      message: "Cashfree provider authentication failed",
+      status: 503,
+    };
+  } else if (phoneValidationFailure) {
+    classified = {
+      code: "CASHFREE_CUSTOMER_PHONE_INVALID",
+      message: "Cashfree rejected the customer phone number",
+      status: 400,
+    };
+  } else if (requestValidationFailure) {
+    classified = {
+      code: "CASHFREE_PROVIDER_REQUEST_VALIDATION_FAILED",
+      message: "Cashfree rejected the subscription request",
+      status: 400,
+    };
+  } else if (missingReference) {
+    classified = {
+      code: "CASHFREE_PROVIDER_REFERENCE_NOT_FOUND",
+      message: "Cashfree subscription reference was not found",
+      status: 404,
+    };
+  } else if (connectivityFailure) {
+    classified = {
+      code: "CASHFREE_PROVIDER_CONNECTIVITY_FAILED",
+      message: "Cashfree could not be reached",
+      status: 503,
+    };
+  }
+
   return Object.assign(
-    serviceError(
-      authenticationFailure ? "CASHFREE_PROVIDER_AUTHENTICATION_FAILED" : code,
-      authenticationFailure ? "Cashfree provider authentication failed" : message,
-      authenticationFailure ? 503 : 502
-    ),
+    serviceError(classified.code, classified.message, classified.status),
     { providerDiagnostic: diagnostic }
   );
 };

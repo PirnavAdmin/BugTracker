@@ -247,9 +247,27 @@ test("invalid customer phone returns the local subscription-data error before th
       cashfreeService.createSubscription(
         baseInput({ customer: { name: "Customer", email: "customer@example.com", phone: "" } })
       ),
-    (error) => error.code === "CASHFREE_INVALID_SUBSCRIPTION_DATA"
+    (error) => error.code === "CASHFREE_CUSTOMER_PHONE_INVALID" && error.status === 400
   );
   assert.equal(lastCreateCall, undefined);
+});
+
+test("Cashfree request contains the normalized phone without changing other customer fields", async () => {
+  await cashfreeService.createSubscription(
+    baseInput({
+      customer: {
+        name: "CureCode Customer",
+        email: "customer@example.com",
+        phone: "+91 (99999) 99999",
+      },
+    })
+  );
+
+  assert.deepEqual(lastCreateCall[0].customer_details, {
+    customer_name: "CureCode Customer",
+    customer_email: "customer@example.com",
+    customer_phone: "9999999999",
+  });
 });
 
 test("invalid customer email returns the local subscription-data error before the SDK call", async () => {
@@ -384,7 +402,9 @@ test("Cashfree cancellation does not turn a provider-not-found response into a l
   try {
     await assert.rejects(
       () => cashfreeService.cancelSubscription("cc_missing_subscription"),
-      (error) => error.code === "CASHFREE_SUBSCRIPTION_CANCELLATION_FAILED"
+      (error) =>
+        error.code === "CASHFREE_PROVIDER_REFERENCE_NOT_FOUND" &&
+        error.status === 404
     );
   } finally {
     console.error = originalError;
@@ -481,6 +501,32 @@ test("Cashfree API failures are normalized and credentials never reach logs or c
   assert.equal(logs[0][1].requestIdPresent, true);
   assert.equal(logs[0][1].idempotencyKeyPresent, true);
   assert.equal(logs[0][1].timeoutConfigured, false);
+});
+
+test("Cashfree 400 phone rejection is classified as customer validation, not 502", async () => {
+  createSubscriptionImpl = async () => {
+    throw {
+      response: {
+        status: 400,
+        data: {
+          code: "customer_details.customer_phone_invalid",
+          type: "validation_error",
+          message: "customer_details.customer_phone should be a valid phone number.",
+        },
+      },
+    };
+  };
+  const originalError = console.error;
+  console.error = () => {};
+  try {
+    await assert.rejects(
+      () => cashfreeService.createSubscription(baseInput()),
+      (error) =>
+        error.code === "CASHFREE_CUSTOMER_PHONE_INVALID" && error.status === 400
+    );
+  } finally {
+    console.error = originalError;
+  }
 });
 
 test("HTTP 504 is classified as a provider response and retries once only after a 404 lookup", async () => {

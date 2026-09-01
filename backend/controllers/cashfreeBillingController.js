@@ -14,6 +14,10 @@ const { serializeBillingSubscription } = require("../services/billingSubscriptio
 const cashfreeWebhookService = require("../services/cashfreeWebhookService");
 const { recordPlatformAudit } = require("../services/platformAuditService");
 const { requireTenant } = require("../utils/tenant");
+const {
+  hasCustomerPhoneValue,
+  normalizeCashfreeCustomerPhone,
+} = require("../utils/customerPhone");
 
 const ALLOWED_REQUEST_FIELDS = new Set(["planId", "billingCycle"]);
 // These are the lifecycle states that can still own a tenant's billing
@@ -33,6 +37,7 @@ const RETRYABLE_CASHFREE_FAILURE_STATUSES = Object.freeze([
 const SUPPORTED_BILLING_CYCLES = new Set(["monthly", "annual"]);
 const LOCAL_CASHFREE_ERROR_CODES = new Set([
   "CASHFREE_INVALID_SUBSCRIPTION_DATA",
+  "CASHFREE_CUSTOMER_PHONE_INVALID",
   "CASHFREE_INVALID_PLAN",
   "CASHFREE_AMOUNT_MISMATCH",
   "CASHFREE_CURRENCY_MISMATCH",
@@ -42,13 +47,7 @@ const LOCAL_CASHFREE_ERROR_CODES = new Set([
 const apiError = (code, message, status = 400) =>
   Object.assign(new Error(message), { code, status });
 
-const normalizeCustomerPhone = (value) => {
-  if (value === undefined || value === null) return "";
-  const text = String(value).trim();
-  if (!text || ["null", "undefined"].includes(text.toLowerCase())) return "";
-  const normalized = text.replace(/[\s()-]/g, "");
-  return /^\+?\d{8,15}$/.test(normalized) ? normalized : "";
-};
+const normalizeCustomerPhone = normalizeCashfreeCustomerPhone;
 
 const resolveCustomerPhone = ({ user, company }) => {
   const candidates = [user?.phone, user?.mobile, company?.contactPhone];
@@ -58,6 +57,9 @@ const resolveCustomerPhone = ({ user, company }) => {
   }
   return "";
 };
+
+const hasSuppliedCustomerPhone = ({ user, company }) =>
+  [user?.phone, user?.mobile, company?.contactPhone].some(hasCustomerPhoneValue);
 
 const rejectUnexpectedFields = (body = {}) => {
   if (!body || typeof body !== "object" || Array.isArray(body)) {
@@ -209,6 +211,28 @@ const createSubscription = asyncHandler(async (req, res) => {
     );
   }
 
+  const customerPhone = resolveCustomerPhone({ user: req.user, company });
+  if (!customerPhone) {
+    const phoneWasSupplied = hasSuppliedCustomerPhone({ user: req.user, company });
+    console.warn(phoneWasSupplied
+      ? "[billing] Cashfree billing phone invalid"
+      : "[billing] Cashfree billing phone missing", {
+      tenantId,
+      userId,
+      planId: billing.planId,
+      billingCycle: billing.billingCycle,
+    });
+    throw apiError(
+      phoneWasSupplied
+        ? "CASHFREE_CUSTOMER_PHONE_INVALID"
+        : "CASHFREE_BILLING_PHONE_REQUIRED",
+      phoneWasSupplied
+        ? "A valid customer phone number is required to start payment."
+        : "Please add a billing contact phone number before starting the subscription.",
+      400
+    );
+  }
+
   const retrySubscription = await findRetryableCashfreeFailure(tenantId);
   const retryFailedAttempt = isRetryableCashfreeFailure(retrySubscription, billing);
 
@@ -275,21 +299,6 @@ const createSubscription = asyncHandler(async (req, res) => {
       staleProviderReferenceDetectedAt: new Date(),
     };
     await retrySubscription.save();
-  }
-
-  const customerPhone = resolveCustomerPhone({ user: req.user, company });
-  if (!customerPhone) {
-    console.warn("[billing] Cashfree billing phone missing", {
-      tenantId,
-      userId,
-      planId: billing.planId,
-      billingCycle: billing.billingCycle,
-    });
-    throw apiError(
-      "CASHFREE_BILLING_PHONE_REQUIRED",
-      "Please add a billing contact phone number before starting the subscription.",
-      400
-    );
   }
 
   const reference = buildReference();
@@ -360,7 +369,8 @@ const createSubscription = asyncHandler(async (req, res) => {
     });
   } catch (error) {
     const isProviderFailure = Boolean(error?.providerDiagnostic);
-    const isLocalValidationFailure = LOCAL_CASHFREE_ERROR_CODES.has(error?.code);
+    const isLocalValidationFailure =
+      !isProviderFailure && LOCAL_CASHFREE_ERROR_CODES.has(error?.code);
     const diagnostic = isProviderFailure ? error.providerDiagnostic : {};
 
     if (isLocalValidationFailure) {
@@ -416,16 +426,36 @@ const createSubscription = asyncHandler(async (req, res) => {
       );
     }
 
-    const providerAuthenticationFailed =
-      error.code === "CASHFREE_PROVIDER_AUTHENTICATION_FAILED";
+    const providerErrors = {
+      CASHFREE_PROVIDER_AUTHENTICATION_FAILED: [
+        "Payment service authentication is unavailable",
+        503,
+      ],
+      CASHFREE_CUSTOMER_PHONE_INVALID: [
+        "A valid customer phone number is required to start payment.",
+        400,
+      ],
+      CASHFREE_PROVIDER_REQUEST_VALIDATION_FAILED: [
+        "Payment could not be started because the request was rejected.",
+        400,
+      ],
+      CASHFREE_PROVIDER_REFERENCE_NOT_FOUND: [
+        "The previous payment reference was not found.",
+        404,
+      ],
+      CASHFREE_PROVIDER_CONNECTIVITY_FAILED: [
+        "Payment service is temporarily unreachable.",
+        503,
+      ],
+    };
+    const [providerMessage, providerStatus] = providerErrors[error.code] || [
+      "Cashfree subscription creation failed",
+      502,
+    ];
     throw apiError(
-      providerAuthenticationFailed
-        ? "CASHFREE_PROVIDER_AUTHENTICATION_FAILED"
-        : "CASHFREE_SUBSCRIPTION_CREATION_FAILED",
-      providerAuthenticationFailed
-        ? "Payment service authentication is unavailable"
-        : "Cashfree subscription creation failed",
-      providerAuthenticationFailed ? 503 : 502
+      providerErrors[error.code] ? error.code : "CASHFREE_SUBSCRIPTION_CREATION_FAILED",
+      providerMessage,
+      providerStatus
     );
   }
 

@@ -95,6 +95,18 @@ export const getCashfreeCheckoutErrorMessage = (error) => {
     return CASHFREE_BILLING_PHONE_REQUIRED_MESSAGE;
   }
 
+  if (error?.backendCode === "CASHFREE_CUSTOMER_PHONE_INVALID") {
+    return "Payment could not be started because the customer phone number is invalid. Please update the phone number and try again.";
+  }
+
+  if (error?.backendCode === "CASHFREE_PROVIDER_REQUEST_VALIDATION_FAILED") {
+    return "Payment could not be started because the payment details were rejected. Please review them and try again.";
+  }
+
+  if (error?.backendCode === "CASHFREE_PROVIDER_CONNECTIVITY_FAILED") {
+    return "Cashfree is temporarily unreachable. Please try again shortly.";
+  }
+
   if (error?.backendCode === "CASHFREE_ALREADY_SUBSCRIBED") {
     return "A current billing subscription already exists.";
   }

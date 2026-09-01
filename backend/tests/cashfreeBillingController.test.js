@@ -330,7 +330,7 @@ test("authenticated user mobile is used when phone is absent", async () => {
     { phone: undefined, mobile: "+91 98888-88888" }
   );
 
-  assert.equal(servicePayload.customer.phone, "+919888888888");
+  assert.equal(servicePayload.customer.phone, "9888888888");
 });
 
 test("company contact phone is used when the authenticated user phone is missing", async () => {
@@ -350,7 +350,7 @@ test("invalid user phone falls back to a valid tenant company contact phone", as
     { phone: "not-a-phone", mobile: "undefined" }
   );
 
-  assert.equal(servicePayload.customer.phone, "+919999999999");
+  assert.equal(servicePayload.customer.phone, "9999999999");
 });
 
 test("missing billing phone returns a safe error before creating records or calling Cashfree", async () => {
@@ -392,6 +392,44 @@ test("missing billing phone returns a safe error before creating records or call
   assert.equal(JSON.stringify(logs).includes(process.env.CASHFREE_SECRET_KEY || "never-match"), false);
 });
 
+test("invalid billing phone is rejected before retry reconciliation or record creation", async () => {
+  companyDocument.contactPhone = "91-91-9876543210";
+  existingSubscription = createDocument({
+    _id: "failed-subscription",
+    tenantId: "TENANT_001",
+    companyId: companyDocument._id,
+    provider: "cashfree",
+    providerSubscriptionId: "failed-provider-reference",
+    providerStatus: "CREATION_FAILED",
+    planId: "starter",
+    billingCycle: "monthly",
+    status: "FAILED",
+    metadata: {},
+  });
+  let fetchCalls = 0;
+  cashfreeService.fetchSubscription = async () => {
+    fetchCalls += 1;
+    return null;
+  };
+  const originalWarn = console.warn;
+  console.warn = () => {};
+  try {
+    const { nextError } = await callController(
+      { planId: "starter", billingCycle: "monthly" },
+      { phone: undefined, mobile: undefined }
+    );
+    assert.equal(nextError?.code, "CASHFREE_CUSTOMER_PHONE_INVALID");
+    assert.equal(nextError?.status, 400);
+  } finally {
+    console.warn = originalWarn;
+  }
+
+  assert.equal(fetchCalls, 0);
+  assert.equal(servicePayload, undefined);
+  assert.equal(subscriptionPayload, undefined);
+  assert.equal(paymentPayload, undefined);
+});
+
 test("phone resolution uses only the authenticated tenant company", async () => {
   await callController(
     { planId: "starter", billingCycle: "monthly" },
@@ -405,7 +443,7 @@ test("phone resolution uses only the authenticated tenant company", async () => 
 test("customer phone normalization rejects placeholders and normalizes supported formatting", () => {
   assert.equal(normalizeCustomerPhone(" undefined "), "");
   assert.equal(normalizeCustomerPhone("null"), "");
-  assert.equal(normalizeCustomerPhone("+91 (98888) 88888"), "+919888888888");
+  assert.equal(normalizeCustomerPhone("+91 (98888) 88888"), "9888888888");
   assert.equal(
     resolveCustomerPhone({
       user: { phone: "invalid", mobile: "98888 88888" },
@@ -563,7 +601,7 @@ test("usable pending Cashfree subscription is reused without creating another", 
   assert.equal(subscriptionPayload, undefined);
 });
 
-test("failed Cashfree creation retries with a new provider attempt and preserves history", async () => {
+test("failed Cashfree creation retries with the existing company and one replacement attempt", async () => {
   existingSubscription = createDocument({
     _id: "failed-subscription",
     tenantId: "TENANT_001",
@@ -588,6 +626,7 @@ test("failed Cashfree creation retries with a new provider attempt and preserves
   assert.ifError(nextError);
   assert.equal(res.statusCode, 201);
   assert.notEqual(servicePayload.reference, "cashfree-failed-reference");
+  assert.equal(subscriptionPayload.companyId, companyDocument._id);
   assert.equal(paymentPayload.providerOrderId, servicePayload.reference);
   assert.equal(subscriptionPayload.metadata.retryOfSubscriptionId, "failed-subscription");
   assert.equal(existingSubscription.status, "FAILED");
@@ -598,6 +637,8 @@ test("failed Cashfree creation retries with a new provider attempt and preserves
 test("Cashfree failures are returned safely while the local attempt stays non-active", async () => {
   cashfreeService.createSubscription = async () => {
     throw Object.assign(new Error("provider internals and credentials"), {
+      code: "CASHFREE_PROVIDER_REQUEST_VALIDATION_FAILED",
+      status: 400,
       providerDiagnostic: {
         httpStatus: 400,
         providerErrorCode: "invalid_request",
@@ -609,13 +650,35 @@ test("Cashfree failures are returned safely while the local attempt stays non-ac
 
   const { nextError } = await callController({ planId: "starter", billingCycle: "monthly" });
 
-  assert.equal(nextError?.code, "CASHFREE_SUBSCRIPTION_CREATION_FAILED");
-  assert.equal(nextError?.message, "Cashfree subscription creation failed");
-  assert.equal(nextError?.status, 502);
+  assert.equal(nextError?.code, "CASHFREE_PROVIDER_REQUEST_VALIDATION_FAILED");
+  assert.equal(nextError?.message, "Payment could not be started because the request was rejected.");
+  assert.equal(nextError?.status, 400);
   assert.equal(String(nextError).includes("provider internals"), false);
   assert.equal(localSubscriptionDocument.status, "FAILED");
   assert.equal(localSubscriptionDocument.providerStatus, "CREATION_FAILED");
   assert.equal(paymentDocument.status, "failed");
+});
+
+test("Cashfree phone validation failure remains an actionable HTTP 400", async () => {
+  cashfreeService.createSubscription = async () => {
+    throw Object.assign(new Error("provider rejected phone"), {
+      code: "CASHFREE_CUSTOMER_PHONE_INVALID",
+      status: 400,
+      providerDiagnostic: {
+        httpStatus: 400,
+        providerErrorCode: "customer_details.customer_phone_invalid",
+        type: "validation_error",
+      },
+    });
+  };
+
+  const { nextError } = await callController({ planId: "starter", billingCycle: "monthly" });
+
+  assert.equal(nextError?.code, "CASHFREE_CUSTOMER_PHONE_INVALID");
+  assert.equal(nextError?.status, 400);
+  assert.match(nextError?.message || "", /valid customer phone number/i);
+  assert.equal(localSubscriptionDocument.metadata.providerHttpStatus, 400);
+  assert.equal(localSubscriptionDocument.status, "FAILED");
 });
 
 test("Cashfree credential rejection is reported as payment-service unavailability", async () => {
