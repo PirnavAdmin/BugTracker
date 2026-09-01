@@ -1717,9 +1717,7 @@ const TesterDashboardPage = () => {
               {testerName}
             </span>
           </p>
-          <p className="mt-1 text-sm font-medium text-slate-700">
-            Welcome back. Here’s what’s happening with your QA work today.
-          </p>
+          
         </div>
       </section>
 

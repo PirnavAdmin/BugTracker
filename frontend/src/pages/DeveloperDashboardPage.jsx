@@ -750,43 +750,6 @@ const QaFeedbackCard = ({ latestProject, issues = [], onViewFeedback }) => {
   );
 };
 
-const JenkinsPipelineSuccessCard = ({ project }) => {
-  const latestActivity = getLatestGitActivity(project);
-  const completedAt = latestActivity.pushedAt || project?.updatedAt || project?.createdAt;
-
-  return (
-    <Card className="overflow-hidden rounded-2xl border-emerald-200/80 bg-white/90 shadow-[0_18px_46px_-36px_rgba(16,185,129,0.4)]">
-      <CardHeader className="border-b border-emerald-100 bg-emerald-50/60 pb-3">
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <CardTitle className="flex items-center gap-2 text-base">
-              <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-              Jenkins Pipeline
-            </CardTitle>
-            <CardDescription>Latest continuous-integration result.</CardDescription>
-          </div>
-          <Pill className="border-emerald-200 bg-emerald-50 text-emerald-700">Successful</Pill>
-        </div>
-      </CardHeader>
-      <CardContent className="grid gap-4 p-4 sm:grid-cols-[1fr_auto] sm:items-center">
-        <div>
-          <p className="text-base font-semibold text-slate-950">Jenkins pipeline completed successfully</p>
-          <p className="mt-1 text-sm text-slate-600">
-            {latestActivity.projectName || project?.name || "Current project"}
-            {latestActivity.branch ? ` · ${latestActivity.branch}` : ""}
-          </p>
-        </div>
-        <div className="rounded-xl border border-emerald-100 bg-emerald-50/70 px-4 py-3 text-left sm:text-right">
-          <p className="text-[11px] font-bold uppercase tracking-[0.1em] text-emerald-700">Completed</p>
-          <p className="mt-1 text-sm font-semibold text-slate-950">
-            {completedAt ? formatDateTime(completedAt) : "Date unavailable"}
-          </p>
-        </div>
-      </CardContent>
-    </Card>
-  );
-};
-
 const DevelopmentHealthPanel = ({ bugIssues = [], taskIssues = [], projects = [] }) => {
   const commits = projects.filter((project) => project.latestGitActivity?.commitSha).length;
   const completedTasks = taskIssues.filter(isIssueClosed).length;
@@ -2413,8 +2376,6 @@ const DeveloperDashboardPage = () => {
         onPickIssue={(issue) => pickMutation.mutate(issue)}
         onViewAllBugs={() => navigate("/dev/bugs?status=available")}
       />
-
-      <JenkinsPipelineSuccessCard project={latestDeliveryProject} />
 
       <section className="space-y-5">
           <Card className="min-w-0 overflow-hidden border-white/70 bg-white/90 shadow-[0_22px_64px_-42px_rgba(15,23,42,0.42)] backdrop-blur-xl">
