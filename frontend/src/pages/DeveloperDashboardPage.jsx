@@ -2523,7 +2523,7 @@ const DeveloperDashboardPage = () => {
                 </div>
 
                 <div className="flex flex-wrap items-center gap-2">
-                  <div className="grid grid-cols-2 gap-1 rounded-[22px] border border-white/80 bg-slate-100/80 p-1 shadow-inner sm:w-auto">
+                  <div className="grid grid-cols-4 gap-1 rounded-[22px] border border-white/80 bg-slate-100/80 p-1 shadow-inner">
                     {TABS.map(({ id, label, Icon }) => {
                       const active = activeTab === id;
                       const count = workOverviewCounts[id] || 0;
@@ -2532,7 +2532,7 @@ const DeveloperDashboardPage = () => {
                         <button
                           key={id}
                           className={cn(
-                            "relative inline-flex h-11 items-center justify-center gap-2 rounded-[18px] px-4 pr-7 text-sm font-semibold transition-all duration-300",
+                            "relative inline-flex h-11 min-w-0 items-center justify-center gap-1.5 rounded-[18px] px-3 pr-6 text-sm font-semibold transition-all duration-300",
                             active
                               ? "bg-[linear-gradient(90deg,#2563EB_0%,#7C3AED_55%,#0891B2_100%)] text-white shadow-[0_14px_28px_-18px_rgba(37,99,235,0.8)]"
                               : "text-slate-600 hover:bg-white/80 hover:text-slate-950"

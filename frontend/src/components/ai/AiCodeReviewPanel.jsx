@@ -582,7 +582,7 @@ const AiCodeReviewPanelContent = ({
           ) : null}
           <Button
             className={cn(
-              "h-10 rounded-xl bg-gradient-to-r from-blue-600 via-indigo-600 to-cyan-500 text-white shadow-[0_14px_34px_-22px_rgba(37,99,235,0.95)] hover:from-blue-700 hover:via-indigo-700 hover:to-cyan-600",
+              "h-10 rounded-xl bg-gradient-to-r from-amber-300 via-yellow-400 to-amber-500 text-slate-950 shadow-[0_14px_34px_-22px_rgba(245,158,11,0.85)] hover:from-amber-400 hover:via-yellow-500 hover:to-amber-600",
               safeReview.status !== "COMPLETED" && "sm:col-span-2"
             )}
             disabled={!canRun || running}
@@ -659,7 +659,7 @@ const AiCodeReviewPanelContent = ({
               View AI Review
             </Button>
           ) : null}
-          <Button className="h-9 rounded-xl bg-blue-600 text-white hover:bg-blue-700" disabled={!canRun || running} onClick={() => handleRunReview({ forceRefresh: false })} type="button">
+          <Button className="h-9 rounded-xl bg-yellow-400 text-slate-950 hover:bg-yellow-500" disabled={!canRun || running} onClick={() => handleRunReview({ forceRefresh: false })} type="button">
             {running ? <LoaderCircle className="h-4 w-4 animate-spin" aria-hidden="true" /> : safeReview.status === "COMPLETED" ? <RefreshCcw className="h-4 w-4" aria-hidden="true" /> : <CheckCircle2 className="h-4 w-4" aria-hidden="true" />}
             {viewState.buttonLabel}
           </Button>
