@@ -28,7 +28,7 @@ const {
 } = require("../services/subscriptionUsageService");
 
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const DEFAULT_IMPORTED_PASSWORD = "pirnav@2025";
+const DEFAULT_IMPORTED_PASSWORD = "Curecode@123";
 const DEFAULT_IMPORTED_ROLE = "Developer";
 const normalizeRole = (value) => normalizeText(value);
 
