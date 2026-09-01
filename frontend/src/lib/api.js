@@ -536,6 +536,35 @@ export const fetchStories = async (filters = {}) => {
   return response.data;
 };
 
+export const fetchIssuesPage = async (filters = {}) => {
+  const params = buildParams(
+    normalizeIssueFilters({
+      ...filters,
+      paginate: true,
+    })
+  );
+  const response = await api.get("/issues", { params });
+  const data = response.data || {};
+
+  return {
+    issues: Array.isArray(data.issues) ? data.issues : [],
+    pagination: data.pagination || {
+      page: Number(filters.page) || 1,
+      pageSize: Number(filters.limit) || 50,
+      total: 0,
+      totalPages: 1,
+      hasPreviousPage: false,
+      hasNextPage: false,
+    },
+    summary: data.summary || { total: 0 },
+  };
+};
+
+export const fetchIssue = async (id) => {
+  const response = await api.get(`/issues/${encodeURIComponent(id)}`);
+  return response.data;
+};
+
 export const fetchIssueStats = async (filters = {}) => {
   const params = buildParams(normalizeIssueFilters(filters));
   const response = await api.get("/issues/stats", {

@@ -39,7 +39,27 @@ const issuePopulation = [
   { path: "closedBy", select: "name email role avatarUrl" },
 ];
 
+const issueListPopulation = [
+  { path: "assignee", select: "name email role avatarUrl" },
+  { path: "assignees", select: "name email role avatarUrl" },
+  { path: "bugDetails.testerOwner", select: "name email role avatarUrl" },
+  { path: "bugDetails.developerLead", select: "name email role avatarUrl" },
+  { path: "dependsOnIssueId", select: "title status dueAt" },
+  { path: "dependencyIds", select: "title type status priority dueAt" },
+  { path: "parentStoryId", select: "title type status priority epicId sprintId" },
+  { path: "parentTaskId", select: "title type status priority" },
+  { path: "reporter", select: "name email role avatarUrl" },
+  {
+    path: "projectId",
+    select: "name shortCode isCompleted status priority themeColor",
+  },
+  { path: "teamId", select: "name" },
+  { path: "epicId", select: "name color status planningOrder" },
+  { path: "sprintId", select: "name state startDate endDate teamId startedAt completedAt" },
+];
+
 const populateIssueQuery = (query) => query.populate(issuePopulation);
+const populateIssueListQuery = (query) => query.populate(issueListPopulation);
 
 const populateIssueDocument = (issue) => issue.populate(issuePopulation);
 
@@ -123,6 +143,7 @@ const serializeIssue = (issue) => {
 const serializeIssues = (issues = []) => issues.map(serializeIssue);
 
 module.exports = {
+  populateIssueListQuery,
   populateIssueQuery,
   populateIssueDocument,
   serializeIssue,

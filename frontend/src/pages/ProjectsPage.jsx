@@ -1078,7 +1078,7 @@ const ProjectsPage = () => {
     isLoading: isSelectedProjectIssuesLoading,
   } = useQuery({
     queryKey: ["issues", "project-overview", selectedProject?._id],
-    queryFn: () => fetchIssues({ projectId: selectedProject._id }),
+    queryFn: () => fetchIssues({ projectId: selectedProject._id, view: "list" }),
     enabled: Boolean(selectedProject?._id),
   });
 

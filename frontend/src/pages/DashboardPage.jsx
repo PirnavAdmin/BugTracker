@@ -2069,9 +2069,7 @@ const DashboardPage = () => {
     error: issuesError,
   } = useQuery({
     queryKey: ["issues", "admin-dashboard-overview", { excludeType: ISSUE_TYPES.BUG }],
-    queryFn: () => fetchIssues({ excludeType: ISSUE_TYPES.BUG }),
-    staleTime: 0,
-    refetchOnMount: "always",
+    queryFn: () => fetchIssues({ excludeType: ISSUE_TYPES.BUG, view: "list" }),
   });
   const {
     data: bugsData = [],
@@ -2084,14 +2082,14 @@ const DashboardPage = () => {
   const {
     data: usersData = [],
   } = useQuery({
-    queryKey: ["managed-users", "admin-dashboard-overview"],
+    queryKey: ["managed-users"],
     queryFn: fetchManagedUsers,
   });
   const {
     data: allProjectsData = [],
     isLoading: isProjectsCountLoading,
   } = useQuery({
-    queryKey: ["projects", "admin-dashboard-counts"],
+    queryKey: ["projects"],
     queryFn: fetchProjects,
   });
   const {

@@ -1,10 +1,12 @@
 import { useDeferredValue, useEffect, useMemo, useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import {
   createIssue,
   deleteIssue,
+  fetchIssue,
   fetchIssues,
+  fetchIssuesPage,
   fetchProjects,
   updateIssue,
   uploadIssueAttachment,
@@ -34,6 +36,7 @@ import IssueDetailsDialog from "@/components/issues/IssueDetailsDialog";
 import IssuesToolbar from "@/components/issues/IssuesToolbar";
 import EmptyState from "@/components/shared/EmptyState";
 import ToastNotice from "@/components/shared/ToastNotice";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/hooks/use-auth";
@@ -52,6 +55,7 @@ const ALL_PROJECTS_VALUE = "ALL";
 const HIGH_PRIORITY_QUERY_VALUE = "high";
 const TASK_SCOPE_ALL = "all";
 const TASK_SCOPE_MINE = "mine";
+const TASK_PAGE_SIZE = 50;
 
 const normalizeStatusFilterValue = (value) => {
   if (!value) {
@@ -255,6 +259,7 @@ const IssuesPage = () => {
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [isBulkImportOpen, setIsBulkImportOpen] = useState(false);
   const [taskScope, setTaskScope] = useState(TASK_SCOPE_ALL);
+  const [page, setPage] = useState(1);
   const [toast, setToast] = useState(null);
   const deferredSearch = useDeferredValue(filters.search);
   const isAdminView = hasAdminPanelAccess(role);
@@ -267,6 +272,22 @@ const IssuesPage = () => {
   const canAssignIssue = canAssignIssues(role);
   const canCreateIssue = canCreateIssues(role);
   const canDeleteIssue = canDeleteIssues(role);
+
+  useEffect(() => {
+    setPage(1);
+  }, [
+    deferredSearch,
+    effectiveAssigneeId,
+    filters.dateFrom,
+    filters.dateTo,
+    filters.filter,
+    filters.priority,
+    filters.priorityGroup,
+    filters.projectId,
+    filters.status,
+    filters.statusGroup,
+    filters.teamId,
+  ]);
 
   const {
     data: projectsData = [],
@@ -407,8 +428,9 @@ const IssuesPage = () => {
   }, [availableAssignees, filters.assigneeId]);
 
   const {
-    data: issuesData = [],
+    data: issuePageData,
     isLoading: isIssuesLoading,
+    isFetching: isIssuesFetching,
     error: issuesError,
   } = useQuery({
     queryKey: [
@@ -430,9 +452,10 @@ const IssuesPage = () => {
       filters.dateFrom,
       filters.dateTo,
       filters.filter,
+      page,
     ],
     queryFn: () =>
-      fetchIssues({
+      fetchIssuesPage({
         projectId:
           filters.projectId === ALL_PROJECTS_VALUE ? "" : filters.projectId,
         teamId: filters.teamId,
@@ -447,12 +470,24 @@ const IssuesPage = () => {
         dateTo: filters.dateTo,
         filter: filters.filter,
         search: deferredSearch,
+        page,
+        limit: TASK_PAGE_SIZE,
+        view: "list",
       }),
     enabled: Boolean(projects.length),
+    placeholderData: keepPreviousData,
   });
+  const pagination = issuePageData?.pagination || {
+    page,
+    pageSize: TASK_PAGE_SIZE,
+    total: 0,
+    totalPages: 1,
+    hasPreviousPage: false,
+    hasNextPage: false,
+  };
   const issues = useMemo(
-    () => (Array.isArray(issuesData) ? issuesData : []),
-    [issuesData]
+    () => (Array.isArray(issuePageData?.issues) ? issuePageData.issues : []),
+    [issuePageData?.issues]
   );
 
   const filteredIssues = useMemo(() => sortIssues(issues, "newest"), [issues]);
@@ -499,7 +534,7 @@ const IssuesPage = () => {
 
   const { data: dependencyIssuesData = [] } = useQuery({
     queryKey: ["issues", "issues-page", "dependency-options", role],
-    queryFn: () => fetchIssues({ excludeType: ISSUE_TYPES.BUG }),
+    queryFn: () => fetchIssues({ excludeType: ISSUE_TYPES.BUG, view: "list" }),
     enabled:
       Boolean(projects.length) &&
       Boolean(isCreateDialogOpen || (isAdminView && selectedIssue)),
@@ -508,6 +543,12 @@ const IssuesPage = () => {
     () => (Array.isArray(dependencyIssuesData) ? dependencyIssuesData : []),
     [dependencyIssuesData]
   );
+  const selectedIssueIdentifier = routeIssueId || selectedIssue?._id || "";
+  const { data: selectedIssueDetail = null } = useQuery({
+    queryKey: ["issues", "detail", selectedIssueIdentifier],
+    queryFn: () => fetchIssue(selectedIssueIdentifier),
+    enabled: Boolean(selectedIssueIdentifier),
+  });
 
   useEffect(() => {
     if (!selectedIssue) {
@@ -782,7 +823,7 @@ const IssuesPage = () => {
         projects={projects}
         teams={availableTeams}
         assignees={availableAssignees}
-        visibleIssueCount={filteredIssues.length}
+        visibleIssueCount={pagination.total}
         activeStatusLabel={activeStatusLabel}
         selectedProject={selectedProject}
         taskScope={taskScope}
@@ -831,6 +872,32 @@ const IssuesPage = () => {
         />
       )}
 
+      {pagination.totalPages > 1 ? (
+        <div className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white/90 px-4 py-3 text-sm text-slate-600 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+          <span>
+            Showing page {pagination.page} of {pagination.totalPages} ({pagination.total} tasks)
+          </span>
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              disabled={!pagination.hasPreviousPage || isIssuesFetching}
+              onClick={() => setPage((current) => Math.max(1, current - 1))}
+            >
+              Previous
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={!pagination.hasNextPage || isIssuesFetching}
+              onClick={() => setPage((current) => Math.min(pagination.totalPages, current + 1))}
+            >
+              Next
+            </Button>
+          </div>
+        </div>
+      ) : null}
+
       <IssueCreateDialog
         open={canCreateIssue && isCreateDialogOpen}
         onOpenChange={(open) => {
@@ -874,8 +941,8 @@ const IssuesPage = () => {
       />
 
       <IssueDetailsDialog
-        issue={selectedIssue}
-        open={Boolean(selectedIssue)}
+        issue={selectedIssueDetail || selectedIssue}
+        open={Boolean(selectedIssueDetail || selectedIssue)}
         onOpenChange={(open) => {
           if (!open) {
             setSelectedIssue(null);

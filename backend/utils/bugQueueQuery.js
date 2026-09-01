@@ -156,7 +156,9 @@ const summarizeBugQueryFilters = (req = {}) => ({
 });
 
 const logBugWorkflowQuery = (scope, payload = {}) => {
-  console.log(`[bugs] ${scope}`, payload);
+  if (String(process.env.PERF_DIAGNOSTICS_ENABLED || "").toLowerCase() === "true") {
+    console.log(`[bugs] ${scope}`, payload);
+  }
 };
 
 module.exports = {

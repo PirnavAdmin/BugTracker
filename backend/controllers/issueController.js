@@ -30,6 +30,7 @@ const { notifyIssueEvent } = require("../services/notificationService");
 const asyncHandler = require("../utils/asyncHandler");
 const { recordIssueHistory } = require("../utils/issueHistory");
 const {
+  populateIssueListQuery,
   populateIssueDocument,
   populateIssueQuery,
   serializeIssue,
@@ -2743,6 +2744,25 @@ const getPaginationOptions = (req) => {
 const shouldReturnPaginatedResponse = (req) =>
   ["true", "1", "yes"].includes(String(req.query.paginate || "").trim().toLowerCase());
 
+const ISSUE_LIST_PROJECTION = [
+  "-description",
+  "-activityLogs",
+  "-comments",
+  "-acceptanceCriteria",
+  "-definitionOfDone",
+  "-checklist",
+  "-linkedBranches",
+  "-linkedPullRequests",
+  "-bugDetails.stepsToReproduce",
+  "-bugDetails.expectedResult",
+  "-bugDetails.actualResult",
+  "-bugDetails.reopenReason",
+  "-bugDetails.rejectionReason",
+].join(" ");
+
+const shouldReturnLightweightList = (req) =>
+  String(req.query.view || "").trim().toLowerCase() === "list";
+
 const buildAdminBugGlobalScope = () => false;
 
 const mergeOrConditions = (query, conditions = []) => {
@@ -2760,43 +2780,23 @@ const getBugListSummary = async (query) => {
   const workQueueStatuses = AVAILABLE_BUG_QUEUE_STATUSES.filter(
     (status) => status !== ISSUE_STATUS.REOPEN
   );
-  const [
-    total,
-    open,
-    bucket,
-    assigned,
-    critical,
-    unassigned,
-    inProgress,
-    reopened,
-    readyForQa,
-    closed,
-    high,
-    medium,
-    low,
-  ] = await Promise.all([
-    Issue.countDocuments(query),
-    Issue.countDocuments({ ...query, ...buildOpenIssueCondition() }),
-    Issue.countDocuments({
-      ...query,
-      type: ISSUE_TYPES.BUG,
-      assignee: null,
-      assignedDeveloperId: null,
-      "bugDetails.developerLead": null,
-      status: {
-        $in: workQueueStatuses,
-      },
-    }),
-    Issue.countDocuments({ ...query, status: ISSUE_STATUS.ASSIGNED }),
-    Issue.countDocuments({
-      ...query,
-      $and: [...(query.$and || []), buildCriticalIssueCondition()],
-    }),
-    Issue.countDocuments({
-      ...query,
-      $and: [
-        ...(query.$and || []),
-        {
+  const countFacet = (match = {}) => [{ $match: match }, { $count: "count" }];
+  const [facets = {}] = await Issue.aggregate([
+    { $match: query },
+    {
+      $facet: {
+        total: [{ $count: "count" }],
+        open: countFacet(buildOpenIssueCondition()),
+        bucket: countFacet({
+          type: ISSUE_TYPES.BUG,
+          assignee: null,
+          assignedDeveloperId: null,
+          "bugDetails.developerLead": null,
+          status: { $in: workQueueStatuses },
+        }),
+        assigned: countFacet({ status: ISSUE_STATUS.ASSIGNED }),
+        critical: countFacet(buildCriticalIssueCondition()),
+        unassigned: countFacet({
           $and: [
             { $or: [{ assignee: null }, { assignee: { $exists: false } }] },
             { $or: [{ assignedDeveloperId: null }, { assignedDeveloperId: { $exists: false } }] },
@@ -2807,22 +2807,35 @@ const getBugListSummary = async (query) => {
               ],
             },
           ],
-        },
-      ],
-    }),
-    Issue.countDocuments({ ...query, status: ISSUE_STATUS.IN_PROGRESS }),
-    Issue.countDocuments({ ...query, ...buildReopenedIssueCondition() }),
-    Issue.countDocuments({
-      ...query,
-      status: {
-        $in: [ISSUE_STATUS.READY_FOR_QA, ISSUE_STATUS.TESTING, ISSUE_STATUS.FIXED, ISSUE_STATUS.QA],
+        }),
+        inProgress: countFacet({ status: ISSUE_STATUS.IN_PROGRESS }),
+        reopened: countFacet(buildReopenedIssueCondition()),
+        readyForQa: countFacet({
+          status: {
+            $in: [ISSUE_STATUS.READY_FOR_QA, ISSUE_STATUS.TESTING, ISSUE_STATUS.FIXED, ISSUE_STATUS.QA],
+          },
+        }),
+        closed: countFacet(buildClosedIssueCondition()),
+        high: countFacet({ priority: "High" }),
+        medium: countFacet({ priority: "Medium" }),
+        low: countFacet({ priority: "Low" }),
       },
-    }),
-    Issue.countDocuments({ ...query, ...buildClosedIssueCondition() }),
-    Issue.countDocuments({ ...query, priority: "High" }),
-    Issue.countDocuments({ ...query, priority: "Medium" }),
-    Issue.countDocuments({ ...query, priority: "Low" }),
+    },
   ]);
+  const getFacetCount = (name) => facets[name]?.[0]?.count || 0;
+  const total = getFacetCount("total");
+  const open = getFacetCount("open");
+  const bucket = getFacetCount("bucket");
+  const assigned = getFacetCount("assigned");
+  const critical = getFacetCount("critical");
+  const unassigned = getFacetCount("unassigned");
+  const inProgress = getFacetCount("inProgress");
+  const reopened = getFacetCount("reopened");
+  const readyForQa = getFacetCount("readyForQa");
+  const closed = getFacetCount("closed");
+  const high = getFacetCount("high");
+  const medium = getFacetCount("medium");
+  const low = getFacetCount("low");
 
   const other = Math.max(
     total - bucket - assigned - inProgress - reopened - readyForQa - closed,
@@ -3942,20 +3955,32 @@ const getIssues = asyncHandler(async (req, res) => {
   const requestFilters = summarizeBugQueryFilters(req);
   const paginationOptions = getPaginationOptions(req);
   const shouldPaginate = shouldReturnPaginatedResponse(req) && paginationOptions.limit > 0;
-  const totalBugsInDatabase = isBugListQuery
-    ? await Issue.countDocuments({ ...ACTIVE_ISSUE_QUERY, type: ISSUE_TYPES.BUG })
-    : 0;
-  const [issues, filteredTotal, summary] = await Promise.all([
-    applyListOptions(populateIssueQuery(Issue.find(query)), req),
-    shouldPaginate ? Issue.countDocuments(query) : Promise.resolve(0),
+  const useLightweightList = shouldReturnLightweightList(req);
+  let issueListQuery = Issue.find(query);
+
+  if (useLightweightList) {
+    issueListQuery = issueListQuery.select(ISSUE_LIST_PROJECTION);
+  }
+
+  issueListQuery = useLightweightList
+    ? populateIssueListQuery(issueListQuery)
+    : populateIssueQuery(issueListQuery);
+
+  if (useLightweightList) {
+    issueListQuery = issueListQuery.lean();
+  }
+
+  const [issues, nonBugFilteredTotal, summary] = await Promise.all([
+    applyListOptions(issueListQuery, req),
+    shouldPaginate && !isBugListQuery ? Issue.countDocuments(query) : Promise.resolve(0),
     shouldPaginate && isBugListQuery ? getBugListSummary(query) : Promise.resolve(null),
   ]);
+  const filteredTotal = isBugListQuery ? summary?.total || 0 : nonBugFilteredTotal;
 
   if (isBugListQuery) {
     logBugWorkflowQuery("triage-board", {
       userId: String(req.user?.id || req.user?._id || ""),
       role: req.user?.role || "",
-      totalBugsInDatabase,
       bugsReturned: issues.length,
       filteredTotal: shouldPaginate ? filteredTotal : issues.length,
       filtersApplied: requestFilters,
@@ -3966,9 +3991,10 @@ const getIssues = asyncHandler(async (req, res) => {
 
   if (shouldPaginate) {
     const totalPages = Math.max(1, Math.ceil(filteredTotal / paginationOptions.limit));
+    const serializedIssues = serializeIssues(issues);
 
     res.status(200).json({
-      bugs: serializeIssues(issues),
+      ...(isBugListQuery ? { bugs: serializedIssues } : { issues: serializedIssues }),
       pagination: {
         page: paginationOptions.page,
         pageSize: paginationOptions.limit,
@@ -3985,6 +4011,30 @@ const getIssues = asyncHandler(async (req, res) => {
   }
 
   res.status(200).json(serializeIssues(issues));
+});
+
+const getIssueById = asyncHandler(async (req, res) => {
+  const issueIdentifier = String(req.params.id || "").trim();
+  let issue = null;
+
+  if (mongoose.isValidObjectId(issueIdentifier)) {
+    issue = await loadTenantSafeIssue(req.user, issueIdentifier);
+  } else if (issueIdentifier) {
+    const accessibleProjectIds = await getAccessibleProjectIds(req.user);
+    issue = await Issue.findOne({
+      ...ACTIVE_ISSUE_QUERY,
+      displayBugId: issueIdentifier.toUpperCase(),
+      projectId: { $in: accessibleProjectIds },
+    });
+  }
+
+  if (!issue) {
+    res.status(404);
+    throw new Error("Issue not found");
+  }
+
+  const populatedIssue = await populateIssueDocument(issue);
+  res.status(200).json(serializeIssue(populatedIssue));
 });
 
 const getStories = asyncHandler(async (req, res) => {
@@ -5326,7 +5376,9 @@ const createIssue = asyncHandler(async (req, res) => {
     project,
   });
 
-  console.log("Creating bug", req.body);
+  if (String(process.env.PERF_DIAGNOSTICS_ENABLED || "").toLowerCase() === "true") {
+    console.log("Creating bug", { projectId, teamId, status: statusResult.value });
+  }
 
   const issue = await Issue.create({
     title,
@@ -5997,7 +6049,9 @@ const updateIssue = asyncHandler(async (req, res) => {
   const shouldValidateAssigneeTeamMembership =
     nextAssigneeIds.length && (isAssigneeChanged || isTeamChanged || hasProjectChange);
 
-  console.log("Updating bug", { id: req.params.id, updates: req.body });
+  if (String(process.env.PERF_DIAGNOSTICS_ENABLED || "").toLowerCase() === "true") {
+    console.log("Updating bug", { id: req.params.id, fields: Object.keys(req.body || {}) });
+  }
 
   if (shouldValidateAssigneeTeamMembership) {
     const canTeamLeadAssignExistingTask = canAssignTaskWork(req.user, issue.type);
@@ -6891,6 +6945,7 @@ const markAllNotificationsRead = asyncHandler(async (req, res) => {
 
 module.exports = {
   getIssues,
+  getIssueById,
   getStories,
   getIssueStats,
   getMyReportedBugs,

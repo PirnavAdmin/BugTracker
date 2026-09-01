@@ -93,6 +93,7 @@ const TasksPage = () => {
   } = useQuery({
     queryKey: ["issues", "my", "tasks"],
     queryFn: () => fetchIssues({ type: ISSUE_TYPES.TASK, assigneeId: "me" }),
+    enabled: !canCoordinateTasks || taskScope === "mine",
   });
 
   const {
@@ -102,7 +103,7 @@ const TasksPage = () => {
   } = useQuery({
     queryKey: ["issues", "task-progress", "tasks", user?._id || user?.id || ""],
     queryFn: () => fetchIssues({ type: ISSUE_TYPES.TASK, teamProgress: true }),
-    enabled: canCoordinateTasks,
+    enabled: canCoordinateTasks && taskScope === "team",
   });
 
   const {

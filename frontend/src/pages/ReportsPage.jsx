@@ -1148,7 +1148,7 @@ const QaAnalyticsDashboard = ({ user }) => {
   }, [filters.dateRange]);
 
   const { data: projects = [], isLoading: projectsLoading, error: projectsError, refetch: refetchProjects } = useQuery({
-    queryKey: ["projects", "qa-analytics-options"],
+    queryKey: ["projects"],
     queryFn: fetchProjects,
     staleTime: 60_000,
   });
@@ -1630,7 +1630,7 @@ const LegacyTesterReportsDashboard = ({ user }) => {
     isLoading: isProjectsLoading,
     error: projectsError,
   } = useQuery({
-    queryKey: ["projects", "tester-reports-options"],
+    queryKey: ["projects"],
     queryFn: fetchProjects,
     staleTime: 60_000,
   });
@@ -1888,7 +1888,7 @@ const DeveloperReportsDashboard = ({ user }) => {
   const [activeInsightKey, setActiveInsightKey] = useState("delivery");
 
   const { data: projects = [] } = useQuery({
-    queryKey: ["projects", "developer-reports-options"],
+    queryKey: ["projects"],
     queryFn: fetchProjects,
     staleTime: 60_000,
   });
@@ -2377,7 +2377,7 @@ const OrganizationReportsDashboard = () => {
     isLoading: isProjectsLoading,
     error: projectsError,
   } = useQuery({
-    queryKey: ["projects", "reports-v2-options"],
+    queryKey: ["projects"],
     queryFn: fetchProjects,
     staleTime: 60_000,
   });
@@ -4521,7 +4521,7 @@ const JiraReportsDashboard = () => {
   };
 
   const { data: projects = [], isLoading: projectsLoading, error: projectsError } = useQuery({
-    queryKey: ["projects", "jira-reports-options"],
+    queryKey: ["projects"],
     queryFn: fetchProjects,
     staleTime: 60_000,
   });

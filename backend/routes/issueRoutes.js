@@ -1,6 +1,7 @@
 const express = require("express");
 const {
   getIssues,
+  getIssueById,
   getStories,
   getIssueStats,
   getMyReportedBugs,
@@ -111,6 +112,7 @@ router
   .post(protect, tenantCacheInvalidation(ISSUE_CACHE_RESOURCES), createIssue);
 router
   .route("/:id")
+  .get(protect, tenantCache({ resource: "tasks" }), getIssueById)
   .put(protect, tenantCacheInvalidation(ISSUE_CACHE_RESOURCES), updateIssue)
   .delete(protect, tenantCacheInvalidation(ISSUE_CACHE_RESOURCES), deleteIssue);
 

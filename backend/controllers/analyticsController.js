@@ -1014,7 +1014,9 @@ const getOverviewPayload = async (match, user) => {
     },
   ]);
 
-  console.log("Analytics Overview Aggregation Result:", JSON.stringify(facetResult, null, 2));
+  if (String(process.env.PERF_DIAGNOSTICS_ENABLED || "").toLowerCase() === "true") {
+    console.log("Analytics Overview Aggregation Result:", JSON.stringify(facetResult));
+  }
 
   const issues = await Issue.find(match)
     .select("_id createdAt updatedAt status")
@@ -1934,14 +1936,18 @@ const buildRecentActivity = async (match) => {
 const getOverview = asyncHandler(async (req, res) => {
   const match = await buildAnalyticsMatch(req, res);
   const payload = await getOverviewPayload(match, req.user);
-  console.log("Analytics Overview Response:", JSON.stringify(payload, null, 2));
+  if (String(process.env.PERF_DIAGNOSTICS_ENABLED || "").toLowerCase() === "true") {
+    console.log("Analytics Overview Response:", JSON.stringify(payload));
+  }
   res.status(200).json(payload);
 });
 
 const getTrends = asyncHandler(async (req, res) => {
   const match = await buildAnalyticsMatch(req, res);
   const payload = await buildTrendRows(match, req);
-  console.log("Analytics Trends Response:", JSON.stringify(payload, null, 2));
+  if (String(process.env.PERF_DIAGNOSTICS_ENABLED || "").toLowerCase() === "true") {
+    console.log("Analytics Trends Response:", JSON.stringify(payload));
+  }
   res.status(200).json(payload);
 });
 

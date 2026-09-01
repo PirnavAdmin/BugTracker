@@ -301,7 +301,9 @@ const getDeveloperDashboardAnalytics = asyncHandler(async (req, res) => {
     }
   ]);
 
-  console.log("Developer Dashboard Aggregation Result:", JSON.stringify(analyticsResult, null, 2));
+  if (String(process.env.PERF_DIAGNOSTICS_ENABLED || "").toLowerCase() === "true") {
+    console.log("Developer Dashboard Aggregation Result:", JSON.stringify(analyticsResult));
+  }
 
   const summary = {
     assignedWork: Number(analyticsResult.summary[0]?.assignedWork || 0),
@@ -534,7 +536,9 @@ const getDeveloperDashboardAnalytics = asyncHandler(async (req, res) => {
     sourceIssues,
   };
 
-  console.log("Analytics Response", JSON.stringify(analytics, null, 2));
+  if (String(process.env.PERF_DIAGNOSTICS_ENABLED || "").toLowerCase() === "true") {
+    console.log("Analytics Response", JSON.stringify(analytics));
+  }
 
   res.status(200).json(analytics);
 });
