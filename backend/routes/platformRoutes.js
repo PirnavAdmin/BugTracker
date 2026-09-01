@@ -6,7 +6,8 @@ const {
 } = require("../controllers/platformAuthController");
 const platformCompanyController = require("../controllers/platformCompanyController");
 const platformDashboardController = require("../controllers/platformDashboardController");
-const { platformAuth } = require("../middleware/platformAuth");
+const { platformAuth, requirePlatformRole } = require("../middleware/platformAuth");
+const { PLATFORM_ROLES } = require("../constants/platformRoles");
 const { getInfrastructureUsageController } = require("../controllers/infrastructureUsageController");
 const billingController = require("../controllers/billingController");
 
@@ -26,6 +27,12 @@ router.post(
 );
 router.get("/companies/:id", platformAuth, platformCompanyController.getCompany);
 router.put("/companies/:id", platformAuth, platformCompanyController.updateCompany);
+router.delete(
+  "/companies/:id",
+  platformAuth,
+  requirePlatformRole([PLATFORM_ROLES.OWNER]),
+  platformCompanyController.deleteCompany
+);
 router.get("/subscriptions", platformAuth, platformCompanyController.listSubscriptions);
 router.get("/billing/subscriptions", platformAuth, billingController.platformSubscriptions);
 router.get("/billing/payments", platformAuth, billingController.platformPayments);

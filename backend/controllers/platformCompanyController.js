@@ -1,5 +1,6 @@
 const asyncHandler = require("../utils/asyncHandler");
 const platformCompanyService = require("../services/platformCompanyService");
+const { recordPlatformAudit } = require("../services/platformAuditService");
 
 const listPlans = asyncHandler(async (req, res) => {
   res.status(200).json(await platformCompanyService.listPlans());
@@ -33,6 +34,23 @@ const updateCompany = asyncHandler(async (req, res) => {
   });
 });
 
+const deleteCompany = asyncHandler(async (req, res) => {
+  const deletion = await platformCompanyService.deleteCompany(req.params.id, req.body || {}, res);
+  await recordPlatformAudit({
+    action: "PLATFORM_COMPANY_DELETED",
+    actor: req.platformAdmin,
+    metadata: {
+      companyId: deletion.companyId,
+      tenantId: deletion.tenantId,
+      deletedRecords: deletion.deletedRecords,
+    },
+    req,
+  });
+  res.status(200).json({
+    deletion,
+  });
+});
+
 const listSubscriptions = asyncHandler(async (req, res) => {
   res.status(200).json(await platformCompanyService.listSubscriptions(req.query || {}));
 });
@@ -57,6 +75,7 @@ module.exports = {
   createCompany,
   createCompanyAdminUser,
   createSubscription,
+  deleteCompany,
   getCompany,
   listCompanies,
   listPlans,

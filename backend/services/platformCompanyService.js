@@ -26,6 +26,7 @@ const {
   assertTenantCapacity,
   withTenantLimitLock,
 } = require("./subscriptionUsageService");
+const { deleteCompanyPermanently } = require("./platformCompanyDeletionService");
 
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -407,6 +408,18 @@ const updateCompany = async (id, payload = {}, res) => {
   return serializeCompany(company, subscription);
 };
 
+const deleteCompany = async (id, payload = {}, res) => {
+  ensureObjectId(id, res);
+  const company = await PlatformCompany.findById(id).lean();
+
+  if (!company) {
+    res.status(404);
+    throw new Error("Platform company not found");
+  }
+
+  return deleteCompanyPermanently(company, payload.confirmationName, res);
+};
+
 const listSubscriptions = async () => {
   const subscriptions = await PlatformSubscription.find({})
     .sort({ createdAt: -1 })
@@ -626,6 +639,7 @@ module.exports = {
   createCompany,
   createCompanyAdminUser,
   createSubscription,
+  deleteCompany,
   getCompanyById,
   listCompanies,
   listPlans,

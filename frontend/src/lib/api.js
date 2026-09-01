@@ -1451,6 +1451,13 @@ export const updatePlatformCompany = async ({ companyId, payload }) => {
   return response.data?.company || response.data;
 };
 
+export const deletePlatformCompany = async ({ companyId, confirmationName }) => {
+  const response = await platformApi.delete(`/platform/companies/${companyId}`, {
+    data: { confirmationName },
+  });
+  return response.data?.deletion || response.data;
+};
+
 export const createPlatformCompanyAdminUser = async ({ companyId, payload }) => {
   const response = await platformApi.post(`/platform/companies/${companyId}/admin-user`, payload);
   return response.data;

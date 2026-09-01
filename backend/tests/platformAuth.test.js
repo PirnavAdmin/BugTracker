@@ -8,7 +8,7 @@ const {
   loginPlatformAdmin,
   logoutPlatformAdmin,
 } = require("../controllers/platformAuthController");
-const { platformAuth } = require("../middleware/platformAuth");
+const { platformAuth, requirePlatformRole } = require("../middleware/platformAuth");
 const { PLATFORM_ADMIN_STATUSES, PLATFORM_ROLES } = require("../constants/platformRoles");
 
 const originalJwtSecret = process.env.JWT_SECRET;
@@ -189,6 +189,19 @@ test("SaaS Admin can access permitted platform dashboard route", async () => {
   assert.strictEqual(res.body.platformAdmin.role, PLATFORM_ROLES.ADMIN);
   assert.ok(res.body.permissions.includes("platform.companies"));
   assert.ok(!res.body.permissions.includes("platform.payments"));
+});
+
+test("company deletion role guard allows only the SaaS Owner", async () => {
+  const ownerResult = await callHandler(requirePlatformRole([PLATFORM_ROLES.OWNER]), {
+    platformAdmin: createPlatformAdmin({ role: PLATFORM_ROLES.OWNER }),
+  });
+  assert.ifError(ownerResult.nextError);
+
+  const adminResult = await callHandler(requirePlatformRole([PLATFORM_ROLES.OWNER]), {
+    platformAdmin: createPlatformAdmin({ role: PLATFORM_ROLES.ADMIN }),
+  });
+  assert.strictEqual(adminResult.res.statusCode, 403);
+  assert.match(adminResult.nextError?.message || "", /role is not allowed/);
 });
 
 test("unauthenticated platform API request is rejected", async () => {

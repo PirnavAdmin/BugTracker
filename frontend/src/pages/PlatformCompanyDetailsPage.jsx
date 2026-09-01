@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Save } from "lucide-react";
+import { AlertTriangle, ArrowLeft, Save, Trash2 } from "lucide-react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
   createPlatformCompanyAdminUser,
   createPlatformSubscription,
+  deletePlatformCompany,
   fetchPlatformCompany,
   fetchPlatformCompanies,
   fetchPlatformPlans,
@@ -17,6 +18,15 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { usePlatformAuth } from "@/hooks/use-platform-auth";
 import { formatDate } from "@/lib/utils";
 import {
   formatProviderName,
@@ -97,6 +107,7 @@ const PlatformCompanyDetailsPage = () => {
   const { companyId } = useParams();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { platformAdmin } = usePlatformAuth();
   const [companyForm, setCompanyForm] = useState(null);
   const [subscriptionForm, setSubscriptionForm] = useState(null);
   const [adminForm, setAdminForm] = useState({
@@ -106,6 +117,9 @@ const PlatformCompanyDetailsPage = () => {
   });
   const [temporaryPassword, setTemporaryPassword] = useState("");
   const [error, setError] = useState("");
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [deleteConfirmation, setDeleteConfirmation] = useState("");
+  const [deleteError, setDeleteError] = useState("");
 
   const companyQuery = useQuery({
     queryKey: ["platform-company", companyId],
@@ -225,6 +239,26 @@ const PlatformCompanyDetailsPage = () => {
       setError(mutationError?.response?.data?.message || "Unable to create company admin");
     },
   });
+  const deleteMutation = useMutation({
+    mutationFn: () => deletePlatformCompany({
+      companyId,
+      confirmationName: deleteConfirmation,
+    }),
+    onSuccess: () => {
+      queryClient.removeQueries({ queryKey: ["platform-company", companyId] });
+      queryClient.invalidateQueries({ queryKey: ["platform-companies"] });
+      queryClient.invalidateQueries({ queryKey: ["platform-subscriptions"] });
+      queryClient.invalidateQueries({ queryKey: ["platform-billing-subscriptions"] });
+      queryClient.invalidateQueries({ queryKey: ["platform-billing-payments"] });
+      queryClient.invalidateQueries({ queryKey: ["platform-dashboard-summary"] });
+      queryClient.invalidateQueries({ queryKey: ["platform-dashboard-ai-usage"] });
+      queryClient.invalidateQueries({ queryKey: ["platform-dashboard-ai-cost-by-company"] });
+      navigate("/platform/companies", { replace: true });
+    },
+    onError: (mutationError) => {
+      setDeleteError(mutationError?.response?.data?.message || "Unable to permanently delete company");
+    },
+  });
 
   const updateCompanyForm = (key, value) => {
     setCompanyForm((current) => ({ ...current, [key]: value }));
@@ -261,14 +295,27 @@ const PlatformCompanyDetailsPage = () => {
     adminMutation.mutate(adminForm);
   };
 
+  const openDeleteDialog = () => {
+    setDeleteConfirmation("");
+    setDeleteError("");
+    setDeleteDialogOpen(true);
+  };
+
   return (
     <PlatformShell
       title={company?.name || "Company Details"}
       actions={
-        <Button className="h-10 rounded-lg" type="button" variant="outline" onClick={() => navigate("/platform/companies")}>
-          <ArrowLeft className="h-4 w-4" />
-          Companies
-        </Button>
+        <>
+          {company && platformAdmin?.role === "SaaS Owner" ? (
+            <Button className="h-10 rounded-lg border-rose-300 text-rose-700 hover:bg-rose-50 hover:text-rose-800" type="button" variant="outline" onClick={openDeleteDialog}>
+              <Trash2 className="h-4 w-4" />Delete
+            </Button>
+          ) : null}
+          <Button className="h-10 rounded-lg" type="button" variant="outline" onClick={() => navigate("/platform/companies")}>
+            <ArrowLeft className="h-4 w-4" />
+            Companies
+          </Button>
+        </>
       }
     >
       <div className="space-y-4 p-4 xl:p-5">
@@ -490,6 +537,82 @@ const PlatformCompanyDetailsPage = () => {
               <FutureSection title="Users" />
               <FutureSection title="Activity" />
             </section>
+
+            {platformAdmin?.role === "SaaS Owner" ? (
+              <section className="rounded-lg border border-rose-300 bg-white p-4">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <h2 className="text-base font-bold text-rose-700">Danger zone</h2>
+                    <p className="mt-1 max-w-3xl text-sm text-slate-600">
+                      Permanently delete this company, its tenant users, projects, issues, files, AI usage, and billing records. Active provider billing will be cancelled first.
+                    </p>
+                  </div>
+                  <Button
+                    className="shrink-0 rounded-lg"
+                    type="button"
+                    variant="destructive"
+                    onClick={openDeleteDialog}
+                  >
+                    <Trash2 className="h-4 w-4" />Delete company
+                  </Button>
+                </div>
+              </section>
+            ) : null}
+
+            <Dialog open={deleteDialogOpen} onOpenChange={(open) => {
+              if (!deleteMutation.isPending) setDeleteDialogOpen(open);
+            }}>
+              <DialogContent className="max-w-xl rounded-xl p-0 sm:p-0">
+                <DialogHeader className="border-b border-slate-200 px-6 py-5">
+                  <div className="flex items-start gap-3 pr-8">
+                    <span className="rounded-full bg-rose-100 p-2 text-rose-700"><AlertTriangle className="h-5 w-5" /></span>
+                    <div>
+                      <DialogTitle>Permanently delete company?</DialogTitle>
+                      <DialogDescription className="mt-1">
+                        This action cannot be undone.
+                      </DialogDescription>
+                    </div>
+                  </div>
+                </DialogHeader>
+                <div className="space-y-4 px-6 py-5">
+                  <div className="rounded-lg border border-rose-200 bg-rose-50 p-4 text-sm text-rose-900">
+                    <p className="font-bold">All tenant data for {company.name} will be permanently removed.</p>
+                    <ul className="mt-2 list-disc space-y-1 pl-5 text-rose-800">
+                      <li>Users, teams, projects, tasks, bugs, comments, and activity</li>
+                      <li>Chat, meetings, uploaded files, storage, and AI usage history</li>
+                      <li>Subscriptions, payments, invoices, and provider billing links</li>
+                    </ul>
+                  </div>
+                  <label className="block space-y-2 text-sm font-semibold text-slate-900">
+                    <span>To confirm, type <span className="font-mono">{company.name}</span></span>
+                    <Input
+                      autoComplete="off"
+                      autoFocus
+                      disabled={deleteMutation.isPending}
+                      placeholder={company.name}
+                      value={deleteConfirmation}
+                      onChange={(event) => {
+                        setDeleteConfirmation(event.target.value);
+                        setDeleteError("");
+                      }}
+                    />
+                  </label>
+                  {deleteError ? <p className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700">{deleteError}</p> : null}
+                </div>
+                <DialogFooter className="border-t border-slate-200 bg-slate-50 px-6 py-4">
+                  <Button disabled={deleteMutation.isPending} type="button" variant="outline" onClick={() => setDeleteDialogOpen(false)}>Cancel</Button>
+                  <Button
+                    disabled={deleteConfirmation !== company.name || deleteMutation.isPending}
+                    type="button"
+                    variant="destructive"
+                    onClick={() => deleteMutation.mutate()}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                    {deleteMutation.isPending ? "Deleting company..." : "Permanently delete"}
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
           </>
         )}
       </div>
