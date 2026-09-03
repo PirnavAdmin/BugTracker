@@ -453,6 +453,7 @@ echo ""
 echo "Diagnostics completed."
 
 REMOTE
+'''
         }
 
         always {
