@@ -108,7 +108,7 @@ VITE_API_BASE_URL=/api
 ## Platform Admin Bootstrap
 
 Phase 0 platform authentication is separate from normal CureCode user login.
-To create the first SaaS Owner, set these environment variables before starting
+To create the first SaaS Owner, set these environment variables before startin
 the backend or running `npm run seed` in `backend/`:
 
 ```env
