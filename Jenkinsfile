@@ -12,7 +12,7 @@ pipeline {
 
         stage('Checkout SCM') {
             steps {
-                echo 'Checking out source code from Jenkins SCM...'
+                echo 'Checking out source code...'
                 checkout scm
             }
         }
@@ -20,277 +20,335 @@ pipeline {
         stage('Validate Production ENV') {
             steps {
                 sh '''
-                    ssh "$REMOTE_HOST" 'bash -s' -- "$APP_DIR" "$ENV_FILE" <<'REMOTE'
-                    set -e
+ssh "$REMOTE_HOST" 'bash -s' -- "$APP_DIR" "$ENV_FILE" <<'REMOTE'
+set -e
 
-                    APP_DIR="$1"
-                    ENV_FILE="$2"
+APP_DIR="$1"
+ENV_FILE="$2"
 
-                    echo "Checking production environment file..."
+echo "=========================================="
+echo "VALIDATING PRODUCTION ENVIRONMENT"
+echo "=========================================="
 
-                    if [ ! -f "$ENV_FILE" ]; then
-                        echo "ERROR: Production .env not found:"
-                        echo "$ENV_FILE"
-                        exit 1
-                    fi
+if [ ! -f "$ENV_FILE" ]; then
+    echo "ERROR: Production .env is missing:"
+    echo "$ENV_FILE"
+    exit 1
+fi
 
-                    chmod 600 "$ENV_FILE"
+chmod 600 "$ENV_FILE"
 
-                    echo "Production .env found."
-                    echo "Environment validation passed."
-                    REMOTE
-                '''
+echo "Production .env found."
+echo "Environment validation passed."
+
+REMOTE
+'''
             }
         }
 
         stage('Sync Production Code') {
             steps {
                 sh '''
-                    ssh "$REMOTE_HOST" 'bash -s' -- "$APP_DIR" <<'REMOTE'
-                    set -e
+ssh "$REMOTE_HOST" 'bash -s' -- "$APP_DIR" <<'REMOTE'
+set -e
 
-                    APP_DIR="$1"
+APP_DIR="$1"
 
-                    cd "$APP_DIR"
+echo "=========================================="
+echo "SYNCING PRODUCTION CODE"
+echo "=========================================="
 
-                    echo "Switching to dev2 branch..."
-                    git checkout dev2
+cd "$APP_DIR"
 
-                    echo "Fetching latest changes..."
-                    git fetch origin
+echo "Current branch:"
+git branch --show-current
 
-                    echo "Resetting production working tree..."
-                    git reset --hard origin/dev2
+echo "Switching to dev2..."
+git checkout dev2
 
-                    echo "Production code synchronized."
-                    REMOTE
-                '''
+echo "Fetching latest changes..."
+git fetch origin
+
+echo "Resetting to origin/dev2..."
+git reset --hard origin/dev2
+
+echo "Latest commit:"
+git log -1 --oneline
+
+echo "Production code synchronized."
+
+REMOTE
+'''
             }
         }
 
         stage('Backup Production ENV') {
             steps {
                 sh '''
-                    ssh "$REMOTE_HOST" 'bash -s' -- "$ENV_FILE" "$ENV_BACKUP" <<'REMOTE'
-                    set -e
+ssh "$REMOTE_HOST" 'bash -s' -- "$ENV_FILE" "$ENV_BACKUP" <<'REMOTE'
+set -e
 
-                    ENV_FILE="$1"
-                    ENV_BACKUP="$2"
+ENV_FILE="$1"
+ENV_BACKUP="$2"
 
-                    echo "Backing up production .env..."
+echo "=========================================="
+echo "BACKING UP PRODUCTION ENV"
+echo "=========================================="
 
-                    cp "$ENV_FILE" "$ENV_BACKUP"
-                    chmod 600 "$ENV_BACKUP"
+if [ ! -f "$ENV_FILE" ]; then
+    echo "ERROR: .env file not found."
+    exit 1
+fi
 
-                    echo "Production .env backup created."
-                    REMOTE
-                '''
-            }
-        }
+cp "$ENV_FILE" "$ENV_BACKUP"
+chmod 600 "$ENV_BACKUP"
 
-        stage('Restore Production ENV') {
-            steps {
-                sh '''
-                    ssh "$REMOTE_HOST" 'bash -s' -- "$ENV_FILE" "$ENV_BACKUP" <<'REMOTE'
-                    set -e
+echo "Production .env backup created."
 
-                    ENV_FILE="$1"
-                    ENV_BACKUP="$2"
-
-                    if [ ! -f "$ENV_BACKUP" ]; then
-                        echo "ERROR: .env backup does not exist."
-                        exit 1
-                    fi
-
-                    cp "$ENV_BACKUP" "$ENV_FILE"
-                    chmod 600 "$ENV_FILE"
-
-                    echo "Production .env restored."
-                    REMOTE
-                '''
+REMOTE
+'''
             }
         }
 
         stage('Build Docker Images') {
             steps {
                 sh '''
-                    ssh "$REMOTE_HOST" 'bash -s' -- "$APP_DIR" <<'REMOTE'
-                    set -e
+ssh "$REMOTE_HOST" 'bash -s' -- "$APP_DIR" <<'REMOTE'
+set -e
 
-                    APP_DIR="$1"
+APP_DIR="$1"
 
-                    cd "$APP_DIR"
+echo "=========================================="
+echo "BUILDING DOCKER IMAGES"
+echo "=========================================="
 
-                    echo "Building Docker images..."
-                    echo "Existing containers will remain running during build."
+cd "$APP_DIR"
 
-                    docker compose build --no-cache
+docker compose build --no-cache
 
-                    echo "Docker image build completed successfully."
-                    REMOTE
-                '''
+echo "Docker images built successfully."
+
+REMOTE
+'''
             }
         }
 
         stage('Stop Existing Containers') {
             steps {
                 sh '''
-                    ssh "$REMOTE_HOST" 'bash -s' -- "$APP_DIR" <<'REMOTE'
-                    set -e
+ssh "$REMOTE_HOST" 'bash -s' -- "$APP_DIR" <<'REMOTE'
+set -e
 
-                    APP_DIR="$1"
+APP_DIR="$1"
 
-                    cd "$APP_DIR"
+echo "=========================================="
+echo "STOPPING EXISTING CONTAINERS"
+echo "=========================================="
 
-                    echo "Stopping existing containers..."
+cd "$APP_DIR"
 
-                    docker compose down
+docker compose down
 
-                    echo "Existing containers stopped."
-                    REMOTE
-                '''
+echo "Existing containers stopped."
+
+REMOTE
+'''
             }
         }
 
         stage('Clean Docker Resources') {
             steps {
                 sh '''
-                    ssh "$REMOTE_HOST" 'bash -s' <<'REMOTE'
-                    set -e
+ssh "$REMOTE_HOST" 'bash -s' <<'REMOTE'
+set -e
 
-                    echo "Cleaning unused Docker resources..."
+echo "=========================================="
+echo "CLEANING DOCKER RESOURCES"
+echo "=========================================="
 
-                    docker image prune -f
-                    docker container prune -f
-                    docker network prune -f
+docker image prune -f
+docker container prune -f
+docker network prune -f
 
-                    echo "Docker cleanup completed."
-                    REMOTE
-                '''
+echo "Docker cleanup completed."
+
+REMOTE
+'''
+            }
+        }
+
+        stage('Restore Production ENV') {
+            steps {
+                sh '''
+ssh "$REMOTE_HOST" 'bash -s' -- "$ENV_FILE" "$ENV_BACKUP" <<'REMOTE'
+set -e
+
+ENV_FILE="$1"
+ENV_BACKUP="$2"
+
+echo "=========================================="
+echo "RESTORING PRODUCTION ENV"
+echo "=========================================="
+
+if [ ! -f "$ENV_BACKUP" ]; then
+    echo "ERROR: .env backup does not exist."
+    exit 1
+fi
+
+cp "$ENV_BACKUP" "$ENV_FILE"
+chmod 600 "$ENV_FILE"
+
+echo "Production .env restored."
+
+REMOTE
+'''
             }
         }
 
         stage('Start Application') {
             steps {
                 sh '''
-                    ssh "$REMOTE_HOST" 'bash -s' -- "$APP_DIR" <<'REMOTE'
-                    set -e
+ssh "$REMOTE_HOST" 'bash -s' -- "$APP_DIR" <<'REMOTE'
+set -e
 
-                    APP_DIR="$1"
+APP_DIR="$1"
 
-                    cd "$APP_DIR"
+echo "=========================================="
+echo "STARTING APPLICATION"
+echo "=========================================="
 
-                    echo "Starting application..."
+cd "$APP_DIR"
 
-                    docker compose up -d --force-recreate
+docker compose up -d --force-recreate
 
-                    echo "Application containers started."
+echo ""
+echo "Container status:"
+docker compose ps
 
-                    docker compose ps
-                    REMOTE
-                '''
+echo "Application containers started."
+
+REMOTE
+'''
             }
         }
 
         stage('Health Check') {
             steps {
                 sh '''
-                    ssh "$REMOTE_HOST" 'bash -s' -- "$APP_DIR" <<'REMOTE'
-                    set -e
+ssh "$REMOTE_HOST" 'bash -s' -- "$APP_DIR" <<'REMOTE'
+set -e
 
-                    APP_DIR="$1"
+APP_DIR="$1"
 
-                    cd "$APP_DIR"
+echo "=========================================="
+echo "APPLICATION HEALTH CHECK"
+echo "=========================================="
 
-                    FRONTEND_PORT=$(grep -E '^FRONTEND_PORT=' .env | tail -n 1 | cut -d= -f2)
-                    FRONTEND_PORT=${FRONTEND_PORT:-3000}
+cd "$APP_DIR"
 
-                    echo "=========================================="
-                    echo "Starting application health check"
-                    echo "Health URL: http://localhost:${FRONTEND_PORT}/api/health"
-                    echo "=========================================="
+FRONTEND_PORT=$(grep -E '^FRONTEND_PORT=' .env | tail -n 1 | cut -d= -f2)
 
-                    for attempt in $(seq 1 30); do
+if [ -z "$FRONTEND_PORT" ]; then
+    FRONTEND_PORT=3000
+fi
 
-                        if curl -fsS \
-                            --connect-timeout 5 \
-                            --max-time 10 \
-                            "http://localhost:${FRONTEND_PORT}/api/health"; then
+HEALTH_URL="http://localhost:${FRONTEND_PORT}/api/health"
 
-                            echo ""
-                            echo "=========================================="
-                            echo "API HEALTH CHECK PASSED"
-                            echo "=========================================="
+echo "Health URL: $HEALTH_URL"
+echo ""
 
-                            docker compose ps
+for attempt in $(seq 1 30); do
 
-                            exit 0
-                        fi
+    if curl -fsS \
+        --connect-timeout 5 \
+        --max-time 10 \
+        "$HEALTH_URL"; then
 
-                        echo "Health check attempt ${attempt}/30 failed."
-                        echo "Waiting 5 seconds..."
+        echo ""
+        echo "=========================================="
+        echo "API HEALTH CHECK PASSED"
+        echo "=========================================="
 
-                        sleep 5
-                    done
+        exit 0
+    fi
 
-                    echo ""
-                    echo "=========================================="
-                    echo "API HEALTH CHECK FAILED"
-                    echo "=========================================="
+    echo "Health check attempt ${attempt}/30 failed."
+    echo "Waiting 5 seconds..."
 
-                    docker compose ps
+    sleep 5
+done
 
-                    echo ""
-                    echo "Backend logs:"
-                    docker compose logs --tail=150 backend
+echo ""
+echo "=========================================="
+echo "API HEALTH CHECK FAILED"
+echo "=========================================="
 
-                    exit 1
-                    REMOTE
-                '''
+echo ""
+echo "Container status:"
+docker compose ps
+
+echo ""
+echo "Backend logs:"
+docker compose logs --tail=150 backend
+
+exit 1
+
+REMOTE
+'''
             }
         }
 
         stage('Deployment Verification') {
             steps {
                 sh '''
-                    ssh "$REMOTE_HOST" 'bash -s' -- "$APP_DIR" <<'REMOTE'
-                    set -e
+ssh "$REMOTE_HOST" 'bash -s' -- "$APP_DIR" <<'REMOTE'
+set -e
 
-                    APP_DIR="$1"
+APP_DIR="$1"
 
-                    cd "$APP_DIR"
+echo "=========================================="
+echo "FINAL DEPLOYMENT VERIFICATION"
+echo "=========================================="
 
-                    echo "=========================================="
-                    echo "FINAL DEPLOYMENT VERIFICATION"
-                    echo "=========================================="
+cd "$APP_DIR"
 
-                    docker compose ps
+echo ""
+echo "Docker Compose status:"
+docker compose ps
 
-                    echo ""
-                    echo "Running containers:"
-                    docker ps --format "table {{.Names}}\\t{{.Status}}\\t{{.Ports}}"
+echo ""
+echo "Running containers:"
+docker ps --format "table {{.Names}}\\t{{.Status}}\\t{{.Ports}}"
 
-                    echo ""
-                    echo "Deployment verification completed."
-                    REMOTE
-                '''
+echo ""
+echo "Deployment verification completed."
+
+REMOTE
+'''
             }
         }
 
         stage('Cleanup ENV Backup') {
             steps {
                 sh '''
-                    ssh "$REMOTE_HOST" 'bash -s' -- "$ENV_BACKUP" <<'REMOTE'
-                    set -e
+ssh "$REMOTE_HOST" 'bash -s' -- "$ENV_BACKUP" <<'REMOTE'
+set -e
 
-                    ENV_BACKUP="$1"
+ENV_BACKUP="$1"
 
-                    if [ -f "$ENV_BACKUP" ]; then
-                        rm -f "$ENV_BACKUP"
-                        echo "Temporary .env backup removed."
-                    fi
-                    REMOTE
-                '''
+echo "=========================================="
+echo "CLEANING TEMPORARY ENV BACKUP"
+echo "=========================================="
+
+if [ -f "$ENV_BACKUP" ]; then
+    rm -f "$ENV_BACKUP"
+    echo "Temporary .env backup removed."
+else
+    echo "No temporary .env backup found."
+fi
+
+REMOTE
+'''
             }
         }
     }
@@ -299,66 +357,81 @@ pipeline {
 
         success {
             echo '''
-            ==========================================
-            DEPLOYMENT SUCCESSFUL
-            ==========================================
-            Application deployed successfully.
-            Health check passed.
-            '''
+==========================================
+CURECODE DEPLOYMENT SUCCESSFUL
+==========================================
+All deployment stages completed successfully.
+Health check passed.
+==========================================
+'''
         }
 
         failure {
             echo '''
-            ==========================================
-            DEPLOYMENT FAILED
-            ==========================================
-            Collecting production diagnostics...
-            '''
+==========================================
+CURECODE DEPLOYMENT FAILED
+==========================================
+Collecting production diagnostics...
+==========================================
+'''
 
             sh '''
-                ssh "$REMOTE_HOST" 'bash -s' -- "$APP_DIR" "$ENV_FILE" "$ENV_BACKUP" <<'REMOTE' || true
-                APP_DIR="$1"
-                ENV_FILE="$2"
-                ENV_BACKUP="$3"
+ssh "$REMOTE_HOST" 'bash -s' -- "$APP_DIR" "$ENV_FILE" "$ENV_BACKUP" <<'REMOTE' || true
 
-                echo "=========================================="
-                echo "PRODUCTION DIAGNOSTICS"
-                echo "=========================================="
+APP_DIR="$1"
+ENV_FILE="$2"
+ENV_BACKUP="$3"
 
-                cd "$APP_DIR" || exit 0
+echo "=========================================="
+echo "PRODUCTION DIAGNOSTICS"
+echo "=========================================="
 
-                echo ""
-                echo "Container status:"
-                docker compose ps || true
+cd "$APP_DIR" 2>/dev/null || exit 0
 
-                echo ""
-                echo "Backend logs:"
-                docker compose logs --tail=160 backend || true
+echo ""
+echo "Docker Compose status:"
+docker compose ps || true
 
-                echo ""
-                echo "Frontend logs:"
-                docker compose logs --tail=100 frontend || true
+echo ""
+echo "Backend logs:"
+docker compose logs --tail=160 backend || true
 
-                echo ""
-                echo "Checking .env backup..."
+echo ""
+echo "Frontend logs:"
+docker compose logs --tail=100 frontend || true
 
-                if [ -f "$ENV_BACKUP" ]; then
-                    cp "$ENV_BACKUP" "$ENV_FILE"
-                    chmod 600 "$ENV_FILE"
-                    echo "Production .env restored from backup."
-                    rm -f "$ENV_BACKUP"
-                else
-                    echo "No .env backup found."
-                fi
+echo ""
+echo "=========================================="
+echo "ENV BACKUP CHECK"
+echo "=========================================="
 
-                echo ""
-                echo "Diagnostics completed."
-                REMOTE
-            '''
+if [ -f "$ENV_BACKUP" ]; then
+
+    echo "Backup found."
+    echo "Restoring production .env..."
+
+    cp "$ENV_BACKUP" "$ENV_FILE"
+    chmod 600 "$ENV_FILE"
+
+    rm -f "$ENV_BACKUP"
+
+    echo "Production .env restored."
+
+else
+
+    echo "No .env backup found."
+
+fi
+
+echo ""
+echo "Diagnostics completed."
+
+REMOTE
+'''
         }
 
         always {
-            echo "Jenkins deployment pipeline completed."
+            echo 'Jenkins pipeline execution completed.'
         }
     }
 }
