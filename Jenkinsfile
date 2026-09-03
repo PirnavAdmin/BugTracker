@@ -11,13 +11,18 @@ pipeline {
     stages {
 
         // ============================================================
-        // 1. CHECKOUT
+        // 1. CHECKOUT SOURCE CODE
         // ============================================================
 
         stage('Checkout SCM') {
             steps {
-                echo 'Checking out source code...'
+                echo '=========================================='
+                echo 'CHECKING OUT SOURCE CODE'
+                echo '=========================================='
+
                 checkout scm
+
+                echo 'Source code checkout completed.'
             }
         }
 
@@ -47,12 +52,32 @@ pipeline {
                             sh """
                                 set -e
 
-                                echo "SonarScanner location:"
+                                echo "=========================================="
+                                echo "SONARSCANNER VERSION"
+                                echo "=========================================="
+
                                 ${scannerHome}/bin/sonar-scanner --version
 
                                 echo ""
-                                echo "Running SonarCloud analysis..."
+                                echo "=========================================="
+                                echo "SONARCLOUD PROJECT"
+                                echo "=========================================="
+
+                                echo "Organization: pradeep-18-bit"
+                                echo "Project:      pradeep-18-bit_bug-tracking"
+
                                 echo ""
+                                echo "=========================================="
+                                echo "SOURCE DIRECTORIES"
+                                echo "=========================================="
+
+                                echo "Backend:      backend"
+                                echo "Frontend:     frontend/src"
+
+                                echo ""
+                                echo "=========================================="
+                                echo "RUNNING SONARCLOUD ANALYSIS"
+                                echo "=========================================="
 
                                 ${scannerHome}/bin/sonar-scanner \
                                     -Dsonar.organization=pradeep-18-bit \
@@ -60,7 +85,7 @@ pipeline {
                                     -Dsonar.host.url=https://sonarcloud.io \
                                     -Dsonar.token=\$SONAR_TOKEN \
                                     -Dsonar.sources=backend,frontend/src \
-                                    -Dsonar.exclusions=**/node_modules/**,**/dist/**,**/build/**,**/coverage/**,**/.env*,**/*.test.js,**/*.test.jsx,**/*.test.ts,**/*.test.tsx \
+                                    -Dsonar.exclusions=**/node_modules/**,**/dist/**,**/build/**,**/coverage/**,**/test-results/**,**/tests/**,**/*.test.js,**/*.test.jsx,**/*.test.ts,**/*.test.tsx,**/*.spec.js,**/*.spec.jsx,**/*.spec.ts,**/*.spec.tsx,**/.env* \
                                     -Dsonar.qualitygate.wait=true \
                                     -Dsonar.qualitygate.timeout=600
 
@@ -68,6 +93,8 @@ pipeline {
                                 echo "=========================================="
                                 echo "SONARCLOUD QUALITY GATE PASSED"
                                 echo "=========================================="
+
+                                echo "SonarCloud analysis and Quality Gate completed successfully."
                             """
                         }
                     }
@@ -129,18 +156,23 @@ cd "$APP_DIR"
 echo "Current branch:"
 git branch --show-current
 
+echo ""
 echo "Switching to dev2..."
 git checkout dev2
 
+echo ""
 echo "Fetching latest changes..."
 git fetch origin
 
+echo ""
 echo "Resetting to origin/dev2..."
 git reset --hard origin/dev2
 
+echo ""
 echo "Latest commit:"
 git log -1 --oneline
 
+echo ""
 echo "Production code synchronized."
 
 REMOTE
@@ -200,6 +232,7 @@ cd "$APP_DIR"
 
 docker compose build --no-cache
 
+echo ""
 echo "Docker images built successfully."
 
 REMOTE
@@ -248,10 +281,16 @@ echo "=========================================="
 echo "CLEANING DOCKER RESOURCES"
 echo "=========================================="
 
+echo "Removing unused Docker images..."
 docker image prune -f
+
+echo "Removing stopped Docker containers..."
 docker container prune -f
+
+echo "Removing unused Docker networks..."
 docker network prune -f
 
+echo ""
 echo "Docker cleanup completed."
 
 REMOTE
@@ -315,6 +354,7 @@ echo ""
 echo "Container status:"
 docker compose ps
 
+echo ""
 echo "Application containers started."
 
 REMOTE
@@ -427,7 +467,7 @@ REMOTE
         }
 
         // ============================================================
-        // 13. CLEANUP ENV BACKUP
+        // 13. CLEANUP TEMPORARY ENV BACKUP
         // ============================================================
 
         stage('Cleanup ENV Backup') {
@@ -466,10 +506,15 @@ REMOTE
 ==========================================
 CURECODE DEPLOYMENT SUCCESSFUL
 ==========================================
+
 SonarCloud analysis passed.
-Quality Gate passed.
-All deployment stages completed successfully.
+SonarCloud Quality Gate passed.
+Production ENV validated.
+Docker images built.
+Application deployed.
 Health check passed.
+Deployment verification completed.
+
 ==========================================
 '''
         }
@@ -479,7 +524,9 @@ Health check passed.
 ==========================================
 CURECODE DEPLOYMENT FAILED
 ==========================================
+
 Collecting production diagnostics...
+
 ==========================================
 '''
 
