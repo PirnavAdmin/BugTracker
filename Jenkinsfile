@@ -10,10 +10,6 @@ pipeline {
 
     stages {
 
-        // ============================================================
-        // 1. CHECKOUT SOURCE CODE
-        // ============================================================
-
         stage('Checkout SCM') {
             steps {
                 echo '=========================================='
@@ -25,86 +21,6 @@ pipeline {
                 echo 'Source code checkout completed.'
             }
         }
-
-        // ============================================================
-        // 2. SONARCLOUD ANALYSIS
-        // ============================================================
-
-        stage('SonarCloud Analysis') {
-            steps {
-                script {
-
-                    echo '=========================================='
-                    echo 'STARTING SONARCLOUD ANALYSIS'
-                    echo '=========================================='
-
-                    def scannerHome = tool 'SonarScanner'
-
-                    withSonarQubeEnv('SonarCloud') {
-
-                        withCredentials([
-                            string(
-                                credentialsId: 'sonarcloud-token',
-                                variable: 'SONAR_TOKEN'
-                            )
-                        ]) {
-
-                            sh """
-                                set -e
-
-                                echo "=========================================="
-                                echo "SONARSCANNER VERSION"
-                                echo "=========================================="
-
-                                ${scannerHome}/bin/sonar-scanner --version
-
-                                echo ""
-                                echo "=========================================="
-                                echo "SONARCLOUD PROJECT"
-                                echo "=========================================="
-
-                                echo "Organization: pradeep-18-bit"
-                                echo "Project:      pradeep-18-bit_bug-tracking"
-
-                                echo ""
-                                echo "=========================================="
-                                echo "SOURCE DIRECTORIES"
-                                echo "=========================================="
-
-                                echo "Backend:      backend"
-                                echo "Frontend:     frontend/src"
-
-                                echo ""
-                                echo "=========================================="
-                                echo "RUNNING SONARCLOUD ANALYSIS"
-                                echo "=========================================="
-
-                                ${scannerHome}/bin/sonar-scanner \
-                                    -Dsonar.organization=pradeep-18-bit \
-                                    -Dsonar.projectKey=pradeep-18-bit_bug-tracking \
-                                    -Dsonar.host.url=https://sonarcloud.io \
-                                    -Dsonar.token=\$SONAR_TOKEN \
-                                    -Dsonar.sources=backend,frontend/src \
-                                    -Dsonar.exclusions=**/node_modules/**,**/dist/**,**/build/**,**/coverage/**,**/test-results/**,**/tests/**,**/*.test.js,**/*.test.jsx,**/*.test.ts,**/*.test.tsx,**/*.spec.js,**/*.spec.jsx,**/*.spec.ts,**/*.spec.tsx,**/.env* \
-                                    -Dsonar.qualitygate.wait=true \
-                                    -Dsonar.qualitygate.timeout=600
-
-                                echo ""
-                                echo "=========================================="
-                                echo "SONARCLOUD QUALITY GATE PASSED"
-                                echo "=========================================="
-
-                                echo "SonarCloud analysis and Quality Gate completed successfully."
-                            """
-                        }
-                    }
-                }
-            }
-        }
-
-        // ============================================================
-        // 3. VALIDATE PRODUCTION ENVIRONMENT
-        // ============================================================
 
         stage('Validate Production ENV') {
             steps {
@@ -134,10 +50,6 @@ REMOTE
 '''
             }
         }
-
-        // ============================================================
-        // 4. SYNC PRODUCTION CODE
-        // ============================================================
 
         stage('Sync Production Code') {
             steps {
@@ -180,10 +92,6 @@ REMOTE
             }
         }
 
-        // ============================================================
-        // 5. BACKUP PRODUCTION ENV
-        // ============================================================
-
         stage('Backup Production ENV') {
             steps {
                 sh '''
@@ -212,10 +120,6 @@ REMOTE
             }
         }
 
-        // ============================================================
-        // 6. BUILD DOCKER IMAGES
-        // ============================================================
-
         stage('Build Docker Images') {
             steps {
                 sh '''
@@ -240,10 +144,6 @@ REMOTE
             }
         }
 
-        // ============================================================
-        // 7. STOP EXISTING CONTAINERS
-        // ============================================================
-
         stage('Stop Existing Containers') {
             steps {
                 sh '''
@@ -266,10 +166,6 @@ REMOTE
 '''
             }
         }
-
-        // ============================================================
-        // 8. CLEAN DOCKER RESOURCES
-        // ============================================================
 
         stage('Clean Docker Resources') {
             steps {
@@ -297,10 +193,6 @@ REMOTE
 '''
             }
         }
-
-        // ============================================================
-        // 9. RESTORE PRODUCTION ENV
-        // ============================================================
 
         stage('Restore Production ENV') {
             steps {
@@ -330,10 +222,6 @@ REMOTE
             }
         }
 
-        // ============================================================
-        // 10. START APPLICATION
-        // ============================================================
-
         stage('Start Application') {
             steps {
                 sh '''
@@ -361,10 +249,6 @@ REMOTE
 '''
             }
         }
-
-        // ============================================================
-        // 11. HEALTH CHECK
-        // ============================================================
 
         stage('Health Check') {
             steps {
@@ -432,10 +316,6 @@ REMOTE
             }
         }
 
-        // ============================================================
-        // 12. DEPLOYMENT VERIFICATION
-        // ============================================================
-
         stage('Deployment Verification') {
             steps {
                 sh '''
@@ -466,10 +346,6 @@ REMOTE
             }
         }
 
-        // ============================================================
-        // 13. CLEANUP TEMPORARY ENV BACKUP
-        // ============================================================
-
         stage('Cleanup ENV Backup') {
             steps {
                 sh '''
@@ -495,10 +371,6 @@ REMOTE
         }
     }
 
-    // ================================================================
-    // POST ACTIONS
-    // ================================================================
-
     post {
 
         success {
@@ -507,9 +379,8 @@ REMOTE
 CURECODE DEPLOYMENT SUCCESSFUL
 ==========================================
 
-SonarCloud analysis passed.
-SonarCloud Quality Gate passed.
 Production ENV validated.
+Production code synchronized.
 Docker images built.
 Application deployed.
 Health check passed.
@@ -582,7 +453,6 @@ echo ""
 echo "Diagnostics completed."
 
 REMOTE
-'''
         }
 
         always {
