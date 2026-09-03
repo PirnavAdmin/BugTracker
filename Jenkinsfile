@@ -10,12 +10,74 @@ pipeline {
 
     stages {
 
+        // ============================================================
+        // 1. CHECKOUT
+        // ============================================================
+
         stage('Checkout SCM') {
             steps {
                 echo 'Checking out source code...'
                 checkout scm
             }
         }
+
+        // ============================================================
+        // 2. SONARCLOUD ANALYSIS
+        // ============================================================
+
+        stage('SonarCloud Analysis') {
+            steps {
+                script {
+
+                    echo '=========================================='
+                    echo 'STARTING SONARCLOUD ANALYSIS'
+                    echo '=========================================='
+
+                    def scannerHome = tool 'SonarScanner'
+
+                    withSonarQubeEnv('SonarCloud') {
+
+                        withCredentials([
+                            string(
+                                credentialsId: 'sonarcloud-token',
+                                variable: 'SONAR_TOKEN'
+                            )
+                        ]) {
+
+                            sh """
+                                set -e
+
+                                echo "SonarScanner location:"
+                                ${scannerHome}/bin/sonar-scanner --version
+
+                                echo ""
+                                echo "Running SonarCloud analysis..."
+                                echo ""
+
+                                ${scannerHome}/bin/sonar-scanner \
+                                    -Dsonar.organization=pradeep-18-bit \
+                                    -Dsonar.projectKey=pradeep-18-bit_bug-tracking \
+                                    -Dsonar.host.url=https://sonarcloud.io \
+                                    -Dsonar.token=\$SONAR_TOKEN \
+                                    -Dsonar.sources=backend,frontend/src \
+                                    -Dsonar.exclusions=**/node_modules/**,**/dist/**,**/build/**,**/coverage/**,**/.env*,**/*.test.js,**/*.test.jsx,**/*.test.ts,**/*.test.tsx \
+                                    -Dsonar.qualitygate.wait=true \
+                                    -Dsonar.qualitygate.timeout=600
+
+                                echo ""
+                                echo "=========================================="
+                                echo "SONARCLOUD QUALITY GATE PASSED"
+                                echo "=========================================="
+                            """
+                        }
+                    }
+                }
+            }
+        }
+
+        // ============================================================
+        // 3. VALIDATE PRODUCTION ENVIRONMENT
+        // ============================================================
 
         stage('Validate Production ENV') {
             steps {
@@ -45,6 +107,10 @@ REMOTE
 '''
             }
         }
+
+        // ============================================================
+        // 4. SYNC PRODUCTION CODE
+        // ============================================================
 
         stage('Sync Production Code') {
             steps {
@@ -82,6 +148,10 @@ REMOTE
             }
         }
 
+        // ============================================================
+        // 5. BACKUP PRODUCTION ENV
+        // ============================================================
+
         stage('Backup Production ENV') {
             steps {
                 sh '''
@@ -110,6 +180,10 @@ REMOTE
             }
         }
 
+        // ============================================================
+        // 6. BUILD DOCKER IMAGES
+        // ============================================================
+
         stage('Build Docker Images') {
             steps {
                 sh '''
@@ -132,6 +206,10 @@ REMOTE
 '''
             }
         }
+
+        // ============================================================
+        // 7. STOP EXISTING CONTAINERS
+        // ============================================================
 
         stage('Stop Existing Containers') {
             steps {
@@ -156,6 +234,10 @@ REMOTE
             }
         }
 
+        // ============================================================
+        // 8. CLEAN DOCKER RESOURCES
+        // ============================================================
+
         stage('Clean Docker Resources') {
             steps {
                 sh '''
@@ -176,6 +258,10 @@ REMOTE
 '''
             }
         }
+
+        // ============================================================
+        // 9. RESTORE PRODUCTION ENV
+        // ============================================================
 
         stage('Restore Production ENV') {
             steps {
@@ -205,6 +291,10 @@ REMOTE
             }
         }
 
+        // ============================================================
+        // 10. START APPLICATION
+        // ============================================================
+
         stage('Start Application') {
             steps {
                 sh '''
@@ -231,6 +321,10 @@ REMOTE
 '''
             }
         }
+
+        // ============================================================
+        // 11. HEALTH CHECK
+        // ============================================================
 
         stage('Health Check') {
             steps {
@@ -298,6 +392,10 @@ REMOTE
             }
         }
 
+        // ============================================================
+        // 12. DEPLOYMENT VERIFICATION
+        // ============================================================
+
         stage('Deployment Verification') {
             steps {
                 sh '''
@@ -328,6 +426,10 @@ REMOTE
             }
         }
 
+        // ============================================================
+        // 13. CLEANUP ENV BACKUP
+        // ============================================================
+
         stage('Cleanup ENV Backup') {
             steps {
                 sh '''
@@ -353,6 +455,10 @@ REMOTE
         }
     }
 
+    // ================================================================
+    // POST ACTIONS
+    // ================================================================
+
     post {
 
         success {
@@ -360,6 +466,8 @@ REMOTE
 ==========================================
 CURECODE DEPLOYMENT SUCCESSFUL
 ==========================================
+SonarCloud analysis passed.
+Quality Gate passed.
 All deployment stages completed successfully.
 Health check passed.
 ==========================================
