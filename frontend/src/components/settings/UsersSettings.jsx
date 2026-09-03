@@ -1,7 +1,9 @@
 import { useMemo, useState } from "react";
 import {
   CheckCircle2,
+  Database,
   Edit2,
+  HardDrive,
   MailPlus,
   Search,
   ShieldCheck,
@@ -11,6 +13,7 @@ import {
   Users2,
   X,
 } from "lucide-react";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import EmptyState from "@/components/shared/EmptyState";
 import SettingsPanel from "@/components/settings/SettingsPanel";
 import UserAvatar from "@/components/shared/UserAvatar";
@@ -51,6 +54,146 @@ const summaryIconMap = {
   "Q/A Lead": CheckCircle2,
   Developer: MailPlus,
   Tester: CheckCircle2,
+};
+
+const usageCardThemes = {
+  violet: {
+    card: "border-violet-200/80 bg-gradient-to-br from-violet-50 via-white to-fuchsia-50/70",
+    glow: "bg-violet-300/30",
+    icon: "bg-violet-100 text-violet-700 ring-violet-200/80",
+    badge: "border-violet-200 bg-white/80 text-violet-700",
+    value: "text-violet-950",
+    track: "bg-violet-100",
+    progress: "from-violet-600 via-fuchsia-500 to-violet-500",
+    pulse: "bg-violet-500",
+  },
+  sky: {
+    card: "border-sky-200/80 bg-gradient-to-br from-sky-50 via-white to-cyan-50/70",
+    glow: "bg-sky-300/30",
+    icon: "bg-sky-100 text-sky-700 ring-sky-200/80",
+    badge: "border-sky-200 bg-white/80 text-sky-700",
+    value: "text-sky-950",
+    track: "bg-sky-100",
+    progress: "from-sky-600 via-cyan-400 to-blue-500",
+    pulse: "bg-sky-500",
+  },
+  slate: {
+    card: "border-slate-200 bg-gradient-to-br from-slate-50 via-white to-blue-50/60",
+    glow: "bg-slate-300/30",
+    icon: "bg-slate-100 text-slate-700 ring-slate-200",
+    badge: "border-slate-200 bg-white/80 text-slate-600",
+    value: "text-slate-950",
+    track: "bg-slate-100",
+    progress: "from-slate-700 via-slate-500 to-blue-500",
+    pulse: "bg-emerald-500",
+  },
+};
+
+const UsageMetricCard = ({
+  badge,
+  description,
+  icon: Icon,
+  indeterminate = false,
+  label,
+  progress,
+  progressLabel,
+  theme = "slate",
+  value,
+  valueSuffix,
+}) => {
+  const reduceMotion = useReducedMotion();
+  const colors = usageCardThemes[theme];
+  const safeProgress = Math.min(Math.max(Number(progress) || 0, 0), 100);
+
+  return (
+    <motion.article
+      layout
+      initial={reduceMotion ? false : { opacity: 0, y: 18, scale: 0.98 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      whileHover={reduceMotion ? undefined : { y: -4, scale: 1.01 }}
+      transition={{ type: "spring", stiffness: 260, damping: 24 }}
+      className={cn(
+        "group relative min-h-56 overflow-hidden rounded-[22px] border p-5 shadow-[0_12px_35px_-24px_rgba(15,23,42,0.45)]",
+        colors.card
+      )}
+    >
+      <div className={cn("pointer-events-none absolute -right-10 -top-12 h-32 w-32 rounded-full blur-3xl transition-transform duration-500 group-hover:scale-125", colors.glow)} />
+
+      <div className="relative flex h-full flex-col">
+        <div className="flex items-start justify-between gap-3">
+          <motion.div
+            animate={reduceMotion ? undefined : { y: [0, -3, 0] }}
+            transition={{ duration: 3, ease: "easeInOut", repeat: Infinity }}
+            className={cn("flex h-11 w-11 items-center justify-center rounded-2xl ring-1", colors.icon)}
+          >
+            <Icon className="h-5 w-5" aria-hidden="true" />
+          </motion.div>
+          <span className={cn("rounded-full border px-2.5 py-1 text-[11px] font-semibold", colors.badge)}>
+            {badge}
+          </span>
+        </div>
+
+        <p className="mt-5 text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">{label}</p>
+        <div className="mt-1 flex min-h-10 items-end gap-1.5">
+          <AnimatePresence mode="wait" initial={false}>
+            <motion.strong
+              key={value}
+              initial={reduceMotion ? false : { opacity: 0, y: 8, filter: "blur(3px)" }}
+              animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+              exit={reduceMotion ? undefined : { opacity: 0, y: -8 }}
+              transition={{ duration: 0.28 }}
+              className={cn("text-3xl font-bold tracking-tight", colors.value)}
+            >
+              {value}
+            </motion.strong>
+          </AnimatePresence>
+          {valueSuffix ? <span className="pb-1 text-sm font-medium text-slate-500">{valueSuffix}</span> : null}
+        </div>
+        <p className="mt-2 min-h-10 text-xs leading-5 text-slate-600">{description}</p>
+
+        <div className="mt-auto pt-4">
+          <div className={cn("relative h-2.5 overflow-hidden rounded-full", colors.track)}>
+            <motion.div
+              initial={
+                indeterminate
+                  ? { width: "35%", x: reduceMotion ? "90%" : "-120%" }
+                  : { width: reduceMotion ? `${safeProgress}%` : 0 }
+              }
+              animate={
+                indeterminate && !reduceMotion
+                  ? { width: "35%", x: ["-120%", "350%"] }
+                  : { width: indeterminate ? "35%" : `${safeProgress}%` }
+              }
+              transition={
+                indeterminate
+                  ? { duration: 2.4, ease: "easeInOut", repeat: reduceMotion ? 0 : Infinity }
+                  : { duration: reduceMotion ? 0 : 0.9, ease: [0.22, 1, 0.36, 1] }
+              }
+              className={cn("relative h-full overflow-hidden rounded-full bg-gradient-to-r", colors.progress)}
+            >
+              {!reduceMotion && !indeterminate ? (
+                <motion.span
+                  className="absolute inset-y-0 w-16 -skew-x-12 bg-white/35 blur-sm"
+                  animate={{ x: ["-150%", "350%"] }}
+                  transition={{ duration: 2.2, ease: "easeInOut", repeat: Infinity, repeatDelay: 0.7 }}
+                />
+              ) : null}
+            </motion.div>
+          </div>
+          <div className="mt-2 flex items-center justify-between gap-3 text-[11px] font-medium text-slate-500">
+            <span className="flex items-center gap-1.5">
+              <span className="relative flex h-2 w-2">
+                {!reduceMotion ? <span className={cn("absolute inline-flex h-full w-full animate-ping rounded-full opacity-50", colors.pulse)} /> : null}
+                <span className={cn("relative inline-flex h-2 w-2 rounded-full", colors.pulse)} />
+              </span>
+              Live usage
+            </span>
+            <span>{progressLabel}</span>
+          </div>
+        </div>
+      </div>
+    </motion.article>
+  );
 };
 
 const UsersSettings = ({
@@ -262,28 +405,63 @@ const UsersSettings = ({
         ) : null
       }
     >
-      {usage ? (
-        <div className="mb-5 rounded-[16px] border border-violet-200 bg-violet-50 px-4 py-3 text-sm text-violet-900">
-          <span className="font-semibold">User seats:</span>{" "}
-          {usage.current} / {usage.unlimited ? "Unlimited" : usage.limit}
-        </div>
-      ) : null}
-      {storage ? (
-        <div className="mb-5 rounded-[16px] border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-900">
-          <span className="font-semibold">Customer Storage:</span>{" "}
-          {storage.usedMB?.toFixed?.(2) || "0.00"} MB / {storage.unlimited ? "Unlimited" : `${storage.limitGB} GB`}
-          <div className="mt-2 h-2 overflow-hidden rounded-full bg-sky-100">
-            <div className="h-full bg-sky-600" style={{ width: `${Math.min(storage.usagePercent || 0, 100)}%` }} />
-          </div>
-          <p className="mt-1 text-xs text-sky-700">{storage.usagePercent >= 100 ? "Storage limit reached. Upgrade your plan to upload more files." : storage.usagePercent >= 90 ? "Storage usage is almost full." : storage.usagePercent >= 80 ? "Storage usage is approaching your plan limit." : ""}</p>
-        </div>
-      ) : null}
-      {databaseUsage ? (
-        <div className="mb-5 rounded-[16px] border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900">
-          <span className="font-semibold">Database Utilization:</span>{" "}
-          {databaseUsage.estimatedDataMB?.toFixed?.(2) || "0.00"} MB · {databaseUsage.recordCount || 0} records
-          <p className="mt-1 text-xs text-slate-600">Database usage is separate from your subscription storage quota.</p>
-        </div>
+      {usage || storage || databaseUsage ? (
+        <section className="mb-6 grid gap-4 md:grid-cols-2 xl:grid-cols-3" aria-label="Workspace usage">
+          {usage ? (
+            <UsageMetricCard
+              badge={usage.unlimited ? "Unlimited plan" : `${usage.limit} seat limit`}
+              description={
+                usage.unlimited
+                  ? "No seat limit—invite teammates whenever you need."
+                  : `${Math.max((Number(usage.limit) || 0) - (Number(usage.current) || 0), 0)} seats still available.`
+              }
+              icon={Users2}
+              indeterminate={usage.unlimited}
+              label="User seats"
+              progress={usage.unlimited ? 100 : ((Number(usage.current) || 0) / Math.max(Number(usage.limit) || 1, 1)) * 100}
+              progressLabel={usage.unlimited ? "No limit" : `${Math.min((((Number(usage.current) || 0) / Math.max(Number(usage.limit) || 1, 1)) * 100), 100).toFixed(0)}% used`}
+              theme="violet"
+              value={Number(usage.current || 0).toLocaleString()}
+              valueSuffix="active seats"
+            />
+          ) : null}
+          {storage ? (
+            <UsageMetricCard
+              badge={storage.unlimited ? "Unlimited storage" : `${storage.limitGB} GB limit`}
+              description={
+                storage.usagePercent >= 100
+                  ? "Storage limit reached. Upgrade your plan to upload more files."
+                  : storage.usagePercent >= 90
+                    ? "Storage usage is almost full."
+                    : storage.usagePercent >= 80
+                      ? "Storage usage is approaching your plan limit."
+                      : "Files and attachments used by your workspace."
+              }
+              icon={HardDrive}
+              indeterminate={storage.unlimited}
+              label="Customer storage"
+              progress={storage.unlimited ? 100 : storage.usagePercent}
+              progressLabel={storage.unlimited ? "No limit" : `${Math.min(Math.max(Number(storage.usagePercent) || 0, 0), 100).toFixed(1)}% used`}
+              theme="sky"
+              value={storage.usedMB?.toFixed?.(2) || "0.00"}
+              valueSuffix="MB used"
+            />
+          ) : null}
+          {databaseUsage ? (
+            <UsageMetricCard
+              badge={`${Number(databaseUsage.recordCount || 0).toLocaleString()} records`}
+              description="Database usage is separate from your subscription storage quota."
+              icon={Database}
+              indeterminate
+              label="Database utilization"
+              progress={0}
+              progressLabel="Measured live"
+              theme="slate"
+              value={databaseUsage.estimatedDataMB?.toFixed?.(2) || "0.00"}
+              valueSuffix="MB"
+            />
+          ) : null}
+        </section>
       ) : null}
       {isLoading ? (
         <div className="space-y-5">
