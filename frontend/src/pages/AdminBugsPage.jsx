@@ -212,7 +212,7 @@ const isReadyForQa = (issue) =>
   );
 
 const isClosedBug = (issue) =>
-  [ISSUE_STATUS.CLOSED, ISSUE_STATUS.DONE, ISSUE_STATUS.REJECTED].includes(
+  [ISSUE_STATUS.CLOSED, ISSUE_STATUS.DONE].includes(
     normalizeBugStatusForIssue(issue)
   );
 
