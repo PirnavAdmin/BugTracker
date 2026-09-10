@@ -12,7 +12,10 @@ const BILLING_CYCLES = Object.freeze({
 // Cashfree's published Subscription API currently supports this version.  The
 // installed SDK defaults to a newer generated version, so set it explicitly.
 const CASHFREE_API_VERSION = "2025-01-01";
-const CASHFREE_SANDBOX_ENDPOINT = "https://sandbox.cashfree.com/pg/subscriptions";
+const CASHFREE_SUBSCRIPTION_ENDPOINTS = Object.freeze({
+  sandbox: "https://sandbox.cashfree.com/pg/subscriptions",
+  production: "https://api.cashfree.com/pg/subscriptions",
+});
 
 const serviceError = (code, message, status = 400) =>
   Object.assign(new Error(message), { code, status });
@@ -87,8 +90,7 @@ const resolvePlanBilling = ({ planId, billingCycle, amount, currency }) => {
     );
   }
 
-  const serverAmount =
-    normalizedCycle === BILLING_CYCLES.MONTHLY ? plan.priceMonthly : plan.priceAnnual;
+  const serverAmount = normalizedCycle === BILLING_CYCLES.MONTHLY ? plan.priceMonthly : plan.priceAnnual;
   if (!Number.isFinite(serverAmount) || serverAmount <= 0) {
     throw serviceError("CASHFREE_INVALID_PLAN", "The CureCode plan is not billable");
   }
@@ -119,16 +121,25 @@ const resolvePlanBilling = ({ planId, billingCycle, amount, currency }) => {
 };
 
 const environment = String(cashfreeConfig.environment || "").trim().toLowerCase();
-if (environment !== "sandbox") {
+const cashfreeEnvironment = {
+  sandbox: CFEnvironment.SANDBOX,
+  production: CFEnvironment.PRODUCTION,
+}[environment];
+const CASHFREE_SUBSCRIPTION_ENDPOINT = CASHFREE_SUBSCRIPTION_ENDPOINTS[environment];
+
+if (
+  !Object.prototype.hasOwnProperty.call(CASHFREE_SUBSCRIPTION_ENDPOINTS, environment) ||
+  !CASHFREE_SUBSCRIPTION_ENDPOINT
+) {
   throw serviceError(
-    "CASHFREE_SANDBOX_REQUIRED",
-    "Cashfree subscriptions are currently available only in Sandbox mode",
-    503
+    "CASHFREE_INVALID_ENVIRONMENT",
+    'CASHFREE_ENV must be either "sandbox" or "production".',
+    500
   );
 }
 
 const cashfreeClient = new Cashfree(
-  CFEnvironment.SANDBOX,
+  cashfreeEnvironment,
   cashfreeConfig.appId,
   cashfreeConfig.secretKey
 );
@@ -353,7 +364,7 @@ const createSubscription = async ({
   const idempotencyKey = crypto.randomUUID();
   const diagnosticContext = {
     operation: "createSubscription",
-    endpoint: CASHFREE_SANDBOX_ENDPOINT,
+    endpoint: CASHFREE_SUBSCRIPTION_ENDPOINT,
     apiVersion: CASHFREE_API_VERSION,
     requestId,
     idempotencyKeyPresent: true,
@@ -404,7 +415,7 @@ const createSubscription = async ({
           console.warn("[billing] Cashfree ambiguous create reconciliation was inconclusive", {
             environment,
             operation: "fetchSubscriptionAfterAmbiguousCreate",
-            endpoint: CASHFREE_SANDBOX_ENDPOINT,
+            endpoint: CASHFREE_SUBSCRIPTION_ENDPOINT,
             apiVersion: CASHFREE_API_VERSION,
             providerSubscriptionId: merchantReference,
             failureOrigin: classifyProviderFailure(lookupError),
@@ -427,7 +438,7 @@ const createSubscription = async ({
         const retryRequestId = crypto.randomUUID();
         console.info("[billing] Cashfree create subscription retrying once after confirmed absence", {
           environment,
-          endpoint: CASHFREE_SANDBOX_ENDPOINT,
+          endpoint: CASHFREE_SUBSCRIPTION_ENDPOINT,
           apiVersion: CASHFREE_API_VERSION,
           providerSubscriptionId: merchantReference,
           requestIdPresent: true,
@@ -473,7 +484,7 @@ const cancelSubscription = async (subscriptionId) => {
   const idempotencyKey = crypto.randomUUID();
   const context = {
     operation: "cancelSubscription",
-    endpoint: `${CASHFREE_SANDBOX_ENDPOINT}/{subscription_id}/manage`,
+    endpoint: `${CASHFREE_SUBSCRIPTION_ENDPOINT}/{subscription_id}/manage`,
     apiVersion: CASHFREE_API_VERSION,
     requestId,
     idempotencyKeyPresent: true,
@@ -595,7 +606,7 @@ const fetchSubscription = async (subscriptionId, { allowNotFound = false } = {})
       error,
       {
         operation: "fetchSubscription",
-        endpoint: `${CASHFREE_SANDBOX_ENDPOINT}/{subscription_id}`,
+        endpoint: `${CASHFREE_SUBSCRIPTION_ENDPOINT}/{subscription_id}`,
         apiVersion: CASHFREE_API_VERSION,
         providerSubscriptionId: normalizedSubscriptionId,
       },
@@ -623,7 +634,9 @@ const verifyWebhookSignature = ({ rawBody, signature, timestamp }) => {
 module.exports = {
   BILLING_CYCLES,
   CASHFREE_API_VERSION,
-  CASHFREE_SANDBOX_ENDPOINT,
+  CASHFREE_SUBSCRIPTION_ENDPOINTS,
+  CASHFREE_SUBSCRIPTION_ENDPOINT,
+  environment,
   classifyProviderFailure,
   cancelSubscription,
   createSubscription,

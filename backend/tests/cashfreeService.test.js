@@ -66,6 +66,60 @@ require.cache[sdkPath] = {
 delete require.cache[servicePath];
 const cashfreeService = require("../services/payment/cashfreeService");
 
+const loadIsolatedCashfreeService = ({ environment, appId, secretKey }) => {
+  const previousEnvironment = process.env.CASHFREE_ENV;
+  const previousAppId = process.env.CASHFREE_APP_ID;
+  const previousSecretKey = process.env.CASHFREE_SECRET_KEY;
+  const cachedConfig = require.cache[configPath];
+  const cachedService = require.cache[servicePath];
+  const cachedSdk = require.cache[sdkPath];
+  const initialization = {};
+
+  class IsolatedFakeCashfree {
+    constructor(sdkEnvironment, configuredAppId, configuredSecretKey) {
+      initialization.environment = sdkEnvironment;
+      initialization.appId = configuredAppId;
+      initialization.secretKey = configuredSecretKey;
+    }
+  }
+
+  if (environment === undefined) delete process.env.CASHFREE_ENV;
+  else process.env.CASHFREE_ENV = environment;
+  process.env.CASHFREE_APP_ID = appId;
+  process.env.CASHFREE_SECRET_KEY = secretKey;
+  require.cache[sdkPath] = {
+    id: sdkPath,
+    filename: sdkPath,
+    loaded: true,
+    exports: { Cashfree: IsolatedFakeCashfree, CFEnvironment: fakeEnvironment },
+  };
+  delete require.cache[configPath];
+  delete require.cache[servicePath];
+
+  const logs = [];
+  const originalConsoleLog = console.log;
+  console.log = (...args) => logs.push(args);
+  try {
+    const config = require("../config/cashfree");
+    const service = require("../services/payment/cashfreeService");
+    return { config, initialization, logs, service };
+  } finally {
+    console.log = originalConsoleLog;
+    if (cachedConfig) require.cache[configPath] = cachedConfig;
+    else delete require.cache[configPath];
+    if (cachedService) require.cache[servicePath] = cachedService;
+    else delete require.cache[servicePath];
+    if (cachedSdk) require.cache[sdkPath] = cachedSdk;
+    else delete require.cache[sdkPath];
+    if (previousEnvironment === undefined) delete process.env.CASHFREE_ENV;
+    else process.env.CASHFREE_ENV = previousEnvironment;
+    if (previousAppId === undefined) delete process.env.CASHFREE_APP_ID;
+    else process.env.CASHFREE_APP_ID = previousAppId;
+    if (previousSecretKey === undefined) delete process.env.CASHFREE_SECRET_KEY;
+    else process.env.CASHFREE_SECRET_KEY = previousSecretKey;
+  }
+};
+
 const baseInput = (overrides = {}) => ({
   tenantId: "TENANT_001",
   userId: "user_001",
@@ -152,10 +206,10 @@ test("Cashfree client initializes in Sandbox mode", () => {
   assert.equal(clientInstance.XApiVersion, cashfreeService.CASHFREE_API_VERSION);
 });
 
-test("Cashfree Subscription API endpoint and explicit supported version override the SDK default", () => {
+test("Cashfree Sandbox Subscription API endpoint and explicit supported version override the SDK default", () => {
   assert.equal(cashfreeService.CASHFREE_API_VERSION, "2025-01-01");
   assert.equal(
-    cashfreeService.CASHFREE_SANDBOX_ENDPOINT,
+    cashfreeService.CASHFREE_SUBSCRIPTION_ENDPOINT,
     "https://sandbox.cashfree.com/pg/subscriptions"
   );
   const sdkApiSource = require("node:fs").readFileSync(
@@ -165,6 +219,68 @@ test("Cashfree Subscription API endpoint and explicit supported version override
   assert.match(sdkApiSource, /class Cashfree/);
   assert.match(sdkApiSource, /this\.XApiVersion = "2026-01-01"/);
   assert.match(sdkApiSource, /localVarPath = `\/subscriptions`/);
+});
+
+test("missing or empty Cashfree environment defaults to Sandbox", () => {
+  for (const environment of [undefined, ""]) {
+    const isolated = loadIsolatedCashfreeService({
+      environment,
+      appId: "cashfree_sandbox_default_test_app_id",
+      secretKey: "cashfree_sandbox_default_test_secret",
+    });
+
+    assert.equal(isolated.config.environment, "sandbox");
+    assert.equal(isolated.initialization.environment, fakeEnvironment.SANDBOX);
+    assert.equal(
+      isolated.service.CASHFREE_SUBSCRIPTION_ENDPOINT,
+      "https://sandbox.cashfree.com/pg/subscriptions"
+    );
+  }
+});
+
+test("Cashfree Production environment selects the Production SDK and subscription endpoint", () => {
+  const productionAppId = "cashfree_production_test_app_id";
+  const productionSecret = "cashfree_production_test_secret";
+  const isolated = loadIsolatedCashfreeService({
+    environment: "  PRODUCTION  ",
+    appId: productionAppId,
+    secretKey: productionSecret,
+  });
+
+  assert.equal(isolated.config.environment, "production");
+  assert.deepEqual(isolated.initialization, {
+    environment: fakeEnvironment.PRODUCTION,
+    appId: productionAppId,
+    secretKey: productionSecret,
+  });
+  assert.equal(
+    isolated.service.CASHFREE_SUBSCRIPTION_ENDPOINT,
+    "https://api.cashfree.com/pg/subscriptions"
+  );
+  const serializedLogs = JSON.stringify(isolated.logs);
+  assert.equal(serializedLogs.includes(productionAppId), false);
+  assert.equal(serializedLogs.includes(productionSecret), false);
+});
+
+test("invalid Cashfree environment fails with a clear error without exposing credentials", () => {
+  const invalidAppId = "cashfree_invalid_test_app_id";
+  const invalidSecret = "cashfree_invalid_test_secret";
+  assert.throws(
+    () =>
+      loadIsolatedCashfreeService({
+        environment: "invalid",
+        appId: invalidAppId,
+        secretKey: invalidSecret,
+      }),
+    (error) => {
+      assert.equal(error.code, "CASHFREE_INVALID_ENVIRONMENT");
+      assert.equal(error.message, 'CASHFREE_ENV must be either "sandbox" or "production".');
+      assert.equal(error.status, 500);
+      assert.equal(error.message.includes(invalidAppId), false);
+      assert.equal(error.message.includes(invalidSecret), false);
+      return true;
+    }
+  );
 });
 
 test("subscription creation uses the current Cashfree Subscription API and returns safe data", async () => {
@@ -491,7 +607,7 @@ test("Cashfree API failures are normalized and credentials never reach logs or c
   assert.equal(serializedLogs.includes(process.env.CASHFREE_SECRET_KEY), false);
   assert.equal(logs[0][1].environment, "sandbox");
   assert.equal(logs[0][1].operation, "createSubscription");
-  assert.equal(logs[0][1].endpoint, cashfreeService.CASHFREE_SANDBOX_ENDPOINT);
+  assert.equal(logs[0][1].endpoint, cashfreeService.CASHFREE_SUBSCRIPTION_ENDPOINT);
   assert.equal(logs[0][1].apiVersion, "2025-01-01");
   assert.equal(logs[0][1].failureOrigin, "CASHFREE_PROVIDER_RESPONSE");
   assert.equal(logs[0][1].httpStatus, 401);

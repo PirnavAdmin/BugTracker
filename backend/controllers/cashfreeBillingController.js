@@ -41,7 +41,7 @@ const LOCAL_CASHFREE_ERROR_CODES = new Set([
   "CASHFREE_INVALID_PLAN",
   "CASHFREE_AMOUNT_MISMATCH",
   "CASHFREE_CURRENCY_MISMATCH",
-  "CASHFREE_SANDBOX_REQUIRED",
+  "CASHFREE_INVALID_ENVIRONMENT",
 ]);
 
 const apiError = (code, message, status = 400) =>
@@ -665,13 +665,29 @@ const webhook = asyncHandler(async (req, res) => {
       eventId,
       eventType: String(payload?.type || "").toUpperCase(),
       payloadHash,
-      status: "received",
+      status: "processing",
     });
   } catch (error) {
     if (error?.code === 11000) {
-      return res.status(200).json({ received: true, duplicate: true });
+      // The unique event ID is the concurrency lock. Only a previously failed
+      // event can be atomically claimed for another processing attempt.
+      event = await BillingWebhookEvent.findOneAndUpdate(
+        { provider: "cashfree", eventId, status: "failed" },
+        {
+          $set: {
+            status: "processing",
+            processingError: undefined,
+            processedAt: undefined,
+            receivedAt: new Date(),
+          },
+        },
+        { new: true }
+      );
+      if (!event) {
+        return res.status(200).json({ received: true, duplicate: true });
+      }
     }
-    throw error;
+    else throw error;
   }
 
   try {

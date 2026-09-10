@@ -710,7 +710,7 @@ test("local Cashfree validation errors preserve their safe code and are not prov
     ["CASHFREE_INVALID_PLAN", "A paid CureCode plan is required", 400],
     ["CASHFREE_AMOUNT_MISMATCH", "The subscription amount does not match", 400],
     ["CASHFREE_CURRENCY_MISMATCH", "The subscription currency does not match", 400],
-    ["CASHFREE_SANDBOX_REQUIRED", "Cashfree Sandbox is required", 503],
+    ["CASHFREE_INVALID_ENVIRONMENT", "Cashfree environment is invalid", 500],
   ];
   const logs = [];
   const originalWarn = console.warn;

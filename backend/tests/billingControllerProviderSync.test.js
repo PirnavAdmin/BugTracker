@@ -70,6 +70,14 @@ test.after(() => {
   providerSync.syncPendingSubscription = originalSyncPending;
 });
 
+test("provider-managed Cashfree subscriptions should override stale platform Trial labels with Active", async () => {
+  const { derivePlatformSubscriptionStatus } = require("../services/platformCompanyService");
+  assert.equal(
+    derivePlatformSubscriptionStatus({ status: "Trial" }, { provider: "cashfree", status: "ACTIVE" }),
+    "Active"
+  );
+});
+
 test("generic billing read delegates the tenant Cashfree pending record to provider sync", async () => {
   const { res, nextError } = await callGetSubscription();
   assert.ifError(nextError);

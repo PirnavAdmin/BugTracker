@@ -42,6 +42,7 @@ const syncProjectEpics = require("./utils/syncProjectEpics");
 const syncIssueStatuses = require("./utils/syncIssueStatuses");
 const syncIssueDisplayIds = require("./utils/syncIssueDisplayIds");
 const syncWorkspaceScopes = require("./utils/syncWorkspaceScopes");
+const { initializePlatformPricing } = require("./services/platformPricingService");
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -117,6 +118,7 @@ const startServer = async () => {
   await redisClient.connectRedis();
   await ensureDefaultUser();
   await ensureInitialPlatformAdmin();
+  await initializePlatformPricing();
   await syncIssueStatuses();
   await syncWorkspaceScopes();
   await syncProjectEpics();

@@ -13,6 +13,7 @@ const { webhook } = require("../controllers/cashfreeBillingController");
 
 const originals = {
   billingEventCreate: BillingWebhookEvent.create,
+  billingEventFindOneAndUpdate: BillingWebhookEvent.findOneAndUpdate,
   paymentFindOne: Payment.findOne,
   paymentSave: Payment.prototype.save,
   platformAuditCreate: PlatformAuditLog.create,
@@ -107,6 +108,7 @@ let companyUpdates;
 
 test.beforeEach(() => {
   cashfreeWebhookService.processCashfreeWebhook = originals.processWebhook;
+  BillingWebhookEvent.findOneAndUpdate = async () => null;
   subscription = createSubscription();
   authorizationPayment = createDocument({
     _id: "507f1f77bcf86cd799439103",
@@ -146,6 +148,7 @@ test.beforeEach(() => {
 
 test.after(() => {
   BillingWebhookEvent.create = originals.billingEventCreate;
+  BillingWebhookEvent.findOneAndUpdate = originals.billingEventFindOneAndUpdate;
   Payment.findOne = originals.paymentFindOne;
   Payment.prototype.save = originals.paymentSave;
   PlatformAuditLog.create = originals.platformAuditCreate;
@@ -177,6 +180,90 @@ test("valid Cashfree webhook signature is accepted and duplicate delivery is ide
   assert.equal(second.statusCode, 200);
   assert.equal(second.body.duplicate, true);
   assert.equal(processCalls, 1);
+});
+
+test("a failed Cashfree webhook event is retried using the same event record", async () => {
+  const event = createDocument({ _id: "event-retry-001", status: "processing", metadata: {} });
+  let createCalls = 0;
+  let processCalls = 0;
+  BillingWebhookEvent.create = async () => {
+    createCalls += 1;
+    if (createCalls === 1) return event;
+    throw Object.assign(new Error("duplicate"), { code: 11000 });
+  };
+  BillingWebhookEvent.findOneAndUpdate = async (filter, update) => {
+    assert.deepEqual(filter, { provider: "cashfree", eventId: eventIdForPayload, status: "failed" });
+    assert.equal(update.$set.status, "processing");
+    event.status = "processing";
+    event.processingError = undefined;
+    return event;
+  };
+  cashfreeWebhookService.processCashfreeWebhook = async () => {
+    processCalls += 1;
+    if (processCalls === 1) {
+      throw Object.assign(new Error("temporary failure"), {
+        code: "CASHFREE_WEBHOOK_PROCESSING_FAILED",
+      });
+    }
+    return { type: "SUBSCRIPTION_STATUS_CHANGED", subscription };
+  };
+  const payload = webhookPayload();
+  const request = signedRequest(payload);
+  const eventIdForPayload = crypto.createHash("sha256").update(request.body).digest("hex");
+  const first = response();
+  const second = response();
+  const originalWarn = console.warn;
+  console.warn = () => {};
+  try {
+    let firstError;
+    await webhook(request, first, (error) => { firstError = error; });
+    assert.equal(firstError?.code, "CASHFREE_WEBHOOK_PROCESSING_FAILED");
+    assert.equal(event.status, "failed");
+    assert.equal(event.processingError, "CASHFREE_WEBHOOK_PROCESSING_FAILED");
+
+    let secondError;
+    await webhook(request, second, (error) => { secondError = error; });
+    assert.ifError(secondError);
+  } finally {
+    console.warn = originalWarn;
+  }
+  assert.equal(processCalls, 2);
+  assert.equal(event.status, "processed");
+  assert.equal(event.saveCount, 2);
+});
+
+test("concurrent duplicate Cashfree webhook deliveries allow only one processing attempt", async () => {
+  const event = createDocument({ _id: "event-concurrent-001", status: "processing", metadata: {} });
+  let createCalls = 0;
+  let processCalls = 0;
+  let releaseProcessing;
+  const processing = new Promise((resolve) => { releaseProcessing = resolve; });
+  BillingWebhookEvent.create = async () => {
+    createCalls += 1;
+    if (createCalls === 1) return event;
+    throw Object.assign(new Error("duplicate"), { code: 11000 });
+  };
+  cashfreeWebhookService.processCashfreeWebhook = async () => {
+    processCalls += 1;
+    await processing;
+    return { type: "SUBSCRIPTION_STATUS_CHANGED", subscription };
+  };
+  const request = signedRequest(webhookPayload());
+  const first = response();
+  const second = response();
+  let firstError;
+  let secondError;
+  const firstDelivery = webhook(request, first, (error) => { firstError = error; });
+  await new Promise((resolve) => setImmediate(resolve));
+  const secondDelivery = webhook(request, second, (error) => { secondError = error; });
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(processCalls, 1);
+  releaseProcessing();
+  await Promise.all([firstDelivery, secondDelivery]);
+  assert.ifError(firstError);
+  assert.ifError(secondError);
+  assert.equal(second.body.duplicate, true);
+  assert.equal(event.status, "processed");
 });
 
 test("invalid Cashfree webhook signature is rejected before processing and never logged", async () => {

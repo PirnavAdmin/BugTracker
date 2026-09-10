@@ -1,11 +1,10 @@
 const cashfreeConfig = {
-  environment: process.env.CASHFREE_ENV || "sandbox",
+  environment: String(process.env.CASHFREE_ENV || "sandbox").trim().toLowerCase(),
   appId: process.env.CASHFREE_APP_ID,
   secretKey: process.env.CASHFREE_SECRET_KEY,
 };
 
 const requiredVariables = [
-  ["CASHFREE_ENV", process.env.CASHFREE_ENV],
   ["CASHFREE_APP_ID", cashfreeConfig.appId],
   ["CASHFREE_SECRET_KEY", cashfreeConfig.secretKey],
 ];

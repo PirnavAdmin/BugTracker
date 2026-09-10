@@ -1,5 +1,6 @@
 const Payment = require("../models/Payment");
 const PlatformCompany = require("../models/PlatformCompany");
+const PlatformSubscription = require("../models/PlatformSubscription");
 const { recordPlatformAudit } = require("./platformAuditService");
 
 const getCashfreeService = () => require("./payment/cashfreeService");
@@ -53,14 +54,45 @@ const auditActionForStatus = (status) =>
     EXPIRED: "CASHFREE_SUBSCRIPTION_EXPIRED",
   })[status] || "CASHFREE_SUBSCRIPTION_UPDATED";
 
+const mapProviderCashfreeStatusToPlatform = (status = "") => {
+  const normalized = String(status || "").trim().toUpperCase();
+  return {
+    ACTIVE: "Active",
+    PENDING: "Trial",
+    FAILED: "Paused",
+    CANCELLED: "Cancelled",
+    EXPIRED: "Expired",
+    PAST_DUE: "Past Due",
+    PAUSED: "Suspended",
+  }[normalized] || "Trial";
+};
+
 const syncCashfreePlatformState = async (subscription, previousStatus) => {
   if (subscription?.provider !== BILLING_PROVIDERS.CASHFREE || !subscription.companyId) return;
+
+  const nextPlatformStatus = mapProviderCashfreeStatusToPlatform(subscription.status);
+
+  await PlatformSubscription.findOneAndUpdate(
+    { companyId: subscription.companyId },
+    {
+      $set: {
+        status: nextPlatformStatus,
+        planId: subscription.planId,
+        billingCycle: subscription.billingCycle === "annual" ? "Yearly" : "Monthly",
+        amount: subscription.amount,
+        startDate: subscription.startDate || new Date(),
+      },
+    },
+    { new: true }
+  ).catch(() => undefined);
+
   if (subscription.status === "ACTIVE") {
     await PlatformCompany.findOneAndUpdate(
       { _id: subscription.companyId, tenantId: subscription.tenantId },
       { $set: { planId: subscription.planId } }
     );
   }
+
   if (previousStatus !== subscription.status) {
     await recordPlatformAudit({
       action: auditActionForStatus(subscription.status),

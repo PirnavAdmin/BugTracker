@@ -79,6 +79,30 @@ const validateEmail = (email, fieldName, res, { required = true } = {}) => {
 
 const serializePlan = (planId) => getPlatformPlan(planId) || null;
 
+const mapProviderStatusToPlatformLabel = (status = "") => {
+  const normalized = String(status || "").trim().toUpperCase();
+  return {
+    TRIAL: PLATFORM_SUBSCRIPTION_STATUSES.TRIAL,
+    ACTIVE: PLATFORM_SUBSCRIPTION_STATUSES.ACTIVE,
+    PAST_DUE: PLATFORM_SUBSCRIPTION_STATUSES.PAST_DUE,
+    SUSPENDED: PLATFORM_SUBSCRIPTION_STATUSES.SUSPENDED,
+    CANCELLED: PLATFORM_SUBSCRIPTION_STATUSES.CANCELLED,
+    EXPIRED: PLATFORM_SUBSCRIPTION_STATUSES.EXPIRED,
+    PENDING: "Pending",
+    PAUSED: "Paused",
+    FAILED: "Failed",
+  }[normalized] || PLATFORM_SUBSCRIPTION_STATUSES.TRIAL;
+};
+
+const derivePlatformSubscriptionStatus = (subscription = null, providerSubscription = null) => {
+  if (providerSubscription?.provider === "cashfree") {
+    const normal = mapProviderStatusToPlatformLabel(providerSubscription.status);
+    if (normal !== PLATFORM_SUBSCRIPTION_STATUSES.TRIAL) return normal;
+    return String(subscription?.status || "").trim() || PLATFORM_SUBSCRIPTION_STATUSES.TRIAL;
+  }
+  return subscription?.status || PLATFORM_SUBSCRIPTION_STATUSES.TRIAL;
+};
+
 const buildUsageResource = (current, limit) => ({
   current,
   limit,
@@ -135,33 +159,40 @@ const serializeSubscription = (subscription) => {
   };
 };
 
-const serializeCompany = (company, subscription = null, usage = undefined) => ({
-  _id: company._id,
-  name: company.name,
-  email: company.email,
-  tenantId: normalizeTenantId(company.tenantId),
-  contactPerson: company.contactPerson,
-  contactEmail: company.contactEmail,
-  contactPhone: company.contactPhone,
-  planId: company.planId,
-  plan: serializePlan(company.planId),
-  status: company.status,
-  adminUserId: company.adminUserId?._id || company.adminUserId || null,
-  adminUser: company.adminUserId?._id
-    ? {
-        _id: company.adminUserId._id,
-        name: company.adminUserId.name,
-        email: company.adminUserId.email,
-        role: company.adminUserId.role,
-        tenantId: normalizeTenantId(company.adminUserId.tenantId),
-      }
-    : null,
-  subscription: serializeSubscription(subscription),
-  linked: Boolean(normalizeTenantId(company.tenantId)),
-  ...(usage !== undefined ? { usage } : {}),
-  createdAt: company.createdAt,
-  updatedAt: company.updatedAt,
-});
+const serializeCompany = (company, subscription = null, usage = undefined, providerSubscription = null) => {
+  const serializedSubscription = serializeSubscription(subscription);
+  if (providerSubscription?.provider === "cashfree") {
+    serializedSubscription.status = derivePlatformSubscriptionStatus(subscription, providerSubscription);
+  }
+
+  return {
+    _id: company._id,
+    name: company.name,
+    email: company.email,
+    tenantId: normalizeTenantId(company.tenantId),
+    contactPerson: company.contactPerson,
+    contactEmail: company.contactEmail,
+    contactPhone: company.contactPhone,
+    planId: company.planId,
+    plan: serializePlan(company.planId),
+    status: company.status,
+    adminUserId: company.adminUserId?._id || company.adminUserId || null,
+    adminUser: company.adminUserId?._id
+      ? {
+          _id: company.adminUserId._id,
+          name: company.adminUserId.name,
+          email: company.adminUserId.email,
+          role: company.adminUserId.role,
+          tenantId: normalizeTenantId(company.adminUserId.tenantId),
+        }
+      : null,
+    subscription: serializedSubscription,
+    linked: Boolean(normalizeTenantId(company.tenantId)),
+    ...(usage !== undefined ? { usage } : {}),
+    createdAt: company.createdAt,
+    updatedAt: company.updatedAt,
+  };
+};
 
 const generateNextTenantId = async () => {
   const companies = await PlatformCompany.find({})
@@ -190,6 +221,29 @@ const getLatestSubscriptionsForCompanies = async (companyIds = []) => {
   subscriptions.forEach((subscription) => {
     const key = String(subscription.companyId);
 
+    if (!byCompanyId.has(key)) {
+      byCompanyId.set(key, subscription);
+    }
+  });
+
+  return byCompanyId;
+};
+
+const getLatestProviderSubscriptionsForCompanies = async (companyIds = []) => {
+  if (!companyIds.length) {
+    return new Map();
+  }
+
+  const subscriptions = await ProviderSubscription.find({
+    companyId: { $in: companyIds },
+    provider: "cashfree",
+  })
+    .sort({ createdAt: -1 })
+    .lean();
+
+  const byCompanyId = new Map();
+  subscriptions.forEach((subscription) => {
+    const key = String(subscription.companyId);
     if (!byCompanyId.has(key)) {
       byCompanyId.set(key, subscription);
     }
@@ -250,13 +304,17 @@ const listCompanies = async (query = {}) => {
   const subscriptionsByCompany = await getLatestSubscriptionsForCompanies(
     companies.map((company) => company._id)
   );
+  const providerSubscriptionsByCompany = await getLatestProviderSubscriptionsForCompanies(
+    companies.map((company) => company._id)
+  );
 
   const serializedCompanies = await Promise.all(
     companies.map(async (company) =>
       serializeCompany(
         company,
         subscriptionsByCompany.get(String(company._id)),
-        await getCompanyUsage(company)
+        await getCompanyUsage(company),
+        providerSubscriptionsByCompany.get(String(company._id))
       )
     )
   );
@@ -334,11 +392,16 @@ const getCompanyById = async (id, res) => {
     throw new Error("Platform company not found");
   }
 
-  const subscription = await PlatformSubscription.findOne({ companyId: company._id })
-    .sort({ createdAt: -1 })
-    .lean();
+  const [subscription, providerSubscription] = await Promise.all([
+    PlatformSubscription.findOne({ companyId: company._id })
+      .sort({ createdAt: -1 })
+      .lean(),
+    ProviderSubscription.findOne({ companyId: company._id, provider: "cashfree" })
+      .sort({ createdAt: -1 })
+      .lean(),
+  ]);
 
-  return serializeCompany(company, subscription);
+  return serializeCompany(company, subscription, undefined, providerSubscription);
 };
 
 const updateCompany = async (id, payload = {}, res) => {
@@ -640,6 +703,7 @@ module.exports = {
   createCompanyAdminUser,
   createSubscription,
   deleteCompany,
+  derivePlatformSubscriptionStatus,
   getCompanyById,
   listCompanies,
   listPlans,
