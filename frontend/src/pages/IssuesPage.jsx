@@ -259,7 +259,6 @@ const IssuesPage = () => {
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [isBulkImportOpen, setIsBulkImportOpen] = useState(false);
   const [taskScope, setTaskScope] = useState(TASK_SCOPE_ALL);
-  const [page, setPage] = useState(1);
   const [toast, setToast] = useState(null);
   const deferredSearch = useDeferredValue(filters.search);
   const isAdminView = hasAdminPanelAccess(role);
@@ -272,22 +271,6 @@ const IssuesPage = () => {
   const canAssignIssue = canAssignIssues(role);
   const canCreateIssue = canCreateIssues(role);
   const canDeleteIssue = canDeleteIssues(role);
-
-  useEffect(() => {
-    setPage(1);
-  }, [
-    deferredSearch,
-    effectiveAssigneeId,
-    filters.dateFrom,
-    filters.dateTo,
-    filters.filter,
-    filters.priority,
-    filters.priorityGroup,
-    filters.projectId,
-    filters.status,
-    filters.statusGroup,
-    filters.teamId,
-  ]);
 
   const {
     data: projectsData = [],
@@ -430,7 +413,6 @@ const IssuesPage = () => {
   const {
     data: issuePageData,
     isLoading: isIssuesLoading,
-    isFetching: isIssuesFetching,
     error: issuesError,
   } = useQuery({
     queryKey: [
@@ -452,7 +434,7 @@ const IssuesPage = () => {
       filters.dateFrom,
       filters.dateTo,
       filters.filter,
-      page,
+      "TODO",
     ],
     queryFn: () =>
       fetchIssuesPage({
@@ -470,25 +452,88 @@ const IssuesPage = () => {
         dateTo: filters.dateTo,
         filter: filters.filter,
         search: deferredSearch,
-        page,
+        page: 1,
         limit: TASK_PAGE_SIZE,
+        workflowLane: ISSUE_STATUS.TODO,
         view: "list",
       }),
     enabled: Boolean(projects.length),
     placeholderData: keepPreviousData,
   });
-  const pagination = issuePageData?.pagination || {
-    page,
-    pageSize: TASK_PAGE_SIZE,
-    total: 0,
-    totalPages: 1,
-    hasPreviousPage: false,
-    hasNextPage: false,
+
+  const {
+    data: inProgressPageData,
+    isLoading: isInProgressLoading,
+    error: inProgressError,
+  } = useQuery({
+    queryKey: ["issues", "issues-page", "board-lane", "IN_PROGRESS", role, filters, effectiveAssigneeId, deferredSearch],
+    queryFn: () => fetchIssuesPage({
+      projectId: filters.projectId === ALL_PROJECTS_VALUE ? "" : filters.projectId,
+      teamId: filters.teamId,
+      assigneeId: effectiveAssigneeId,
+      type: ISSUE_TYPES.TASK,
+      excludeType: ISSUE_TYPES.BUG,
+      status: filters.status,
+      statusGroup: filters.statusGroup,
+      priority: filters.priority,
+      priorityGroup: filters.priorityGroup,
+      dateFrom: filters.dateFrom,
+      dateTo: filters.dateTo,
+      filter: filters.filter,
+      search: deferredSearch,
+      page: 1,
+      limit: TASK_PAGE_SIZE,
+      workflowLane: ISSUE_STATUS.IN_PROGRESS,
+      view: "list",
+    }),
+    enabled: Boolean(projects.length),
+    placeholderData: keepPreviousData,
+  });
+
+  const {
+    data: donePageData,
+    isLoading: isDoneLoading,
+    error: doneError,
+  } = useQuery({
+    queryKey: ["issues", "issues-page", "board-lane", "DONE", role, filters, effectiveAssigneeId, deferredSearch],
+    queryFn: () => fetchIssuesPage({
+      projectId: filters.projectId === ALL_PROJECTS_VALUE ? "" : filters.projectId,
+      teamId: filters.teamId,
+      assigneeId: effectiveAssigneeId,
+      type: ISSUE_TYPES.TASK,
+      excludeType: ISSUE_TYPES.BUG,
+      status: filters.status,
+      statusGroup: filters.statusGroup,
+      priority: filters.priority,
+      priorityGroup: filters.priorityGroup,
+      dateFrom: filters.dateFrom,
+      dateTo: filters.dateTo,
+      filter: filters.filter,
+      search: deferredSearch,
+      page: 1,
+      limit: TASK_PAGE_SIZE,
+      workflowLane: ISSUE_STATUS.DONE,
+      view: "list",
+    }),
+    enabled: Boolean(projects.length),
+    placeholderData: keepPreviousData,
+  });
+
+  const lanePagination = [issuePageData, inProgressPageData, donePageData].map(
+    (data) => data?.pagination || { total: 0 }
+  );
+  const pagination = {
+    total: lanePagination.reduce((total, lane) => total + lane.total, 0),
   };
-  const workflowCounts = issuePageData?.summary?.workflowCounts || {};
+  const workflowCounts = {
+    [ISSUE_STATUS.TODO]: lanePagination[0].total,
+    [ISSUE_STATUS.IN_PROGRESS]: lanePagination[1].total,
+    [ISSUE_STATUS.DONE]: lanePagination[2].total,
+  };
   const issues = useMemo(
-    () => (Array.isArray(issuePageData?.issues) ? issuePageData.issues : []),
-    [issuePageData?.issues]
+    () => [issuePageData, inProgressPageData, donePageData]
+      .flatMap((data) => (Array.isArray(data?.issues) ? data.issues : [])),
+    [donePageData, inProgressPageData, issuePageData]
   );
 
   const filteredIssues = useMemo(() => sortIssues(issues, "newest"), [issues]);
@@ -779,7 +824,7 @@ const IssuesPage = () => {
     setSearchParams(nextParams, { replace: true });
   };
 
-  const error = projectsError || issuesError;
+  const error = projectsError || issuesError || inProgressError || doneError;
   const composeType = isValidWorkItemType(searchParams.get("type"))
     ? searchParams.get("type")
     : "Task";
@@ -846,7 +891,7 @@ const IssuesPage = () => {
         onOpenBulkImport={() => setIsBulkImportOpen(true)}
       />
 
-      {isProjectsLoading || isIssuesLoading ? (
+      {isProjectsLoading || isIssuesLoading || isInProgressLoading || isDoneLoading ? (
         <IssueBoardSkeleton />
       ) : (
         <IssueBoard
@@ -873,32 +918,6 @@ const IssuesPage = () => {
           }
         />
       )}
-
-      {pagination.totalPages > 1 ? (
-        <div className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white/90 px-4 py-3 text-sm text-slate-600 shadow-sm sm:flex-row sm:items-center sm:justify-between">
-          <span>
-            Showing page {pagination.page} of {pagination.totalPages} ({pagination.total} tasks)
-          </span>
-          <div className="flex items-center gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              disabled={!pagination.hasPreviousPage || isIssuesFetching}
-              onClick={() => setPage((current) => Math.max(1, current - 1))}
-            >
-              Previous
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              disabled={!pagination.hasNextPage || isIssuesFetching}
-              onClick={() => setPage((current) => Math.min(pagination.totalPages, current + 1))}
-            >
-              Next
-            </Button>
-          </div>
-        </div>
-      ) : null}
 
       <IssueCreateDialog
         open={canCreateIssue && isCreateDialogOpen}
