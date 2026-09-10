@@ -18,6 +18,9 @@ import {
 } from "@/lib/api";
 import { useAuth } from "@/hooks/use-auth";
 import {
+  resolveIssueAssigneeIds,
+  resolveIssueAssignees,
+  resolveIssueProjectId,
   ISSUE_TYPES,
   isIssueOverdue,
 } from "@/lib/issues";
@@ -62,6 +65,11 @@ const TasksPage = () => {
   const [searchParams] = useSearchParams();
   const [selectedIssue, setSelectedIssue] = useState(null);
   const [taskScope, setTaskScope] = useState("mine");
+  const [progressFilters, setProgressFilters] = useState({
+    projectId: "all",
+    assigneeId: "all",
+    status: "all",
+  });
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [toast, setToast] = useState(null);
   const canCoordinateTasks = hasAdminPanelAccess(role) || hasTaskStoryLeadAccess(role);
@@ -166,12 +174,70 @@ const TasksPage = () => {
     ]);
   };
 
+  const progressProjectOptions = useMemo(
+    () =>
+      projects.filter((project) =>
+        activeTaskIssues.some(
+          (issue) => resolveIssueProjectId(issue) === String(project._id || project.id || "")
+        )
+      ),
+    [activeTaskIssues, projects]
+  );
+
+  const progressIssues = useMemo(() => {
+    if (!isTeamProgressView) {
+      return activeTaskIssues;
+    }
+
+    return activeTaskIssues.filter((issue) => {
+      const isInSelectedProject =
+        progressFilters.projectId === "all" ||
+        resolveIssueProjectId(issue) === progressFilters.projectId;
+      const isAssignedToSelectedPerson =
+        progressFilters.assigneeId === "all" ||
+        resolveIssueAssigneeIds(issue).includes(progressFilters.assigneeId);
+
+      return isInSelectedProject && isAssignedToSelectedPerson;
+    });
+  }, [activeTaskIssues, isTeamProgressView, progressFilters.assigneeId, progressFilters.projectId]);
+
+  const progressAssigneeOptions = useMemo(() => {
+    const people = new Map();
+
+    progressIssues.forEach((issue) => {
+      resolveIssueAssignees(issue).forEach((assignee) => {
+        const id = String(assignee?._id || assignee?.id || "");
+
+        if (id) {
+          people.set(id, assignee);
+        }
+      });
+    });
+
+    return [...people.values()].sort((left, right) =>
+      String(left?.name || "").localeCompare(String(right?.name || ""))
+    );
+  }, [progressIssues]);
+
+  const progressStatusCounts = useMemo(
+    () =>
+      TASK_BOARD_STATUS && Object.values(TASK_BOARD_STATUS).reduce(
+        (counts, status) => ({
+          ...counts,
+          [status]: progressIssues.filter((issue) => getTaskBoardStatus(issue) === status).length,
+        }),
+        {}
+      ),
+    [progressIssues]
+  );
+
   const visibleTaskIssues = useMemo(
     () => {
+      const selectedStatus = isTeamProgressView ? progressFilters.status : statusFilter;
       const statusFiltered =
-        statusFilter === "all"
-          ? activeTaskIssues
-          : activeTaskIssues.filter((issue) => getTaskBoardStatus(issue) === statusFilter);
+        selectedStatus === "all"
+          ? progressIssues
+          : progressIssues.filter((issue) => getTaskBoardStatus(issue) === selectedStatus);
 
       if (taskFilter === "overdue") {
         return statusFiltered.filter((issue) => isIssueOverdue(issue));
@@ -179,8 +245,16 @@ const TasksPage = () => {
 
       return statusFiltered;
     },
-    [activeTaskIssues, statusFilter, taskFilter]
+    [isTeamProgressView, progressFilters.status, progressIssues, statusFilter, taskFilter]
   );
+
+  const updateProgressFilter = (field, value) => {
+    setProgressFilters((current) => ({
+      ...current,
+      [field]: value,
+      ...(field === "projectId" ? { assigneeId: "all" } : {}),
+    }));
+  };
   const isTaskStatusOnlyPayload = (payload = {}) => {
     const keys = Object.keys(payload || {});
 
@@ -307,6 +381,77 @@ const TasksPage = () => {
             </div>
           </CardHeader>
           <CardContent className="p-4 sm:p-5">
+            {isTeamProgressView ? (
+              <div className="mb-5 space-y-4 rounded-[20px] border border-slate-200 bg-slate-50/75 p-4">
+                <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <label className="space-y-1.5">
+                      <span className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                        Project
+                      </span>
+                      <select
+                        className="field-select min-w-[210px]"
+                        value={progressFilters.projectId}
+                        onChange={(event) => updateProgressFilter("projectId", event.target.value)}
+                      >
+                        <option value="all">All my projects</option>
+                        {progressProjectOptions.map((project) => (
+                          <option key={project._id || project.id} value={project._id || project.id}>
+                            {project.name}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="space-y-1.5">
+                      <span className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                        Individual
+                      </span>
+                      <select
+                        className="field-select min-w-[210px]"
+                        value={progressFilters.assigneeId}
+                        onChange={(event) => updateProgressFilter("assigneeId", event.target.value)}
+                      >
+                        <option value="all">Everyone</option>
+                        {progressAssigneeOptions.map((person) => (
+                          <option key={person._id || person.id} value={person._id || person.id}>
+                            {person.name || person.email || "Unnamed user"}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  </div>
+                  <Button
+                    className="self-start lg:self-auto"
+                    variant="ghost"
+                    size="sm"
+                    type="button"
+                    onClick={() => setProgressFilters({ projectId: "all", assigneeId: "all", status: "all" })}
+                  >
+                    Clear filters
+                  </Button>
+                </div>
+
+                <div className="grid gap-3 sm:grid-cols-3">
+                  {[
+                    { key: TASK_BOARD_STATUS.OPEN, label: "To do", className: "border-orange-200 bg-orange-50 text-orange-800" },
+                    { key: TASK_BOARD_STATUS.IN_PROGRESS, label: "In progress", className: "border-violet-200 bg-violet-50 text-violet-800" },
+                    { key: TASK_BOARD_STATUS.DONE, label: "Done", className: "border-emerald-200 bg-emerald-50 text-emerald-800" },
+                  ].map((status) => (
+                    <button
+                      key={status.key}
+                      className={`rounded-2xl border p-4 text-left transition hover:-translate-y-0.5 hover:shadow-sm ${status.className} ${progressFilters.status === status.key ? "ring-2 ring-blue-500/30" : ""}`}
+                      type="button"
+                      onClick={() => updateProgressFilter("status", progressFilters.status === status.key ? "all" : status.key)}
+                    >
+                      <span className="text-sm font-semibold">{status.label}</span>
+                      <span className="mt-2 block text-3xl font-bold leading-none">
+                        {progressStatusCounts[status.key] || 0}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ) : null}
             {activeTaskIssues.length ? (
               <TaskKanbanBoard
                 issues={visibleTaskIssues}

@@ -1183,7 +1183,7 @@ const addAndCondition = (query, condition) => {
 const buildHighPriorityCondition = buildHighPriorityIssueCondition;
 
 const isTeamProgressRequest = (req) =>
-  (hasAdminAccess(req.user?.role) || req.user?.role === ROLE_TEAM_LEAD) &&
+  (hasAdminAccess(req.user?.role) || hasTaskStoryLeadAccess(req.user?.role)) &&
   ["true", "1"].includes(String(req.query.teamProgress || "").trim().toLowerCase());
 
 const getAccessibleProjectIds = async (user) => {

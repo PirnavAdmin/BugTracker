@@ -11,7 +11,7 @@ export const TASK_BOARD_STATUS = Object.freeze({
 export const TASK_BOARD_COLUMNS = [
   {
     key: TASK_BOARD_STATUS.OPEN,
-    label: "Open",
+    label: "To do",
     helper: "Ready to start",
     countLabel: "open",
     accentClassName: "bg-orange-500",
