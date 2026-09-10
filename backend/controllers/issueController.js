@@ -524,6 +524,92 @@ const buildTaskImportDependentDropdownFormula = ({
 }) =>
   `INDIRECT(IF(${sourceCell}="", "${TASK_IMPORT_LOOKUP_RANGE_NAMES.empty}", IFERROR(VLOOKUP(${sourceCell}, '${mapSheetName}'!$A$1:$B$${mapRowCount}, 2, FALSE), "${TASK_IMPORT_LOOKUP_RANGE_NAMES.empty}")))`;
 
+const buildTaskImportSampleRows = ({
+  projectNames = [],
+  teamsByProjectName = new Map(),
+  assigneesByTeamName = new Map(),
+  epicsByProjectName = new Map(),
+  storiesByProjectName = new Map(),
+}) => {
+  const sampleRows = [];
+
+  projectNames.forEach((projectName) => {
+    const projectTeams = teamsByProjectName.get(projectName) || [];
+    const projectEpics = epicsByProjectName.get(projectName) || [];
+    const projectStories = storiesByProjectName.get(projectName) || [];
+    // An empty value preserves the optional Epic field for projects without active epics.
+    const epicValues = projectEpics.length ? projectEpics : [""];
+
+    if (!projectTeams.length) {
+      epicValues.forEach((epic, epicIndex) => {
+        sampleRows.push({
+          title: "",
+          project: projectName,
+          description: "",
+          team: "",
+          assignee: "",
+          dueDate: "",
+          epic,
+          priority: ISSUE_PRIORITY_VALUES[epicIndex % Math.max(ISSUE_PRIORITY_VALUES.length, 1)] || "",
+          parentStory: projectStories[epicIndex % Math.max(projectStories.length, 1)] || "",
+        });
+      });
+      return;
+    }
+
+    projectTeams.forEach((teamName, teamIndex) => {
+      const assignees = normalizeTaskImportDropdownValues(
+        assigneesByTeamName.get(teamName) || []
+      );
+
+      epicValues.forEach((epic, epicIndex) => {
+        const rowOffset = teamIndex + epicIndex;
+
+        if (!assignees.length) {
+          sampleRows.push({
+            title: "",
+            project: projectName,
+            description: "",
+            team: teamName,
+            assignee: "",
+            dueDate: "",
+            epic,
+            priority:
+              ISSUE_PRIORITY_VALUES[rowOffset % Math.max(ISSUE_PRIORITY_VALUES.length, 1)] || "",
+            parentStory:
+              projectStories[rowOffset % Math.max(projectStories.length, 1)] || "",
+          });
+          return;
+        }
+
+        assignees.forEach((assignee, assigneeIndex) => {
+          const sampleIndex = rowOffset + assigneeIndex;
+
+          sampleRows.push({
+            title: "",
+            project: projectName,
+            description: "",
+            team: teamName,
+            assignee,
+            dueDate: "",
+            epic,
+            priority:
+              ISSUE_PRIORITY_VALUES[
+                sampleIndex % Math.max(ISSUE_PRIORITY_VALUES.length, 1)
+              ] || "",
+            parentStory:
+              projectStories[
+                sampleIndex % Math.max(projectStories.length, 1)
+              ] || "",
+          });
+        });
+      });
+    });
+  });
+
+  return sampleRows;
+};
+
 const getTaskImportTemplateOptions = async ({ workspaceId, user }) => {
   const normalizedWorkspaceId = normalizeWorkspaceId(workspaceId);
   const projects = await Project.find(withTenantFilter({
@@ -748,74 +834,12 @@ const getTaskImportTemplateOptions = async ({ workspaceId, user }) => {
       .map(([projectName]) => projectName)
   );
 
-  const sampleRows = [];
-  projectNames.forEach((projectName) => {
-    const projectTeams = teamsByProjectName.get(projectName) || [];
-    const projectEpics = epicsByProjectName.get(projectName) || [];
-    const projectStories = storiesByProjectName.get(projectName) || [];
-
-    if (!projectTeams.length) {
-      sampleRows.push({
-        title: "",
-        project: projectName,
-        description: "",
-        team: "",
-        assignee: "",
-        dueDate: "",
-        epic: projectEpics[0] || "",
-        priority: ISSUE_PRIORITY_VALUES[0] || "",
-        parentStory: projectStories[0] || "",
-      });
-      return;
-    }
-
-    projectTeams.forEach((teamName, teamIndex) => {
-      const assignees = normalizeTaskImportDropdownValues(
-        assigneesByTeamName.get(teamName) || []
-      );
-      const sampleEpic = projectEpics[teamIndex % Math.max(projectEpics.length, 1)] || "";
-      const samplePriority =
-        ISSUE_PRIORITY_VALUES[teamIndex % Math.max(ISSUE_PRIORITY_VALUES.length, 1)] || "";
-      const sampleStory = projectStories[teamIndex % Math.max(projectStories.length, 1)] || "";
-
-      if (!assignees.length) {
-        sampleRows.push({
-          title: "",
-          project: projectName,
-          description: "",
-          team: teamName,
-          assignee: "",
-          dueDate: "",
-          epic: sampleEpic,
-          priority: samplePriority,
-          parentStory: sampleStory,
-        });
-        return;
-      }
-
-      assignees.forEach((assignee, assigneeIndex) => {
-        sampleRows.push({
-          title: "",
-          project: projectName,
-          description: "",
-          team: teamName,
-          assignee,
-          dueDate: "",
-          epic:
-            projectEpics[
-              (teamIndex + assigneeIndex) % Math.max(projectEpics.length, 1)
-            ] || "",
-          priority:
-            ISSUE_PRIORITY_VALUES[
-              (teamIndex + assigneeIndex) % Math.max(ISSUE_PRIORITY_VALUES.length, 1)
-            ] || "",
-          parentStory:
-            projectStories[
-              (teamIndex + assigneeIndex) % Math.max(projectStories.length, 1)
-            ] || "",
-        });
-      });
-    });
+  const sampleRows = buildTaskImportSampleRows({
+    projectNames,
+    teamsByProjectName,
+    assigneesByTeamName,
+    epicsByProjectName,
+    storiesByProjectName,
   });
 
   while (sampleRows.length < TASK_IMPORT_TEMPLATE_ROW_COUNT) {
@@ -6983,6 +7007,7 @@ const markAllNotificationsRead = asyncHandler(async (req, res) => {
 });
 
 module.exports = {
+  buildTaskImportSampleRows,
   getIssues,
   getIssueById,
   getStories,
