@@ -6,6 +6,7 @@ import {
   deleteIssue,
   fetchIssue,
   fetchIssues,
+  fetchIssuesPage,
   fetchProjects,
   updateIssue,
   uploadIssueAttachment,
@@ -54,6 +55,7 @@ const ALL_PROJECTS_VALUE = "ALL";
 const HIGH_PRIORITY_QUERY_VALUE = "high";
 const TASK_SCOPE_ALL = "all";
 const TASK_SCOPE_MINE = "mine";
+const TASK_PAGE_SIZE = 50;
 
 const normalizeStatusFilterValue = (value) => {
   if (!value) {
@@ -257,6 +259,7 @@ const IssuesPage = () => {
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [isBulkImportOpen, setIsBulkImportOpen] = useState(false);
   const [taskScope, setTaskScope] = useState(TASK_SCOPE_ALL);
+  const [page, setPage] = useState(1);
   const [toast, setToast] = useState(null);
   const deferredSearch = useDeferredValue(filters.search);
   const isAdminView = hasAdminPanelAccess(role);
@@ -269,6 +272,22 @@ const IssuesPage = () => {
   const canAssignIssue = canAssignIssues(role);
   const canCreateIssue = canCreateIssues(role);
   const canDeleteIssue = canDeleteIssues(role);
+
+  useEffect(() => {
+    setPage(1);
+  }, [
+    deferredSearch,
+    effectiveAssigneeId,
+    filters.dateFrom,
+    filters.dateTo,
+    filters.filter,
+    filters.priority,
+    filters.priorityGroup,
+    filters.projectId,
+    filters.status,
+    filters.statusGroup,
+    filters.teamId,
+  ]);
 
   const {
     data: projectsData = [],
@@ -409,8 +428,9 @@ const IssuesPage = () => {
   }, [availableAssignees, filters.assigneeId]);
 
   const {
-    data: issuesData = [],
+    data: issuePageData,
     isLoading: isIssuesLoading,
+    isFetching: isIssuesFetching,
     error: issuesError,
   } = useQuery({
     queryKey: [
@@ -432,9 +452,10 @@ const IssuesPage = () => {
       filters.dateFrom,
       filters.dateTo,
       filters.filter,
+      page,
     ],
     queryFn: () =>
-      fetchIssues({
+      fetchIssuesPage({
         projectId:
           filters.projectId === ALL_PROJECTS_VALUE ? "" : filters.projectId,
         teamId: filters.teamId,
@@ -449,14 +470,25 @@ const IssuesPage = () => {
         dateTo: filters.dateTo,
         filter: filters.filter,
         search: deferredSearch,
+        page,
+        limit: TASK_PAGE_SIZE,
         view: "list",
       }),
     enabled: Boolean(projects.length),
     placeholderData: keepPreviousData,
   });
+  const pagination = issuePageData?.pagination || {
+    page,
+    pageSize: TASK_PAGE_SIZE,
+    total: 0,
+    totalPages: 1,
+    hasPreviousPage: false,
+    hasNextPage: false,
+  };
+  const workflowCounts = issuePageData?.summary?.workflowCounts || {};
   const issues = useMemo(
-    () => (Array.isArray(issuesData) ? issuesData : []),
-    [issuesData]
+    () => (Array.isArray(issuePageData?.issues) ? issuePageData.issues : []),
+    [issuePageData?.issues]
   );
 
   const filteredIssues = useMemo(() => sortIssues(issues, "newest"), [issues]);
@@ -792,7 +824,7 @@ const IssuesPage = () => {
         projects={projects}
         teams={availableTeams}
         assignees={availableAssignees}
-        visibleIssueCount={issues.length}
+        visibleIssueCount={pagination.total}
         activeStatusLabel={activeStatusLabel}
         selectedProject={selectedProject}
         taskScope={taskScope}
@@ -819,6 +851,7 @@ const IssuesPage = () => {
       ) : (
         <IssueBoard
           issues={filteredIssues}
+          columnCounts={workflowCounts}
           visibleColumnKeys={visibleBoardColumnKeys}
           updatingId={updateIssueMutation.isPending ? updateIssueMutation.variables?.id : ""}
           canEditIssue={isAdminView}
@@ -840,6 +873,32 @@ const IssuesPage = () => {
           }
         />
       )}
+
+      {pagination.totalPages > 1 ? (
+        <div className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white/90 px-4 py-3 text-sm text-slate-600 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+          <span>
+            Showing page {pagination.page} of {pagination.totalPages} ({pagination.total} tasks)
+          </span>
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              disabled={!pagination.hasPreviousPage || isIssuesFetching}
+              onClick={() => setPage((current) => Math.max(1, current - 1))}
+            >
+              Previous
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={!pagination.hasNextPage || isIssuesFetching}
+              onClick={() => setPage((current) => Math.min(pagination.totalPages, current + 1))}
+            >
+              Next
+            </Button>
+          </div>
+        </div>
+      ) : null}
 
       <IssueCreateDialog
         open={canCreateIssue && isCreateDialogOpen}

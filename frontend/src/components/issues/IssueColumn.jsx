@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 const IssueColumn = ({
   column,
   issues = [],
+  issueCount,
   updatingId = "",
   canEditIssue = false,
   canChangeStatus = false,
@@ -48,7 +49,7 @@ const IssueColumn = ({
         </div>
         <p className="mt-1 text-xs text-slate-500">{column.helper}</p>
       </div>
-      <Badge variant={getIssueStatusVariant(column.key)}>{issues.length}</Badge>
+      <Badge variant={getIssueStatusVariant(column.key)}>{issueCount ?? issues.length}</Badge>
     </div>
 
     <div className="space-y-2">

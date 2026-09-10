@@ -28,6 +28,7 @@ const BOARD_COLUMNS = [
 
 const IssueBoard = ({
   issues = [],
+  columnCounts = {},
   visibleColumnKeys = [],
   updatingId = "",
   canEditIssue = false,
@@ -99,9 +100,10 @@ const IssueBoard = ({
         <div className={boardGridClassName}>
           {columns.map((column) => (
             <IssueColumn
-              key={column.key}
-              column={column}
-              issues={column.items}
+            key={column.key}
+            column={column}
+            issues={column.items}
+            issueCount={columnCounts[column.key] ?? column.items.length}
               updatingId={updatingId}
               canEditIssue={canEditIssue}
               canChangeStatus={canChangeStatus}

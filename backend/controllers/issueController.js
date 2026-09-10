@@ -4029,10 +4029,11 @@ const getIssues = asyncHandler(async (req, res) => {
     issueListQuery = issueListQuery.lean();
   }
 
-  const [issues, nonBugFilteredTotal, summary] = await Promise.all([
+  const [issues, nonBugFilteredTotal, summary, workflowCounts] = await Promise.all([
     applyListOptions(issueListQuery, req),
     shouldPaginate && !isBugListQuery ? Issue.countDocuments(query) : Promise.resolve(0),
     shouldPaginate && isBugListQuery ? getBugListSummary(query) : Promise.resolve(null),
+    shouldPaginate && !isBugListQuery ? getTaskWorkflowSummary(query) : Promise.resolve(null),
   ]);
   const filteredTotal = isBugListQuery ? summary?.total || 0 : nonBugFilteredTotal;
 
@@ -4064,6 +4065,7 @@ const getIssues = asyncHandler(async (req, res) => {
       },
       summary: summary || {
         total: filteredTotal,
+        ...(workflowCounts ? { workflowCounts } : {}),
       },
     });
     return;
@@ -4198,6 +4200,32 @@ const getIssueStats = asyncHandler(async (req, res) => {
 
   res.status(200).json(stats);
 });
+
+const getTaskWorkflowSummary = async (query = {}) => {
+  const statusRows = await Issue.aggregate([
+    { $match: query },
+    { $group: { _id: "$status", count: { $sum: 1 } } },
+  ]);
+  const workflowCounts = {
+    [ISSUE_STATUS.TODO]: 0,
+    [ISSUE_STATUS.IN_PROGRESS]: 0,
+    [ISSUE_STATUS.DONE]: 0,
+  };
+
+  statusRows.forEach(({ _id: status, count }) => {
+    const normalizedStatus = normalizeIssueStatus(status, ISSUE_STATUS.TODO);
+    const lane =
+      [ISSUE_STATUS.DONE, ISSUE_STATUS.CLOSED, "RESOLVED", "REJECTED", "DEFERRED"].includes(normalizedStatus)
+        ? ISSUE_STATUS.DONE
+        : [ISSUE_STATUS.TODO, "NEW"].includes(normalizedStatus)
+          ? ISSUE_STATUS.TODO
+          : ISSUE_STATUS.IN_PROGRESS;
+
+    workflowCounts[lane] += Number(count) || 0;
+  });
+
+  return workflowCounts;
+};
 
 const getMyReportedBugs = asyncHandler(async (req, res) => {
   const issues = await populateIssueQuery(
