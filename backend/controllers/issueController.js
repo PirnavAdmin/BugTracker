@@ -550,7 +550,7 @@ const buildTaskImportSampleRows = ({
           assignee: "",
           dueDate: "",
           epic,
-          priority: ISSUE_PRIORITY_VALUES[epicIndex % Math.max(ISSUE_PRIORITY_VALUES.length, 1)] || "",
+          priority: "",
           parentStory: projectStories[epicIndex % Math.max(projectStories.length, 1)] || "",
         });
       });
@@ -574,8 +574,7 @@ const buildTaskImportSampleRows = ({
             assignee: "",
             dueDate: "",
             epic,
-            priority:
-              ISSUE_PRIORITY_VALUES[rowOffset % Math.max(ISSUE_PRIORITY_VALUES.length, 1)] || "",
+            priority: "",
             parentStory:
               projectStories[rowOffset % Math.max(projectStories.length, 1)] || "",
           });
@@ -593,10 +592,7 @@ const buildTaskImportSampleRows = ({
             assignee,
             dueDate: "",
             epic,
-            priority:
-              ISSUE_PRIORITY_VALUES[
-                sampleIndex % Math.max(ISSUE_PRIORITY_VALUES.length, 1)
-              ] || "",
+            priority: "",
             parentStory:
               projectStories[
                 sampleIndex % Math.max(projectStories.length, 1)

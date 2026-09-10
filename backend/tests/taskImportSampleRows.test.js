@@ -20,6 +20,7 @@ test("task import samples repeat every team member for every active epic", () =>
     rows.filter((row) => row.epic === "Mobile").map((row) => row.assignee).sort(),
     ["Alex", "Bina"]
   );
+  assert.deepEqual(rows.map((row) => row.priority), ["", "", "", ""]);
 });
 
 test("task import samples keep a blank optional epic when no active epics exist", () => {
