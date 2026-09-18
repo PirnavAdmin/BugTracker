@@ -2141,8 +2141,8 @@ export const CallProvider = ({ children }) => {
     <CallContext.Provider value={value}>
       {children}
       {incomingCall ? (
-        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/45 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-sm rounded-[28px] border border-white/70 bg-white p-6 text-center shadow-2xl">
+        <div className="fixed inset-0 z-[80] flex items-center justify-center overflow-y-auto bg-slate-950/45 p-2 backdrop-blur-sm sm:p-4">
+          <div className="my-auto w-full max-w-sm max-h-[calc(var(--app-viewport-height)-1rem)] overflow-y-auto rounded-[28px] border border-white/70 bg-white p-4 text-center shadow-2xl sm:max-h-[calc(var(--app-viewport-height)-2rem)] sm:p-6">
             <UserAvatar
               user={incomingCall.caller}
               name={incomingCall.caller?.name || incomingCall.channelName}
@@ -2177,10 +2177,10 @@ export const CallProvider = ({ children }) => {
         </div>
       ) : null}
       {activeCall && !isMinimized ? (
-        <div className="fixed inset-0 z-[75] flex items-center justify-center bg-slate-950/88 p-3 text-white backdrop-blur-sm">
+        <div className="fixed inset-0 z-[75] flex items-center justify-center bg-slate-950/88 p-2 text-white backdrop-blur-sm sm:p-3">
           <div
             ref={callFrameRef}
-            className="relative flex h-full max-h-[820px] w-full max-w-6xl flex-col overflow-hidden rounded-[28px] border border-white/12 bg-slate-950 shadow-2xl [&:fullscreen]:max-h-none [&:fullscreen]:max-w-none [&:fullscreen]:rounded-none [&:fullscreen]:border-0"
+            className="relative flex h-[calc(var(--app-viewport-height)-1rem)] max-h-[820px] w-full max-w-6xl flex-col overflow-hidden rounded-[22px] border border-white/12 bg-slate-950 shadow-2xl sm:h-[calc(var(--app-viewport-height)-1.5rem)] sm:rounded-[28px] [&:fullscreen]:h-full [&:fullscreen]:max-h-none [&:fullscreen]:max-w-none [&:fullscreen]:rounded-none [&:fullscreen]:border-0"
           >
             <div className="flex shrink-0 items-center justify-between gap-3 border-b border-white/10 px-4 py-3 sm:px-5">
               <div className="min-w-0">
@@ -2480,4 +2480,3 @@ export const useCall = () => {
 
   return context;
 };
-

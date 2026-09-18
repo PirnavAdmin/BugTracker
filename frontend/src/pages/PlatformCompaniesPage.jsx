@@ -256,8 +256,8 @@ const PlatformCompaniesPage = () => {
         </section>
 
         {showForm ? (
-          <div className="fixed inset-0 z-50 grid place-items-center bg-slate-950/40 px-4 py-8">
-            <form className="w-full max-w-2xl rounded-lg bg-white p-5 shadow-xl" onSubmit={submitCompany}>
+          <div className="fixed inset-0 z-50 grid place-items-center overflow-y-auto bg-slate-950/40 p-2 sm:p-4">
+            <form className="my-auto w-full max-w-2xl max-h-[calc(var(--app-viewport-height)-1rem)] overflow-y-auto rounded-lg bg-white p-4 shadow-xl sm:max-h-[calc(var(--app-viewport-height)-2rem)] sm:p-5" onSubmit={submitCompany}>
               <div className="flex items-center justify-between gap-3">
                 <h2 className="text-lg font-bold tracking-normal">Add Company</h2>
                 <button className="rounded-lg p-2 text-slate-500 hover:bg-slate-100" type="button" onClick={() => setShowForm(false)}>

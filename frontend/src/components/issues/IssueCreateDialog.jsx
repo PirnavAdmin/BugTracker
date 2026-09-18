@@ -1280,8 +1280,8 @@ const IssueCreateDialog = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-[calc(100vw-2rem)] max-w-[1280px] gap-0 overflow-visible border border-slate-200/80 bg-white p-0 shadow-[0_36px_90px_-50px_rgba(15,23,42,0.35)]">
-        <div className="overflow-visible">
+      <DialogContent className="grid w-[calc(100vw-1rem)] max-w-[1280px] max-h-[calc(var(--app-viewport-height)-1rem)] grid-rows-[minmax(0,1fr)] gap-0 overflow-hidden rounded-[24px] border border-slate-200/80 bg-white p-0 shadow-[0_36px_90px_-50px_rgba(15,23,42,0.35)] sm:w-[calc(100vw-2rem)] sm:max-h-[calc(var(--app-viewport-height)-2rem)] sm:rounded-[32px]">
+        <div className="min-h-0 overflow-y-auto overscroll-contain">
           <DialogHeader className="sticky top-0 z-20 border-b border-slate-200/80 bg-white px-5 py-2.5 sm:px-6">
             <div className="flex items-center justify-between gap-4 pr-12">
               <DialogTitle className="text-xl tracking-tight text-slate-950">

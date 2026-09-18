@@ -3725,7 +3725,7 @@ const ProjectsPage = () => {
       <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
         <DialogContent
           className={projectDialogContentClass(
-            "grid max-h-[calc(100svh-2rem)] w-[96vw] max-w-[1280px] grid-rows-[auto_minmax(0,1fr)] rounded-[30px] !top-4 sm:!top-4 sm:max-h-[calc(100vh-2rem)]"
+            "grid max-h-[calc(var(--app-viewport-height)-2rem)] w-[calc(100vw-1rem)] max-w-[1280px] grid-rows-[auto_minmax(0,1fr)] rounded-[24px] !top-2 sm:!top-4 sm:w-[96vw] sm:rounded-[30px]"
           )}
         >
           <DialogHeader
@@ -3772,7 +3772,7 @@ const ProjectsPage = () => {
       <Dialog open={isCreateTeamDialogOpen} onOpenChange={setIsCreateTeamDialogOpen}>
         <DialogContent
           className={projectDialogContentClass(
-            "grid max-h-[calc(100svh-2rem)] w-[96vw] max-w-[1280px] grid-rows-[auto_minmax(0,1fr)] rounded-[30px] !top-4 sm:!top-4 sm:max-h-[calc(100vh-2rem)]"
+            "grid max-h-[calc(var(--app-viewport-height)-2rem)] w-[calc(100vw-1rem)] max-w-[1280px] grid-rows-[auto_minmax(0,1fr)] rounded-[24px] !top-2 sm:!top-4 sm:w-[96vw] sm:rounded-[30px]"
           )}
         >
           <DialogHeader
@@ -3789,7 +3789,7 @@ const ProjectsPage = () => {
             </DialogDescription>
           </DialogHeader>
 
-          <div className={projectDialogBodyClass("overflow-visible px-6 py-5 sm:px-7")}>
+          <div className={projectDialogBodyClass("px-4 py-4 sm:px-6 sm:py-5 sm:px-7")}>
             {workspaceUsersErrorMessage && !isWorkspaceUsersLoading ? (
               <div className="mb-4 rounded-[20px] border border-rose-200 bg-rose-50/80 px-4 py-3 text-sm text-rose-700">
                 {workspaceUsersErrorMessage}

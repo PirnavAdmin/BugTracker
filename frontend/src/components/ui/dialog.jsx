@@ -26,7 +26,7 @@ const DialogContent = React.forwardRef(({ className, children, overlayClassName,
     <DialogPrimitive.Content
       ref={ref}
       className={cn(
-        "fixed left-[50%] top-[50%] z-[60] grid w-[calc(100%-2rem)] max-w-4xl translate-x-[-50%] translate-y-[-50%] gap-4 rounded-[32px] border border-gray-200 bg-white p-6 shadow-xl duration-200 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[state=closed]:slide-out-to-top-2 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95 data-[state=open]:slide-in-from-top-2 sm:p-8",
+        "fixed left-[50%] top-[50%] z-[60] grid w-[calc(100vw-1rem)] max-w-4xl max-h-[calc(var(--app-viewport-height)-1rem)] translate-x-[-50%] translate-y-[-50%] gap-4 overflow-x-hidden overflow-y-auto rounded-[24px] border border-gray-200 bg-white p-4 shadow-xl duration-200 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[state=closed]:slide-out-to-top-2 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95 data-[state=open]:slide-in-from-top-2 sm:w-[calc(100vw-2rem)] sm:max-h-[calc(var(--app-viewport-height)-2rem)] sm:rounded-[32px] sm:p-8",
         className
       )}
       {...props}

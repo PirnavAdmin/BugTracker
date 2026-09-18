@@ -7,7 +7,7 @@ export const projectDialogContentClass = (className = "") =>
   cn(
     "!top-[5.25rem] z-[80] !translate-y-0 gap-0 overflow-hidden border-white/80 bg-white/95 p-0 shadow-[0_34px_100px_-52px_rgba(15,23,42,0.58)] backdrop-blur-2xl",
     "duration-200 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95 data-[state=open]:slide-in-from-top-3 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-98 data-[state=closed]:slide-out-to-top-2",
-    "max-sm:!top-[4.75rem] max-sm:w-[calc(100%-1rem)] max-sm:rounded-[22px]",
+    "max-sm:!top-2 max-sm:w-[calc(100vw-1rem)] max-sm:rounded-[22px]",
     "sm:!top-[5.75rem]",
     PROJECT_DIALOG_CLOSE_CLASS,
     className
