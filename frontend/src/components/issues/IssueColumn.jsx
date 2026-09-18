@@ -2,11 +2,14 @@ import { getIssueStatusVariant } from "@/lib/issues";
 import { cn } from "@/lib/utils";
 import IssueCard from "@/components/issues/IssueCard";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 
 const IssueColumn = ({
   column,
   issues = [],
   issueCount,
+  pagination,
+  onPageChange,
   updatingId = "",
   canEditIssue = false,
   canChangeStatus = false,
@@ -80,6 +83,34 @@ const IssueColumn = ({
         </div>
       )}
     </div>
+
+    {pagination?.totalPages > 1 ? (
+      <div className="mt-4 flex items-center justify-between gap-2 border-t border-slate-200 pt-3 text-xs text-slate-500">
+        <span>
+          Page {pagination.page} of {pagination.totalPages}
+        </span>
+        <div className="flex gap-2">
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            disabled={!pagination.hasPreviousPage}
+            onClick={() => onPageChange?.(pagination.page - 1)}
+          >
+            Previous
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            disabled={!pagination.hasNextPage}
+            onClick={() => onPageChange?.(pagination.page + 1)}
+          >
+            Next
+          </Button>
+        </div>
+      </div>
+    ) : null}
   </section>
 );
 

@@ -29,6 +29,8 @@ const BOARD_COLUMNS = [
 const IssueBoard = ({
   issues = [],
   columnCounts = {},
+  lanePagination = {},
+  onLanePageChange,
   visibleColumnKeys = [],
   updatingId = "",
   canEditIssue = false,
@@ -104,6 +106,8 @@ const IssueBoard = ({
             column={column}
             issues={column.items}
             issueCount={columnCounts[column.key] ?? column.items.length}
+            pagination={lanePagination[column.key]}
+            onPageChange={(nextPage) => onLanePageChange?.(column.key, nextPage)}
               updatingId={updatingId}
               canEditIssue={canEditIssue}
               canChangeStatus={canChangeStatus}

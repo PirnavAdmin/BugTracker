@@ -259,6 +259,11 @@ const IssuesPage = () => {
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [isBulkImportOpen, setIsBulkImportOpen] = useState(false);
   const [taskScope, setTaskScope] = useState(TASK_SCOPE_ALL);
+  const [lanePages, setLanePages] = useState({
+    [ISSUE_STATUS.TODO]: 1,
+    [ISSUE_STATUS.IN_PROGRESS]: 1,
+    [ISSUE_STATUS.DONE]: 1,
+  });
   const [toast, setToast] = useState(null);
   const deferredSearch = useDeferredValue(filters.search);
   const isAdminView = hasAdminPanelAccess(role);
@@ -271,6 +276,26 @@ const IssuesPage = () => {
   const canAssignIssue = canAssignIssues(role);
   const canCreateIssue = canCreateIssues(role);
   const canDeleteIssue = canDeleteIssues(role);
+
+  useEffect(() => {
+    setLanePages({
+      [ISSUE_STATUS.TODO]: 1,
+      [ISSUE_STATUS.IN_PROGRESS]: 1,
+      [ISSUE_STATUS.DONE]: 1,
+    });
+  }, [
+    deferredSearch,
+    effectiveAssigneeId,
+    filters.dateFrom,
+    filters.dateTo,
+    filters.filter,
+    filters.priority,
+    filters.priorityGroup,
+    filters.projectId,
+    filters.status,
+    filters.statusGroup,
+    filters.teamId,
+  ]);
 
   const {
     data: projectsData = [],
@@ -435,6 +460,7 @@ const IssuesPage = () => {
       filters.dateTo,
       filters.filter,
       "TODO",
+      lanePages[ISSUE_STATUS.TODO],
     ],
     queryFn: () =>
       fetchIssuesPage({
@@ -452,7 +478,7 @@ const IssuesPage = () => {
         dateTo: filters.dateTo,
         filter: filters.filter,
         search: deferredSearch,
-        page: 1,
+        page: lanePages[ISSUE_STATUS.TODO],
         limit: TASK_PAGE_SIZE,
         workflowLane: ISSUE_STATUS.TODO,
         view: "list",
@@ -466,7 +492,7 @@ const IssuesPage = () => {
     isLoading: isInProgressLoading,
     error: inProgressError,
   } = useQuery({
-    queryKey: ["issues", "issues-page", "board-lane", "IN_PROGRESS", role, filters, effectiveAssigneeId, deferredSearch],
+    queryKey: ["issues", "issues-page", "board-lane", "IN_PROGRESS", role, filters, effectiveAssigneeId, deferredSearch, lanePages[ISSUE_STATUS.IN_PROGRESS]],
     queryFn: () => fetchIssuesPage({
       projectId: filters.projectId === ALL_PROJECTS_VALUE ? "" : filters.projectId,
       teamId: filters.teamId,
@@ -481,7 +507,7 @@ const IssuesPage = () => {
       dateTo: filters.dateTo,
       filter: filters.filter,
       search: deferredSearch,
-      page: 1,
+      page: lanePages[ISSUE_STATUS.IN_PROGRESS],
       limit: TASK_PAGE_SIZE,
       workflowLane: ISSUE_STATUS.IN_PROGRESS,
       view: "list",
@@ -495,7 +521,7 @@ const IssuesPage = () => {
     isLoading: isDoneLoading,
     error: doneError,
   } = useQuery({
-    queryKey: ["issues", "issues-page", "board-lane", "DONE", role, filters, effectiveAssigneeId, deferredSearch],
+    queryKey: ["issues", "issues-page", "board-lane", "DONE", role, filters, effectiveAssigneeId, deferredSearch, lanePages[ISSUE_STATUS.DONE]],
     queryFn: () => fetchIssuesPage({
       projectId: filters.projectId === ALL_PROJECTS_VALUE ? "" : filters.projectId,
       teamId: filters.teamId,
@@ -510,7 +536,7 @@ const IssuesPage = () => {
       dateTo: filters.dateTo,
       filter: filters.filter,
       search: deferredSearch,
-      page: 1,
+      page: lanePages[ISSUE_STATUS.DONE],
       limit: TASK_PAGE_SIZE,
       workflowLane: ISSUE_STATUS.DONE,
       view: "list",
@@ -529,6 +555,11 @@ const IssuesPage = () => {
     [ISSUE_STATUS.TODO]: lanePagination[0].total,
     [ISSUE_STATUS.IN_PROGRESS]: lanePagination[1].total,
     [ISSUE_STATUS.DONE]: lanePagination[2].total,
+  };
+  const lanePaginationByStatus = {
+    [ISSUE_STATUS.TODO]: lanePagination[0],
+    [ISSUE_STATUS.IN_PROGRESS]: lanePagination[1],
+    [ISSUE_STATUS.DONE]: lanePagination[2],
   };
   const issues = useMemo(
     () => [issuePageData, inProgressPageData, donePageData]
@@ -897,6 +928,10 @@ const IssuesPage = () => {
         <IssueBoard
           issues={filteredIssues}
           columnCounts={workflowCounts}
+          lanePagination={lanePaginationByStatus}
+          onLanePageChange={(lane, nextPage) => {
+            setLanePages((current) => ({ ...current, [lane]: nextPage }));
+          }}
           visibleColumnKeys={visibleBoardColumnKeys}
           updatingId={updateIssueMutation.isPending ? updateIssueMutation.variables?.id : ""}
           canEditIssue={isAdminView}
