@@ -905,7 +905,7 @@ const AdminBugsPage = () => {
     [filters.projectId, filters.teamId, projects]
   );
   const testers = useMemo(
-    () => members.filter((member) => member.role === "Tester"),
+    () => members.filter((member) => ["Tester", "Q/A Lead"].includes(member.role)),
     [members]
   );
   const developers = useMemo(
@@ -1195,13 +1195,19 @@ const AdminBugsPage = () => {
     return bugs.filter((bugIssue) => {
       const bugDetails = resolveBugDetails(bugIssue);
       const reporter = getReporter(bugIssue);
+      const testerOwner = getTesterOwner(bugIssue);
       const developer = getBugDeveloper(bugIssue);
 
       if (filters.severity !== "all" && getSeverity(bugIssue) !== filters.severity) {
         return false;
       }
 
-      if (filters.testerId !== "all" && resolveUserId(reporter) !== filters.testerId) {
+      if (
+        filters.testerId !== "all" &&
+        ![reporter, testerOwner].some(
+          (tester) => resolveUserId(tester) === filters.testerId
+        )
+      ) {
         return false;
       }
 
