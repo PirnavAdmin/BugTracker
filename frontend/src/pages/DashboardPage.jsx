@@ -1765,7 +1765,7 @@ const AdminQuickActionsCard = ({
           </motion.div>
         ) : (
           <AnalyticsEmptyState
-            className="min-h-[124px] py-5"
+            compact
             icon={CheckCircle2}
             title="You're all caught up"
             description="No messages need your attention."

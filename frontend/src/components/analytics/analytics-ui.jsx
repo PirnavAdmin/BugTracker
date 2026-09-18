@@ -180,25 +180,37 @@ export const AnalyticsKpiCard = ({
   );
 };
 
-export const AnalyticsEmptyState = ({ className, description, icon: Icon, title }) => (
+export const AnalyticsEmptyState = ({
+  className,
+  compact = false,
+  description,
+  icon: Icon,
+  title,
+}) => (
   <div
     className={cn(
-      "flex min-h-[220px] items-center justify-center rounded-[16px] border border-dashed border-white/65 bg-white/34 px-6 py-10 text-center backdrop-blur-xl dark:border-white/10 dark:bg-slate-950/34",
+      "flex items-center justify-center rounded-[16px] border border-dashed border-white/65 bg-white/34 text-center backdrop-blur-xl dark:border-white/10 dark:bg-slate-950/34",
+      compact ? "min-h-[76px] px-4 py-3" : "min-h-[220px] px-6 py-10",
       className
     )}
   >
-    <div className="max-w-sm">
+    <div className={cn("max-w-sm", compact && "flex max-w-none items-center gap-3 text-left")}>
       {Icon ? (
-        <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl border border-white/60 bg-white/74 text-slate-600 shadow-sm dark:border-white/10 dark:bg-slate-900 dark:text-slate-300">
+        <span className={cn(
+          "flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-white/60 bg-white/74 text-slate-600 shadow-sm dark:border-white/10 dark:bg-slate-900 dark:text-slate-300",
+          compact ? "h-9 w-9 rounded-xl" : "mx-auto"
+        )}>
           <Icon className="h-5 w-5" />
         </span>
       ) : null}
-      <p className="mt-4 text-sm font-semibold text-slate-950 dark:text-slate-100">
-        {title}
-      </p>
-      <p className="mt-2 text-sm leading-6 text-slate-500 dark:text-slate-400">
-        {description}
-      </p>
+      <div>
+        <p className={cn("text-sm font-semibold text-slate-950 dark:text-slate-100", !compact && "mt-4")}>
+          {title}
+        </p>
+        <p className={cn("text-sm leading-6 text-slate-500 dark:text-slate-400", compact ? "mt-0 text-xs leading-5" : "mt-2")}>
+          {description}
+        </p>
+      </div>
     </div>
   </div>
 );
