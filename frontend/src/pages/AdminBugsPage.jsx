@@ -1194,20 +1194,9 @@ const AdminBugsPage = () => {
   const filteredBugs = useMemo(() => {
     return bugs.filter((bugIssue) => {
       const bugDetails = resolveBugDetails(bugIssue);
-      const reporter = getReporter(bugIssue);
-      const testerOwner = getTesterOwner(bugIssue);
       const developer = getBugDeveloper(bugIssue);
 
       if (filters.severity !== "all" && getSeverity(bugIssue) !== filters.severity) {
-        return false;
-      }
-
-      if (
-        filters.testerId !== "all" &&
-        ![reporter, testerOwner].some(
-          (tester) => resolveUserId(tester) === filters.testerId
-        )
-      ) {
         return false;
       }
 

@@ -3156,9 +3156,28 @@ const buildIssueQueryFromRequest = async (
         throw new Error("Invalid tester filter");
       }
 
+      const selectedTester = await User.findOne(
+        withTenantFilter(
+          {
+            _id: testerFilter,
+            workspaceId: normalizeWorkspaceId(req.user.workspaceId),
+          },
+          req.user
+        )
+      )
+        .select("name")
+        .lean();
+      const selectedTesterName = String(selectedTester?.name || "").trim();
+
       mergeOrConditions(query, [
         { reporter: testerFilter },
         { "bugDetails.testerOwner": testerFilter },
+        ...(selectedTesterName
+          ? [
+              { reporterName: buildExactMatchRegex(selectedTesterName) },
+              { testerOwnerName: buildExactMatchRegex(selectedTesterName) },
+            ]
+          : []),
       ]);
     }
   }
