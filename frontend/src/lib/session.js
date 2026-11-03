@@ -90,4 +90,55 @@ export const clearStoredSession = () => {
   }
 
   getStorageTargets().forEach((storage) => storage.removeItem(AUTH_STORAGE_KEY));
+  clearLastActivity();
+};
+
+export const LAST_ACTIVITY_STORAGE_KEY = "curecode_last_active_at";
+export const DEFAULT_INACTIVITY_TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes
+
+export const getInactivityTimeoutMs = () => {
+  const envVal =
+    typeof import.meta !== "undefined" && import.meta.env?.VITE_INACTIVITY_TIMEOUT_MS;
+  const parsed = Number(envVal);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULT_INACTIVITY_TIMEOUT_MS;
+};
+
+export const recordLastActivity = (timestamp = Date.now()) => {
+  if (typeof window === "undefined") {
+    return;
+  }
+  try {
+    window.localStorage.setItem(LAST_ACTIVITY_STORAGE_KEY, String(timestamp));
+  } catch {
+    // Ignore storage failures
+  }
+};
+
+export const getLastActivity = () => {
+  if (typeof window === "undefined") {
+    return Date.now();
+  }
+  try {
+    const raw = window.localStorage.getItem(LAST_ACTIVITY_STORAGE_KEY);
+    const parsed = Number(raw);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : Date.now();
+  } catch {
+    return Date.now();
+  }
+};
+
+export const isSessionInactive = (timeoutMs = getInactivityTimeoutMs()) => {
+  const lastActive = getLastActivity();
+  return Date.now() - lastActive >= timeoutMs;
+};
+
+export const clearLastActivity = () => {
+  if (typeof window === "undefined") {
+    return;
+  }
+  try {
+    window.localStorage.removeItem(LAST_ACTIVITY_STORAGE_KEY);
+  } catch {
+    // Ignore storage failures
+  }
 };

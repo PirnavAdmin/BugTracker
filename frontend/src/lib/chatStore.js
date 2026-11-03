@@ -446,9 +446,33 @@ export const useChatStore = create((set, get) => ({
           didResolve = true;
           resolve(value);
         };
+        const deliverWithHttpFallback = async () => {
+          try {
+            const createdMessage = await sendChatMessage({
+              conversationId,
+              message: text,
+              attachments,
+              clientMessageId: tempId,
+            });
+            get().receiveMessage({
+              conversationId,
+              message: createdMessage,
+              tempId,
+            });
+            finish(createdMessage || true);
+          } catch (error) {
+            get().markMessageFailed(
+              conversationId,
+              tempId,
+              error?.response?.data?.message ||
+                error?.message ||
+                "Unable to send message after Socket.IO confirmation timed out"
+            );
+            finish(false);
+          }
+        };
         const timeoutId = window.setTimeout(() => {
-          get().markMessageFailed(conversationId, tempId);
-          finish(false);
+          deliverWithHttpFallback();
         }, 12000);
 
         socket.emit(
@@ -463,7 +487,11 @@ export const useChatStore = create((set, get) => ({
             window.clearTimeout(timeoutId);
 
             if (!response?.ok) {
-              get().markMessageFailed(conversationId, tempId);
+              get().markMessageFailed(
+                conversationId,
+                tempId,
+                response?.error || "Unable to send message"
+              );
               finish(false);
               return;
             }
@@ -485,6 +513,7 @@ export const useChatStore = create((set, get) => ({
         conversationId,
         message: text,
         attachments,
+        clientMessageId: tempId,
       });
       get().receiveMessage({
         conversationId,
@@ -492,13 +521,17 @@ export const useChatStore = create((set, get) => ({
         tempId,
       });
       return createdMessage || true;
-    } catch {
-      get().markMessageFailed(conversationId, tempId);
+    } catch (error) {
+      get().markMessageFailed(
+        conversationId,
+        tempId,
+        error?.response?.data?.message || error?.message || "Unable to send message"
+      );
       return false;
     }
   },
 
-  markMessageFailed: (conversationId, tempId) => {
+  markMessageFailed: (conversationId, tempId, errorMessage = "Unable to send message") => {
     set((state) => ({
       messagesByConversation: {
         ...state.messagesByConversation,
@@ -509,6 +542,7 @@ export const useChatStore = create((set, get) => ({
                   ...message,
                   pending: false,
                   failed: true,
+                  errorMessage,
                 }
               : message
         ),

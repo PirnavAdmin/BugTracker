@@ -87,6 +87,25 @@ test("cache MISS stores the successful controller response", async () => {
   assert.deepEqual(writes[0].value, { total: 7 });
 });
 
+test("cache write failures do not delay or break the MongoDB response", async () => {
+  const cacheService = {
+    getCached: async () => ({ hit: false, value: null }),
+    setCached: async () => {
+      throw new Error("Redis unavailable");
+    },
+  };
+  const middleware = createTenantCacheMiddleware(cacheService)({ resource: "tasks" });
+  const response = createResponse();
+
+  await middleware(createRequest(), response, () => {
+    response.status(200).json([{ id: "from-mongodb" }]);
+  });
+  await response.sent;
+
+  assert.deepEqual(response.body, [{ id: "from-mongodb" }]);
+  assert.equal(response.headers["X-Cache"], "MISS");
+});
+
 test("simultaneous identical misses are coalesced to one controller load", async () => {
   const cacheService = {
     getCached: async () => ({ hit: false, value: null }),

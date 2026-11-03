@@ -45,6 +45,22 @@ Main technologies:
 | State utilities | Zustand |
 | Testing | Node.js built-in test runner |
 
+## AI Features and AWS Bedrock
+
+CureCode's AI features use Amazon Bedrock through the AWS SDK for JavaScript v3 (`@aws-sdk/client-bedrock-runtime`). The backend uses the Bedrock Runtime Converse API and defaults to region `ap-south-1` and model ID `global.amazon.nova-2-lite-v1:0`. Override these with `BEDROCK_REGION` and `BEDROCK_MODEL_ID`. The AWS SDK's default credential provider chain supplies credentials; configure an IAM role or standard AWS credentials in the backend runtime. Never put AWS credentials in frontend variables or commit them to Git.
+
+The current AI workflows include:
+
+- AI work item description generation.
+- AI code review for commit changes.
+- Project insights and performance recommendations based on project health, work items, bugs, and sprints.
+- Workspace controls for enabling AI globally and per feature, and limiting access by role.
+- Usage and estimated-cost tracking by feature, user, and project, with daily/monthly request and budget limits and threshold alerts.
+
+AI settings and usage are exposed to workspace administrators and managers. AI requests are authenticated and rate limited. Project insights are scoped to the authorized tenant/project, and generated results are stored for retrieval. Default-enabled features are description generation, code review, and project insights; QA insights default to admin/manager/tester, while test generation, bug triage, and duplicate detection are currently disabled by default. Feature availability depends on the workspace policy and role permissions.
+
+Configure the Bedrock variables in `.env` or the deployment environment. The root Compose configuration passes these settings to the backend. The runtime identity must have permission to invoke the selected Bedrock model in the configured region, and model access must be enabled for the AWS account.
+
 Important frontend files:
 
 ```text
@@ -260,7 +276,8 @@ Key root environment groups:
 | Email | `EMAIL_HOST`, `EMAIL_PORT`, `EMAIL_USER`, `EMAIL_PASS`, `EMAIL_SECURE`, `EMAIL_FROM` |
 | App URLs | `APP_URL`, `FRONTEND_URL`, `VITE_API_BASE_URL` |
 | WebRTC | `VITE_STUN_URL`, `VITE_TURN_URL`, `VITE_TURN_USERNAME`, `VITE_TURN_CREDENTIAL`, `VITE_ICE_TRANSPORT_POLICY` |
-| S3 | `AWS_REGION`, `AWS_S3_BUCKET`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` |
+| S3 storage | `AWS_REGION`, `AWS_S3_BUCKET` (AWS credentials come from the AWS SDK credential provider chain) |
+| AI / Bedrock | `BEDROCK_REGION`, `BEDROCK_MODEL_ID` (AWS credentials come from the AWS SDK credential provider chain) |
 | Microsoft Graph | `MICROSOFT_GRAPH_BASE_URL`, `MICROSOFT_GRAPH_ACCESS_TOKEN`, `MICROSOFT_TENANT_ID`, `MICROSOFT_CLIENT_ID`, `MICROSOFT_CLIENT_SECRET` |
 
 The backend loads environment values from both:

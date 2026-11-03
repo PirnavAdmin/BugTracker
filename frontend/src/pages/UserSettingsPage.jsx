@@ -29,6 +29,7 @@ import InviteUserSettings from "@/components/settings/InviteUserSettings";
 import ModifyRoleSettings from "@/components/settings/ModifyRoleSettings";
 import ModuleOwnershipSettings from "@/components/settings/ModuleOwnershipSettings";
 import ScreenPermissionsSettings from "@/components/settings/ScreenPermissionsSettings";
+import RolePermissionsSettings from "@/components/settings/RolePermissionsSettings";
 import SMTPConfigurationSettings from "@/components/settings/SMTPConfigurationSettings";
 import UsersSettings from "@/components/settings/UsersSettings";
 import WorkspaceMailSenderSettings from "@/components/settings/WorkspaceMailSenderSettings";
@@ -40,7 +41,7 @@ const ADMIN_SETTINGS_ITEMS = [
   { id: "invite", label: "Invite User" },
   { id: "roles", label: "Modify User Role" },
   { id: "screens", label: "Screen Permissions" },
-  { id: "ownership", label: "Module Ownership" },
+  { id: "work-permissions", label: "Role Permissions" },
   { id: "ai", label: "AI Settings" },
   { id: "sender", label: "Workspace Mail Sender" },
   { id: "smtp", label: "SMTP Configuration" },
@@ -84,7 +85,7 @@ const UserSettingsPage = () => {
     : TESTER_DEFAULT_SETTINGS_ITEM;
 
   const [activeSettingsItem, setActiveSettingsItem] = useState(defaultSettingsItem);
-  const [activeUserFilter, setActiveUserFilter] = useState(USER_FILTER_KEY_ALL);
+  const [activeUserFilter, setActiveUserFilter] = useState(null);
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState("Developer");
   const [inviteFeedback, setInviteFeedback] = useState("");
@@ -854,6 +855,10 @@ const UserSettingsPage = () => {
 
     if (canManageWorkspaceUsers && activeSettingsItem === "screens") {
       return <ScreenPermissionsSettings showToast={showToast} />;
+    }
+
+    if (canManageWorkspaceUsers && activeSettingsItem === "work-permissions") {
+      return <RolePermissionsSettings showToast={showToast} />;
     }
 
     if (canManageWorkspaceUsers && activeSettingsItem === "ai") {

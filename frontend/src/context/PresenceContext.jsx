@@ -101,14 +101,8 @@ export const PresenceProvider = ({ children }) => {
     markActive({ force: true });
 
     return () => {
-      if (currentStatusRef.current !== "offline") {
-        socket.emit("user:offline", {
-          at: new Date().toISOString(),
-        });
-      }
       socket.off("presence:update", handlePresenceUpdate);
       socket.off("connect", handleConnect);
-      socket.disconnect();
     };
   }, [markActive, token, upsertPresence]);
 

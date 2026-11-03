@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Bug, RefreshCcw, Search } from "lucide-react";
+import { Bug, Eye, RefreshCcw, Search, UserCircle2, Users2 } from "lucide-react";
 import { useSearchParams } from "react-router-dom";
 import {
   fetchBugBucket,
+  fetchIssues,
   fetchMyIssues,
   fetchProjects,
+  fetchWorkPermissions,
   pickIssue,
   updateIssue,
 } from "@/lib/api";
@@ -19,11 +21,12 @@ import {
   isIssueClosed,
   normalizeBugStatusForIssue,
   resolveBugDetails,
+  resolveIssueAssigneeId,
   resolveIssueProjectId,
 } from "@/lib/issues";
 import { useAuth } from "@/hooks/use-auth";
 import { useBugWorkflowRealtime } from "@/hooks/useBugWorkflowRealtime";
-import { ROLE_TEAM_LEAD } from "@/lib/roles";
+import { DEFAULT_WORK_PERMISSIONS, ROLE_TEAM_LEAD, normalizeWorkPermissions } from "@/lib/roles";
 import {
   getDeveloperBugBucketQueryFilters,
   getDeveloperBugBucketQueryKey,
@@ -53,6 +56,25 @@ const getSeverity = (issue) => resolveBugDetails(issue)?.severity || "Not set";
 const getModuleName = (issue) => resolveBugDetails(issue)?.moduleName || "Unmapped module";
 const getReporterName = (issue) =>
   issue?.reporter?.name || resolveBugDetails(issue)?.testerOwner?.name || "Unknown reporter";
+const getDeveloperName = (issue) =>
+  issue?.assignee?.name || resolveBugDetails(issue)?.developerLead?.name || "Unassigned";
+const isIssueWithinDateRange = (issue, dateFrom, dateTo) => {
+  if (!dateFrom && !dateTo) {
+    return true;
+  }
+
+  const createdAt = new Date(issue?.createdAt || issue?.updatedAt || 0);
+
+  if (Number.isNaN(createdAt.getTime())) {
+    return false;
+  }
+
+  if (dateFrom && createdAt < new Date(`${dateFrom}T00:00:00`)) {
+    return false;
+  }
+
+  return !dateTo || createdAt <= new Date(`${dateTo}T23:59:59.999`);
+};
 
 const dedupeIssues = (issues = []) => {
   const seen = new Map();
@@ -65,6 +87,11 @@ const dedupeIssues = (issues = []) => {
 
   return Array.from(seen.values());
 };
+
+const updateCachedIssue = (issues, issueId, updater) =>
+  Array.isArray(issues)
+    ? issues.map((issue) => (String(issue?._id) === String(issueId) ? updater(issue) : issue))
+    : issues;
 
 const DeveloperBugBoardPage = () => {
   useBugWorkflowRealtime();
@@ -79,15 +106,27 @@ const DeveloperBugBoardPage = () => {
   const [rejectIssue, setRejectIssue] = useState(null);
   const [rejectReason, setRejectReason] = useState("");
   const [statusError, setStatusError] = useState("");
+  const [bugScope, setBugScope] = useState("mine");
   const [filters, setFilters] = useState({
     search: searchQuery,
     status: statusQuery === "available" ? "available" : "all",
     severity: "all",
     priority: "all",
     projectId: "all",
+    assigneeId: "all",
+    dateFrom: "",
+    dateTo: "",
   });
   const userId = String(user?._id || user?.id || "");
-  const canTeamLeadAssignFromQueue = user?.role === ROLE_TEAM_LEAD;
+  const { data: workPermissions = DEFAULT_WORK_PERMISSIONS } = useQuery({
+    queryKey: ["work-permissions"],
+    queryFn: fetchWorkPermissions,
+    enabled: Boolean(userId),
+  });
+  const canTeamLeadAssignFromQueue =
+    user?.role === ROLE_TEAM_LEAD &&
+    Boolean(normalizeWorkPermissions(workPermissions)?.[ROLE_TEAM_LEAD]?.manageBugs);
+  const isTeamProgressView = canTeamLeadAssignFromQueue && bugScope === "team";
   const myIssuesQueryKey = useMemo(() => ["issues", "my", userId, "developer-bug-board"], [userId]);
   const bucketQueryKey = useMemo(() => getDeveloperBugBucketQueryKey(userId), [userId]);
 
@@ -101,6 +140,18 @@ const DeveloperBugBoardPage = () => {
   });
 
   const {
+    data: teamBugIssues = [],
+    isLoading: isTeamBugsLoading,
+    error: teamBugsError,
+    refetch: refetchTeamBugs,
+    isFetching: isTeamBugsFetching,
+  } = useQuery({
+    queryKey: ["issues", "bug-progress", userId],
+    queryFn: () => fetchIssues({ type: "Bug", teamProgress: true, sortBy: "recently-updated" }),
+    enabled: isTeamProgressView,
+  });
+
+  const {
     data: myIssues = [],
     isLoading: isMyIssuesLoading,
     error: myIssuesError,
@@ -111,7 +162,6 @@ const DeveloperBugBoardPage = () => {
     queryFn: () =>
       fetchMyIssues({
         type: "Bug",
-        limit: 250,
         sortBy: "recently-updated",
       }),
     enabled: Boolean(userId),
@@ -146,9 +196,41 @@ const DeveloperBugBoardPage = () => {
         })),
     [bucketIssues]
   );
-  const boardIssues = useMemo(
-    () => dedupeIssues([...availableBugIssues, ...assignedBugIssues]),
-    [assignedBugIssues, availableBugIssues]
+  const boardIssues = useMemo(() => {
+    if (isTeamProgressView) {
+      return dedupeIssues((Array.isArray(teamBugIssues) ? teamBugIssues : []).filter(isBugIssue));
+    }
+
+    return dedupeIssues([...availableBugIssues, ...assignedBugIssues]);
+  }, [assignedBugIssues, availableBugIssues, isTeamProgressView, teamBugIssues]);
+
+  const assigneeOptions = useMemo(() => {
+    const people = new Map();
+
+    boardIssues.forEach((issue) => {
+      const assignee = issue?.assignee || resolveBugDetails(issue)?.developerLead;
+      const id = resolveIssueAssigneeId(issue) || String(assignee?._id || assignee || "");
+
+      if (id && assignee && typeof assignee === "object") {
+        people.set(String(id), assignee);
+      }
+    });
+
+    return [...people.values()].sort((left, right) =>
+      String(left?.name || left?.email || "").localeCompare(String(right?.name || right?.email || ""))
+    );
+  }, [boardIssues]);
+
+  const projectOptions = useMemo(
+    () =>
+      isTeamProgressView
+        ? projects.filter((project) =>
+            boardIssues.some(
+              (issue) => resolveIssueProjectId(issue) === String(project?._id || project?.id || "")
+            )
+          )
+        : projects,
+    [boardIssues, isTeamProgressView, projects]
   );
 
   useEffect(() => {
@@ -223,6 +305,14 @@ const DeveloperBugBoardPage = () => {
         return false;
       }
 
+      if (filters.assigneeId !== "all" && resolveIssueAssigneeId(issue) !== filters.assigneeId) {
+        return false;
+      }
+
+      if (!isIssueWithinDateRange(issue, filters.dateFrom, filters.dateTo)) {
+        return false;
+      }
+
       if (!search) {
         return true;
       }
@@ -272,16 +362,43 @@ const DeveloperBugBoardPage = () => {
 
   const statusMutation = useMutation({
     mutationFn: ({ id, payload }) => updateIssue({ id, payload }),
-    onMutate: () => {
+    onMutate: async ({ id, payload }) => {
       setStatusError("");
+      const queryKeys = [
+        myIssuesQueryKey,
+        bucketQueryKey,
+        ["issues", "bug-progress", userId],
+      ];
+      const previousValues = queryKeys.map((queryKey) => [
+        queryKey,
+        queryClient.getQueryData(queryKey),
+      ]);
+
+      if (payload.status) {
+        queryKeys.forEach((queryKey) => {
+          queryClient.setQueryData(queryKey, (current) =>
+            updateCachedIssue(current, id, (issue) => ({ ...issue, status: payload.status }))
+          );
+        });
+      }
+
+      return { previousValues };
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["issues", "bucket"] });
-      queryClient.invalidateQueries({ queryKey: ["issues"] });
+    onSuccess: (updatedIssue, { id }) => {
+      [myIssuesQueryKey, bucketQueryKey, ["issues", "bug-progress", userId]].forEach(
+        (queryKey) => {
+          queryClient.setQueryData(queryKey, (current) =>
+            updateCachedIssue(current, id, (issue) => ({ ...issue, ...updatedIssue }))
+          );
+        }
+      );
       queryClient.invalidateQueries({ queryKey: ["reports"] });
       queryClient.invalidateQueries({ queryKey: ["analytics"] });
     },
-    onError: (error) => {
+    onError: (error, _variables, context) => {
+      context?.previousValues?.forEach(([queryKey, previousValue]) => {
+        queryClient.setQueryData(queryKey, previousValue);
+      });
       setStatusError(error.response?.data?.message || "Unable to update this bug right now.");
     },
   });
@@ -413,12 +530,16 @@ const DeveloperBugBoardPage = () => {
   };
 
   const refreshBoard = () => {
+    if (isTeamProgressView) {
+      refetchTeamBugs();
+      return;
+    }
     refetchMyIssues();
     refetchBucket();
   };
 
-  const error = projectsError || myIssuesError || bucketError;
-  const isLoading = isProjectsLoading || isMyIssuesLoading || isBucketLoading;
+  const error = projectsError || (isTeamProgressView ? teamBugsError : myIssuesError || bucketError);
+  const isLoading = isProjectsLoading || (isTeamProgressView ? isTeamBugsLoading : isMyIssuesLoading || isBucketLoading);
 
   if (error) {
     return (
@@ -432,7 +553,17 @@ const DeveloperBugBoardPage = () => {
 
   if (isLoading) {
     return (
-      <div className="grid gap-6">
+      <div className="mx-auto w-[98%] max-w-none space-y-4">
+        <Card className="border-white/70 bg-white/92 shadow-sm">
+          <CardHeader>
+            <CardTitle>{isTeamProgressView ? "Team Bug Progress" : "Developer Bug Board"}</CardTitle>
+            <CardDescription>
+              {isTeamProgressView
+                ? "Review bugs across your project teams and assign or reassign developers."
+                : "Pick available queue work and move bug lifecycle stages, separate from task and sprint boards."}
+            </CardDescription>
+          </CardHeader>
+        </Card>
         <Skeleton className="h-[720px] w-full rounded-[24px]" />
       </div>
     );
@@ -446,16 +577,30 @@ const DeveloperBugBoardPage = () => {
             <div>
               <CardTitle className="flex items-center gap-2">
                 <Bug className="h-5 w-5 text-rose-600" />
-                Developer Bug Board
+                {isTeamProgressView ? "Team Bug Progress" : "Developer Bug Board"}
               </CardTitle>
               <CardDescription>
-                Pick available queue work and move bug lifecycle stages, separate from task and sprint boards.
+                {isTeamProgressView
+                  ? "Review bugs across your project teams and assign or reassign developers."
+                  : "Pick available queue work and move bug lifecycle stages, separate from task and sprint boards."}
               </CardDescription>
             </div>
-            <Button type="button" variant="outline" disabled={isMyIssuesFetching || isBucketFetching} onClick={refreshBoard}>
-              <RefreshCcw className={isMyIssuesFetching || isBucketFetching ? "h-4 w-4 animate-spin" : "h-4 w-4"} />
-              Refresh
-            </Button>
+            <div className="flex flex-wrap items-center gap-2">
+              {canTeamLeadAssignFromQueue ? (
+                <div className="inline-flex rounded-xl border border-slate-200 bg-white p-1 shadow-sm">
+                  <Button className="h-8 rounded-lg px-3" type="button" variant={bugScope === "mine" ? "default" : "ghost"} onClick={() => setBugScope("mine")}>
+                    <UserCircle2 className="h-4 w-4" /> My bugs
+                  </Button>
+                  <Button className="h-8 rounded-lg px-3" type="button" variant={bugScope === "team" ? "default" : "ghost"} onClick={() => setBugScope("team")}>
+                    <Users2 className="h-4 w-4" /> Team progress
+                  </Button>
+                </div>
+              ) : null}
+              <Button type="button" variant="outline" disabled={isTeamProgressView ? isTeamBugsFetching : isMyIssuesFetching || isBucketFetching} onClick={refreshBoard}>
+                <RefreshCcw className={isTeamProgressView ? (isTeamBugsFetching ? "h-4 w-4 animate-spin" : "h-4 w-4") : (isMyIssuesFetching || isBucketFetching ? "h-4 w-4 animate-spin" : "h-4 w-4")} />
+                Refresh
+              </Button>
+            </div>
           </div>
         </CardHeader>
         <CardContent className="space-y-4 p-4 sm:p-5">
@@ -468,7 +613,7 @@ const DeveloperBugBoardPage = () => {
             ))}
           </div>
 
-          <div className="grid gap-3 lg:grid-cols-[minmax(240px,1.4fr)_repeat(4,minmax(150px,0.8fr))]">
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-7">
             <label className="relative">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
               <input
@@ -521,12 +666,44 @@ const DeveloperBugBoardPage = () => {
               onChange={(event) => setFilters((current) => ({ ...current, projectId: event.target.value }))}
             >
               <option value="all">All projects</option>
-              {projects.map((project) => (
+              {projectOptions.map((project) => (
                 <option key={project._id} value={project._id}>
                   {project.name}
                 </option>
               ))}
             </select>
+            <label className="sr-only" htmlFor="developer-bug-date-from">Created from</label>
+            <input
+              className="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm outline-none transition focus:border-blue-300 focus:ring-2 focus:ring-blue-500/20"
+              id="developer-bug-date-from"
+              aria-label="Created from"
+              type="date"
+              value={filters.dateFrom}
+              onChange={(event) => setFilters((current) => ({ ...current, dateFrom: event.target.value }))}
+            />
+            <label className="sr-only" htmlFor="developer-bug-date-to">Created to</label>
+            <input
+              className="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm outline-none transition focus:border-blue-300 focus:ring-2 focus:ring-blue-500/20"
+              id="developer-bug-date-to"
+              aria-label="Created to"
+              type="date"
+              value={filters.dateTo}
+              onChange={(event) => setFilters((current) => ({ ...current, dateTo: event.target.value }))}
+            />
+            {isTeamProgressView ? (
+              <select
+                className="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm outline-none transition focus:border-blue-300 focus:ring-2 focus:ring-blue-500/20"
+                value={filters.assigneeId}
+                onChange={(event) => setFilters((current) => ({ ...current, assigneeId: event.target.value }))}
+              >
+                <option value="all">All developers</option>
+                {assigneeOptions.map((person) => (
+                  <option key={person._id || person.id} value={person._id || person.id}>
+                    {person.name || person.email || "Unnamed developer"}
+                  </option>
+                ))}
+              </select>
+            ) : null}
           </div>
 
           {statusError ? (
@@ -535,7 +712,62 @@ const DeveloperBugBoardPage = () => {
             </div>
           ) : null}
 
-          {boardIssues.length ? (
+          {boardIssues.length ? isTeamProgressView ? (
+            <section className="overflow-hidden rounded-2xl border border-slate-200 bg-slate-50/70">
+              <div className="flex flex-col gap-1 border-b border-slate-200 bg-white px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <h2 className="text-base font-semibold text-slate-950">Related project bugs</h2>
+                  <p className="text-xs text-slate-500">{filteredIssues.length} bug{filteredIssues.length === 1 ? "" : "s"} matching the selected filters.</p>
+                </div>
+                <p className="text-xs font-medium text-slate-500">Open a bug to assign a developer or update its details.</p>
+              </div>
+              <div className="space-y-2 p-3">
+                {filteredIssues.map((issue) => (
+                  <article
+                    className="grid cursor-pointer gap-3 rounded-xl border border-l-4 border-slate-200 border-l-blue-500 bg-white px-3 py-3 shadow-sm transition hover:border-blue-200 hover:bg-blue-50/30 xl:grid-cols-[minmax(260px,1.4fr)_minmax(160px,.7fr)_minmax(150px,.65fr)_minmax(170px,.75fr)_minmax(190px,.85fr)_auto] xl:items-center"
+                    key={issue._id}
+                    onClick={() => setSelectedIssue(issue)}
+                  >
+                    <button className="min-w-0 text-left" type="button" onClick={() => setSelectedIssue(issue)}>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="rounded-full bg-slate-100 px-2 py-0.5 font-mono text-[11px] font-bold text-slate-600">{getIssueDisplayKey(issue)}</span>
+                        <span className="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-bold uppercase text-slate-600">{normalizeBugStatusForIssue(issue)}</span>
+                      </div>
+                      <h3 className="mt-1 truncate text-sm font-semibold text-slate-950 hover:text-blue-700">{issue.title || "Untitled bug"}</h3>
+                      <p className="mt-0.5 truncate text-xs text-slate-500">{issue.projectId?.name || "Related project"} / {getModuleName(issue)}</p>
+                    </button>
+                    <div className="min-w-0 text-xs">
+                      <p className="truncate font-semibold text-slate-800">{getReporterName(issue)}</p>
+                      <p className="mt-0.5 text-slate-500">Reporter</p>
+                    </div>
+                    <div className="min-w-0 text-xs">
+                      <p className="truncate font-semibold text-slate-800">{getDeveloperName(issue)}</p>
+                      <p className="mt-0.5 text-slate-500">Developer</p>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="rounded-full border border-amber-200 bg-amber-50 px-2 py-1 text-[11px] font-semibold text-amber-700">{getSeverity(issue)}</span>
+                      <span className="rounded-full border border-blue-200 bg-blue-50 px-2 py-1 text-[11px] font-semibold text-blue-700">{issue.priority || "Medium"}</span>
+                    </div>
+                    <label className="min-w-0">
+                      <span className="sr-only">Update bug status</span>
+                      <select
+                        className="h-9 w-full rounded-lg border border-slate-200 bg-white px-2 text-xs font-semibold text-slate-700 outline-none focus:border-blue-300 focus:ring-2 focus:ring-blue-500/20"
+                        value={normalizeBugStatusForIssue(issue)}
+                        disabled={statusMutation.isPending}
+                        onClick={(event) => event.stopPropagation()}
+                        onChange={(event) => statusMutation.mutate({ id: issue._id, payload: { status: event.target.value } })}
+                      >
+                        {BUG_STATUS_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                      </select>
+                    </label>
+                    <Button className="h-9 rounded-lg" type="button" variant="outline" onClick={(event) => { event.stopPropagation(); setSelectedIssue(issue); }}>
+                      <Eye className="h-4 w-4" /> Manage
+                    </Button>
+                  </article>
+                ))}
+              </div>
+            </section>
+          ) : (
             <BugKanbanBoard
               actionMode="developer"
               columns={DEVELOPER_BUG_COLUMNS}
@@ -551,7 +783,8 @@ const DeveloperBugBoardPage = () => {
                     : ""
               }
             />
-          ) : (
+          )
+          : (
             <EmptyState
               title="No developer bugs yet"
               description="Available queue work and your assigned bug work will appear here independently from tasks and sprints."
@@ -577,10 +810,10 @@ const DeveloperBugBoardPage = () => {
         canEditPriority={false}
         canEditAssignee={
           canTeamLeadAssignFromQueue &&
-          getBugColumnKey(selectedIssue || {}, DEVELOPER_BUG_COLUMNS) === "available"
+          (isTeamProgressView || getBugColumnKey(selectedIssue || {}, DEVELOPER_BUG_COLUMNS) === "available")
         }
         canDeleteIssue={false}
-        statusOptionsOverride={boardStatusOptions}
+        statusOptionsOverride={isTeamProgressView ? BUG_STATUS_OPTIONS : boardStatusOptions}
       />
 
       <Dialog

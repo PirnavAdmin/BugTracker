@@ -17,12 +17,18 @@ test('getNotifications should return notifications for a user', async (t) => {
   ];
 
   // Mock Notification.find
+  let selectedFields;
   Notification.find = () => ({
-    sort: () => ({
-      limit: () => ({
-        lean: () => Promise.resolve(mockNotifications)
-      })
-    })
+    select: (fields) => {
+      selectedFields = fields;
+      return {
+        sort: () => ({
+          limit: () => ({
+            lean: () => Promise.resolve(mockNotifications)
+          })
+        })
+      };
+    }
   });
 
   const req = {
@@ -40,6 +46,7 @@ test('getNotifications should return notifications for a user', async (t) => {
   assert.strictEqual(responseData.length, 2);
   assert.strictEqual(responseData[0].text, 'Test 1');
   assert.ok(responseData[0].id);
+  assert.strictEqual(selectedFields, "title text link isRead createdAt");
 
   // Restore
   Notification.find = originalFind;

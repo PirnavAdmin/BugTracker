@@ -1,0 +1,395 @@
+name: CureCode - Build, Push and Deploy
+
+on:
+  push:
+    branches:
+      - dev2
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: ap-south-1
+  AWS_ACCOUNT_ID: "384489631175"
+  ECR_REGISTRY: 384489631175.dkr.ecr.ap-south-1.amazonaws.com
+
+jobs:
+
+  # ============================================================
+  # BUILD AND PUSH DOCKER IMAGES TO ECR
+  # ============================================================
+
+  build-and-push:
+    name: Build and Push Docker Images
+    runs-on: ubuntu-latest
+
+    steps:
+
+      # --------------------------------------------------------
+      # CHECKOUT
+      # --------------------------------------------------------
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # --------------------------------------------------------
+      # AWS OIDC
+      # --------------------------------------------------------
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      # --------------------------------------------------------
+      # ECR LOGIN - GITHUB RUNNER
+      # --------------------------------------------------------
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      # --------------------------------------------------------
+      # VERIFY ECR ACCESS
+      # --------------------------------------------------------
+
+      - name: Verify ECR access
+        run: |
+          echo "=========================================="
+          echo "Verifying AWS identity"
+          echo "=========================================="
+
+          aws sts get-caller-identity
+
+          echo ""
+          echo "=========================================="
+          echo "Verifying ECR repositories"
+          echo "=========================================="
+
+          aws ecr describe-repositories \
+            --repository-names \
+              curecode-backend \
+              curecode-frontend \
+              curecode-mongo
+
+      # --------------------------------------------------------
+      # BUILD AND PUSH BACKEND
+      # --------------------------------------------------------
+
+      - name: Build and push backend
+        uses: docker/build-push-action@v6
+        with:
+          context: ./backend
+          push: true
+          tags: |
+            ${{ env.ECR_REGISTRY }}/curecode-backend:latest
+            ${{ env.ECR_REGISTRY }}/curecode-backend:${{ github.sha }}
+
+      # --------------------------------------------------------
+      # BUILD AND PUSH FRONTEND
+      # --------------------------------------------------------
+
+      - name: Build and push frontend
+        uses: docker/build-push-action@v6
+        with:
+          context: ./frontend
+          push: true
+          tags: |
+            ${{ env.ECR_REGISTRY }}/curecode-frontend:latest
+            ${{ env.ECR_REGISTRY }}/curecode-frontend:${{ github.sha }}
+          build-args: |
+            VITE_API_BASE_URL=/api
+            VITE_ENABLE_ADMIN_DEFAULT_LOGIN=true
+            VITE_DEBUG_TEAM_SELECTION=false
+            VITE_STUN_URL=stun:stun.l.google.com:19302
+            VITE_TURN_URL=turn:curecode.site:3478?transport=udp
+            VITE_TURN_USERNAME=turnuser
+            VITE_TURN_CREDENTIAL=${{ secrets.VITE_TURN_CREDENTIAL }}
+            VITE_ICE_TRANSPORT_POLICY=all
+
+      # --------------------------------------------------------
+      # BUILD AND PUSH MONGO
+      # --------------------------------------------------------
+
+      - name: Build and push mongo
+        uses: docker/build-push-action@v6
+        with:
+          context: ./deploy/mongo
+          push: true
+          tags: |
+            ${{ env.ECR_REGISTRY }}/curecode-mongo:latest
+            ${{ env.ECR_REGISTRY }}/curecode-mongo:${{ github.sha }}
+
+      # --------------------------------------------------------
+      # BUILD SUMMARY
+      # --------------------------------------------------------
+
+      - name: Build summary
+        run: |
+          echo "=========================================="
+          echo "CureCode Docker images pushed successfully"
+          echo "=========================================="
+
+          echo ""
+          echo "Backend:"
+          echo "${ECR_REGISTRY}/curecode-backend:latest"
+
+          echo ""
+          echo "Frontend:"
+          echo "${ECR_REGISTRY}/curecode-frontend:latest"
+
+          echo ""
+          echo "Mongo:"
+          echo "${ECR_REGISTRY}/curecode-mongo:latest"
+
+          echo ""
+          echo "Commit:"
+          echo "${GITHUB_SHA}"
+
+
+  # ============================================================
+  # DEPLOY TO EC2
+  # ============================================================
+
+  deploy:
+    name: Deploy to EC2
+    needs: build-and-push
+    runs-on: ubuntu-latest
+
+    steps:
+
+      # --------------------------------------------------------
+      # CHECKOUT REPOSITORY
+      #
+      # This is needed so GitHub Actions has the latest
+      # docker-compose.yml from dev2.
+      #
+      # EC2 does NOT run git pull anymore.
+      # --------------------------------------------------------
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # --------------------------------------------------------
+      # SETUP SSH
+      # --------------------------------------------------------
+
+      - name: Setup SSH
+        env:
+          EC2_SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+        run: |
+          set -e
+
+          mkdir -p ~/.ssh
+
+          echo "$EC2_SSH_KEY" > ~/.ssh/curecode_deploy_key
+
+          chmod 600 ~/.ssh/curecode_deploy_key
+
+          ssh-keyscan -H "$EC2_HOST" >> ~/.ssh/known_hosts
+
+          echo "SSH configuration completed"
+
+      # --------------------------------------------------------
+      # VERIFY EC2 SSH CONNECTION
+      # --------------------------------------------------------
+
+      - name: Verify EC2 connection
+        env:
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+          EC2_USERNAME: ${{ secrets.EC2_USERNAME }}
+        run: |
+          set -e
+
+          ssh \
+            -i ~/.ssh/curecode_deploy_key \
+            "$EC2_USERNAME@$EC2_HOST" \
+            "echo 'EC2 SSH connection successful'"
+
+      # --------------------------------------------------------
+      # COPY LATEST DOCKER COMPOSE FILE TO EC2
+      #
+      # Only docker-compose.yml is copied.
+      #
+      # The production .env file stays on EC2.
+      # Mongo data stays on EC2.
+      # Uploads stay on EC2.
+      # --------------------------------------------------------
+
+      - name: Copy Docker Compose to EC2
+        env:
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+          EC2_USERNAME: ${{ secrets.EC2_USERNAME }}
+          EC2_APP_DIR: ${{ secrets.EC2_APP_DIR }}
+        run: |
+          set -e
+
+          scp \
+            -i ~/.ssh/curecode_deploy_key \
+            docker-compose.yml \
+            "$EC2_USERNAME@$EC2_HOST:/tmp/curecode-docker-compose.yml"
+
+          echo "Docker Compose file copied successfully"
+
+      # --------------------------------------------------------
+      # AUTHENTICATE EC2 DOCKER WITH ECR
+      #
+      # This refreshes the ECR authorization token on EC2
+      # before docker compose pull.
+      #
+      # GitHub Actions runner and EC2 have separate Docker
+      # authentication sessions, so this login is required.
+      # --------------------------------------------------------
+
+      - name: Authenticate EC2 Docker with ECR
+        env:
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+          EC2_USERNAME: ${{ secrets.EC2_USERNAME }}
+        run: |
+          set -e
+
+          echo "=========================================="
+          echo "Authenticating Docker with ECR on EC2"
+          echo "=========================================="
+
+          ssh \
+            -i ~/.ssh/curecode_deploy_key \
+            "$EC2_USERNAME@$EC2_HOST" \
+            "aws ecr get-login-password --region ap-south-1 | \
+            docker login --username AWS --password-stdin \
+            384489631175.dkr.ecr.ap-south-1.amazonaws.com"
+
+          echo "ECR authentication successful on EC2"
+
+      # --------------------------------------------------------
+      # DEPLOY APPLICATION
+      # --------------------------------------------------------
+
+      - name: Deploy CureCode to EC2
+        env:
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+          EC2_USERNAME: ${{ secrets.EC2_USERNAME }}
+          EC2_APP_DIR: ${{ secrets.EC2_APP_DIR }}
+        run: |
+          set -e
+
+          ssh \
+            -i ~/.ssh/curecode_deploy_key \
+            "$EC2_USERNAME@$EC2_HOST" \
+            "set -e
+
+            cd '$EC2_APP_DIR'
+
+            echo '=========================================='
+            echo 'Creating Compose backup'
+            echo '=========================================='
+
+            cp docker-compose.yml docker-compose.yml.before-deploy
+
+            echo '=========================================='
+            echo 'Installing new Compose file'
+            echo '=========================================='
+
+            mv /tmp/curecode-docker-compose.yml docker-compose.yml
+
+            echo '=========================================='
+            echo 'Validating Docker Compose'
+            echo '=========================================='
+
+            docker compose config -q
+
+            echo 'Docker Compose configuration is valid'
+
+            echo '=========================================='
+            echo 'Pulling latest ECR images'
+            echo '=========================================='
+
+            docker compose pull
+
+            echo '=========================================='
+            echo 'Starting CureCode'
+            echo '=========================================='
+
+            docker compose up -d
+
+            echo '=========================================='
+            echo 'Container status'
+            echo '=========================================='
+
+            docker compose ps
+            "
+
+      # --------------------------------------------------------
+      # WAIT FOR BACKEND
+      # --------------------------------------------------------
+
+      - name: Wait for backend health
+        env:
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+          EC2_USERNAME: ${{ secrets.EC2_USERNAME }}
+        run: |
+          set -e
+
+          echo "Waiting for backend to become healthy..."
+
+          for i in {1..30}; do
+
+            if ssh \
+              -i ~/.ssh/curecode_deploy_key \
+              "$EC2_USERNAME@$EC2_HOST" \
+              "curl --fail --silent --show-error http://localhost:5000/api/health" \
+              > /dev/null 2>&1
+            then
+
+              echo "Backend health check passed"
+
+              exit 0
+
+            fi
+
+            echo "Backend not ready yet. Attempt $i/30"
+
+            sleep 10
+
+          done
+
+          echo "Backend health check failed"
+
+          exit 1
+
+      # --------------------------------------------------------
+      # FINAL DEPLOYMENT STATUS
+      # --------------------------------------------------------
+
+      - name: Deployment summary
+        env:
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+          EC2_USERNAME: ${{ secrets.EC2_USERNAME }}
+        run: |
+          echo "=========================================="
+          echo "CureCode deployment successful"
+          echo "=========================================="
+
+          echo ""
+          echo "EC2:"
+          echo "$EC2_HOST"
+
+          echo ""
+          echo "Branch:"
+          echo "dev2"
+
+          echo ""
+          echo "Commit:"
+          echo "${GITHUB_SHA}"
+
+          echo ""
+          echo "Docker images:"
+          echo "${ECR_REGISTRY}/curecode-backend:latest"
+          echo "${ECR_REGISTRY}/curecode-frontend:latest"
+          echo "${ECR_REGISTRY}/curecode-mongo:latest"
+
+          echo ""
+          echo "=========================================="

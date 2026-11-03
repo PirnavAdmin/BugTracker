@@ -14,6 +14,10 @@
     "backup:export": "node scripts/exportMongoBackup.js",
     "reconcile:storage": "node scripts/reconcileStorage.js",
     "migrate:storage": "node scripts/migrateStorageBackfill.js",
+    "indexes:performance:local": "node scripts/createLocalPerformanceIndexes.js --apply",
+    "db:target:check": "node scripts/inspectMongoTarget.js",
+    "indexes:issues:inspect:local": "node scripts/inspectLocalIssueIndexes.js",
+    "queries:issues:explain:local": "node scripts/explainLocalIssueQueries.js",
     "start": "node server.js"
   },
   "dependencies": {

@@ -73,6 +73,8 @@ const callLog = (message, details = null) => {
 };
 
 const configuredTurnUrl = import.meta.env.VITE_TURN_URL || "";
+const configuredTurnUsername = import.meta.env.VITE_TURN_USERNAME || "";
+const configuredTurnCredential = import.meta.env.VITE_TURN_CREDENTIAL || "";
 const turnUrls = configuredTurnUrl
   ? [
       configuredTurnUrl,
@@ -81,16 +83,17 @@ const turnUrls = configuredTurnUrl
         : []),
     ]
   : [];
+const hasTurnCredentials = Boolean(configuredTurnUsername && configuredTurnCredential);
 
 const rtcConfig = {
   iceServers: [
     { urls: import.meta.env.VITE_STUN_URL || "stun:stun.l.google.com:19302" },
-    ...(turnUrls.length
+    ...(turnUrls.length && hasTurnCredentials
       ? [
           {
             urls: turnUrls,
-            username: import.meta.env.VITE_TURN_USERNAME || "",
-            credential: import.meta.env.VITE_TURN_CREDENTIAL || "",
+            username: configuredTurnUsername,
+            credential: configuredTurnCredential,
           },
         ]
       : []),
@@ -442,6 +445,7 @@ export const CallProvider = ({ children }) => {
   const outboundVideoTrackRef = useRef(null);
   const stopRingtoneRef = useRef(null);
   const activeCallRef = useRef(null);
+  const callStartPendingRef = useRef(false);
   const screenRef = useRef(null);
   const callFrameRef = useRef(null);
   const stageRef = useRef(null);
@@ -709,6 +713,8 @@ export const CallProvider = ({ children }) => {
   );
 
   const closeCallUi = useCallback(() => {
+    activeCallRef.current = null;
+    callStartPendingRef.current = false;
     stopRingtoneRef.current?.();
     stopRingtoneRef.current = null;
     cleanupAllPeers();
@@ -916,7 +922,12 @@ export const CallProvider = ({ children }) => {
         cleanupPeer(normalizedTargetId);
       }
 
-      callLog("creating peer connection", { callId, targetUserId: normalizedTargetId });
+      callLog("creating peer connection", {
+        callId,
+        targetUserId: normalizedTargetId,
+        turnConfigured: Boolean(turnUrls.length && hasTurnCredentials),
+        iceTransportPolicy: rtcConfig.iceTransportPolicy,
+      });
       const peer = new RTCPeerConnection(rtcConfig);
       const nextRemoteStream = new MediaStream();
       updateRemoteStream(normalizedTargetId, nextRemoteStream);
@@ -1100,6 +1111,19 @@ export const CallProvider = ({ children }) => {
           [normalizedTargetId]: state,
         }));
 
+        if (state === "connected") {
+          const currentCall = activeCallRef.current;
+          if (currentCall?.callId === callId) {
+            const connectedCall = {
+              ...currentCall,
+              status: "connected",
+              startedAt: currentCall.startedAt || new Date().toISOString(),
+            };
+            activeCallRef.current = connectedCall;
+            setActiveCall(connectedCall);
+          }
+        }
+
         if (state === "failed") {
           restartIce();
         } else if (state === "disconnected") {
@@ -1128,6 +1152,15 @@ export const CallProvider = ({ children }) => {
         return;
       }
 
+      if (callStartPendingRef.current || activeCallRef.current || incomingCall) {
+        callLog("ignoring duplicate call start while another call is active", {
+          pending: callStartPendingRef.current,
+          activeCallId: activeCallRef.current?.callId || null,
+          incomingCallId: incomingCall?.callId || null,
+        });
+        return;
+      }
+
       const isGroup = conversation.type !== "direct";
       const receiver = (conversation.participants || []).find(
         (participant) => getId(participant) !== getId(user)
@@ -1140,8 +1173,21 @@ export const CallProvider = ({ children }) => {
 
       setError("");
       setIsCameraOff(callType !== "video");
-      await getMedia(callType);
-      getChatSocket(token)?.emit(
+      callStartPendingRef.current = true;
+      try {
+        await getMedia(callType);
+      } catch (mediaError) {
+        callStartPendingRef.current = false;
+        return;
+      }
+      const socket = getChatSocket(token);
+      if (!socket?.connected) {
+        callStartPendingRef.current = false;
+        setError("Chat connection is unavailable. Reconnect and try the call again.");
+        stopStreams();
+        return;
+      }
+      socket.emit(
         "call:start",
         {
           conversationId: getId(conversation),
@@ -1152,13 +1198,16 @@ export const CallProvider = ({ children }) => {
         },
         (response) => {
           if (!response?.ok) {
+            callStartPendingRef.current = false;
             stopStreams();
             setError(response?.error || "Unable to start call.");
+          } else {
+            callStartPendingRef.current = false;
           }
         }
       );
     },
-    [getMedia, stopStreams, token, user]
+    [getMedia, incomingCall, stopStreams, token, user]
   );
 
   const joinCall = useCallback(
@@ -1423,13 +1472,16 @@ export const CallProvider = ({ children }) => {
       notifyIncomingCall(call);
     };
     const handleOutgoingCall = (call) => {
+      callStartPendingRef.current = false;
       setIsCameraOff((call.callType || "audio") !== "video");
-      setActiveCall({
+      const nextCall = {
         ...call,
         status: call.scope === "group" ? "connected" : "ringing",
         peer: call.receiver,
         startedAt: call.startTime || (call.scope === "group" ? new Date().toISOString() : null),
-      });
+      };
+      activeCallRef.current = nextCall;
+      setActiveCall(nextCall);
       if (call.scope !== "group") {
         createPeer({
           callId: call.callId,
@@ -1482,15 +1534,24 @@ export const CallProvider = ({ children }) => {
         currentCall.callId !== payload.callId ||
         String(payload.callerId) !== getId(user)
       ) {
+        callLog("accepted event did not match the active outgoing call", {
+          acceptedCallId: payload.callId,
+          activeCallId: currentCall?.callId || null,
+          eventCallerId: String(payload.callerId || ""),
+          currentUserId: getId(user),
+        });
         return;
       }
 
+      callLog("call accepted; starting peer negotiation", { callId: payload.callId });
+      const connectingCall = { ...currentCall, status: "connecting", startedAt: payload.startTime };
+      activeCallRef.current = connectingCall;
+      setActiveCall(connectingCall);
       const stream = localStreamRef.current || (await getMedia(currentCall.callType));
       const targetUserId = getId(currentCall.peer);
       createPeer({ callId: payload.callId, targetUserId, stream });
       await negotiatePeer(targetUserId);
       setIsCameraOff((currentCall.callType || "audio") !== "video");
-      setActiveCall({ ...currentCall, status: "connected", startedAt: payload.startTime });
     };
     const handleJoined = (payload) => {
       const currentCall = activeCallRef.current;
@@ -1640,7 +1701,9 @@ export const CallProvider = ({ children }) => {
         targetUserId: fromUserId,
         description: peer.localDescription || answer,
       });
-      setActiveCall({ ...currentCall, status: "connected", startedAt: payload.startTime });
+      const connectingCall = { ...currentCall, status: "connecting", startedAt: payload.startTime };
+      activeCallRef.current = connectingCall;
+      setActiveCall(connectingCall);
     };
     const handleAnswer = async (payload) => {
       if (payload.description?.type !== "answer") {

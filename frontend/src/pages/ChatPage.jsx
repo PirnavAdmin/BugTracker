@@ -39,6 +39,7 @@ const ChatPage = () => {
   const [isMeetingDialogOpen, setIsMeetingDialogOpen] = useState(false);
   const [meetingDialogMode, setMeetingDialogMode] = useState("create");
   const [meetingDraft, setMeetingDraft] = useState(buildMeetingDraft(null));
+  const [meetingConversationId, setMeetingConversationId] = useState("");
   const [meetingError, setMeetingError] = useState("");
   const [isSavingMeeting, setIsSavingMeeting] = useState(false);
   const [meetingSearch, setMeetingSearch] = useState("");
@@ -92,6 +93,10 @@ const ChatPage = () => {
         (conversation) => getId(conversation) === activeConversationId
       ) || null,
     [activeConversationId, conversations]
+  );
+  const meetingConversation = useMemo(
+    () => conversations.find((conversation) => getId(conversation) === meetingConversationId) || activeConversation,
+    [activeConversation, conversations, meetingConversationId]
   );
   const filteredConversations = useMemo(() => {
     if (activeModule === "archives") {
@@ -259,16 +264,18 @@ const ChatPage = () => {
   }, [activeConversationId, activeModule, filteredConversations, setActiveConversation]);
 
   const openCreateMeetingDialog = useCallback(() => {
-    if (!activeConversation || !canScheduleMeetings) {
+    if (!canScheduleMeetings) {
       return;
     }
 
+    const selectedConversation = activeConversation || conversations[0] || null;
     setMeetingDialogMode("create");
     setEditingMeetingId("");
-    setMeetingDraft(buildMeetingDraft(activeConversation));
+    setMeetingConversationId(getId(selectedConversation));
+    setMeetingDraft(buildMeetingDraft(selectedConversation));
     setMeetingError("");
     setIsMeetingDialogOpen(true);
-  }, [activeConversation, canScheduleMeetings]);
+  }, [activeConversation, canScheduleMeetings, conversations]);
 
   const handleMeetingChange = useCallback((field, value) => {
     setMeetingDraft((current) => ({
@@ -381,6 +388,7 @@ const ChatPage = () => {
   const handleEditMeeting = useCallback((meeting) => {
     setMeetingDialogMode("edit");
     setEditingMeetingId(getId(meeting));
+    setMeetingConversationId(getId(meeting?.conversationId));
     setMeetingDraft(meetingToDraft(meeting));
     setMeetingError("");
     setIsMeetingDialogOpen(true);
@@ -426,7 +434,8 @@ const ChatPage = () => {
   );
 
   const handleSaveMeeting = useCallback(async () => {
-    if (!activeConversation && meetingDialogMode === "create") {
+    const conversationId = meetingConversationId || activeConversationId;
+    if (!conversationId && meetingDialogMode === "create") {
       setMeetingError("Select a chat before creating a meeting.");
       return;
     }
@@ -445,12 +454,12 @@ const ChatPage = () => {
       const response =
         meetingDialogMode === "edit" && editingMeetingId
           ? await updateChatMeeting(editingMeetingId, payload)
-          : await scheduleChatMeeting(activeConversationId, payload);
+          : await scheduleChatMeeting(conversationId, payload);
 
       if (response?.chatMessage) {
         receiveMessage({
           conversationId:
-            activeConversationId || getId(response?.meeting?.conversationId),
+            conversationId || getId(response?.meeting?.conversationId),
           message: response.chatMessage,
         });
       }
@@ -475,11 +484,11 @@ const ChatPage = () => {
       setIsSavingMeeting(false);
     }
   }, [
-    activeConversation,
     activeConversationId,
     editingMeetingId,
     meetingDialogMode,
     meetingDraft,
+    meetingConversationId,
     receiveMessage,
     refreshMeetings,
   ]);
@@ -664,15 +673,18 @@ const ChatPage = () => {
       />
       {renderModuleContent()}
       <ChatMeetingDialog
-        conversation={activeConversation}
+        conversation={meetingConversation}
+        conversations={conversations}
         draft={meetingDraft}
         error={meetingError}
         isOpen={isMeetingDialogOpen}
         isSaving={isSavingMeeting}
         mode={meetingDialogMode}
         onChange={handleMeetingChange}
+        onConversationChange={setMeetingConversationId}
         onClose={setIsMeetingDialogOpen}
         onSave={handleSaveMeeting}
+        selectedConversationId={meetingConversationId}
       />
       <ToastNotice toast={toast} onDismiss={() => setToast(null)} />
     </div>

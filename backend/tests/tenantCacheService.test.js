@@ -164,3 +164,35 @@ test("Redis read errors fall back to a cache MISS", async () => {
     { hit: false, value: null }
   );
 });
+
+test("a Redis command timeout falls back to a cache MISS", async () => {
+  const redis = new FakeRedis();
+  redis.get = () => new Promise(() => {});
+  const recoveries = [];
+  const cache = createTenantCacheService(redis, {
+    recover: async (reason) => {
+      recoveries.push(reason);
+    },
+  });
+  const startedAt = Date.now();
+
+  assert.deepEqual(
+    await cache.getCached({ key: createKey("dashboard"), resource: "dashboard", tenantId: "TENANT_001" }),
+    { hit: false, value: null }
+  );
+  assert.ok(Date.now() - startedAt >= 90);
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.deepEqual(recoveries, ["cache command timeout"]);
+});
+
+test("a cache MISS does not issue tracked-key cleanup as a second Redis command", async () => {
+  const redis = new FakeRedis();
+  let trackedKeyRemovals = 0;
+  redis.sRem = async () => {
+    trackedKeyRemovals += 1;
+  };
+  const cache = createTenantCacheService(redis);
+
+  await cache.getCached({ key: createKey("tasks"), resource: "tasks", tenantId: "TENANT_001" });
+  assert.equal(trackedKeyRemovals, 0);
+});

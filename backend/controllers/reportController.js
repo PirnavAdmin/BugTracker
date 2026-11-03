@@ -98,6 +98,8 @@ const getDeveloperDashboardAnalytics = asyncHandler(async (req, res) => {
     projectId: { $in: accessibleProjectIds },
     $or: [
       { assignee: userId },
+      { assignees: userId },
+      { assignedDeveloperId: userId },
       { developerId: userId },
       { assignedTo: userId },
       { ownerId: userId },

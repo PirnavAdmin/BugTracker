@@ -46,6 +46,32 @@ export const DEFAULT_SCREEN_PERMISSIONS = SCREEN_PERMISSION_ROLES.reduce(
   {}
 );
 
+export const WORK_PERMISSION_ROLES = SCREEN_PERMISSION_ROLES;
+export const DEFAULT_WORK_PERMISSIONS = {
+  [ROLE_TEAM_LEAD]: { manageTasks: true, manageBugs: true },
+  [ROLE_QA_LEAD]: { manageTasks: true, manageBugs: false },
+  [ROLE_DEVELOPER]: { manageTasks: false, manageBugs: false },
+  [ROLE_TESTER]: { manageTasks: false, manageBugs: false },
+};
+
+export const normalizeWorkPermissions = (permissions = {}) =>
+  WORK_PERMISSION_ROLES.reduce(
+    (normalized, role) => ({
+      ...normalized,
+      [role]: {
+        manageTasks:
+          typeof permissions?.[role]?.manageTasks === "boolean"
+            ? permissions[role].manageTasks
+            : DEFAULT_WORK_PERMISSIONS[role].manageTasks,
+        manageBugs:
+          typeof permissions?.[role]?.manageBugs === "boolean"
+            ? permissions[role].manageBugs
+            : DEFAULT_WORK_PERMISSIONS[role].manageBugs,
+      },
+    }),
+    {}
+  );
+
 export const hasAdminPanelAccess = (role) => ADMIN_PANEL_ROLES.includes(role);
 export const hasTesterPanelAccess = (role) => TESTER_PANEL_ROLES.includes(role);
 export const hasTaskStoryLeadAccess = (role) => TASK_STORY_LEAD_ROLES.includes(role);

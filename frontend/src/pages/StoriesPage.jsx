@@ -52,8 +52,8 @@ const StoriesPage = () => {
     isLoading: storiesLoading,
     error,
   } = useQuery({
-    queryKey: ["stories", projectId],
-    queryFn: () => fetchStories({ projectId }),
+    queryKey: ["stories", projectId, storyId ? "detail" : "list"],
+    queryFn: () => fetchStories({ projectId, ...(storyId ? {} : { view: "list" }) }),
   });
 
   const filteredStories = useMemo(() => {

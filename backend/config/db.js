@@ -10,6 +10,10 @@ const connectDB = async () => {
 
     await mongoose.connect(MONGO_URI, {
       dbName: "bugtracker",
+      maxPoolSize: Number(process.env.MONGO_MAX_POOL_SIZE || 20),
+      minPoolSize: Number(process.env.MONGO_MIN_POOL_SIZE || 2),
+      serverSelectionTimeoutMS: Number(process.env.MONGO_SERVER_SELECTION_TIMEOUT_MS || 10_000),
+      socketTimeoutMS: Number(process.env.MONGO_SOCKET_TIMEOUT_MS || 45_000),
     });
 
     console.log("MongoDB connected");

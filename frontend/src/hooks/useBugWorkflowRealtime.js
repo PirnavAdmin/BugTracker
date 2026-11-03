@@ -1,7 +1,13 @@
 import { useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
-import { ISSUE_STATUS, isBugIssue, isIssueClosed } from "@/lib/issues";
+import {
+  ISSUE_STATUS,
+  isBugIssue,
+  isIssueClosed,
+  normalizeBugLifecycleStatus,
+} from "@/lib/issues";
+import { isTaskOnlyIssueQueryKey, removeBugsFromTaskOnlyIssueCache } from "@/lib/bug-workflow-cache";
 import { getChatSocket } from "@/lib/socket";
 
 const BUG_EVENTS = [
@@ -31,6 +37,20 @@ const DEVELOPER_WORKFLOW_QUERY_MARKERS = new Set([
 
 const getId = (value) => String(value?._id || value || "");
 
+const getEventBug = (bug) => {
+  if (!bug || typeof bug !== "object" || !bug.status || !isBugIssue(bug)) {
+    return bug;
+  }
+
+  // The top-level workflow status is the persisted source of truth. Socket
+  // payloads from older clients may omit bugLifecycleStatus, and cached issues
+  // may still carry the lifecycle from before a reopen/re-verify transition.
+  return {
+    ...bug,
+    bugLifecycleStatus: normalizeBugLifecycleStatus(bug.status),
+  };
+};
+
 const getAssignedDeveloperId = (bug) =>
   getId(bug?.assignedDeveloperId) ||
   getId(bug?.bugDetails?.developerLead) ||
@@ -43,9 +63,13 @@ const isAvailableBucketBug = (bug) =>
   !getId(bug?.bugDetails?.developerLead) &&
   AVAILABLE_BUCKET_STATUSES.has(String(bug.status || "").toUpperCase());
 
-const mergeBugIntoList = (current, bug, { eventName, userId }) => {
+const mergeBugIntoList = (queryKey, current, bug, { eventName, userId }) => {
   if (!Array.isArray(current) || !bug?._id) {
     return current;
+  }
+
+  if (isTaskOnlyIssueQueryKey(queryKey)) {
+    return removeBugsFromTaskOnlyIssueCache(queryKey, current);
   }
 
   const queryIsBucket = current.some((item) => Boolean(item?.pickupEligibility));
@@ -65,7 +89,9 @@ const mergeBugIntoList = (current, bug, { eventName, userId }) => {
   }
 
   if (existingIndex >= 0) {
-    return current.map((item) => (item?._id === bug._id ? { ...item, ...bug } : item));
+    return current.map((item) =>
+      item?._id === bug._id ? { ...item, ...getEventBug(bug) } : item
+    );
   }
 
   if (
@@ -86,8 +112,11 @@ const shouldPruneFromDeveloperWorkflow = (queryKey, bug) =>
   isDeveloperWorkflowQuery(queryKey) && isBugIssue(bug) && isIssueClosed(bug);
 
 const invalidateWorkflowQueries = (queryClient) => {
-  ["issues", "bugs", "reports", "analytics"].forEach((key) => {
-    queryClient.invalidateQueries({ queryKey: [key] });
+  ["issues", "bugs", "reports", "analytics", "developer-dashboard"].forEach((key) => {
+    // Incoming workflow events are merged into array-backed active views above.
+    // Mark every other cached view stale without forcing the current board to
+    // refetch and discard its optimistic state after each drag/drop.
+    queryClient.invalidateQueries({ queryKey: [key], refetchType: "inactive" });
   });
 };
 
@@ -108,27 +137,35 @@ export const useBugWorkflowRealtime = () => {
     }
 
     const handleBugEvent = (payload = {}, eventName = "BugUpdated") => {
-      const bug = payload.bug || payload.issue;
+      const bug = getEventBug(payload.bug || payload.issue);
 
       if (bug?._id) {
-        queryClient
+        const matchingQueries = queryClient
           .getQueryCache()
           .findAll({
             predicate: (query) =>
               ["issues", "bugs"].includes(String(query.queryKey?.[0] || "")),
-          })
-          .forEach((query) => {
-            queryClient.setQueryData(query.queryKey, (current) => {
-              if (
-                Array.isArray(current) &&
-                shouldPruneFromDeveloperWorkflow(query.queryKey, bug)
-              ) {
-                return current.filter((item) => item?._id !== bug._id);
-              }
-
-              return mergeBugIntoList(current, bug, { eventName, userId });
-            });
           });
+
+        // A dashboard list request may have started before this event. Cancel
+        // it before merging the authoritative event so its older response
+        // cannot replace the newer lifecycle state when it completes.
+        matchingQueries.forEach((query) => {
+          void queryClient.cancelQueries({ queryKey: query.queryKey, exact: true });
+        });
+
+        matchingQueries.forEach((query) => {
+          queryClient.setQueryData(query.queryKey, (current) => {
+            if (
+              Array.isArray(current) &&
+              shouldPruneFromDeveloperWorkflow(query.queryKey, bug)
+            ) {
+              return current.filter((item) => item?._id !== bug._id);
+            }
+
+            return mergeBugIntoList(query.queryKey, current, bug, { eventName, userId });
+          });
+        });
       }
 
       invalidateWorkflowQueries(queryClient);

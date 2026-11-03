@@ -81,8 +81,21 @@ export const calculateBugMetrics = (bugs = [], deliveredPoints = 0) => {
   };
 };
 
-const ownerId = (issue) => String(issue?.developerLead?._id || issue?.assignee?._id || "unassigned");
-const ownerName = (issue) => issue?.developerLead?.name || issue?.assignee?.name || "Unassigned";
+const resolveDeveloperOwner = (issue) =>
+  issue?.developerLead ||
+  issue?.bugDetails?.developerLead ||
+  issue?.assignedDeveloperId ||
+  issue?.assignee ||
+  issue?.assignees?.[0] ||
+  null;
+const ownerId = (issue) => {
+  const owner = resolveDeveloperOwner(issue);
+  return String(owner?._id || owner?.id || owner || "unassigned");
+};
+const ownerName = (issue) => {
+  const owner = resolveDeveloperOwner(issue);
+  return owner?.name || owner?.email || "Unassigned";
+};
 const scoreLabel = (score) =>
   score >= 85 ? "Excellent" : score >= 70 ? "Good" : score >= 55 ? "Average" : "Needs Improvement";
 

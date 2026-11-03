@@ -6,7 +6,7 @@ const AdminSettingsLayout = ({
   items,
   onActiveItemChange,
 }) => (
-  <div className="grid gap-3 lg:grid-cols-[276px_minmax(0,1fr)] lg:items-stretch">
+  <div className="grid min-w-0 gap-3 lg:grid-cols-[276px_minmax(0,1fr)] lg:items-stretch">
     <SettingsSidebar
       activeItem={activeItem}
       items={items}

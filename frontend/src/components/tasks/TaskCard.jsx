@@ -59,7 +59,7 @@ const DraggableTaskCard = ({ issue, isUpdating, onSelectIssue, readOnly }) => {
     transform,
     isDragging,
   } = useDraggable({
-    id: issue._id,
+    id: issue.boardCardKey || issue._id,
     data: {
       issue,
     },
@@ -96,7 +96,7 @@ const TaskCardSurface = ({
   style,
 }) => {
   const createdAtLabel = formatCreatedAt(issue.createdAt);
-  const assignee = resolveIssueAssignee(issue);
+  const assignee = issue.boardAssignee || resolveIssueAssignee(issue);
   const isOverdue = isIssueOverdue(issue);
   const isNearDue = !isOverdue && isIssueNearDue(issue);
   const deadlineLabel = getIssueDeadlineLabel(issue);

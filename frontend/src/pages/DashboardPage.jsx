@@ -1409,12 +1409,18 @@ const formatQuickChatTime = (value) => {
 const AdminQuickActionsCard = ({
   actions = [],
   stats = [],
+  user,
+  onManageUsers,
   quickChatItems = [],
   onlineUsers = [],
   currentUserId = "",
   onOpenChat,
   onSendReply,
 }) => {
+  const currentHour = new Date().getHours();
+  const greeting = currentHour < 12 ? "Good morning" : currentHour < 17 ? "Good afternoon" : "Good evening";
+  const firstName = String(user?.name || user?.role || "Admin").trim().split(/\s+/)[0];
+  const roleLabel = user?.role === ROLE_MANAGER ? "Manager" : "Admin";
   const carouselRef = useRef(null);
   const replyInputRef = useRef(null);
   const [activeReplyId, setActiveReplyId] = useState("");
@@ -1509,17 +1515,43 @@ const AdminQuickActionsCard = ({
   };
 
   return (
-    <AnalyticsPanel
-      className="[&>div:first-child]:p-3.5 [&>div:first-child_h2]:text-base [&>div:first-child_h2]:font-semibold [&>div:last-child]:space-y-3 [&>div:last-child]:p-3.5"
-      title={
-        <span className="flex items-center gap-2">
-          <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-violet-50 text-violet-700">
-            <Zap className="h-3.5 w-3.5" />
+    <Card className="overflow-hidden rounded-[20px] border border-violet-200/80 bg-gradient-to-br from-violet-50 via-white to-purple-100/80 shadow-[0_18px_44px_-36px_rgba(124,58,237,0.48)]">
+      <div className="flex flex-col gap-3 border-b border-violet-200/70 px-3 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-4">
+        <div className="flex min-w-0 items-center gap-3">
+          <UserAvatar
+            user={user}
+            name={user?.name || roleLabel}
+            className="h-10 w-10 shrink-0 rounded-xl border-2 border-white shadow-sm"
+            imageClassName="object-cover"
+            fallbackClassName="text-xs font-black"
+          />
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="truncate text-base font-bold tracking-tight text-slate-950">
+                {greeting}, <span className="text-violet-700">{firstName || roleLabel}</span>
+              </p>
+              <span className="rounded-full border border-violet-200 bg-white/75 px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.14em] text-violet-700">
+                {roleLabel}
+              </span>
+            </div>
+            <p className="truncate text-xs font-medium text-slate-600">Manage your projects, teams and workspace from one place.</p>
+          </div>
+        </div>
+        <div className="flex shrink-0 items-center justify-between gap-3 sm:justify-end">
+          <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-violet-700">
+            <Zap className="h-3.5 w-3.5" /> Quick Actions
           </span>
-          Quick Actions
-        </span>
-      }
-    >
+          <Button
+            className="h-8 rounded-lg border-violet-200 bg-white/75 px-3 text-xs font-bold text-slate-800 hover:bg-white"
+            onClick={onManageUsers}
+            type="button"
+            variant="outline"
+          >
+            Manage Users <ArrowRight className="ml-1 h-3.5 w-3.5" />
+          </Button>
+        </div>
+      </div>
+      <CardContent className="space-y-3 p-3 sm:p-4">
       <div className="flex gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {actions.map((action) => {
           const Icon = action.icon;
@@ -1772,7 +1804,8 @@ const AdminQuickActionsCard = ({
           />
         )}
       </div>
-    </AnalyticsPanel>
+      </CardContent>
+    </Card>
   );
 };
 
@@ -2027,7 +2060,6 @@ const AdminGreetingCard = ({
 
 const DashboardLoading = () => (
   <div className="space-y-6">
-    <Skeleton className="h-[120px] rounded-xl bg-slate-100/50" />
     <AnalyticsSkeletonGrid />
     <div className="grid gap-5 xl:grid-cols-[1.2fr_0.8fr]">
       <Skeleton className="h-[350px] rounded-xl" />
@@ -2103,8 +2135,9 @@ const DashboardPage = () => {
     data: meetingsData = [],
   } = useQuery({
     queryKey: ["chat-meetings", "admin-dashboard-upcoming"],
-    queryFn: () => fetchAllChatMeetings(),
+    queryFn: () => fetchAllChatMeetings({ upcoming: true, limit: 5 }),
     enabled: Boolean(user?._id),
+    staleTime: 30_000,
   });
   const {
     data: activeQuickChatData = [],
@@ -2866,7 +2899,15 @@ const DashboardPage = () => {
     [bugMetrics]
   );
   if (analytics.isLoading || isIssuesLoading || isProjectsCountLoading || isTeamsCountLoading) {
-    return <DashboardLoading />;
+    return (
+      <div className="space-y-6">
+        <AdminGreetingCard
+          user={user}
+          onManageUsers={() => navigate("/settings/users")}
+        />
+        <DashboardLoading />
+      </div>
+    );
   }
 
   if (analytics.error || issuesError) {
@@ -2883,15 +2924,12 @@ const DashboardPage = () => {
 
   return (
     <div className="space-y-6">
-      <AdminGreetingCard
-        user={user}
-        onManageUsers={() => navigate("/settings/users")}
-      />
-
       <section>
         <AdminQuickActionsCard
           actions={adminQuickActions}
           stats={adminQuickStats}
+          user={user}
+          onManageUsers={() => navigate("/settings/users")}
           quickChatItems={quickChatItems}
           onlineUsers={chatOnlineUsers}
           currentUserId={getEntityId(user)}
@@ -2935,6 +2973,7 @@ const DashboardPage = () => {
 
       <ProjectOverviewDashboardPanel
         issues={[...issues, ...bugs]}
+        workQueueBugs={bugs.filter(isBugBucketItem)}
         onViewGitActivity={(project) => {
           const projectId = project?._id || project?.id || "";
           const params = new URLSearchParams({ view: "git-activity" });

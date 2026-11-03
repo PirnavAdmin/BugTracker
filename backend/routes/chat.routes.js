@@ -3,6 +3,7 @@ const {
   addConversationParticipants,
   createConversation,
   deleteConversation,
+  downloadChatAttachment,
   deleteMeeting,
   createMessage,
   getCallLogs,
@@ -33,6 +34,7 @@ router.delete("/conversations/:id/participants/:userId", protect, removeConversa
 router.delete("/conversations/:id", protect, deleteConversation);
 router.get("/conversation/:id", protect, getConversationById);
 router.get("/messages/:conversationId", protect, getMessages);
+router.get("/messages/:conversationId/attachments/:messageId/:attachmentIndex", protect, downloadChatAttachment);
 router.post("/messages", protect, createMessage);
 router.get("/calls", protect, getCallLogs);
 router.get("/meetings", protect, getAllMeetings);

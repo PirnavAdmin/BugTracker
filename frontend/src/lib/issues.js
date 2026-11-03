@@ -434,15 +434,18 @@ export const normalizeBugLifecycleStatus = (
     typeof issueOrStatus === "object"
       ? issueOrStatus?.bugLifecycleStatus ||
         issueOrStatus?.bugStatus ||
-        issueOrStatus?.workflowStatus ||
-        issueOrStatus?.bugDetails?.bugLifecycleStatus ||
-        issueOrStatus?.bugDetails?.status
+        issueOrStatus?.workflowStatus
       : "";
   const rawStatus =
     typeof issueOrStatus === "object" ? issueOrStatus?.status : issueOrStatus;
   const rawToken = normalizeStatusToken(rawStatus);
   const explicitToken = normalizeStatusToken(explicitLifecycle);
-  const token = rawToken || explicitToken;
+  const nestedToken = normalizeStatusToken(
+    typeof issueOrStatus === "object"
+      ? issueOrStatus?.bugDetails?.bugLifecycleStatus || issueOrStatus?.bugDetails?.status
+      : ""
+  );
+  const token = explicitToken || rawToken || nestedToken;
 
   if (BUG_LIFECYCLE_STATUS_VALUES.includes(token)) {
     return token;
@@ -460,7 +463,21 @@ export const normalizeBugLifecycleStatus = (
     return BUG_LIFECYCLE_STATUS.IN_PROGRESS;
   }
 
-  if (["READY_FOR_QA", "READYFORQA", "FIXED", "TESTING", "QA", "REVIEW"].includes(token)) {
+  if (
+    [
+      "READY_FOR_QA",
+      "READYFORQA",
+      "READY_FOR_TESTING",
+      "READY_FOR_VERIFICATION",
+      "QA_READY",
+      "READY_FOR_UAT",
+      "DEVELOPMENT_COMPLETE",
+      "FIXED",
+      "TESTING",
+      "QA",
+      "REVIEW",
+    ].includes(token)
+  ) {
     return BUG_LIFECYCLE_STATUS.READY_FOR_QA;
   }
 
@@ -735,6 +752,24 @@ export const groupBugsByLifecycle = (issues = []) =>
 
 export const resolveBugDetails = (issue) => issue?.bugDetails || {};
 
+export const getIssueTesterIds = (issue) => {
+  const bugDetails = resolveBugDetails(issue);
+  const values = [
+    issue?.reporter,
+    issue?.reporterId,
+    bugDetails.testerOwner,
+    issue?.testerOwner,
+    issue?.testerOwnerId,
+  ];
+  return [...new Set(values
+    .map((value) => value && typeof value === "object" ? value._id || value.id : value)
+    .map((value) => String(value || "").trim())
+    .filter(Boolean))];
+};
+
+export const issueBelongsToTester = (issue, testerId) =>
+  Boolean(testerId) && getIssueTesterIds(issue).includes(String(testerId));
+
 export const getIssueStatusMetrics = (issues = []) => ({
   total: issues.length,
   open: getOpenIssues(issues).length,
@@ -855,19 +890,19 @@ export const resolveIssueAssignee = (issue) =>
   issue?.assignee && typeof issue.assignee === "object" ? issue.assignee : null;
 
 export const resolveIssueAssignees = (issue) => {
-  const assignees = Array.isArray(issue?.assignees)
-    ? issue.assignees.filter((assignee) => assignee && typeof assignee === "object")
-    : [];
-  const primaryAssignee = resolveIssueAssignee(issue);
+  const candidates = [
+    ...(Array.isArray(issue?.assignees) ? issue.assignees : []),
+    issue?.assignee,
+  ].filter(Boolean);
+  const uniqueAssignees = new Map();
 
-  if (
-    primaryAssignee &&
-    !assignees.some((assignee) => String(assignee._id) === String(primaryAssignee._id))
-  ) {
-    return [primaryAssignee, ...assignees];
-  }
+  candidates.forEach((assignee) => {
+    const id = String(assignee?._id || assignee || "");
+    if (!id || uniqueAssignees.has(id)) return;
+    uniqueAssignees.set(id, typeof assignee === "object" ? assignee : { _id: id });
+  });
 
-  return assignees;
+  return [...uniqueAssignees.values()];
 };
 
 export const resolveIssueAssigneeIds = (issue) => {

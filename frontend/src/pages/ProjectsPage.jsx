@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+﻿import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Activity,
@@ -11,6 +11,7 @@ import {
   CheckCircle2,
   ClipboardList,
   FolderKanban,
+  FileText,
   GitBranch,
   GitCommit,
   HeartPulse,
@@ -100,6 +101,7 @@ import {
 } from "@/lib/roles";
 import { getWorkspaceScope } from "@/lib/workspace";
 import { getProjectTeams, resolveUserId } from "@/lib/project-teams";
+import { matchesProjectName, normalizeProjectSearch } from "@/lib/project-search";
 import { cn, getInitials } from "@/lib/utils";
 import { ISSUE_TYPES, normalizeIssueType } from "@/lib/issues";
 import {
@@ -486,15 +488,30 @@ const ProjectsPage = () => {
   const { user } = useAuth();
   const workspaceScope = getWorkspaceScope(user);
   const [activeTab, setActiveTab] = useState("projects");
+  const [activeSidebarItem, setActiveSidebarItem] = useState(() => {
+    if (routeProjectId) {
+      return "ai-assist";
+    }
+
+    return new URLSearchParams(location.search).get("tab") === "teams"
+      ? "teams"
+      : "all-projects";
+  });
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [isCreateTeamDialogOpen, setIsCreateTeamDialogOpen] = useState(false);
+  const [isEpicProjectPickerOpen, setIsEpicProjectPickerOpen] = useState(false);
   const [projectSearch, setProjectSearch] = useState("");
-  const [projectStatusFilter, setProjectStatusFilter] = useState("all");
-  const [projectMode, setProjectMode] = useState("overview");
+  const [projectStatusFilter, setProjectStatusFilter] = useState(
+    () => location.state?.projectStatusFilter || "all"
+  );
+  const [projectMode, setProjectMode] = useState(
+    () => location.state?.projectMode || "overview"
+  );
   const [projectDetailView, setProjectDetailView] = useState("overview");
   const [projectPanelView, setProjectPanelView] = useState("details");
   const [isQuickAddOpen, setIsQuickAddOpen] = useState(false);
   const [isSelectedProjectDeleteOpen, setIsSelectedProjectDeleteOpen] = useState(false);
+  const [isProjectDescriptionOpen, setIsProjectDescriptionOpen] = useState(false);
   const [selectedProjectDeleteConfirmation, setSelectedProjectDeleteConfirmation] = useState("");
   const [projectSettings, setProjectSettings] = useState({
     name: "",
@@ -519,9 +536,17 @@ const ProjectsPage = () => {
   const [epicDialogState, setEpicDialogState] = useState({ open: false, epic: null });
   const [toast, setToast] = useState(null);
 
-  const updateActiveTab = (tab) => {
+  const updateActiveTab = (
+    tab,
+    sidebarItem,
+    nextProjectStatusFilter = projectStatusFilter,
+    nextProjectMode = projectMode
+  ) => {
     const nextTab = tab === "teams" ? "teams" : "projects";
     setActiveTab(nextTab);
+    setActiveSidebarItem(sidebarItem);
+    setProjectStatusFilter(nextProjectStatusFilter);
+    setProjectMode(nextProjectMode);
 
     const params = new URLSearchParams(location.search);
     if (nextTab === "teams") {
@@ -531,15 +556,38 @@ const ProjectsPage = () => {
     }
 
     navigate(`/projects${params.toString() ? `?${params}` : ""}`, {
-      replace: true,
-      state: location.state,
+      state: {
+        ...(location.state || {}),
+        activeSidebarItem: sidebarItem,
+        projectStatusFilter: nextProjectStatusFilter,
+        projectMode: nextProjectMode,
+      },
     });
   };
 
   useEffect(() => {
     const requestedTab = new URLSearchParams(location.search).get("tab");
     setActiveTab(requestedTab === "teams" ? "teams" : "projects");
-  }, [location.search]);
+    if (location.state?.projectStatusFilter) {
+      setProjectStatusFilter(location.state.projectStatusFilter);
+    }
+    if (location.state?.projectMode) {
+      setProjectMode(location.state.projectMode);
+    }
+    setActiveSidebarItem(
+      routeProjectId
+        ? "ai-assist"
+        : requestedTab === "teams"
+          ? "teams"
+          : location.state?.activeSidebarItem || "all-projects"
+    );
+  }, [
+    location.search,
+    location.state?.activeSidebarItem,
+    location.state?.projectMode,
+    location.state?.projectStatusFilter,
+    routeProjectId,
+  ]);
 
   useEffect(() => {
     const params = new URLSearchParams(location.search);
@@ -562,6 +610,7 @@ const ProjectsPage = () => {
   useEffect(() => {
     if (!routeProjectId) return;
     setActiveTab("projects");
+    setActiveSidebarItem("ai-assist");
     setSelectedProjectId(routeProjectId);
     setProjectMode("overview");
     setProjectPanelView("ai-assist");
@@ -877,6 +926,32 @@ const ProjectsPage = () => {
 
   const canManageProjects = hasAdminPanelAccess(user?.role);
   const canManageGitConfiguration = [ROLE_ADMIN, ROLE_MANAGER].includes(user?.role);
+  const handleOpenAIAssist = () => {
+    const projectId = selectedProject?._id || filteredProjects[0]?._id;
+
+    if (!projectId) {
+      showToast("error", "Select or create a project before opening AI Assist.");
+      return;
+    }
+
+    setSelectedProjectId(projectId);
+    setProjectMode("overview");
+    setActiveSidebarItem("ai-assist");
+    navigate(`/projects/${projectId}/ai-assist`, {
+      state: {
+        ...(location.state || {}),
+        activeSidebarItem: "ai-assist",
+        projectStatusFilter,
+        projectMode: "overview",
+      },
+    });
+  };
+  const handleOpenEpics = () => {
+    updateActiveTab("projects", "epics", projectStatusFilter, "planning");
+    if (!selectedProject) {
+      setIsEpicProjectPickerOpen(true);
+    }
+  };
 
   const projectStats = useMemo(() => {
     const active = projects.filter((project) => getProjectStatus(project) === "Active").length;
@@ -898,12 +973,10 @@ const ProjectsPage = () => {
   }, [projects]);
 
   const filteredProjects = useMemo(() => {
-    const normalizedSearch = projectSearch.trim().toLowerCase();
+    const normalizedSearch = normalizeProjectSearch(projectSearch);
 
     return [...projects]
       .filter((project) => {
-        const projectTeams = getProjectTeams(project);
-
         if (
           projectStatusFilter === "favorites" &&
           !(project.isFavorite || project.isStarred || project.favorite)
@@ -919,19 +992,7 @@ const ProjectsPage = () => {
           return false;
         }
 
-        if (!normalizedSearch) {
-          return true;
-        }
-
-        return [
-          project.name,
-          project.description,
-          project.shortCode,
-          getProjectOwnerName(project),
-          ...projectTeams.map((team) => team?.name || team),
-        ]
-          .filter(Boolean)
-          .some((value) => String(value).toLowerCase().includes(normalizedSearch));
+        return matchesProjectName(project, normalizedSearch);
       })
       .sort((left, right) =>
         String(left.name || "").localeCompare(String(right.name || ""))
@@ -939,10 +1000,7 @@ const ProjectsPage = () => {
   }, [projectSearch, projectStatusFilter, projects]);
 
   const selectedProject = useMemo(
-    () =>
-      filteredProjects.find((project) => project._id === selectedProjectId) ||
-      filteredProjects[0] ||
-      null,
+    () => filteredProjects.find((project) => project._id === selectedProjectId) || null,
     [filteredProjects, selectedProjectId]
   );
 
@@ -1429,27 +1487,6 @@ const ProjectsPage = () => {
   );
 
   useEffect(() => {
-    if (!filteredProjects.length) {
-      setSelectedProjectId("");
-      return;
-    }
-
-    if (
-      routeProjectId &&
-      filteredProjects.some((project) => String(project._id) === String(routeProjectId))
-    ) {
-      if (String(selectedProjectId) !== String(routeProjectId)) {
-        setSelectedProjectId(routeProjectId);
-      }
-      return;
-    }
-
-    if (!filteredProjects.some((project) => project._id === selectedProjectId)) {
-      setSelectedProjectId(filteredProjects[0]._id);
-    }
-  }, [filteredProjects, routeProjectId, selectedProjectId]);
-
-  useEffect(() => {
     setProjectDetailView("overview");
     setProjectPanelView(routeProjectId ? "ai-assist" : "details");
     setSettingsTeamId("");
@@ -1718,6 +1755,56 @@ const ProjectsPage = () => {
     showToast("success", "Project deleted successfully.");
   };
 
+  const handleEpicSubmit = async (payload) => {
+    if (!selectedProject) {
+      throw new Error("Select a project before saving an epic.");
+    }
+
+    if (epicDialogState.epic) {
+      const { issueIds: _issueIds, ...epicPayload } = payload;
+      const updatedEpic = await updateEpicMutation.mutateAsync({
+        id: epicDialogState.epic._id,
+        payload: epicPayload,
+      });
+      showToast("success", `${epicPayload.name} was updated.`);
+      return updatedEpic;
+    }
+
+    const { issueIds = [], ...epicPayload } = payload;
+    const createdEpic = await createEpicMutation.mutateAsync({
+      projectId: selectedProject._id,
+      ...epicPayload,
+    });
+
+    if (issueIds.length) {
+      await Promise.all(
+        issueIds.map((issueId) =>
+          updateIssuePlanning({
+            id: issueId,
+            payload: { epicId: createdEpic._id },
+          })
+        )
+      );
+      await queryClient.invalidateQueries({ queryKey: ["issues"] });
+    }
+
+    showToast(
+      "success",
+      `${createdEpic.name} was created${issueIds.length ? ` with ${issueIds.length} linked work item${issueIds.length === 1 ? "" : "s"}` : ""}.`
+    );
+    return createdEpic;
+  };
+
+  const handleEpicDialogOpenChange = (open) => {
+    setEpicDialogState((current) => ({
+      ...current,
+      open,
+      epic: open ? current.epic : null,
+    }));
+  };
+
+  const isInlineEpicEditor = activeTab === "projects" && projectMode === "planning";
+
   if (projectsError) {
     return (
       <Card>
@@ -1735,133 +1822,186 @@ const ProjectsPage = () => {
       <div className="grid h-full min-h-0 w-full gap-4 lg:grid-cols-[200px_minmax(0,1fr)]">
         <aside className="min-h-0 min-w-0 overflow-hidden rounded-[20px] border border-slate-200/80 bg-white/90 p-2 shadow-[0_16px_40px_-30px_rgba(15,23,42,0.38)] backdrop-blur-sm">
           <div className="sticky top-0 flex h-full min-h-0 flex-col gap-4 py-1">
+            <Button
+              className="h-10 w-full justify-center rounded-lg"
+              type="button"
+              onClick={() => {
+                setIsCreateTeamDialogOpen(false);
+                setIsCreateDialogOpen(true);
+              }}
+            >
+              <Plus className="h-4 w-4" />
+              Create Project
+            </Button>
             <nav className="space-y-1" aria-label="Project page sidebar">
               {[
                 {
                   label: "All Projects",
                   Icon: FolderKanban,
-                  active: activeTab === "projects" && projectStatusFilter === "all",
+                  iconTone: "text-blue-600",
+                  active: activeSidebarItem === "all-projects",
                   action: () => {
-                    updateActiveTab("projects");
-                    setProjectMode("overview");
+                    updateActiveTab("projects", "all-projects", "all", "overview");
                     setProjectSearch("");
-                    setProjectStatusFilter("all");
                   },
                 },
                 {
                   label: "Active",
                   Icon: CheckCircle2,
-                  active: activeTab === "projects" && projectStatusFilter === "Active",
+                  iconTone: "text-emerald-600",
+                  active: activeSidebarItem === "active",
                   action: () => {
-                    updateActiveTab("projects");
-                    setProjectMode("overview");
-                    setProjectStatusFilter("Active");
+                    updateActiveTab("projects", "active", "Active", "overview");
                   },
                 },
                 {
                   label: "On Hold",
                   Icon: Archive,
-                  active: activeTab === "projects" && projectStatusFilter === "On Hold",
+                  iconTone: "text-amber-600",
+                  active: activeSidebarItem === "on-hold",
                   action: () => {
-                    updateActiveTab("projects");
-                    setProjectMode("overview");
-                    setProjectStatusFilter("On Hold");
+                    updateActiveTab("projects", "on-hold", "On Hold", "overview");
                   },
                 },
                 {
                   label: "Completed",
                   Icon: ShieldCheck,
-                  active: activeTab === "projects" && projectStatusFilter === "Completed",
+                  iconTone: "text-green-600",
+                  active: activeSidebarItem === "completed",
                   action: () => {
-                    updateActiveTab("projects");
-                    setProjectMode("overview");
-                    setProjectStatusFilter("Completed");
+                    updateActiveTab("projects", "completed", "Completed", "overview");
                   },
                 },
                 {
                   label: "Epics",
                   Icon: Layers3,
-                  active: activeTab === "projects" && projectMode === "planning",
-                  action: () => {
-                    updateActiveTab("projects");
-                    setProjectMode("planning");
-                  },
+                  iconTone: "text-indigo-600",
+                  active: activeSidebarItem === "epics",
+                  action: handleOpenEpics,
                 },
                 {
                   label: "AI Assist",
                   Icon: Sparkles,
-                  active: activeTab === "projects" && projectPanelView === "ai-assist",
+                  iconTone: "text-violet-600",
+                  active: activeSidebarItem === "ai-assist",
                   highlight: true,
-                  action: () => {
-                    if (selectedProject?._id) {
-                      navigate(`/projects/${selectedProject._id}/ai-assist`);
-                    }
-                  },
-                },
-                {
-                  label: "Reports",
-                  Icon: BarChart3,
-                  active: false,
-                  action: () => navigate("/reports"),
+                  action: handleOpenAIAssist,
                 },
                 {
                   label: "Teams",
                   Icon: Users2,
-                  active: activeTab === "teams",
-                  action: () => updateActiveTab("teams"),
+                  iconTone: "text-rose-600",
+                  active: activeSidebarItem === "teams",
+                  action: () => updateActiveTab("teams", "teams"),
                 },
-              ].map(({ label, Icon, active, action, highlight }) => (
+              ].map(({ label, Icon, active, action, highlight, iconTone }) => (
                 <button
                   key={label}
-                  className={`flex h-9 w-full items-center gap-2 rounded-lg border px-3 text-sm font-semibold transition ${
+                  className={`group flex h-9 w-full items-center gap-2 rounded-lg border px-3 text-sm font-semibold transition ${
                     active
                       ? highlight
                         ? "border-violet-300 bg-gradient-to-r from-violet-600 to-indigo-600 text-white shadow-md shadow-violet-200"
                         : "border-[#B6D4FE] bg-[#E9F2FF] text-[#0C66E4]"
-                      : highlight
-                        ? "border-violet-200 bg-violet-50 text-violet-700 hover:border-violet-300 hover:bg-violet-100"
-                        : "border-transparent text-slate-600 hover:bg-slate-50 hover:text-slate-950"
+                      : "border-transparent text-slate-600 hover:bg-slate-50 hover:text-slate-950"
                   }`}
                   type="button"
                   onClick={action}
                 >
-                  <Icon className="h-4 w-4" />
+                  <Icon className={`h-4 w-4 shrink-0 transition duration-200 group-hover:scale-110 group-hover:-rotate-3 ${active ? iconTone : "text-slate-600"}`} />
                   {label}
                 </button>
               ))}
             </nav>
 
-            <div className="rounded-xl border border-[#EEF2F7] bg-blue-50/55 p-3 shadow-[0_2px_12px_rgba(0,0,0,.04)]">
-              <p className="text-sm font-semibold text-slate-950">Need a new lane?</p>
-              <p className="mt-1 text-xs leading-5 text-slate-500">
-              
-              </p>
-              <div className="mt-3 grid gap-2">
-                <Button
-                  className="h-9 rounded-lg"
-                  type="button"
-                  onClick={() => setIsCreateDialogOpen(true)}
-                >
-                  <Plus className="h-4 w-4" />
-                  Project
-                </Button>
-                <Button
-                  className="h-9 rounded-lg bg-white text-slate-700 hover:bg-slate-50"
-                  type="button"
-                  variant="outline"
-                  onClick={() => setIsCreateTeamDialogOpen(true)}
-                >
-                  <Users2 className="h-4 w-4" />
-                  Team
-                </Button>
+            <div className="mt-auto rounded-xl border border-emerald-100 bg-emerald-50/70 p-3 shadow-[0_2px_12px_rgba(0,0,0,.04)]">
+              <div className="flex items-center gap-2 text-sm font-semibold text-slate-950">
+                <Users2 className="h-4 w-4 text-emerald-700" />
+                Teams
               </div>
+              <p className="mt-1 text-xs leading-5 text-slate-600">
+                Organize people into workspace teams.
+              </p>
+              <Button
+                className={`mt-3 h-9 w-full rounded-lg ${activeTab === "teams" ? "border-emerald-300 bg-emerald-100 text-emerald-800" : "border-emerald-200 bg-white text-slate-700 hover:bg-emerald-50"}`}
+                type="button"
+                variant="outline"
+                onClick={() => updateActiveTab("teams", "teams")}
+              >
+                <Users2 className="h-4 w-4" />
+                Teams
+              </Button>
+              <Button
+                className="mt-2 h-9 w-full rounded-lg bg-emerald-600 text-white hover:bg-emerald-700"
+                type="button"
+                onClick={() => {
+                  setIsCreateDialogOpen(false);
+                  setIsCreateTeamDialogOpen(true);
+                }}
+              >
+                <Plus className="h-4 w-4" />
+                Create Team
+              </Button>
             </div>
           </div>
         </aside>
 
         <main className="min-h-0 min-w-0 overflow-hidden">
 
-      {activeTab === "projects" && projectMode === "overview" ? (
+      {(isCreateDialogOpen || isCreateTeamDialogOpen) ? (
+        <section className="h-full min-h-0 overflow-y-auto rounded-[20px] border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
+          {isCreateDialogOpen ? (
+            <>
+              <ProjectComposer
+                onSubmit={handleCreateProject}
+                isPending={createProjectMutation.isPending}
+                users={users}
+                teams={teams}
+                formId="create-project-form"
+                usersErrorMessage={isUsersLoading ? "" : usersErrorMessage}
+                teamsErrorMessage={isTeamsLoading ? "" : teamsErrorMessage}
+                canManageGitConfiguration={canManageGitConfiguration}
+              />
+              <div className="mt-5 flex justify-end gap-2 border-t border-slate-200 pt-4">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setIsCreateDialogOpen(false)}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  form="create-project-form"
+                  type="submit"
+                  disabled={createProjectMutation.isPending}
+                >
+                  {createProjectMutation.isPending ? "Creating..." : "Create Project"}
+                </Button>
+              </div>
+            </>
+          ) : (
+            <>
+              {workspaceUsersErrorMessage && !isWorkspaceUsersLoading ? (
+                <div className="mb-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+                  {workspaceUsersErrorMessage}
+                </div>
+              ) : null}
+              {isWorkspaceUsersLoading ? (
+                <Skeleton className="h-40 w-full rounded-xl" />
+              ) : (
+                <TeamComposer
+                  users={workspaceUsers}
+                  workspaceId={workspaceScope}
+                  isPending={createTeamMutation.isPending}
+                  onSubmit={handleCreateTeam}
+                  onCancel={() => setIsCreateTeamDialogOpen(false)}
+                />
+              )}
+            </>
+          )}
+        </section>
+      ) : null}
+
+      {activeTab === "projects" && projectMode === "overview" && !isCreateDialogOpen && !isCreateTeamDialogOpen ? (
         <section
           aria-labelledby="projects-tab"
           className="grid h-full min-h-0 min-w-0 w-full gap-4 xl:grid-cols-[320px_minmax(0,1fr)]"
@@ -1880,14 +2020,6 @@ const ProjectsPage = () => {
                       {filteredProjects.length} of {projects.length} visible
                     </p>
                   </div>
-                  <Button
-                    className="interactive-button h-8 rounded-lg px-3 text-xs"
-                    onClick={() => setIsCreateDialogOpen(true)}
-                    type="button"
-                  >
-                    <Plus className="h-3.5 w-3.5" />
-                    New
-                  </Button>
                 </div>
 
                 <div className="relative">
@@ -1898,33 +2030,6 @@ const ProjectsPage = () => {
                     value={projectSearch}
                     onChange={(event) => setProjectSearch(event.target.value)}
                   />
-                </div>
-
-                <div className="flex gap-1 overflow-x-auto pb-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                  {[
-                    { label: "All", value: "all" },
-                    { label: "Active", value: "Active" },
-                    { label: "On Hold", value: "On Hold" },
-                    { label: "Completed", value: "Completed" },
-                    { label: "Favorites", value: "favorites" },
-                  ].map((filter) => {
-                    const isActive = projectStatusFilter === filter.value;
-
-                    return (
-                      <button
-                        key={filter.value}
-                        className={`h-7 shrink-0 rounded-full border px-2.5 text-[11px] font-semibold transition ${
-                          isActive
-                            ? "border-[#B6D4FE] bg-[#E9F2FF] text-[#0C66E4]"
-                            : "border-[#EEF2F7] bg-white text-slate-500 hover:text-slate-950"
-                        }`}
-                        type="button"
-                        onClick={() => setProjectStatusFilter(filter.value)}
-                      >
-                        {filter.label}
-                      </button>
-                    );
-                  })}
                 </div>
 
               </CardContent>
@@ -1950,7 +2055,7 @@ const ProjectsPage = () => {
                       className={`group relative flex h-[60px] w-full items-center gap-2 rounded-xl border px-2.5 text-left transition ${
                         isSelected
                           ? "border-[#B6D4FE] bg-[#E9F2FF]"
-                          : "border-transparent bg-white hover:border-[#EEF2F7] hover:bg-white"
+                          : "border-transparent bg-white hover:border-[#B6D4FE] hover:bg-[#F3F8FF] hover:shadow-[0_4px_14px_rgba(37,99,235,0.10)]"
                       }`}
                       type="button"
                       onClick={() => {
@@ -1987,13 +2092,7 @@ const ProjectsPage = () => {
                             {listProgress}%
                           </span>
                         </span>
-                        <span className="mt-1 block h-1 overflow-hidden rounded-full bg-slate-100">
-                          <span
-                            className="block h-full rounded-full bg-[#0C66E4]"
-                            style={{ width: `${listProgress}%` }}
-                          />
-                        </span>
-                        <span className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[11px] text-slate-500">
+                        <span className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px] text-slate-500">
                           <span>{project.issueCount || 0} issues</span>
                           <span>/</span>
                           <span>{getProjectMemberCount(project)} members</span>
@@ -2006,7 +2105,7 @@ const ProjectsPage = () => {
               ) : (
                 <Card>
                   <CardContent className="p-4 text-sm text-slate-500">
-                    No projects match the current controls.
+                    No projects found.
                   </CardContent>
                 </Card>
               )}
@@ -2023,7 +2122,13 @@ const ProjectsPage = () => {
                       className="h-1.5"
                       style={{ backgroundColor: getProjectThemeColor(selectedProject) }}
                     />
-                    <div className="flex flex-col gap-3 px-5 py-4 lg:flex-row lg:items-start lg:justify-between">
+                    <div
+                      className="flex flex-col gap-3 px-5 py-4 transition-colors lg:flex-row lg:items-start lg:justify-between"
+                      style={{
+                        background: `linear-gradient(110deg, ${getProjectThemeColor(selectedProject)}24 0%, ${getProjectThemeColor(selectedProject)}10 58%, #ffffff 100%)`,
+                        borderBottom: `1px solid ${getProjectThemeColor(selectedProject)}24`,
+                      }}
+                    >
                       <div className="flex min-w-0 items-start gap-4">
                         <div className="min-w-0">
                           <p className="mb-1 text-xs font-medium text-slate-500">
@@ -2040,30 +2145,28 @@ const ProjectsPage = () => {
                             >
                               <Star className="h-4 w-4" />
                             </button>
+                            <button
+                              className="rounded-lg p-1.5 text-slate-500 transition hover:bg-white/80 hover:text-blue-700"
+                              type="button"
+                              title="View project description"
+                              aria-label="View project description"
+                              onClick={() => setIsProjectDescriptionOpen(true)}
+                            >
+                              <FileText className="h-4 w-4" />
+                            </button>
                           </div>
-                          <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-600">
-                            {selectedProject.description || "No description added yet."}
-                          </p>
-                          <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-slate-500">
+                          <div className="mt-1.5 flex flex-wrap items-center gap-2 text-xs text-slate-500">
                             <span>
                               Owner: {getProjectOwnerName(selectedProject)}
-                            </span>
-                            <span className="text-slate-300">/</span>
-                            <span>
-                              Members: {selectedProjectMembers.length || getProjectMemberCount(selectedProject)}
                             </span>
                             <span className="text-slate-300">/</span>
                             <span className={`rounded-full border px-2.5 py-1 ${getStatusChipClassName(getProjectStatus(selectedProject))}`}>
                               {getProjectStatus(selectedProject)}
                             </span>
-                            <span className="text-slate-300">/</span>
-                            <span>
-                              Deadline: {selectedProject.targetDate ? formatShortDate(selectedProject.targetDate) : "No deadline set"}
-                            </span>
                           </div>
                         </div>
                       </div>
-                      <div className="flex flex-wrap items-start gap-2">
+                      <div className="grid shrink-0 grid-cols-[40px_auto_auto] items-center justify-end gap-2">
                         <Button
                           className="h-10 w-10 rounded-xl px-0"
                           variant="outline"
@@ -2093,7 +2196,7 @@ const ProjectsPage = () => {
                                 {
                                   label: "Epic",
                                   action: () => {
-                                    setProjectMode("planning");
+                                    handleOpenEpics();
                                     setEpicDialogState({ open: true, epic: null });
                                   },
                                 },
@@ -2131,7 +2234,7 @@ const ProjectsPage = () => {
                           Hold
                         </Button>
                         <Button
-                          className="h-10 rounded-xl"
+                          className="col-span-2 h-10 rounded-xl"
                           variant="outline"
                           type="button"
                           disabled={
@@ -2143,15 +2246,6 @@ const ProjectsPage = () => {
                         >
                           <CheckCircle2 className="h-4 w-4" />
                           Mark Completed
-                        </Button>
-                        <Button
-                          className="h-10 rounded-xl"
-                          variant="outline"
-                          type="button"
-                          onClick={() => navigate(`/sprint-planning?projectId=${selectedProject._id}`)}
-                        >
-                          <Layers3 className="h-4 w-4" />
-                          Sprint Planning
                         </Button>
                         <Button
                           className="h-10 w-10 rounded-xl border-rose-200 px-0 text-rose-600 hover:bg-rose-50 hover:text-rose-700"
@@ -2170,107 +2264,106 @@ const ProjectsPage = () => {
                 </Card>
                 ) : null}
 
-                <section className="rounded-[18px] border border-[#EEF2F7] bg-white px-4 py-3 shadow-[0_2px_12px_rgba(0,0,0,.04)]">
-                  <div className="grid gap-0 divide-y divide-[#EEF2F7] md:grid-cols-4 md:divide-x md:divide-y-0 xl:grid-cols-7">
+                {projectPanelView !== "ai-assist" ? (
+                <>
+                  <div className="grid gap-3 rounded-[18px] border border-slate-200 bg-white p-3 shadow-sm lg:grid-cols-3">
+                    <div className="flex min-w-0 items-center gap-4 border-b border-slate-100 p-2 pb-4 lg:border-b-0 lg:border-r lg:pb-2 lg:pr-5">
+                      <CompletionRing value={selectedProjectProgress} />
+                      <div className="min-w-0">
+                        <p className="text-xs font-semibold text-slate-500">Progress</p>
+                        <p className="text-lg font-bold text-slate-950">{selectedProjectProgress}%</p>
+                        <p className="text-xs text-slate-500">{selectedProjectIssues.length} work items</p>
+                      </div>
+                    </div>
+                    <div className="flex min-w-0 items-center gap-4 border-b border-slate-100 p-2 pb-4 lg:border-b-0 lg:border-r lg:pb-2 lg:pr-5">
+                      <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-violet-50 text-violet-700">
+                        <CalendarClock className="h-6 w-6" />
+                      </span>
+                      <div className="min-w-0">
+                        <p className="text-xs font-semibold text-slate-500">Deadline</p>
+                        <p className="truncate text-base font-bold text-slate-950">
+                          {selectedProject.targetDate ? formatShortDate(selectedProject.targetDate) : "No deadline set"}
+                        </p>
+                        <button
+                          className="text-xs font-semibold text-blue-600 hover:text-blue-700"
+                          type="button"
+                          onClick={() => setProjectPanelView("settings")}
+                        >
+                          {selectedProject.targetDate ? selectedProjectDaysRemainingMeta.label : "Set project deadline"}
+                        </button>
+                      </div>
+                    </div>
+                    <div className="flex min-w-0 items-center gap-4 p-2">
+                      <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-orange-50 text-orange-600">
+                        <HeartPulse className="h-6 w-6" />
+                      </span>
+                      <div className="min-w-0">
+                        <p className="text-xs font-semibold text-slate-500">Health</p>
+                        <p className="truncate text-base font-bold text-slate-950">
+                          {selectedProjectTimelineStatus.label === "No deadline" ? "Awaiting milestones" : selectedProjectTimelineStatus.label}
+                        </p>
+                        <p className="text-xs text-slate-500">Delivery signal</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
                     {[
-                      {
-                        label: "Progress",
-                        value: `${selectedProjectProgress}%`,
-                        helper: `${selectedProjectIssues.length} work items`,
-                        content: <CompletionRing value={selectedProjectProgress} />,
-                      },
-                      {
-                        label: "Deadline",
-                        value: selectedProject.targetDate
-                          ? formatShortDate(selectedProject.targetDate)
-                          : "No deadline set",
-                        helper: selectedProject.targetDate
-                          ? selectedProjectDaysRemainingMeta.label
-                          : "Set project deadline",
-                      },
-                      {
-                        label: "Health",
-                        value:
-                          selectedProjectTimelineStatus.label === "No deadline"
-                            ? "Awaiting milestones"
-                            : selectedProjectTimelineStatus.label,
-                        helper: "Delivery signal",
-                      },
-                      {
-                        label: "Issues",
-                        value: selectedProjectIssues.length || selectedProject.issueCount || 0,
-                        helper: `${selectedProjectTasks.length} tasks / ${selectedProjectBugs.length} bugs`,
-                      },
-                      {
-                        label: "Members",
-                        value:
-                          selectedProjectMembers.length || getProjectMemberCount(selectedProject),
-                        helper: "Assigned people",
-                      },
-                      {
-                        label: "Teams",
-                        value: selectedProjectTeams.length,
-                        helper: "Attached teams",
-                      },
-                      {
-                        label: "Budget",
-                        value:
-                          formatBudget(selectedProject) === "-"
-                            ? "Not configured"
-                            : formatBudget(selectedProject),
-                        helper: "Planned spend",
-                      },
-                    ].map((metric) => (
-                      <div key={metric.label} className="flex min-h-[76px] items-center justify-between gap-3 px-3 py-2 first:pl-0 last:pr-0">
+                      { label: "Issues", value: selectedProjectIssues.length || selectedProject.issueCount || 0, helper: `${selectedProjectTasks.length} tasks / ${selectedProjectBugs.length} bugs`, Icon: Layers3, tone: "bg-blue-50 text-blue-600" },
+                      { label: "Members", value: selectedProjectMembers.length || getProjectMemberCount(selectedProject), helper: "Assigned people", Icon: Users2, tone: "bg-rose-50 text-rose-600" },
+                      { label: "Teams", value: selectedProjectTeams.length, helper: "Attached teams", Icon: Users2, tone: "bg-emerald-50 text-emerald-600" },
+                      { label: "Budget", value: formatBudget(selectedProject) === "-" ? "Not configured" : formatBudget(selectedProject), helper: "Planned spend", Icon: WalletCards, tone: "bg-violet-50 text-violet-600" },
+                    ].map(({ label, value, helper, Icon, tone }) => (
+                      <div key={label} className="flex min-w-0 items-center gap-3 rounded-[18px] border border-slate-200 bg-white p-4 shadow-sm">
+                        <span className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl ${tone}`}>
+                          <Icon className="h-6 w-6" />
+                        </span>
                         <div className="min-w-0">
-                          <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-                            {metric.label}
-                          </p>
-                          <p className="mt-1 truncate text-lg font-semibold text-slate-950">
-                            {metric.value}
-                          </p>
-                          <p className="mt-0.5 truncate text-xs text-slate-500">
-                            {metric.helper}
-                          </p>
+                          <p className="text-xs font-semibold text-slate-500">{label}</p>
+                          <p className="truncate text-base font-bold text-slate-950">{value}</p>
+                          <p className="truncate text-xs text-slate-500">{helper}</p>
                         </div>
-                        {metric.content || null}
                       </div>
                     ))}
                   </div>
-                </section>
+                </>
+                ) : null}
 
-                <div className="border-b border-slate-200">
-                  <nav className="-mb-px flex gap-8 overflow-x-auto" aria-label="Project sections">
+                <div className="overflow-hidden rounded-[18px] border border-slate-200 bg-white px-4 shadow-sm">
+                  <nav
+                    className="-mb-px flex gap-2 overflow-x-auto"
+                    aria-label="Project sections"
+                    style={{ scrollbarWidth: "none" }}
+                  >
                   {[
-                    { id: "details", label: "Overview", detail: "overview" },
-                    { id: "roadmap", label: "Roadmap" },
-                    { id: "epics", label: "Epics", action: () => setProjectMode("planning") },
-                    { id: "tasks", label: "Tasks", detail: "tasks" },
-                    { id: "bugs", label: "Bugs", detail: "bugs" },
-                    { id: "reports", label: "Reports", path: "/reports" },
-                    { id: "git-activity", label: "Git Activity" },
-                    { id: "git", label: "Git Configuration" },
-                    { id: "settings", label: "Settings" },
-                  ].map(({ id, label, detail, path, action }) => {
+                    { id: "details", label: "Overview", detail: "overview", Icon: FolderKanban },
+                    { id: "roadmap", label: "Roadmap", Icon: Route },
+                    { id: "tasks", label: "Tasks", detail: "tasks", Icon: ClipboardList },
+                    { id: "bugs", label: "Bugs", detail: "bugs", Icon: Bug },
+                    { id: "reports", label: "Reports", path: "/reports", Icon: BarChart3 },
+                    { id: "git-activity", label: "Git Activity", Icon: GitCommit },
+                    { id: "git", label: "Git Configuration", Icon: GitBranch },
+                    { id: "settings", label: "Settings", Icon: Settings2 },
+                  ].map(({ id, label, detail, path, Icon }) => {
                     const isActive = projectPanelView === id;
+                    const themeColor = getProjectThemeColor(selectedProject);
 
                     return (
                       <button
                         key={id}
-                        className={`relative h-11 whitespace-nowrap px-0 text-sm font-semibold transition ${
+                        className={`group relative inline-flex h-11 shrink-0 items-center gap-2 whitespace-nowrap rounded-t-lg px-3 text-sm font-semibold transition-colors ${
                           isActive
-                            ? "text-[#0C66E4] after:absolute after:inset-x-0 after:-bottom-px after:h-[3px] after:rounded-full after:bg-[#0C66E4]"
-                            : "text-slate-500 hover:text-slate-950"
+                            ? "text-slate-950"
+                            : "text-slate-500 hover:bg-slate-50 hover:text-slate-900"
                         }`}
                         type="button"
+                        aria-label={label}
+                        title={label}
+                        aria-current={isActive ? "page" : undefined}
+                        style={isActive ? { backgroundColor: `${themeColor}12` } : undefined}
                         onClick={() => {
                           if (path) {
                             navigate(path);
-                            return;
-                          }
-
-                          if (action) {
-                            action();
                             return;
                           }
 
@@ -2284,7 +2377,17 @@ const ProjectsPage = () => {
                           }
                         }}
                       >
-                        {label}
+                        <Icon
+                          className="h-4 w-4 shrink-0 transition-transform group-hover:-translate-y-0.5"
+                          style={{ color: isActive ? themeColor : undefined }}
+                        />
+                        {id === "settings" ? null : label}
+                        {isActive ? (
+                          <span
+                            className="absolute inset-x-3 bottom-0 h-[3px] rounded-full"
+                            style={{ backgroundColor: themeColor }}
+                          />
+                        ) : null}
                       </button>
                     );
                   })}
@@ -2357,7 +2460,7 @@ const ProjectsPage = () => {
                             className="mt-3 h-8 rounded-lg px-3 text-xs"
                             type="button"
                             onClick={() => {
-                              setProjectMode("planning");
+                              handleOpenEpics();
                               setEpicDialogState({ open: true, epic: null });
                             }}
                           >
@@ -2510,40 +2613,29 @@ const ProjectsPage = () => {
 
                   {projectDetailView === "overview" ? (
                     <div className="grid gap-3 lg:grid-cols-3">
-                      <div className="rounded-2xl border border-slate-200 bg-white p-4">
-                        <p className="text-xs font-semibold uppercase text-slate-500">
-                          Ownership
-                        </p>
-                        <p className="mt-2 text-base font-semibold text-slate-950">
-                          {getProjectOwnerName(selectedProject)}
-                        </p>
-                        <p className="mt-1 text-sm text-slate-500">
-                          Project manager responsible for planning and delivery.
-                        </p>
+                      <div className="flex min-w-0 items-center gap-4 rounded-2xl border border-slate-200 bg-white p-4">
+                        <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-blue-50 text-blue-600"><UserRoundPlus className="h-6 w-6" /></span>
+                        <div className="min-w-0">
+                          <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Ownership</p>
+                          <p className="mt-1 truncate text-sm font-semibold text-slate-950">{getProjectOwnerName(selectedProject)}</p>
+                          <p className="mt-1 text-xs text-slate-500">Project owner</p>
+                        </div>
                       </div>
-                      <div className="rounded-2xl border border-slate-200 bg-white p-4">
-                        <p className="text-xs font-semibold uppercase text-slate-500">
-                          Team Coverage
-                        </p>
-                        <p className="mt-2 text-base font-semibold text-slate-950">
-                          {selectedProjectTeams.length
-                            ? selectedProjectTeams.map((team) => team.name).join(", ")
-                            : "No teams attached"}
-                        </p>
-                        <p className="mt-1 text-sm text-slate-500">
-                          Workspace teams connected to this project.
-                        </p>
+                      <div className="flex min-w-0 items-center gap-4 rounded-2xl border border-slate-200 bg-white p-4">
+                        <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-emerald-50 text-emerald-600"><Users2 className="h-6 w-6" /></span>
+                        <div className="min-w-0">
+                          <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Team Coverage</p>
+                          <p className="mt-1 truncate text-sm font-semibold text-slate-950">{selectedProjectMembers.length || getProjectMemberCount(selectedProject)} Members</p>
+                          <p className="mt-1 text-xs text-slate-500">Across {selectedProjectTeams.length} {selectedProjectTeams.length === 1 ? "team" : "teams"}</p>
+                        </div>
                       </div>
-                      <div className="rounded-2xl border border-slate-200 bg-white p-4">
-                        <p className="text-xs font-semibold uppercase text-slate-500">
-                          Epics
-                        </p>
-                        <p className="mt-2 text-base font-semibold text-slate-950">
-                          {selectedProjectEpics.length} workstreams
-                        </p>
-                        <p className="mt-1 text-sm text-slate-500">
-                          Larger planning streams currently attached.
-                        </p>
+                      <div className="flex min-w-0 items-center gap-4 rounded-2xl border border-slate-200 bg-white p-4">
+                        <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-violet-50 text-violet-600"><Layers3 className="h-6 w-6" /></span>
+                        <div className="min-w-0">
+                          <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Epics</p>
+                          <p className="mt-1 truncate text-sm font-semibold text-slate-950">{selectedProjectEpics.length ? `${selectedProjectEpics.length} workstreams` : "See epics"}</p>
+                          <p className="mt-1 text-xs text-slate-500">Manage project epics</p>
+                        </div>
                       </div>
                     </div>
                   ) : null}
@@ -3072,57 +3164,21 @@ const ProjectsPage = () => {
                 ) : null}
               </>
             ) : !isProjectsLoading ? (
-              <EmptyState
-                title="No projects yet"
-                description="Create a project, attach a team, and start organizing work in a tighter project space."
-                icon={<FolderKanban className="h-5 w-5" />}
-              />
+              <div className="flex min-h-[260px] items-center justify-center rounded-[18px] border border-dashed border-slate-200 bg-white/80 px-6 text-center text-sm text-slate-500">
+                Select a project to view its details.
+              </div>
             ) : null}
           </div>
         </section>
       ) : null}
 
-      {activeTab === "projects" && projectMode === "planning" ? (
+      {activeTab === "projects" && projectMode === "planning" && !isCreateDialogOpen && !isCreateTeamDialogOpen ? (
         <section
           aria-label="Project epics"
           className="h-full min-h-0 min-w-0 space-y-5 overflow-y-auto pr-1"
         >
-          <div className="flex flex-col gap-4 border-b border-slate-200 pb-4 lg:flex-row lg:items-start lg:justify-between">
-            <div className="min-w-0">
-              <p className="text-[11px] font-semibold uppercase text-blue-600">
-                Epics
-              </p>
-              <h1 className="mt-1 text-2xl font-semibold tracking-tight text-slate-950">
-                Organize project work into clear epics
-              </h1>
-              <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
-                Create and maintain project epics here, then use Sprint Planning to
-                arrange Stories into upcoming sprints.
-              </p>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <Button
-                className="h-10 rounded-xl"
-                type="button"
-                onClick={() => setIsCreateDialogOpen(true)}
-              >
-                <Plus className="h-4 w-4" />
-                Create Project
-              </Button>
-              <Button
-                className="h-10 rounded-xl"
-                type="button"
-                variant="outline"
-                onClick={() => setIsCreateTeamDialogOpen(true)}
-              >
-                <Users2 className="h-4 w-4" />
-                Create Team
-              </Button>
-            </div>
-          </div>
-
-          <div className="grid gap-4 xl:grid-cols-[320px_minmax(0,1fr)]">
-            <aside className="min-w-0 space-y-2">
+          <div className="grid items-start gap-4 xl:grid-cols-[320px_minmax(0,1fr)]">
+            <aside className="min-w-0 space-y-3 rounded-[22px] border border-slate-200 bg-white p-4 shadow-sm">
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <h2 className="text-base font-semibold text-slate-950">
@@ -3137,7 +3193,7 @@ const ProjectsPage = () => {
                 </span>
               </div>
 
-              <div className="max-h-[calc(100svh-18rem)] space-y-2 overflow-y-auto pr-1">
+              <div className="max-h-[calc(100svh-10rem)] space-y-2 overflow-y-auto pr-1">
                 {isProjectsLoading ? (
                   Array.from({ length: 5 }).map((_, index) => (
                     <Skeleton
@@ -3153,7 +3209,7 @@ const ProjectsPage = () => {
                     return (
                       <button
                         key={project._id}
-                        className={`flex w-full items-center gap-3 rounded-xl border p-2.5 text-left transition ${
+                        className={`flex w-full items-start gap-3 rounded-xl border p-2.5 text-left transition ${
                           isSelected
                             ? "border-blue-300 bg-blue-50/70"
                             : "border-slate-200 bg-white hover:border-slate-300"
@@ -3171,10 +3227,10 @@ const ProjectsPage = () => {
                           {getProjectInitials(project)}
                         </span>
                         <span className="min-w-0 flex-1">
-                          <span className="block truncate text-sm font-semibold text-slate-950">
+                          <span className="block whitespace-normal break-words text-sm font-semibold text-slate-950">
                             {project.name}
                           </span>
-                          <span className="mt-1 block truncate text-xs text-slate-500">
+                          <span className="mt-1 block whitespace-normal text-xs text-slate-500">
                             {getProjectTeams(project).length} teams / {project.issueCount || 0} issues
                           </span>
                         </span>
@@ -3189,7 +3245,7 @@ const ProjectsPage = () => {
               </div>
             </aside>
 
-            <div className="min-w-0 space-y-5">
+            <div className="min-w-0 space-y-5 rounded-[24px] border border-slate-200 bg-slate-50/50 p-4 shadow-sm">
               {selectedProject ? (
                 <>
                   <div className="rounded-[22px] border border-slate-200 bg-white p-4">
@@ -3252,79 +3308,7 @@ const ProjectsPage = () => {
                     </div>
                   </div>
 
-                  <div className="grid gap-3 md:grid-cols-4">
-                    {[
-                      {
-                        label: "Project shell",
-                        done: true,
-                        helper: "Name, owner, status, and theme are set.",
-                        action: "Manage",
-                      },
-                      {
-                        label: "Team coverage",
-                        done: selectedProjectTeams.length > 0,
-                        helper: selectedProjectTeams.length
-                          ? `${selectedProjectTeams.length} team attached`
-                          : "Attach a workspace team.",
-                        action: "Teams",
-                      },
-                      {
-                        label: "Epic map",
-                        done: selectedProjectEpics.length > 0,
-                        helper: selectedProjectEpics.length
-                          ? `${selectedProjectEpics.length} epic${selectedProjectEpics.length === 1 ? "" : "s"} ready`
-                          : "Create epics for workstreams.",
-                        action: "Epics",
-                      },
-                      {
-                        label: "Execution queue",
-                        done: (selectedProject.issueCount || 0) > 0,
-                        helper: `${selectedProject.issueCount || 0} issue${(selectedProject.issueCount || 0) === 1 ? "" : "s"} created`,
-                        action: "Issues",
-                      },
-                    ].map((step) => (
-                      <div
-                        key={step.label}
-                        className="rounded-2xl border border-slate-200 bg-white p-4"
-                      >
-                        <div className="flex items-center justify-between gap-3">
-                          <span
-                            className={`flex h-9 w-9 items-center justify-center rounded-xl ${
-                              step.done
-                                ? "bg-emerald-50 text-emerald-600"
-                                : "bg-amber-50 text-amber-600"
-                            }`}
-                          >
-                            {step.done ? (
-                              <CheckCircle2 className="h-4 w-4" />
-                            ) : (
-                              <Target className="h-4 w-4" />
-                            )}
-                          </span>
-                          <span
-                            className={`rounded-full px-2 py-1 text-[11px] font-semibold ${
-                              step.done
-                                ? "bg-emerald-50 text-emerald-700"
-                                : "bg-amber-50 text-amber-700"
-                            }`}
-                          >
-                            {step.done ? "Ready" : "Needed"}
-                          </span>
-                        </div>
-                        <h3 className="mt-3 text-sm font-semibold text-slate-950">
-                          {step.label}
-                        </h3>
-                        <p className="mt-1 min-h-10 text-sm leading-5 text-slate-500">
-                          {step.helper}
-                        </p>
-                        <p className="mt-3 text-xs font-semibold uppercase text-slate-400">
-                          {step.action}
-                        </p>
-                      </div>
-                    ))}
-                  </div>
-
-                  <div className="grid gap-4 xl:grid-cols-2">
+                  <div className="grid gap-4">
                     <section className="rounded-[22px] border border-slate-200 bg-white p-4">
                       <div className="flex items-center justify-between gap-3 border-b border-slate-200 pb-3">
                         <div>
@@ -3381,71 +3365,30 @@ const ProjectsPage = () => {
                       </div>
                     </section>
 
-                    <section className="rounded-[22px] border border-slate-200 bg-white p-4">
-                      <div className="border-b border-slate-200 pb-3">
-                        <h3 className="text-base font-semibold text-slate-950">
-                          Creation Flow
-                        </h3>
-                        <p className="mt-1 text-sm text-slate-500">
-                          Use these actions in order when planning a new project.
-                        </p>
-                      </div>
-                      <div className="mt-3 grid gap-2">
-                        {[
-                          {
-                            label: "Create the project shell",
-                            action: "Create Project",
-                            onClick: () => setIsCreateDialogOpen(true),
-                          },
-                          {
-                            label: "Create or reuse a team",
-                            action: "Create Team",
-                            onClick: () => setIsCreateTeamDialogOpen(true),
-                          },
-                          {
-                            label: "Build project epics",
-                            action: "Create Epic",
-                            onClick: () => setEpicDialogState({ open: true, epic: null }),
-                          },
-                          {
-                            label: "Add initial stories, tasks, and bugs",
-                            action: "Add Issue",
-                            onClick: () =>
-                              navigate(`/issues?projectId=${selectedProject._id}&compose=1`),
-                          },
-                        ].map((item, index) => (
-                          <button
-                            key={item.label}
-                            className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-left transition hover:border-blue-200 hover:bg-blue-50/60"
-                            type="button"
-                            onClick={item.onClick}
-                          >
-                            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-xs font-semibold text-slate-700">
-                              {index + 1}
-                            </span>
-                            <span className="min-w-0 flex-1">
-                              <span className="block text-sm font-semibold text-slate-950">
-                                {item.label}
-                              </span>
-                              <span className="text-xs text-blue-600">
-                                {item.action}
-                              </span>
-                            </span>
-                          </button>
-                        ))}
-                      </div>
-                    </section>
+                    {epicDialogState.open ? (
+                      <EpicDialog
+                        open={epicDialogState.open}
+                        inline
+                        onOpenChange={handleEpicDialogOpenChange}
+                        initialEpic={epicDialogState.epic}
+                        issues={selectedProjectIssues}
+                        members={selectedProjectMembers}
+                        isPending={createEpicMutation.isPending || updateEpicMutation.isPending}
+                        onSubmit={handleEpicSubmit}
+                      />
+                    ) : null}
+
                   </div>
                 </>
               ) : (
                 <EmptyState
-                  title="No project selected"
-                  description="Create or select a project to begin planning."
+                  title="Select a project to create or edit an epic"
+                  description="Choose the project whose epics you want to manage."
                   icon={<ClipboardList className="h-5 w-5" />}
                   action={
-                    <Button type="button" onClick={() => setIsCreateDialogOpen(true)}>
-                      <Plus className="h-4 w-4" />
-                      Create Project
+                    <Button type="button" onClick={() => setIsEpicProjectPickerOpen(true)}>
+                      <FolderKanban className="h-4 w-4" />
+                      Select Project
                     </Button>
                   }
                 />
@@ -3455,7 +3398,7 @@ const ProjectsPage = () => {
         </section>
       ) : null}
 
-      {activeTab === "teams" ? (
+      {activeTab === "teams" && !isCreateDialogOpen && !isCreateTeamDialogOpen ? (
         <section
           aria-labelledby="teams-tab"
           className="h-full min-h-0 min-w-0 w-full space-y-3 overflow-y-auto pr-1"
@@ -3562,7 +3505,7 @@ const ProjectsPage = () => {
           onDeleteEpic={(payload) => deleteEpicMutation.mutateAsync(payload)}
           onEpicClick={(epic) => {
             setIsSelectedProjectManageOpen(false);
-            setProjectMode("planning");
+            handleOpenEpics();
             setEpicDialogState({ open: true, epic });
           }}
           isUpdatingProject={
@@ -3586,55 +3529,15 @@ const ProjectsPage = () => {
         />
       ) : null}
 
-      {selectedProject ? (
+      {selectedProject && !isInlineEpicEditor ? (
         <EpicDialog
           open={epicDialogState.open}
-          onOpenChange={(open) =>
-            setEpicDialogState((current) => ({
-              ...current,
-              open,
-              epic: open ? current.epic : null,
-            }))
-          }
+          onOpenChange={handleEpicDialogOpenChange}
           initialEpic={epicDialogState.epic}
           issues={selectedProjectIssues}
           members={selectedProjectMembers}
           isPending={createEpicMutation.isPending || updateEpicMutation.isPending}
-          onSubmit={async (payload) => {
-            if (epicDialogState.epic) {
-              const { issueIds: _issueIds, ...epicPayload } = payload;
-              const updatedEpic = await updateEpicMutation.mutateAsync({
-                id: epicDialogState.epic._id,
-                payload: epicPayload,
-              });
-              showToast("success", `${epicPayload.name} was updated.`);
-              return updatedEpic;
-            }
-
-            const { issueIds = [], ...epicPayload } = payload;
-            const createdEpic = await createEpicMutation.mutateAsync({
-              projectId: selectedProject._id,
-              ...epicPayload,
-            });
-
-            if (issueIds.length) {
-              await Promise.all(
-                issueIds.map((issueId) =>
-                  updateIssuePlanning({
-                    id: issueId,
-                    payload: { epicId: createdEpic._id },
-                  })
-                )
-              );
-              await queryClient.invalidateQueries({ queryKey: ["issues"] });
-            }
-
-            showToast(
-              "success",
-              `${createdEpic.name} was created${issueIds.length ? ` with ${issueIds.length} linked work item${issueIds.length === 1 ? "" : "s"}` : ""}.`
-            );
-            return createdEpic;
-          }}
+          onSubmit={handleEpicSubmit}
         />
       ) : null}
 
@@ -3722,95 +3625,77 @@ const ProjectsPage = () => {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-        <DialogContent
-          className={projectDialogContentClass(
-            "grid max-h-[calc(var(--app-viewport-height)-2rem)] w-[calc(100vw-1rem)] max-w-[1280px] grid-rows-[auto_minmax(0,1fr)] rounded-[24px] !top-2 sm:!top-4 sm:w-[96vw] sm:rounded-[30px]"
-          )}
-        >
-          <DialogHeader
-            className={projectDialogHeaderClass(
-              "bg-[linear-gradient(135deg,rgba(239,246,255,0.98),rgba(255,255,255,0.98))] px-6 py-5 sm:px-7"
-            )}
-          >
-            <div className="flex flex-col gap-4 pr-12 sm:flex-row sm:items-start sm:justify-between">
-              <div className="max-w-3xl">
-                <DialogTitle className="text-2xl font-semibold tracking-tight text-slate-950">
-                  Create Project
-                </DialogTitle>
-                <DialogDescription className="mt-2 max-w-[46rem] text-sm leading-6 text-slate-600">
-                  Set ownership, planning defaults, theme, and launch context in one
-                  clean setup flow.
-                </DialogDescription>
-              </div>
-              <Button
-                className="h-11 shrink-0 rounded-xl border border-blue-500/20 bg-[linear-gradient(90deg,#2563EB_0%,#4F46E5_100%)] px-5 text-white shadow-[0_16px_30px_-20px_rgba(37,99,235,0.82)] transition hover:-translate-y-0.5 hover:brightness-105"
-                disabled={createProjectMutation.isPending}
-                form="create-project-form"
-                type="submit"
-              >
-                {createProjectMutation.isPending ? "Creating..." : "Create Project"}
-              </Button>
-            </div>
-          </DialogHeader>
-
-          <div className={projectDialogBodyClass("px-6 py-5 sm:px-7")}>
-            <ProjectComposer
-              onSubmit={handleCreateProject}
-              isPending={createProjectMutation.isPending}
-              users={users}
-              teams={teams}
-              formId="create-project-form"
-              usersErrorMessage={isUsersLoading ? "" : usersErrorMessage}
-              teamsErrorMessage={isTeamsLoading ? "" : teamsErrorMessage}
-              canManageGitConfiguration={canManageGitConfiguration}
-            />
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={isCreateTeamDialogOpen} onOpenChange={setIsCreateTeamDialogOpen}>
-        <DialogContent
-          className={projectDialogContentClass(
-            "grid max-h-[calc(var(--app-viewport-height)-2rem)] w-[calc(100vw-1rem)] max-w-[1280px] grid-rows-[auto_minmax(0,1fr)] rounded-[24px] !top-2 sm:!top-4 sm:w-[96vw] sm:rounded-[30px]"
-          )}
-        >
-          <DialogHeader
-            className={projectDialogHeaderClass(
-              "bg-[linear-gradient(135deg,rgba(236,253,245,0.98),rgba(255,255,255,0.98))] px-6 py-5 sm:px-7"
-            )}
-          >
-            <DialogTitle className="pr-10 text-2xl font-semibold tracking-tight text-slate-950">
-              Create Team
-            </DialogTitle>
-            <DialogDescription className="mt-2 max-w-[46rem] pr-10 text-sm leading-6 text-slate-600">
-              Build a workspace squad, select members, and prepare it for project
-              ownership.
+      <Dialog
+        open={isEpicProjectPickerOpen}
+        onOpenChange={setIsEpicProjectPickerOpen}
+      >
+        <DialogContent className="max-h-[calc(100svh-3rem)] max-w-lg overflow-hidden rounded-2xl">
+          <DialogHeader>
+            <DialogTitle>Select a project</DialogTitle>
+            <DialogDescription>
+              Choose a project to create or edit its epics.
             </DialogDescription>
           </DialogHeader>
-
-          <div className={projectDialogBodyClass("px-4 py-4 sm:px-6 sm:py-5 sm:px-7")}>
-            {workspaceUsersErrorMessage && !isWorkspaceUsersLoading ? (
-              <div className="mb-4 rounded-[20px] border border-rose-200 bg-rose-50/80 px-4 py-3 text-sm text-rose-700">
-                {workspaceUsersErrorMessage}
-              </div>
-            ) : null}
-
-            {isWorkspaceUsersLoading ? (
-              <Skeleton className="h-[700px] w-full rounded-[28px]" />
+          <div className="max-h-[min(60vh,32rem)] space-y-2 overflow-y-auto pr-1">
+            {filteredProjects.length ? (
+              filteredProjects.map((project) => {
+                const themeColor = getProjectThemeColor(project);
+                return (
+                  <button
+                    key={project._id}
+                    className="flex w-full items-center gap-3 rounded-xl border border-slate-200 bg-white p-3 text-left transition hover:border-blue-300 hover:bg-blue-50/60"
+                    type="button"
+                    onClick={() => {
+                      setSelectedProjectId(project._id);
+                      setIsEpicProjectPickerOpen(false);
+                    }}
+                  >
+                    <span
+                      className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-xs font-bold"
+                      style={{ backgroundColor: `${themeColor}18`, color: themeColor }}
+                    >
+                      {getProjectInitials(project)}
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block whitespace-normal break-words text-sm font-semibold text-slate-950">
+                        {project.name}
+                      </span>
+                      <span className="mt-1 block text-xs text-slate-500">
+                        {getProjectTeams(project).length} teams / {project.issueCount || 0} issues
+                      </span>
+                    </span>
+                  </button>
+                );
+              })
             ) : (
-              <TeamComposer
-                users={workspaceUsers}
-                workspaceId={workspaceScope}
-                isPending={createTeamMutation.isPending}
-                onSubmit={handleCreateTeam}
-                onCancel={() => setIsCreateTeamDialogOpen(false)}
-                variant="modal"
-              />
+              <p className="rounded-xl border border-dashed border-slate-200 p-4 text-sm text-slate-500">
+                No projects are available. Create a project first, then add its epics.
+              </p>
             )}
           </div>
         </DialogContent>
       </Dialog>
+
+      <Dialog
+        open={isProjectDescriptionOpen && Boolean(selectedProject)}
+        onOpenChange={setIsProjectDescriptionOpen}
+      >
+        <DialogContent className="max-h-[calc(100svh-3rem)] max-w-xl overflow-y-auto rounded-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <FileText className="h-5 w-5 text-blue-600" />
+              {selectedProject?.name} Description
+            </DialogTitle>
+            <DialogDescription>
+              Project description
+            </DialogDescription>
+          </DialogHeader>
+          <div className="whitespace-pre-wrap break-words rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm leading-6 text-slate-700">
+            {selectedProject?.description?.trim() || "No description has been added for this project."}
+          </div>
+        </DialogContent>
+      </Dialog>
+
     </div>
   );
 };

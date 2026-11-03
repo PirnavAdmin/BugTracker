@@ -1231,11 +1231,21 @@ const IssueCreateDialog = ({
 
     const forcedAssigneeId =
       isDeveloperStoryTask || assignToSelf ? resolveUserId(user) : "";
+    const isTaskAssignment = ["Task", "Sub-task"].includes(formData.type);
+    const selectedTaskAssigneeIds = isTaskAssignment
+      ? [...new Set(selectedAssigneeIds.map((assigneeId) => String(assigneeId)).filter(Boolean))]
+      : [];
     const payloads = assignEntireTeam
       ? teamWideAssignableAssignees.map((assignee) => ({
           ...basePayload,
           assigneeId: resolveUserId(assignee),
         }))
+      : selectedTaskAssigneeIds.length > 1
+        ? selectedTaskAssigneeIds.map((assigneeId) => ({
+            ...basePayload,
+            assigneeId,
+            assigneeIds: [assigneeId],
+          }))
       : [
           {
             ...basePayload,
@@ -1609,6 +1619,12 @@ const IssueCreateDialog = ({
                           }
                         />
                       </div>
+
+                      {hasSelectedAssignees && ["Task", "Sub-task"].includes(formData.type) && selectedAssigneeOptions.length > 1 ? (
+                        <div className="rounded-2xl border border-blue-100 bg-blue-50/80 px-3 py-2.5 text-sm text-blue-900">
+                          This creates one task for each of the {selectedAssigneeOptions.length} selected people.
+                        </div>
+                      ) : null}
 
                       {canManagerSelfAssign ? (
                         <label className="flex min-h-[96px] items-start gap-3 rounded-2xl border border-blue-200 bg-blue-50/70 px-3 py-2.5 text-sm text-blue-800">

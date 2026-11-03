@@ -5,7 +5,6 @@ import {
   AlertTriangle,
   ArrowUpDown,
   BarChart3,
-  Bell,
   Bug,
   CalendarClock,
   ChevronLeft,
@@ -34,9 +33,6 @@ import {
 import { motion, AnimatePresence } from "framer-motion";
 import {
   fetchIssueActivity,
-  fetchNotifications,
-  fetchUnreadNotificationCount,
-  markNotificationAsRead,
   fetchBugBucket,
   fetchMyIssues,
   fetchProjects,
@@ -69,7 +65,6 @@ import {
   removeIssueFromBucketCaches,
 } from "@/lib/bug-workflow-cache";
 import IssueDetailsDialog from "@/components/issues/IssueDetailsDialog";
-import NotificationCard from "@/components/dashboard/NotificationCard";
 import GreetingBeachScene from "@/components/dashboard/GreetingBeachScene";
 import AiCodeReviewPanel from "@/components/ai/AiCodeReviewPanel";
 import { getLatestGitActivity, normalizeDeliveryModules } from "@/lib/delivery-workflow";
@@ -1911,7 +1906,6 @@ const DeveloperDashboardPage = () => {
     queryKey: myIssuesQueryKey,
     queryFn: () =>
       fetchMyIssues({
-        limit: 200,
         sortBy: "recently-updated",
       }),
     enabled: Boolean(user?._id),
@@ -1933,23 +1927,6 @@ const DeveloperDashboardPage = () => {
   } = useQuery({
     queryKey: bucketQueryKey,
     queryFn: () => fetchBugBucket(getDeveloperBugBucketQueryFilters()),
-    enabled: Boolean(user?._id),
-  });
-
-  const {
-    data: notifications = [],
-    isLoading: isNotificationsLoading,
-  } = useQuery({
-    queryKey: ["issues", "notifications", user?._id],
-    queryFn: fetchNotifications,
-    enabled: Boolean(user?._id),
-  });
-
-  const {
-    data: unreadCount = 0,
-  } = useQuery({
-    queryKey: ["issues", "notifications", "unread-count", user?._id],
-    queryFn: fetchUnreadNotificationCount,
     enabled: Boolean(user?._id),
   });
 
@@ -2252,26 +2229,6 @@ const DeveloperDashboardPage = () => {
 
     if (issue) {
       setSelectedIssue(issue);
-    }
-  };
-
-  const handleOpenNotification = async (notification) => {
-    if (!notification.isRead) {
-      try {
-        await markNotificationAsRead(notification.id);
-        queryClient.invalidateQueries({
-          queryKey: ["issues", "notifications", user?._id],
-        });
-        queryClient.invalidateQueries({
-          queryKey: ["issues", "notifications", "unread-count", user?._id],
-        });
-      } catch (error) {
-        console.error("Failed to mark notification as read:", error);
-      }
-    }
-
-    if (notification.link) {
-      navigate(notification.link);
     }
   };
 

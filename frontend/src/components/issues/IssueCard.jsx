@@ -16,7 +16,7 @@ import {
   isIssueOverdue,
   getIssueTypeVariant,
   normalizeIssueStatus,
-  resolveIssueAssignee,
+  resolveIssueAssignees,
 } from "@/lib/issues";
 import UserAvatar from "@/components/shared/UserAvatar";
 import { cn, formatDateTime } from "@/lib/utils";
@@ -242,7 +242,12 @@ const IssueCard = ({
   onDragStart,
   onDragEnd,
 }) => {
-  const assignee = resolveIssueAssignee(issue);
+  const assignees = issue.boardAssignee
+    ? [issue.boardAssignee]
+    : resolveIssueAssignees(issue).filter(
+        (assignee) => assignee.name || assignee.email
+      );
+  const assignee = assignees[0];
   const issueKey = getIssueDisplayKey(issue);
   const projectLabel = issue.projectId?.name || "Unknown project";
   const teamLabel = issue.teamId?.name;
@@ -309,9 +314,16 @@ const IssueCard = ({
             ) : null}
           </div>
 
-          <h3 className="mt-1.5 line-clamp-2 text-[15px] font-bold leading-5 text-slate-950 transition group-hover:text-blue-700">
+          <button
+            type="button"
+            className="mt-1.5 block w-full line-clamp-2 text-left text-[15px] font-bold leading-5 text-slate-950 transition group-hover:text-blue-700"
+            onClick={(event) => {
+              event.stopPropagation();
+              onSelectIssue(issue);
+            }}
+          >
             {issue.title || "Untitled work item"}
-          </h3>
+          </button>
 
           {secondaryChips.length ? (
             <div className="mt-2 flex flex-wrap items-center gap-1">
@@ -366,7 +378,9 @@ const IssueCard = ({
           )}
 
           <p className="min-w-0 flex-1 truncate text-xs font-medium text-slate-800">
-            {assignee?.name || "Unassigned"}
+            {assignees.length
+              ? assignees.map((user) => user.name || user.email).join(", ")
+              : "Unassigned"}
           </p>
 
           <div className="flex shrink-0 items-center gap-1 text-[11px] text-slate-500">

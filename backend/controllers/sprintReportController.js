@@ -5,17 +5,7 @@ const Sprint = require("../models/Sprint");
 const asyncHandler = require("../utils/asyncHandler");
 const { loadReadableProject } = require("../utils/backlogAccess");
 
-const buildSprintReportRow = async (sprint) => {
-  const issues = await Issue.find({
-    sprintId: sprint._id,
-  })
-    .select("status storyPoints")
-    .lean();
-  const worklogs = await IssueWorklog.find({
-    sprintId: sprint._id,
-  })
-    .select("minutes")
-    .lean();
+const buildSprintReportRow = (sprint, issues = [], worklogs = []) => {
   const committedIssueIds = sprint.snapshot?.committedIssueIds || issues.map((issue) => issue._id);
   const committedPoints =
     sprint.snapshot?.committedPoints ||
@@ -76,11 +66,39 @@ const getSprintReports = asyncHandler(async (req, res) => {
       createdAt: -1,
     })
     .lean();
-  const reports = [];
+  const sprintIds = sprints.map((sprint) => sprint._id);
+  const [issues, worklogs] = await Promise.all([
+    Issue.find({ sprintId: { $in: sprintIds } })
+      .select("sprintId status storyPoints")
+      .lean(),
+    IssueWorklog.find({ sprintId: { $in: sprintIds } })
+      .select("sprintId minutes")
+      .lean(),
+  ]);
+  const issuesBySprintId = new Map();
+  const worklogsBySprintId = new Map();
 
-  for (const sprint of sprints) {
-    reports.push(await buildSprintReportRow(sprint));
+  for (const issue of issues) {
+    const key = String(issue.sprintId);
+    const values = issuesBySprintId.get(key) || [];
+    values.push(issue);
+    issuesBySprintId.set(key, values);
   }
+
+  for (const worklog of worklogs) {
+    const key = String(worklog.sprintId);
+    const values = worklogsBySprintId.get(key) || [];
+    values.push(worklog);
+    worklogsBySprintId.set(key, values);
+  }
+
+  const reports = sprints.map((sprint) =>
+    buildSprintReportRow(
+      sprint,
+      issuesBySprintId.get(String(sprint._id)) || [],
+      worklogsBySprintId.get(String(sprint._id)) || []
+    )
+  );
 
   res.status(200).json({
     sprints: reports,
@@ -109,8 +127,13 @@ const getSprintReportById = asyncHandler(async (req, res) => {
     throw new Error("Project not found or inaccessible");
   }
 
+  const [issues, worklogs] = await Promise.all([
+    Issue.find({ sprintId: sprint._id }).select("status storyPoints").lean(),
+    IssueWorklog.find({ sprintId: sprint._id }).select("minutes").lean(),
+  ]);
+
   res.status(200).json({
-    sprint: await buildSprintReportRow(sprint),
+    sprint: buildSprintReportRow(sprint, issues, worklogs),
   });
 });
 

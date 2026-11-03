@@ -1,6 +1,8 @@
 const express = require("express");
 const {
   getIssueAnalyticsRows,
+  getQAMetrics,
+  getDeveloperMetrics,
   getOverview,
   getPriorities,
   getProjects,
@@ -20,5 +22,7 @@ router.get("/projects", protect, tenantCache({ resource: "dashboard" }), getProj
 router.get("/teams", protect, tenantCache({ resource: "dashboard" }), getTeams);
 router.get("/recent-activity", protect, tenantCache({ resource: "dashboard" }), getRecentActivity);
 router.get("/issues", protect, tenantCache({ resource: "dashboard" }), getIssueAnalyticsRows);
+router.get("/qa-metrics", protect, tenantCache({ resource: "dashboard" }), getQAMetrics);
+router.get("/developer-metrics", protect, tenantCache({ resource: "dashboard" }), getDeveloperMetrics);
 
 module.exports = router;

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createPortal } from "react-dom";
 import { useSearchParams } from "react-router-dom";
 import {
@@ -159,8 +159,36 @@ const getTesterOwner = (issue) =>
     issue?.testerOwnerName,
     getNestedUser(resolveBugDetails(issue)?.testerOwner)
   );
-const getBugDeveloper = (issue) =>
-  getNestedUser(resolveBugDetails(issue)?.developerLead) || getNestedUser(issue?.assignee);
+const getBugDeveloper = (issue) => {
+  const assignedDeveloper =
+    getNestedUser(resolveBugDetails(issue)?.developerLead) ||
+    getNestedUser(issue?.assignee) ||
+    getNestedUser(issue?.assignedDeveloperId) ||
+    getNestedUser(issue?.assignees?.[0]);
+  if (assignedDeveloper) return assignedDeveloper;
+
+  const developerId = resolveUserId(issue?.assignedDeveloperId || issue?.assignee || issue?.assignees?.[0]);
+  const developerName = issue?.assignedDeveloperName || issue?.developerLeadName || "";
+  return developerId || developerName
+    ? { _id: developerId || undefined, name: developerName || undefined }
+    : null;
+};
+const getBugDeveloperNames = (issue) => {
+  const users = [
+    ...(Array.isArray(issue?.assignees) ? issue.assignees : []),
+    resolveBugDetails(issue)?.developerLead,
+    issue?.assignee,
+    issue?.assignedDeveloperId,
+  ].filter((user) => user && typeof user === "object");
+  const uniqueUsers = new Map();
+  users.forEach((user) => {
+    const id = resolveUserId(user);
+    if (id && (user.name || user.email) && !uniqueUsers.has(id)) uniqueUsers.set(id, user);
+  });
+  const names = [...uniqueUsers.values()].map((user) => user.name || user.email);
+  if (names.length) return names.join(", ");
+  return getUserLabel(getBugDeveloper(issue));
+};
 
 const getProjectName = (issue, projects = []) => {
   const projectId = resolveIssueProjectId(issue);
@@ -174,6 +202,8 @@ const getTeamName = (issue) =>
 
 const getUserLabel = (user, fallback = "Unassigned") =>
   user?.name || user?.email || fallback;
+const getDeveloperOptionLabel = (user) =>
+  `${getUserLabel(user)}${user?.role === "Team Lead" ? " (Team Lead)" : ""}`;
 
 const getSeverity = (issue) => resolveBugDetails(issue)?.severity || "Not set";
 
@@ -252,22 +282,28 @@ const getAvailableMembers = (
 ) => {
   const membersById = new Map();
   const collectMembers = (members = []) => {
-    members.forEach((member) => {
+    members.forEach((memberRecord) => {
+      const member = memberRecord?.user || memberRecord?.userId || memberRecord;
       const memberId = resolveUserId(member);
 
       if (memberId && !membersById.has(memberId)) {
-        membersById.set(memberId, member);
+        membersById.set(memberId, {
+          ...member,
+          role: memberRecord?.role || member?.role,
+        });
       }
     });
   };
 
   if (projectId !== ALL_PROJECTS_VALUE) {
     const project = findProjectById(projects, projectId);
-    collectMembers(
-      teamId !== "all"
-        ? getProjectTeamMembers(project, teamId)
-        : getProjectMembers(project)
-    );
+    collectMembers(getProjectMembers(project));
+    collectMembers(getProjectTeamMembers(project, teamId));
+    if (teamId === "all") {
+      getProjectTeams(project).forEach((team) => {
+        collectMembers(team?.members || []);
+      });
+    }
   } else {
     projects.forEach((project) => collectMembers(getProjectMembers(project)));
   }
@@ -554,7 +590,6 @@ const getCardViewFilterState = (viewId) => {
     filter: "all",
     lifecycle: "all",
     status: "all",
-    developerId: "all",
   };
 
   if (view.id === "bucket") {
@@ -641,7 +676,7 @@ const getTriageActionMenuPosition = (triggerRect) => {
   };
 };
 
-const MetricTile = ({ active = false, icon: Icon, label, tone, value, onClick }) => {
+const MetricTile = ({ active = false, description, icon: Icon, label, tone, value, onClick }) => {
   const Component = onClick ? "button" : "div";
 
   return (
@@ -653,6 +688,8 @@ const MetricTile = ({ active = false, icon: Icon, label, tone, value, onClick })
       )}
       type={onClick ? "button" : undefined}
       onClick={onClick}
+      title={description}
+      aria-label={description ? `${label}: ${description}` : label}
     >
       <div className="min-w-0">
         <p className="truncate text-[10px] font-bold uppercase tracking-[0.16em] text-slate-500">
@@ -703,7 +740,7 @@ const BugResultRow = ({ bugIssue, projects, onOpen, onActionMenu }) => {
   const reporter = getReporter(bugIssue);
   const reporterName = getUserLabel(reporter, "Unknown tester");
   const developer = getBugDeveloper(bugIssue);
-  const developerName = getUserLabel(developer);
+  const developerName = getBugDeveloperNames(bugIssue);
   const status = normalizeBugStatusForIssue(bugIssue);
   const details = resolveBugDetails(bugIssue);
   const severity = getSeverity(bugIssue);
@@ -800,6 +837,11 @@ const BugResultRow = ({ bugIssue, projects, onOpen, onActionMenu }) => {
 const AdminBugsPage = () => {
   const queryClient = useQueryClient();
   const { user } = useAuth();
+  const cacheScope = JSON.stringify([
+    user?._id || user?.id || "",
+    user?.tenantId || user?.companyId || "",
+    user?.workspaceId || user?.activeWorkspaceId || "",
+  ]);
   const [searchParams, setSearchParams] = useSearchParams();
   const searchParamString = searchParams.toString();
   const [toast, setToast] = useState(null);
@@ -874,7 +916,7 @@ const AdminBugsPage = () => {
     isLoading: isProjectsLoading,
     error: projectsError,
   } = useQuery({
-    queryKey: ["projects"],
+    queryKey: ["projects", cacheScope],
     queryFn: fetchProjects,
   });
 
@@ -886,12 +928,12 @@ const AdminBugsPage = () => {
     selectedProject && filters.projectId !== ALL_PROJECTS_VALUE ? selectedProject._id : "";
 
   const { data: epics = [] } = useQuery({
-    queryKey: ["admin-bugs", "epics", selectedProjectId],
+    queryKey: ["admin-bugs", "epics", cacheScope, selectedProjectId],
     queryFn: () => fetchEpics({ projectId: selectedProjectId }),
     enabled: Boolean(selectedProjectId),
   });
   const { data: sprints = [] } = useQuery({
-    queryKey: ["admin-bugs", "sprints", selectedProjectId],
+    queryKey: ["admin-bugs", "sprints", cacheScope, selectedProjectId],
     queryFn: () => fetchSprints({ projectId: selectedProjectId }),
     enabled: Boolean(selectedProjectId),
   });
@@ -908,11 +950,6 @@ const AdminBugsPage = () => {
     () => members.filter((member) => ["Tester", "Q/A Lead"].includes(member.role)),
     [members]
   );
-  const developers = useMemo(
-    () => members.filter((member) => member.role === "Developer"),
-    [members]
-  );
-
   useEffect(() => {
     const timeoutId = window.setTimeout(() => {
       setDebouncedSearch(filters.search);
@@ -929,6 +966,7 @@ const AdminBugsPage = () => {
     queryKey: [
       "bugs",
       "admin-tracker",
+      cacheScope,
       filters.projectId,
       filters.teamId,
       filters.priority,
@@ -971,19 +1009,22 @@ const AdminBugsPage = () => {
         sortBy,
     }),
     enabled:
-      !isProjectsLoading &&
       (filters.projectId === ALL_PROJECTS_VALUE || Boolean(selectedProject)),
-    placeholderData: keepPreviousData,
   });
-  const { data: cardSummaryData = null } = useQuery({
+
+  const {
+    data: metricsData,
+  } = useQuery({
     queryKey: [
       "bugs",
-      "admin-card-summary",
+      "admin-tracker-metrics",
+      cacheScope,
       filters.projectId,
       filters.teamId,
-      filters.priority,
-      filters.severity,
       filters.testerId,
+      filters.developerId,
+      filters.severity,
+      filters.priority,
       filters.dateFrom,
       filters.dateTo,
       debouncedSearch,
@@ -996,23 +1037,48 @@ const AdminBugsPage = () => {
         projectId: filters.projectId === ALL_PROJECTS_VALUE ? "" : filters.projectId,
         teamId: filters.teamId,
         testerId: filters.testerId,
+        developerId: filters.developerId,
         severity: filters.severity,
         priority: filters.priority,
+        status: "all",
+        sprintId: "all",
+        epicId: "all",
+        bucket: "all",
+        lifecycle: "all",
         dateFrom: filters.dateFrom,
         dateTo: filters.dateTo,
+        filter: "all",
         search: debouncedSearch.trim(),
         sortBy,
       }),
     enabled:
-      !isProjectsLoading &&
       (filters.projectId === ALL_PROJECTS_VALUE || Boolean(selectedProject)),
-    placeholderData: keepPreviousData,
   });
 
   const bugs = useMemo(
     () => (Array.isArray(bugsData) ? bugsData : bugsData?.bugs || []),
     [bugsData]
   );
+  const developers = useMemo(() => {
+    const rows = new Map(
+      members
+        .filter((member) => ["Developer", "Team Lead"].includes(member.role))
+        .map((member) => [resolveUserId(member), member])
+        .filter(([id]) => id)
+    );
+
+    bugs.forEach((bug) => {
+      const developer = getBugDeveloper(bug);
+      const id = resolveUserId(developer);
+      if (id && developer?.name && !rows.has(id)) {
+        rows.set(id, { ...developer, role: developer.role || "Developer" });
+      }
+    });
+
+    return Array.from(rows.values()).sort((left, right) =>
+      getUserLabel(left).localeCompare(getUserLabel(right))
+    );
+  }, [bugs, members]);
   const pagination = useMemo(() => {
     const fallbackTotal = bugs.length;
     const total = Number(bugsData?.pagination?.total ?? fallbackTotal);
@@ -1027,8 +1093,7 @@ const AdminBugsPage = () => {
       to: total ? Math.min(Math.min(page, totalPages) * pageSize, total) : 0,
     };
   }, [bugs.length, bugsData?.pagination?.total, bugsData?.pagination?.totalPages, page, pageSize]);
-  const summary = bugsData?.summary || null;
-  const cardSummary = cardSummaryData?.summary || null;
+  const summary = metricsData?.summary || null;
   const actionMenuId = actionMenu?.issueId || "";
   const visibleBugs = bugs;
 
@@ -1247,30 +1312,36 @@ const AdminBugsPage = () => {
 
   const metrics = useMemo(
     () => {
-      const total = cardSummary?.total ?? summary?.total ?? pagination.total;
+      // The summary endpoint can briefly lag the paginated list after a
+      // developer filter changes. If it reports fewer rows than are actually
+      // present in this page, use the visible rows for card counts rather than
+      // letting a stale zero summary mask matching bugs.
+      const summaryIsBehindPage = Number(pagination.total || 0) < visibleBugs.length ||
+        (Number.isFinite(Number(summary?.total)) && Number(summary.total) < visibleBugs.length);
+      const effectiveSummary = summaryIsBehindPage ? null : summary;
+      const total = summaryIsBehindPage
+        ? Math.max(Number(pagination.total || 0), visibleBugs.length)
+        : summary?.total ?? pagination.total;
       const bucket =
-        cardSummary?.bucket ??
-        summary?.bucket ??
+        effectiveSummary?.bucket ??
         visibleBugs.filter(isWorkQueueBug).length;
-      const assigned = cardSummary?.assigned ?? summary?.assigned ?? visibleBugs.filter((bugIssue) => normalizeBugStatusForIssue(bugIssue) === ISSUE_STATUS.ASSIGNED).length;
-      const inProgress = cardSummary?.inProgress ?? summary?.inProgress ?? visibleBugs.filter(isInProgressBug).length;
-      const reopened = cardSummary?.reopened ?? summary?.reopened ?? getReopenedIssues(visibleBugs).length;
-      const readyForQa = cardSummary?.readyForQa ?? summary?.readyForQa ?? visibleBugs.filter(isReadyForQa).length;
-      const closed = cardSummary?.closed ?? summary?.closed ?? visibleBugs.filter(isClosedBug).length;
+      const assigned = effectiveSummary?.assigned ?? visibleBugs.filter((bugIssue) => normalizeBugStatusForIssue(bugIssue) === ISSUE_STATUS.ASSIGNED).length;
+      const inProgress = effectiveSummary?.inProgress ?? visibleBugs.filter(isInProgressBug).length;
+      const reopened = effectiveSummary?.reopened ?? getReopenedIssues(visibleBugs).length;
+      const readyForQa = effectiveSummary?.readyForQa ?? visibleBugs.filter(isReadyForQa).length;
+      const closed = effectiveSummary?.closed ?? visibleBugs.filter(isClosedBug).length;
       const other =
-        cardSummary?.other ??
-        summary?.other ??
+        effectiveSummary?.other ??
         Math.max(total - bucket - assigned - inProgress - reopened - readyForQa - closed, 0);
 
       return {
         total,
         bucket,
         assigned,
-        open: cardSummary?.open ?? summary?.open ?? visibleBugs.filter((bugIssue) => !isClosedBug(bugIssue)).length,
-        critical: cardSummary?.critical ?? summary?.critical ?? getCriticalIssues(visibleBugs).length,
+        open: effectiveSummary?.open ?? visibleBugs.filter((bugIssue) => !isClosedBug(bugIssue)).length,
+        critical: effectiveSummary?.critical ?? getCriticalIssues(visibleBugs).length,
         unassigned:
-        cardSummary?.unassigned ??
-        summary?.unassigned ??
+        effectiveSummary?.unassigned ??
         visibleBugs.filter((bugIssue) => !resolveUserId(getBugDeveloper(bugIssue))).length,
         inProgress,
         reopened,
@@ -1279,7 +1350,7 @@ const AdminBugsPage = () => {
         other,
       };
     },
-    [cardSummary, pagination.total, summary, visibleBugs]
+    [pagination.total, summary, visibleBugs]
   );
   const activeCard =
     [...BUG_CARD_VIEWS, TOTAL_BUGS_VIEW].find((view) => view.id === activeCardView) || {
@@ -1517,6 +1588,50 @@ const AdminBugsPage = () => {
     }));
   };
 
+  const resetFilters = () => {
+    setPage(1);
+    setActiveCardView(getBugCardView().id);
+    setFilters({
+      projectId: ALL_PROJECTS_VALUE,
+      teamId: "all",
+      testerId: "all",
+      developerId: "all",
+      severity: "all",
+      priority: "all",
+      status: "all",
+      sprintId: "all",
+      epicId: "all",
+      ...getCardViewFilterState(getBugCardView().id),
+      lifecycle: "all",
+      filter: "all",
+      dateFrom: "",
+      dateTo: "",
+      search: "",
+    });
+
+    const nextParams = new URLSearchParams(searchParams);
+    [
+      "projectId",
+      "teamId",
+      "testerId",
+      "developerId",
+      "severity",
+      "priority",
+      "status",
+      "sprintId",
+      "epicId",
+      "bucket",
+      "lifecycle",
+      "filter",
+      "dateFrom",
+      "dateTo",
+      "search",
+      "page",
+    ].forEach((key) => nextParams.delete(key));
+    nextParams.set("view", getBugCardView().id);
+    setSearchParams(nextParams, { replace: true });
+  };
+
   const applyQuickFilter = (filterId) => {
     setPage(1);
     setActiveCardView("");
@@ -1752,7 +1867,7 @@ const AdminBugsPage = () => {
     const bugTeamId = resolveIssueTeamId(bugIssue);
     const bugProject = findProjectById(projects, bugProjectId);
     const teamDevelopers = getProjectTeamMembers(bugProject, bugTeamId).filter(
-      (member) => member.role === "Developer"
+      (member) => ["Developer", "Team Lead"].includes(member.role)
     );
 
     return createPortal(
@@ -1783,7 +1898,7 @@ const AdminBugsPage = () => {
                     key={resolveUserId(developerOption)}
                     value={resolveUserId(developerOption)}
                   >
-                    {getUserLabel(developerOption)}
+                  {getDeveloperOptionLabel(developerOption)}
                   </option>
                 ))
               ) : (
@@ -1868,11 +1983,16 @@ const AdminBugsPage = () => {
 
   return (
     <div className="flex flex-col gap-4 text-[13px]">
+      <header className="rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
+        <h1 className="text-xl font-semibold text-slate-950">Bug Tracker</h1>
+        <p className="mt-1 text-sm text-slate-500">Review, prioritize, and track bugs across your projects.</p>
+      </header>
       <section className="order-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-8">
         {BUG_CARD_VIEWS.map((view) => (
           <MetricTile
             key={view.id}
             active={activeCardView === view.id}
+            description={view.description}
             icon={view.icon}
             label={view.label}
             value={metrics[view.metricKey] ?? 0}
@@ -1881,6 +2001,7 @@ const AdminBugsPage = () => {
           />
         ))}
         <MetricTile
+          description={OTHER_BUGS_VIEW.description}
           icon={OTHER_BUGS_VIEW.icon}
           label={OTHER_BUGS_VIEW.label}
           value={metrics.other}
@@ -1888,6 +2009,7 @@ const AdminBugsPage = () => {
         />
         <MetricTile
           active={activeCardView === TOTAL_BUGS_VIEW.id}
+          description={TOTAL_BUGS_VIEW.description}
           icon={TOTAL_BUGS_VIEW.icon}
           label={TOTAL_BUGS_VIEW.label}
           value={metrics.total}
@@ -1934,9 +2056,8 @@ const AdminBugsPage = () => {
                 </CompactSelect>
                 <CompactSelect className="h-8 w-[142px]" value={filters.developerId} onChange={(event) => updateFilter("developerId", event.target.value)}>
                   <option value="all">Developer</option>
-                  <option value="unassigned">Unassigned</option>
                   {developers.map((developer) => (
-                    <option key={resolveUserId(developer)} value={resolveUserId(developer)}>{getUserLabel(developer)}</option>
+                    <option key={resolveUserId(developer)} value={resolveUserId(developer)}>{getDeveloperOptionLabel(developer)}</option>
                   ))}
                 </CompactSelect>
                 <Button className="h-8 rounded-[10px] px-2.5 text-[11px]" type="button" variant="outline" onClick={() => setAreTriageFiltersOpen((current) => !current)}>
@@ -2011,7 +2132,7 @@ const AdminBugsPage = () => {
                 <CompactSelect className="h-8 w-[150px]" value={bulkDeveloperId} onChange={(event) => setBulkDeveloperId(event.target.value)}>
                   <option value="">Assign</option>
                   {developers.map((developer) => (
-                    <option key={resolveUserId(developer)} value={resolveUserId(developer)}>{getUserLabel(developer)}</option>
+                    <option key={resolveUserId(developer)} value={resolveUserId(developer)}>{getDeveloperOptionLabel(developer)}</option>
                   ))}
                 </CompactSelect>
                 <CompactSelect className="h-8 w-[150px]" value={bulkPriority} onChange={(event) => setBulkPriority(event.target.value)}>
@@ -2065,7 +2186,7 @@ const AdminBugsPage = () => {
                         const reporter = getReporter(bugIssue);
                         const reporterName = getUserLabel(reporter, "Unknown tester");
                         const developer = getBugDeveloper(bugIssue);
-                        const developerName = getUserLabel(developer);
+                        const developerName = getBugDeveloperNames(bugIssue);
                         const status = normalizeBugStatusForIssue(bugIssue);
                         const severity = getSeverity(bugIssue);
                         const moduleTag = getModuleTag(bugIssue);
@@ -2165,7 +2286,7 @@ const AdminBugsPage = () => {
                   {triageBugs.slice(0, 60).map((bugIssue) => {
                     const details = resolveBugDetails(bugIssue);
                     const developer = getBugDeveloper(bugIssue);
-                    const developerName = getUserLabel(developer);
+                    const developerName = getBugDeveloperNames(bugIssue);
                     const status = normalizeBugStatusForIssue(bugIssue);
                     const severity = getSeverity(bugIssue);
                     const attachmentCount = getAttachmentCount(bugIssue);
@@ -2267,7 +2388,7 @@ const AdminBugsPage = () => {
                 {activeCard.description}
               </p>
             </div>
-            <div className="grid w-full gap-2 md:grid-cols-[minmax(220px,1.3fr)_minmax(150px,0.75fr)_minmax(140px,0.65fr)_minmax(140px,0.65fr)_auto] xl:w-auto">
+            <div className="grid w-full gap-2 md:grid-cols-[minmax(240px,1.3fr)_minmax(180px,0.8fr)_auto_auto] xl:w-auto">
               <div className="relative">
                 <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
                 <CompactInput
@@ -2283,18 +2404,6 @@ const AdminBugsPage = () => {
                   <option key={project._id} value={project._id}>{project.name}</option>
                 ))}
               </CompactSelect>
-              <CompactSelect value={filters.priority} onChange={(event) => updateFilter("priority", event.target.value)}>
-                <option value="all">Priority</option>
-                {["Critical", "High", "Medium", "Low"].map((priority) => (
-                  <option key={priority} value={priority}>{priority}</option>
-                ))}
-              </CompactSelect>
-              <CompactSelect value={filters.severity} onChange={(event) => updateFilter("severity", event.target.value)}>
-                <option value="all">Severity</option>
-                {BUG_SEVERITY_OPTIONS.map((severity) => (
-                  <option key={severity} value={severity}>{severity}</option>
-                ))}
-              </CompactSelect>
               <Button
                 className="h-9 rounded-[10px] px-2.5 text-[11px]"
                 type="button"
@@ -2303,6 +2412,15 @@ const AdminBugsPage = () => {
                 <Filter className="h-3.5 w-3.5" />
                 {areFiltersOpen ? "Less" : "More"}
                 {areFiltersOpen ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+              </Button>
+              <Button
+                className="h-9 rounded-[10px] px-2.5 text-[11px]"
+                type="button"
+                variant="outline"
+                onClick={resetFilters}
+              >
+                <TimerReset className="h-3.5 w-3.5" />
+                Reset
               </Button>
             </div>
           </div>
@@ -2340,73 +2458,10 @@ const AdminBugsPage = () => {
                 <FieldLabel>Developer</FieldLabel>
                 <CompactSelect value={filters.developerId} onChange={(event) => updateFilter("developerId", event.target.value)}>
                   <option value="all">All developers</option>
-                  <option value="unassigned">Unassigned</option>
                   {developers.map((developer) => (
-                    <option key={resolveUserId(developer)} value={resolveUserId(developer)}>{getUserLabel(developer)}</option>
+                    <option key={resolveUserId(developer)} value={resolveUserId(developer)}>{getDeveloperOptionLabel(developer)}</option>
                   ))}
                 </CompactSelect>
-              </label>
-              <label className="space-y-1.5">
-                <FieldLabel>Severity</FieldLabel>
-                <CompactSelect value={filters.severity} onChange={(event) => updateFilter("severity", event.target.value)}>
-                  <option value="all">All severities</option>
-                  {BUG_SEVERITY_OPTIONS.map((severity) => (
-                    <option key={severity} value={severity}>{severity}</option>
-                  ))}
-                </CompactSelect>
-              </label>
-              <label className="space-y-1.5">
-                <FieldLabel>Priority</FieldLabel>
-                <CompactSelect value={filters.priority} onChange={(event) => updateFilter("priority", event.target.value)}>
-                  <option value="all">All priorities</option>
-                  {["Critical", "High", "Medium", "Low"].map((priority) => (
-                    <option key={priority} value={priority}>{priority}</option>
-                  ))}
-                </CompactSelect>
-              </label>
-              <label className="space-y-1.5">
-                <FieldLabel>Status</FieldLabel>
-                <CompactSelect value={filters.status} onChange={(event) => updateFilter("status", event.target.value)}>
-                  {BUG_STATUS_FILTERS.map((status) => (
-                    <option key={status.value} value={status.value}>{status.label}</option>
-                  ))}
-                </CompactSelect>
-              </label>
-              <label className="space-y-1.5">
-                <FieldLabel>Epic</FieldLabel>
-                <CompactSelect value={filters.epicId} disabled={!selectedProjectId} onChange={(event) => updateFilter("epicId", event.target.value)}>
-                  <option value="all">All epics</option>
-                  <option value="unassigned">No epic</option>
-                  {epics.map((epic) => (
-                    <option key={epic._id} value={epic._id}>{epic.name}</option>
-                  ))}
-                </CompactSelect>
-              </label>
-              <label className="space-y-1.5">
-                <FieldLabel>Sprint</FieldLabel>
-                <CompactSelect value={filters.sprintId} disabled={!selectedProjectId} onChange={(event) => updateFilter("sprintId", event.target.value)}>
-                  <option value="all">All sprints</option>
-                  <option value="backlog">Backlog</option>
-                  {sprints.map((sprint) => (
-                    <option key={sprint._id} value={sprint._id}>{sprint.name}</option>
-                  ))}
-                </CompactSelect>
-              </label>
-              <label className="space-y-1.5">
-                <FieldLabel>Bug State</FieldLabel>
-                <CompactSelect value={filters.lifecycle} onChange={(event) => updateFilter("lifecycle", event.target.value)}>
-                  <option value="all">All bugs</option>
-                  <option value="reopened">Reopened bugs</option>
-                  <option value="fixed">Fixed / Ready for QA</option>
-                </CompactSelect>
-              </label>
-              <label className="space-y-1.5">
-                <FieldLabel>Date From</FieldLabel>
-                <CompactInput type="date" value={filters.dateFrom} onChange={(event) => updateFilter("dateFrom", event.target.value)} />
-              </label>
-              <label className="space-y-1.5">
-                <FieldLabel>Date To</FieldLabel>
-                <CompactInput type="date" value={filters.dateTo} onChange={(event) => updateFilter("dateTo", event.target.value)} />
               </label>
               <label className="space-y-1.5 md:col-span-2 xl:col-span-4">
                 <FieldLabel>Search</FieldLabel>
@@ -2626,7 +2681,7 @@ const AdminBugsPage = () => {
                   <option value="">Assign</option>
                   {developers.map((developer) => (
                     <option key={resolveUserId(developer)} value={resolveUserId(developer)}>
-                      {getUserLabel(developer)}
+                      {getDeveloperOptionLabel(developer)}
                     </option>
                   ))}
                 </CompactSelect>

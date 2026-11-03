@@ -1,6 +1,7 @@
 const mongoose = require("mongoose");
 const Epic = require("../models/Epic");
 const Issue = require("../models/Issue");
+const BACKLOG_ISSUE_PROJECTION = require("../utils/backlogIssueProjection");
 const Sprint = require("../models/Sprint");
 const asyncHandler = require("../utils/asyncHandler");
 const {
@@ -8,7 +9,7 @@ const {
   loadReadableProject,
 } = require("../utils/backlogAccess");
 const { serializeProjectsWithRelations } = require("../utils/projectRelations");
-const { populateIssueQuery, serializeIssues } = require("../utils/issuePresentation");
+const { populateIssueListQuery, serializeIssues } = require("../utils/issuePresentation");
 const { buildSprintLifecycleMeta } = require("../utils/sprintLifecycle");
 const {
   ISSUE_TYPES,
@@ -241,12 +242,15 @@ const getBacklogBoard = asyncHandler(async (req, res) => {
   }
 
   const [issues, epics, sprints] = await Promise.all([
-    populateIssueQuery(
-      Issue.find(issueQuery).sort({
-        sprintId: 1,
-        planningOrder: 1,
-        createdAt: -1,
-      })
+    populateIssueListQuery(
+      Issue.find(issueQuery)
+        .select(BACKLOG_ISSUE_PROJECTION)
+        .sort({
+          sprintId: 1,
+          planningOrder: 1,
+          createdAt: -1,
+        })
+        .lean()
     ),
     Epic.find({
       projectId: project._id,

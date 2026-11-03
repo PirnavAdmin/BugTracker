@@ -8,6 +8,7 @@ const PlatformAdmin = require("../models/PlatformAdmin");
 const PlatformAuditLog = require("../models/PlatformAuditLog");
 const PlatformCompany = require("../models/PlatformCompany");
 const PlatformSubscription = require("../models/PlatformSubscription");
+const ProviderSubscription = require("../models/Subscription");
 const TeamMember = require("../models/TeamMember");
 const User = require("../models/User");
 const { loginPlatformAdmin } = require("../controllers/platformAuthController");
@@ -20,6 +21,7 @@ const originalPlatformAdminFindOne = PlatformAdmin.findOne;
 const originalPlatformAuditCreate = PlatformAuditLog.create;
 const originalCompanyFindById = PlatformCompany.findById;
 const originalSubscriptionFindOne = PlatformSubscription.findOne;
+const originalProviderSubscriptionFindOne = ProviderSubscription.findOne;
 const originalTeamMemberFind = TeamMember.find;
 const originalUserCreate = User.create;
 const originalUserFindOne = User.findOne;
@@ -48,6 +50,7 @@ const createResponse = () => {
       this.statusCode = code;
       return this;
     },
+    setHeader() {},
     json(payload) {
       body = payload;
       return this;
@@ -97,6 +100,11 @@ beforeEach(() => {
       lean: async () => null,
     }),
   });
+  ProviderSubscription.findOne = () => ({
+    sort: () => ({
+      lean: async () => null,
+    }),
+  });
   TeamMember.find = () => ({
     populate: () => ({
       sort: () => ({
@@ -112,6 +120,7 @@ afterEach(() => {
   PlatformAuditLog.create = originalPlatformAuditCreate;
   PlatformCompany.findById = originalCompanyFindById;
   PlatformSubscription.findOne = originalSubscriptionFindOne;
+  ProviderSubscription.findOne = originalProviderSubscriptionFindOne;
   TeamMember.find = originalTeamMemberFind;
   User.create = originalUserCreate;
   User.findOne = originalUserFindOne;

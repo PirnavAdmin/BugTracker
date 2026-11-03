@@ -3,10 +3,6 @@ const { Readable } = require("stream");
 
 const s3 = new S3Client({
   region: process.env.AWS_REGION,
-  credentials: {
-    accessKeyId: process.env.AWS_ACCESS_KEY_ID,
-    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
-  },
 });
 
 const uploadToS3 = async (file, folder = "uploads") => {
@@ -32,7 +28,15 @@ const getS3KeyFromStoragePath = (storagePath = "") => {
   }
 
   if (!/^https?:\/\//i.test(value)) {
-    return value.replace(/^\/+/, "");
+    const normalized = value.replace(/^\/+/, "");
+
+    // Legacy attachment paths were stored as /uploads/<folder>/<file>,
+    // while the migrated S3 objects use <folder>/<file>.
+    if (normalized.startsWith("uploads/")) {
+      return normalized.slice("uploads/".length);
+    }
+
+    return normalized;
   }
 
   try {

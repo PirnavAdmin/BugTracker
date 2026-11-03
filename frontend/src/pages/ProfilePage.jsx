@@ -341,8 +341,8 @@ const ProfilePage = () => {
             <div className="mt-4 flex flex-wrap gap-3">
               <Button asChild variant="outline" size="sm">
                 <a
-                  href="/docs/pirnav-user-manual.html"
-                  download="Pirnav-User-Manual.html"
+                  href="/docs/curecode-user-manual.html"
+                  download="CureCode-User-Manual.html"
                 >
                   <Download className="h-4 w-4" />
                   Documentation

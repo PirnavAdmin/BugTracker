@@ -115,20 +115,27 @@ app.use(errorHandler);
 
 const startServer = async () => {
   await connectDB();
-  await redisClient.connectRedis();
+  await Promise.all([redisClient.connectRedis(), redisClient.connectCacheRedis()]);
   await ensureDefaultUser();
   await ensureInitialPlatformAdmin();
   await initializePlatformPricing();
-  await syncIssueStatuses();
-  await syncWorkspaceScopes();
-  await syncProjectEpics();
-  await syncIssueDisplayIds();
-  startSprintNotificationWorker();
 
   setupChatSocket(server);
 
   server.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
+
+    // Reconciliation scans are maintenance work. Running them before listen
+    // makes every restart (and therefore login) wait behind the entire issue
+    // dataset. They retain their existing behavior but no longer block HTTP.
+    Promise.all([
+      syncIssueStatuses(),
+      syncWorkspaceScopes(),
+      syncProjectEpics(),
+      syncIssueDisplayIds(),
+    ])
+      .catch((error) => console.error("Startup reconciliation failed:", error.message));
+    startSprintNotificationWorker();
   });
 };
 

@@ -10,6 +10,7 @@ import {
   CalendarDays,
   CalendarClock,
   CheckCircle2,
+  Cloud,
   ChevronDown,
   Download,
   FileText,
@@ -19,6 +20,7 @@ import {
   Layers3,
   PieChart as PieChartIcon,
   RefreshCcw,
+  RotateCcw,
   Save,
   Share2,
   ShieldCheck,
@@ -47,9 +49,10 @@ import {
   YAxis,
 } from "recharts";
 import { AnimatePresence, motion } from "framer-motion";
-import useAnalytics, { useDeveloperDashboard } from "@/hooks/use-analytics";
+import useAnalytics, { useAnalyticsIssues, useDeveloperDashboard, useDeveloperMetrics, useQAMetrics } from "@/hooks/use-analytics";
 import { useAuth } from "@/hooks/use-auth";
-import { fetchEpics, fetchIssues, fetchProjects, fetchSprints } from "@/lib/api";
+import { useBugWorkflowRealtime } from "@/hooks/useBugWorkflowRealtime";
+import { fetchEpics, fetchIssues, fetchProjects, fetchSprints, fetchUsers } from "@/lib/api";
 import {
   BUG_STATUS_OPTIONS,
   BUG_SEVERITY_OPTIONS,
@@ -60,6 +63,8 @@ import {
   getIssueDisplayKey,
   getIssueStatusLabel,
   getIssueStatusVariant,
+  getIssueTesterIds,
+  issueBelongsToTester,
   normalizeBugStatusForIssue,
   resolveBugDetails,
 } from "@/lib/issues";
@@ -93,6 +98,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { getBugColumnKey, TESTER_BUG_COLUMNS } from "@/components/bugs/bugBoardConfig";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn, formatDateTime } from "@/lib/utils";
@@ -194,22 +200,28 @@ const hasChartValues = (rows = [], dataKey = "value") =>
   sumChartValues(rows, dataKey) > 0;
 const percent = (part, total) => (total ? Math.round((part / total) * 100) : 0);
 const normalizeAnalyticsValue = (value) => String(value || "").trim().toLowerCase();
+const isPlaceholderTester = (tester) => {
+  const testerId = normalizeAnalyticsValue(resolveUserId(tester));
+  const placeholderValues = [
+    testerId,
+    tester?.name,
+    tester?.email,
+    tester?.username,
+    tester?.displayName,
+    tester?.label,
+    resolveUserLabel(tester),
+  ].map((value) => normalizeAnalyticsValue(value).replace(/[\s_-]+/g, ""));
+  const isUnassignedValue = (value) => ["unassigned", "unassignedtester", "unassignedqa", "null", "undefined"].includes(value);
+
+  return !testerId || placeholderValues.some(isUnassignedValue);
+};
 const getBugSeverityValue = (issue) => issue?.severity || issue?.bugDetails?.severity || "";
 const getBugPriorityValue = (issue) => issue?.priority || issue?.bugDetails?.priority || "";
 const resolveUserLabel = (user, fallback = "Unassigned") =>
   user?.name || user?.email || fallback;
 const resolveBugTester = (issue) =>
   resolveBugDetails(issue)?.testerOwner || issue?.testerOwner || issue?.reporter || null;
-const resolveBugTesterId = (issue) => resolveUserId(resolveBugTester(issue));
-const getBugReporterId = (issue) => resolveUserId(issue?.reporter);
-const bugBelongsToTester = (issue, testerId) => {
-  const id = String(testerId || "");
-
-  return Boolean(id) && [getBugReporterId(issue), resolveBugTesterId(issue)]
-    .filter(Boolean)
-    .map(String)
-    .includes(id);
-};
+const bugBelongsToTester = issueBelongsToTester;
 const resolveBugTesterLabel = (issue, fallback = "Unassigned") =>
   resolveUserLabel(resolveBugTester(issue), issue?.testerOwnerName || issue?.reporterName || fallback);
 const resolveStoryCreator = (issue, fallback = "Unassigned") => {
@@ -223,7 +235,11 @@ const resolveStoryCreator = (issue, fallback = "Unassigned") => {
 const resolveReportOwner = (issue, fallback = "Unassigned") => {
   if (issue?.type === ISSUE_TYPES.BUG) {
     return resolveUserLabel(
-      resolveBugDetails(issue)?.developerLead || issue?.developerLead || issue?.assignee,
+      resolveBugDetails(issue)?.developerLead ||
+        issue?.developerLead ||
+        issue?.assignedDeveloperId ||
+        issue?.assignee ||
+        issue?.assignees?.[0],
       fallback
     );
   }
@@ -262,13 +278,42 @@ const isReadyForQa = (issue) =>
     ISSUE_STATUS.TESTING,
     ISSUE_STATUS.FIXED,
   ].includes(getNormalizedBugStatus(issue));
+const QA_VERIFIED_BUG_STATUSES = new Set([
+  ISSUE_STATUS.CLOSED,
+  ISSUE_STATUS.DONE,
+  ISSUE_STATUS.RESOLVED,
+]);
+const QA_ACTIVE_BUG_STATUSES = new Set([
+  ISSUE_STATUS.NEW,
+  ISSUE_STATUS.TODO,
+  ISSUE_STATUS.OPEN,
+  ISSUE_STATUS.TRIAGED,
+  ISSUE_STATUS.NEEDS_TRIAGE,
+  ISSUE_STATUS.AVAILABLE_QUEUE,
+  "NEED_INFO",
+  ISSUE_STATUS.ASSIGNED,
+  ISSUE_STATUS.IN_PROGRESS,
+  ISSUE_STATUS.REOPEN,
+]);
+const isRejectedBugBucket = (issue) => {
+  const status = getNormalizedBugStatus(issue);
+  const resolutionAndLabels = `${issue?.resolution || ""} ${Array.isArray(issue?.labels) ? issue.labels.join(" ") : ""}`;
+  return [ISSUE_STATUS.REJECTED, "DUPLICATE", "INVALID"].includes(status) || /invalid|duplicate/i.test(resolutionAndLabels);
+};
+const getTesterBugBuckets = (issues = []) => issues.reduce((counts, issue) => {
+  const status = getNormalizedBugStatus(issue);
+  if (isRejectedBugBucket(issue)) counts.rejected += 1;
+  else if (QA_VERIFIED_BUG_STATUSES.has(status)) counts.closed += 1;
+  else if (isReadyForQa(issue)) counts.readyForQa += 1;
+  else if (QA_ACTIVE_BUG_STATUSES.has(status)) counts.active += 1;
+  else counts.other += 1;
+  return counts;
+}, { active: 0, readyForQa: 0, rejected: 0, closed: 0, other: 0 });
 const isReopened = (issue) => getNormalizedBugStatus(issue) === ISSUE_STATUS.REOPEN;
 const isOverdue = (issue) =>
   Boolean(issue?.dueAt) && !isClosed(issue) && new Date(issue.dueAt) < new Date();
 const getTeamKey = (issue) => issue?.team?._id || "unassigned";
 const getTeamName = (issue) => issue?.team?.name || "Unassigned team";
-const getTesterKeys = (issue) =>
-  [issue?.reporter?._id, issue?.testerOwner?._id].filter(Boolean).map(String);
 const matchesTeam = (row, teamId) =>
   teamId === "all" || row.teamIds?.has(teamId) || (!row.teamIds?.size && teamId === "unassigned");
 
@@ -1005,9 +1050,15 @@ const DashboardSuiteNav = ({ active }) => {
   );
 };
 
-const ReportsLoading = () => (
+const ReportsLoading = ({ title = "Reports", subtitle = "Preparing your report data…" }) => (
   <div className="space-y-5">
-    <Skeleton className="h-[170px] rounded-[16px]" />
+    <Card className="rounded-[16px] border-slate-200 bg-white">
+      <CardContent className="p-5">
+        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-blue-600">CureCode Reports</p>
+        <h1 className="mt-1 text-2xl font-semibold text-slate-950">{title}</h1>
+        <p className="mt-1 text-sm text-slate-500">{subtitle}</p>
+      </CardContent>
+    </Card>
     <div className="grid gap-4 md:grid-cols-3 xl:grid-cols-6">
       {Array.from({ length: 6 }).map((_, index) => (
         <Skeleton key={`report-kpi-${index}`} className="h-[132px] rounded-[16px]" />
@@ -1019,6 +1070,14 @@ const ReportsLoading = () => (
       <Skeleton className="h-[360px] rounded-[16px]" />
       <Skeleton className="h-[360px] rounded-[16px]" />
     </div>
+  </div>
+);
+
+const ReportTabLoading = ({ label }) => (
+  <div className="flex min-h-[360px] flex-col items-center justify-center gap-3 rounded-lg border border-slate-200 bg-white text-center" role="status" aria-live="polite">
+    <Cloud className="h-10 w-10 animate-[report-cloud_1.8s_ease-in-out_infinite] text-sky-500" aria-hidden="true" />
+    <p className="text-sm font-medium text-slate-600">Loading {label}...</p>
+    <style>{"@keyframes report-cloud{0%,100%{transform:translateY(0);opacity:.72}50%{transform:translateY(-7px);opacity:1}}"}</style>
   </div>
 );
 
@@ -1162,6 +1221,8 @@ const QaAnalyticsDashboard = ({ user }) => {
     queryFn: () => fetchIssues({ type: ISSUE_TYPES.BUG }),
     enabled: Boolean(currentUserId),
     staleTime: 30_000,
+    refetchInterval: 15_000,
+    refetchIntervalInBackground: true,
   });
 
   const projectOptions = useMemo(() => projects.filter((project) => {
@@ -1181,7 +1242,7 @@ const QaAnalyticsDashboard = ({ user }) => {
       getProjectMembers(project).forEach((member) => {
         if ([ROLE_TESTER, ROLE_QA_LEAD].includes(member?.role)) {
           const id = resolveUserId(member);
-          if (id) rows.set(id, member);
+          if (id && !isPlaceholderTester(member)) rows.set(id, member);
         }
       });
     });
@@ -1228,7 +1289,10 @@ const QaAnalyticsDashboard = ({ user }) => {
   };
   const taskAnalyticsFilters = {
     ...analyticsBaseFilters,
-    assigneeId: selectedTesterId,
+    // Task assignment may be stored in assignees without a primary assignee;
+    // fetch the accessible project rows and apply the complete assignment
+    // check below so those testers' work is not omitted.
+    assigneeId: "all",
     testerId: "all",
     type: ISSUE_TYPES.TASK,
   };
@@ -1238,23 +1302,33 @@ const QaAnalyticsDashboard = ({ user }) => {
     assigneeId: "all",
     type: ISSUE_TYPES.BUG,
   };
-  const taskAnalytics = useAnalytics(taskAnalyticsFilters, { includeIssues: true, enabled: Boolean(currentUserId) });
-  const bugAnalytics = useAnalytics(bugAnalyticsFilters, { includeIssues: true, enabled: Boolean(currentUserId) });
+  const liveQaRefresh = { refetchInterval: 15_000, refetchIntervalInBackground: true };
+  const taskAnalytics = useAnalytics(taskAnalyticsFilters, { includeIssues: true, enabled: Boolean(currentUserId), ...liveQaRefresh });
+  const bugAnalytics = useAnalytics(bugAnalyticsFilters, { includeIssues: true, enabled: Boolean(currentUserId), ...liveQaRefresh });
+  // Load scoped QA history for all testers so reviews performed on bugs owned
+  // by someone else still count toward the current tester's accuracy.
+  const qaMetricsQuery = useQAMetrics({ ...bugAnalyticsFilters, testerId: "all" }, { enabled: Boolean(currentUserId), ...liveQaRefresh });
   const rawTasks = asArray(taskAnalytics.issues?.issues).filter((issue) => !isDeletedIssue(issue));
   const rawAnalyticsBugs = asArray(bugAnalytics.issues?.issues).filter((issue) => !isDeletedIssue(issue));
+  // The tester bug board includes assigned bugs that the analytics endpoint
+  // can omit for tester roles. Prefer that authorized list and use analytics
+  // rows as a fallback while it loads or when no board bugs exist.
   const reportedBoardBugs = asArray(reportedBugBoardIssues)
     .filter((issue) => !isDeletedIssue(issue))
-    .filter((issue) => {
-      if (isQaLead && selectedTesterId === "all") {
-        return true;
-      }
-
-      return bugBelongsToTester(issue, selectedTesterId);
-    });
+    .filter((issue) => isQaLead && selectedTesterId === "all" || bugBelongsToTester(issue, selectedTesterId));
   const rawBugs = reportedBoardBugs.length ? reportedBoardBugs : rawAnalyticsBugs;
-  const tasks = rawTasks.filter((issue) => scopedProjectIds.has(getScopedProjectId(issue)));
+  const tasks = rawTasks.filter((issue) =>
+    scopedProjectIds.has(getScopedProjectId(issue)) &&
+    (selectedTesterId === "all" || [issue.assignee, ...(issue.assignees || [])]
+      .map(resolveUserId)
+      .includes(String(selectedTesterId)))
+  );
   const bugs = rawBugs.filter((issue) => {
     if (!scopedProjectIds.has(getScopedProjectId(issue))) {
+      return false;
+    }
+
+    if (dateRangeStart && new Date(issue.createdAt || 0) < new Date(dateRangeStart)) {
       return false;
     }
 
@@ -1273,18 +1347,36 @@ const QaAnalyticsDashboard = ({ user }) => {
   const bugsVerified = bugs.filter((bug) => isClosed(bug) && !isRejectedOrInvalid(bug));
   const reopenedBugs = bugs.filter((bug) => isReopened(bug) || Number(bug.reopenedCount || 0) > 0);
   const rejectedBugs = bugs.filter(isRejectedOrInvalid);
-  const verificationDecisions = bugsVerified.length + reopenedBugs.length + rejectedBugs.length;
-  const qaAccuracy = verificationDecisions ? percent(bugsVerified.length, verificationDecisions) : null;
+  const selectedQaMetrics = selectedTesterId !== "all"
+    ? qaMetricsQuery.data?.byTester?.[selectedTesterId] || qaMetricsQuery.data?.metrics
+    : qaMetricsQuery.data?.metrics;
+  // QA accuracy is based on completed verification transitions, rather than
+  // the current status of bugs. A later pickup or reassignment must not alter
+  // a tester's already-recorded QA outcome.
+  const verificationDecisions = Number(
+    selectedQaMetrics?.qaReviewsCompleted ??
+      (bugsVerified.length + reopenedBugs.length + rejectedBugs.length)
+  );
+  const verifiedDecisions = Number(
+    selectedQaMetrics?.qaAccepted ?? bugsVerified.length
+  );
+  const unsuccessfulDecisions = Number(
+    selectedQaMetrics?.qaRejected ??
+      (reopenedBugs.length + rejectedBugs.length)
+  );
+  const qaAccuracy = verificationDecisions
+    ? percent(verifiedDecisions, verificationDecisions)
+    : null;
   const qaAccuracyDisplay = qaAccuracy === null ? (bugs.length ? "0%" : "—") : `${qaAccuracy}%`;
   const qaAccuracyHelper = verificationDecisions
-    ? `${bugsVerified.length} verified · ${reopenedBugs.length + rejectedBugs.length} rework/invalid`
+    ? `${verifiedDecisions} verified · ${unsuccessfulDecisions} rework/invalid`
     : bugs.length
       ? "No verification decisions yet"
       : "No reported bugs yet";
   const reopenRate = bugsVerified.length ? percent(reopenedBugs.length, bugsVerified.length) : null;
   const falsePositiveRate = bugs.length ? percent(rejectedBugs.length, bugs.length) : null;
-  const qaEfficiencyMetrics = getQaEfficiencyMetrics(bugs, tasks);
-  const qaEfficiency = qaEfficiencyMetrics.efficiency;
+  const qaEfficiencyBuckets = getTesterBugBuckets(bugs);
+  const qaEfficiency = percent(qaEfficiencyBuckets.closed + qaEfficiencyBuckets.rejected, bugs.length);
   const cycleSamples = [...completedTests, ...bugsVerified].map((issue) => toNumber(issue.resolutionTimeMs)).filter((value) => value > 0);
   const avgQaTime = cycleSamples.length ? cycleSamples.reduce((sum, value) => sum + value, 0) / cycleSamples.length : 0;
   const buildRows = projectOptions
@@ -1353,15 +1445,16 @@ const QaAnalyticsDashboard = ({ user }) => {
   })).sort((left, right) => right.high - left.high || right.bugs - left.bugs).slice(0, 8);
   const testerRows = testerOptions.map((tester) => {
     const id = resolveUserId(tester);
-    const testerBugs = bugs.filter((bug) => String(resolveBugTesterId(bug)) === String(id));
+    const testerBugs = bugs.filter((bug) => bugBelongsToTester(bug, id));
     const testerTasks = tasks.filter((task) => [task.assignee, ...(task.assignees || [])].map(resolveUserId).includes(String(id)));
     const completed = testerTasks.filter(isClosed).length;
     const pending = testerTasks.length - completed;
     const verified = testerBugs.filter((bug) => isClosed(bug) && !isRejectedOrInvalid(bug)).length;
     const reopened = testerBugs.filter(isReopened).length;
-    const accuracy = verified + reopened ? percent(verified, verified + reopened) : null;
+    const testerBugBuckets = getTesterBugBuckets(testerBugs);
+    const efficiency = percent(testerBugBuckets.closed + testerBugBuckets.rejected, testerBugs.length);
     const workload = pending >= 8 ? "High workload" : pending <= 1 ? "Underloaded" : "Balanced";
-    return { id, name: resolveUserLabel(tester), assigned: testerTasks.length, completed, pending, bugs: testerBugs.length, verified, accuracy, avg: avgQaTime, workload };
+    return { id, name: resolveUserLabel(tester), assigned: testerTasks.length, completed, pending, bugs: testerBugs.length, verified, efficiency, avg: avgQaTime, workload };
   });
   const projectQualityRows = projectOptions.filter((project) => scopedProjectIds.has(String(project._id))).map((project) => {
     const projectBugs = bugs.filter((bug) => getScopedProjectId(bug) === String(project._id));
@@ -1376,8 +1469,8 @@ const QaAnalyticsDashboard = ({ user }) => {
     ...buildRows.map((row) => ({ id: `build-${row.id}`, title: `${row.pushedBy} pushed build ${row.commit}`, meta: `${row.project.name} · ${row.branch}`, time: row.pushedAt })),
     ...bugs.slice(0, 30).map((bug) => ({ id: bug._id, title: `${getIssueDisplayKey(bug)} ${isClosed(bug) ? "verified" : isReopened(bug) ? "reopened" : "reported"}`, meta: bug.project?.name || "Unknown project", time: bug.updatedAt || bug.createdAt })),
   ].sort((left, right) => new Date(right.time || 0) - new Date(left.time || 0)).slice(0, 8);
-  const error = projectsError || reportedBugsError || taskAnalytics.error || bugAnalytics.error;
-  const isLoading = projectsLoading || reportedBugsLoading || taskAnalytics.isLoading || bugAnalytics.isLoading;
+  const error = projectsError || reportedBugsError || taskAnalytics.error || bugAnalytics.error || qaMetricsQuery.error;
+  const isLoading = projectsLoading || reportedBugsLoading || taskAnalytics.isLoading || bugAnalytics.isLoading || qaMetricsQuery.isLoading;
 
   if (error) {
     return (
@@ -1390,7 +1483,7 @@ const QaAnalyticsDashboard = ({ user }) => {
     );
   }
 
-  if (isLoading) return <ReportsLoading />;
+  if (isLoading) return <ReportsLoading title="My QA Analytics" subtitle="Loading your testing activity and quality metrics." />;
 
   return (
     <div className="space-y-5">
@@ -1445,7 +1538,7 @@ const QaAnalyticsDashboard = ({ user }) => {
         <QaMetricCard label="My QA Accuracy" value={qaAccuracyDisplay} helper={qaAccuracyHelper} tone={qaAccuracy !== null && qaAccuracy < 75 ? "amber" : "emerald"} />
         <QaMetricCard label="Reopen Rate" value={reopenRate === null ? "—" : `${reopenRate}%`} helper={reopenRate === null ? "Not enough data" : "Verified bugs reopened"} tone={reopenRate !== null && reopenRate > 20 ? "rose" : "emerald"} />
         <QaMetricCard label="Avg QA Time" value={formatMaybeDuration(avgQaTime)} helper={avgQaTime ? "Average testing cycle" : "No completed QA sessions"} tone="blue" />
-        <QaMetricCard label="QA Efficiency" value={`${qaEfficiency}%`} helper="Verified/rejected bugs + completed tests" tone={qaEfficiency < 70 ? "amber" : "emerald"} />
+        <QaMetricCard label="QA Efficiency" value={`${qaEfficiency}%`} helper="Bugs with a completed QA outcome" tone={qaEfficiency < 70 ? "amber" : "emerald"} />
       </section>
 
       <section className="grid gap-5 xl:grid-cols-[1.25fr_0.75fr]">
@@ -1574,7 +1667,7 @@ const QaAnalyticsDashboard = ({ user }) => {
       {isQaLead ? (
         <>
           <AnalyticsPanel title="Team QA Performance" description="Workload balancing and QA throughput by tester.">
-            <div className="overflow-x-auto"><table className="w-full min-w-[820px] text-left text-sm"><thead className="text-xs uppercase tracking-[0.14em] text-slate-500"><tr><th className="px-3 py-2">Tester</th><th className="px-3 py-2">Assigned</th><th className="px-3 py-2">Completed</th><th className="px-3 py-2">Pending</th><th className="px-3 py-2">Bugs Found</th><th className="px-3 py-2">Verified</th><th className="px-3 py-2">Accuracy</th><th className="px-3 py-2">Avg QA Time</th><th className="px-3 py-2">Workload</th></tr></thead><tbody className="divide-y divide-slate-100">{testerRows.map((row) => <tr key={row.id} className="hover:bg-blue-50/40"><td className="px-3 py-2 font-semibold">{row.name}</td><td className="px-3 py-2">{row.assigned}</td><td className="px-3 py-2">{row.completed}</td><td className="px-3 py-2">{row.pending}</td><td className="px-3 py-2">{row.bugs}</td><td className="px-3 py-2">{row.verified}</td><td className="px-3 py-2">{row.accuracy === null ? "—" : `${row.accuracy}%`}</td><td className="px-3 py-2">{formatMaybeDuration(row.avg)}</td><td className="px-3 py-2"><Badge variant="outline">{row.workload}</Badge></td></tr>)}</tbody></table></div>
+            <div className="overflow-x-auto"><table className="w-full min-w-[820px] text-left text-sm"><thead className="text-xs uppercase tracking-[0.14em] text-slate-500"><tr><th className="px-3 py-2">Tester</th><th className="px-3 py-2">Assigned</th><th className="px-3 py-2">Completed</th><th className="px-3 py-2">Pending</th><th className="px-3 py-2">Bugs Found</th><th className="px-3 py-2">Verified</th><th className="px-3 py-2">QA Efficiency</th><th className="px-3 py-2">Avg QA Time</th><th className="px-3 py-2">Workload</th></tr></thead><tbody className="divide-y divide-slate-100">{testerRows.map((row) => <tr key={row.id} className="hover:bg-blue-50/40"><td className="px-3 py-2 font-semibold">{row.name}</td><td className="px-3 py-2">{row.assigned}</td><td className="px-3 py-2">{row.completed}</td><td className="px-3 py-2">{row.pending}</td><td className="px-3 py-2">{row.bugs}</td><td className="px-3 py-2">{row.verified}</td><td className="px-3 py-2">{row.efficiency === null ? "—" : `${row.efficiency}%`}</td><td className="px-3 py-2">{formatMaybeDuration(row.avg)}</td><td className="px-3 py-2"><Badge variant="outline">{row.workload}</Badge></td></tr>)}</tbody></table></div>
           </AnalyticsPanel>
           <AnalyticsPanel title="Project Quality Overview" description="Project health, coverage, defects and QA risk.">
             <div className="overflow-x-auto"><table className="w-full min-w-[820px] text-left text-sm"><thead className="text-xs uppercase tracking-[0.14em] text-slate-500"><tr><th className="px-3 py-2">Project</th><th className="px-3 py-2">Builds</th><th className="px-3 py-2">QA Coverage</th><th className="px-3 py-2">Bugs</th><th className="px-3 py-2">Critical Bugs</th><th className="px-3 py-2">Reopen Rate</th><th className="px-3 py-2">QA Cycle Time</th><th className="px-3 py-2">Risk</th></tr></thead><tbody className="divide-y divide-slate-100">{projectQualityRows.map((row) => <tr key={row.id} className="cursor-pointer hover:bg-blue-50/40" onClick={() => updateFilter("projectId", row.id)}><td className="px-3 py-2 font-semibold">{row.name}</td><td className="px-3 py-2">{row.builds}</td><td className="px-3 py-2">{row.coverage === null ? "—" : `${row.coverage}%`}</td><td className="px-3 py-2">{row.bugs}</td><td className="px-3 py-2">{row.critical}</td><td className="px-3 py-2">{row.reopenRate === null ? "—" : `${row.reopenRate}%`}</td><td className="px-3 py-2">{formatMaybeDuration(row.cycle)}</td><td className="px-3 py-2"><Badge variant={qaRiskTone(row.risk) === "rose" ? "destructive" : "outline"}>{row.risk}</Badge></td></tr>)}</tbody></table></div>
@@ -1625,6 +1718,10 @@ const LegacyTesterReportsDashboard = ({ user }) => {
     },
     { includeIssues: true, enabled: Boolean(currentTesterId) }
   );
+  const qaMetricsQuery = useQAMetrics(
+    { ...sharedFilters, testerId: currentTesterId, severity: filters.severity },
+    { enabled: Boolean(currentTesterId) }
+  );
   const {
     data: projects = [],
     isLoading: isProjectsLoading,
@@ -1650,16 +1747,16 @@ const LegacyTesterReportsDashboard = ({ user }) => {
     });
 
   const bugIssues = asArray(bugAnalytics.issues?.issues).filter(
-    (issue) => getTesterKeys(issue).includes(String(currentTesterId))
+    (issue) => !isDeletedIssue(issue) && bugBelongsToTester(issue, currentTesterId)
   );
   const testingTasks = asArray(taskAnalytics.issues?.issues).filter(
     (issue) => String(issue.assignee?._id || "") === String(currentTesterId)
   );
   const bugTrend = asArray(bugAnalytics.trends?.issueTrend);
-  const bugsVerified = bugIssues.filter((issue) => issue.status === ISSUE_STATUS.CLOSED).length;
+  const bugsVerified = bugIssues.filter((issue) => isClosed(issue) && !isRejectedOrInvalid(issue)).length;
   const bugsReopened = bugIssues.filter(isReopened).length;
   const readyForQa = bugIssues.filter(isReadyForQa).length;
-  const falsePositiveCount = bugIssues.filter((issue) => issue.status === ISSUE_STATUS.REJECTED).length;
+  const falsePositiveCount = bugIssues.filter(isRejectedOrInvalid).length;
   const completedQaTasks = testingTasks.filter(isClosed).length;
   const pendingQaTasks = testingTasks.filter((issue) => !isClosed(issue)).length;
   const avgVerificationTime =
@@ -1668,7 +1765,11 @@ const LegacyTesterReportsDashboard = ({ user }) => {
       .filter((value) => value > 0)
       .reduce((sum, value, _index, values) => sum + value / values.length, 0);
   const qaAccuracy = percent(bugsVerified, bugsVerified + bugsReopened + falsePositiveCount);
-  const qaEfficiency = Math.round((qaAccuracy + percent(completedQaTasks, testingTasks.length) + percent(bugsVerified, bugIssues.length)) / 3);
+  const testerQaEfficiencyBuckets = getTesterBugBuckets(bugIssues);
+  const qaEfficiency = percent(
+    testerQaEfficiencyBuckets.closed + testerQaEfficiencyBuckets.rejected,
+    bugIssues.length
+  );
   const severityRows = buildGroupedBugRows(
     bugIssues,
     BUG_SEVERITY_GROUPS,
@@ -1700,8 +1801,8 @@ const LegacyTesterReportsDashboard = ({ user }) => {
     console.log("Tester Priority Rows:", priorityRows);
     console.log("Tester Timeline Rows:", timelineRows);
   }
-  const error = projectsError || bugAnalytics.error || taskAnalytics.error;
-  const isLoading = isProjectsLoading || bugAnalytics.isLoading || taskAnalytics.isLoading;
+  const error = projectsError || bugAnalytics.error || taskAnalytics.error || qaMetricsQuery.error;
+  const isLoading = isProjectsLoading || bugAnalytics.isLoading || taskAnalytics.isLoading || qaMetricsQuery.isLoading;
 
   if (error) {
     return (
@@ -1714,7 +1815,7 @@ const LegacyTesterReportsDashboard = ({ user }) => {
   }
 
   if (isLoading) {
-    return <ReportsLoading />;
+    return <ReportsLoading title="QA Analytics" subtitle="Loading bug verification and testing productivity." />;
   }
 
   return (
@@ -1765,7 +1866,7 @@ const LegacyTesterReportsDashboard = ({ user }) => {
         <KpiCard accent="violet" icon={TimerReset} label="Ready For QA" value={readyForQa} helper="Awaiting verification" />
         <KpiCard accent="blue" icon={Gauge} label="Avg Verification" value={formatDuration(avgVerificationTime)} helper="Reported-to-close cycle" />
         <KpiCard accent="slate" icon={CheckCircle2} label="QA Accuracy" value={`${qaAccuracy}%`} helper={`${falsePositiveCount} false positives`} />
-        <KpiCard accent="emerald" icon={Zap} label="QA Efficiency" value={`${qaEfficiency}%`} helper="Personal score" />
+        <KpiCard accent="emerald" icon={Zap} label="QA Efficiency" value={`${qaEfficiency}%`} helper="Closed or rejected bugs ÷ total bugs" />
         <KpiCard accent="blue" icon={Layers3} label="Testing Tasks" value={testingTasks.length} helper={`${pendingQaTasks} pending`} />
       </section>
 
@@ -1874,6 +1975,8 @@ const LegacyTesterReportsDashboard = ({ user }) => {
 };
 
 const DeveloperReportsDashboard = ({ user }) => {
+  useBugWorkflowRealtime();
+
   const currentDeveloperId = user?._id || user?.id || "";
   const defaultFilters = {
     projectId: "all",
@@ -1902,7 +2005,17 @@ const DeveloperReportsDashboard = ({ user }) => {
 
   const { data, isLoading, error } = useDeveloperDashboard(filters, {
     enabled: Boolean(currentDeveloperId),
+    refetchInterval: 15_000,
+    refetchIntervalInBackground: true,
   });
+  const developerMetricsQuery = useDeveloperMetrics(
+    { ...filters, developerId: currentDeveloperId },
+    {
+      enabled: Boolean(currentDeveloperId),
+      refetchInterval: 15_000,
+      refetchIntervalInBackground: true,
+    }
+  );
 
   const updateFilter = (key, value) =>
     setDraftFilters((current) => ({
@@ -1993,7 +2106,7 @@ const DeveloperReportsDashboard = ({ user }) => {
     });
   }, [criticalBugSourceIssues, overdueTaskSourceIssues]);
 
-  if (error) {
+  if (error || developerMetricsQuery.error) {
     return (
       <Card className={ANALYTICS_PANEL_CLASS}>
         <CardContent className="p-6 text-sm text-rose-700">
@@ -2003,11 +2116,52 @@ const DeveloperReportsDashboard = ({ user }) => {
     );
   }
 
-  if (isLoading || !data) {
-    return <ReportsLoading />;
+  if (
+    isLoading ||
+    developerMetricsQuery.isLoading ||
+    !data
+  ) {
+    return <ReportsLoading title="Developer Analytics" subtitle="Loading delivery, bug resolution, and QA metrics." />;
   }
 
   const { summary, taskMetrics, bugMetrics, productivityScore, recentActivity, moduleStats } = data;
+  const developerMetrics = developerMetricsQuery.data?.metrics;
+  // The same event-based metrics power the admin/manager developer report.
+  // Keep completed delivery and QA outcomes authoritative here as well.
+  const taskDeliveryRows = [
+    { label: "Assigned tasks", value: developerMetrics?.tasksAssigned ?? 0, helper: "Same developer metrics source as admin reports" },
+    { label: "Tasks completed", value: developerMetrics?.tasksCompleted ?? 0, helper: "Confirmed task completion events" },
+    { label: "Active tasks", value: developerMetrics?.tasksActive ?? 0, helper: "Tasks still in the workflow" },
+    { label: "Overdue tasks", value: taskMetrics.overdue, helper: "Open tasks past their due date" },
+    { label: "Story points delivered", value: developerMetrics?.taskStoryPointsDelivered ?? 0, helper: "Completed task story points" },
+  ];
+  const bugDeliveryRows = [
+    { label: "Assigned bugs", value: developerMetrics?.bugsAssigned ?? 0, helper: "Same developer metrics source as admin reports" },
+    { label: "Bugs resolved", value: developerMetrics?.bugsResolved ?? 0, helper: "Confirmed bug closure events" },
+    { label: "Active bugs", value: developerMetrics?.bugsActive ?? 0, helper: "Bugs still in development or QA" },
+    { label: "Ready for QA", value: developerMetrics?.bugsReadyForQA ?? 0, helper: "Awaiting QA verification" },
+    { label: "First-pass fix", value: `${developerMetrics?.firstPassFixRate ?? 0}%`, helper: "Accepted without a QA return" },
+    { label: "QA rejections", value: developerMetrics?.qaRejected ?? 0, helper: "Returned by QA for rework" },
+    { label: "Reworked bugs", value: developerMetrics?.reworkedBugs ?? 0, helper: "Bugs with a QA return" },
+    { label: "Avg resolution", value: formatMaybeDuration(developerMetrics?.averageBugResolutionTime ?? 0), helper: "Creation to confirmed closure" },
+  ];
+  const taskCardTones = [
+    "border-sky-200 bg-gradient-to-br from-sky-50 to-blue-100/70 hover:border-sky-400 hover:shadow-sky-200/70",
+    "border-blue-200 bg-gradient-to-br from-blue-50 to-indigo-100/70 hover:border-blue-400 hover:shadow-blue-200/70",
+    "border-cyan-200 bg-gradient-to-br from-cyan-50 to-teal-100/70 hover:border-cyan-400 hover:shadow-cyan-200/70",
+    "border-amber-200 bg-gradient-to-br from-amber-50 to-orange-100/70 hover:border-amber-400 hover:shadow-amber-200/70",
+    "border-emerald-200 bg-gradient-to-br from-emerald-50 to-green-100/70 hover:border-emerald-400 hover:shadow-emerald-200/70",
+  ];
+  const bugCardTones = [
+    "border-violet-200 bg-gradient-to-br from-violet-50 to-fuchsia-100/70 hover:border-violet-400 hover:shadow-violet-200/70",
+    "border-emerald-200 bg-gradient-to-br from-emerald-50 to-teal-100/70 hover:border-emerald-400 hover:shadow-emerald-200/70",
+    "border-rose-200 bg-gradient-to-br from-rose-50 to-pink-100/70 hover:border-rose-400 hover:shadow-rose-200/70",
+    "border-cyan-200 bg-gradient-to-br from-cyan-50 to-sky-100/70 hover:border-cyan-400 hover:shadow-cyan-200/70",
+    "border-indigo-200 bg-gradient-to-br from-indigo-50 to-violet-100/70 hover:border-indigo-400 hover:shadow-indigo-200/70",
+    "border-orange-200 bg-gradient-to-br from-orange-50 to-amber-100/70 hover:border-orange-400 hover:shadow-orange-200/70",
+    "border-rose-200 bg-gradient-to-br from-rose-50 to-red-100/70 hover:border-rose-400 hover:shadow-rose-200/70",
+    "border-slate-200 bg-gradient-to-br from-slate-50 to-blue-100/70 hover:border-slate-400 hover:shadow-slate-200/70",
+  ];
 
   const getWorkloadHealth = (assigned) => {
     if (assigned > 15) return { label: "Overloaded", tone: "bg-rose-500" };
@@ -2161,31 +2315,19 @@ const DeveloperReportsDashboard = ({ user }) => {
         </div>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-3 lg:grid-cols-6">
-        <KpiMiniCard title="Assigned Work" value={summary.assignedWork} icon={Layers3} tone="blue" />
-        <KpiMiniCard title="Open Work" value={summary.openWork} icon={TimerReset} tone="amber" />
-        <KpiMiniCard title="Completed" value={summary.completed} icon={CheckCircle2} tone="emerald" />
-        <KpiMiniCard title="Ready For QA" value={summary.readyForQa} icon={ShieldCheck} tone="violet" />
-        <KpiMiniCard title="Critical Bugs" value={summary.criticalBugs} icon={AlertTriangle} tone="rose" />
-        <KpiMiniCard title="Productivity %" value={`${summary.productivity}%`} icon={Zap} tone="emerald" />
-      </div>
-
       <section className="space-y-4">
-        <div className="flex flex-col gap-2">
-          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-blue-600">Developer Progress</p>
-          <h2 className="text-2xl font-semibold tracking-tight text-slate-950">Interactive delivery insights built from your task and bug workflow</h2>
-          <p className="text-sm text-slate-500">Each widget opens the source work items behind the metric so you can inspect progress, risk, and QA readiness without leaving reports.</p>
+        <div className="grid gap-6 xl:grid-cols-2">
+          <AnalyticsPanel title="Task Delivery Performance" description="Task workflow only — no bug or QA metrics are mixed into this section.">
+            <div className="grid gap-3 sm:grid-cols-2">
+              {taskDeliveryRows.map((metric, index) => <div key={metric.label} className={cn("group cursor-default rounded-xl border p-4 transition-all duration-200 hover:-translate-y-1 hover:shadow-lg", taskCardTones[index % taskCardTones.length])}><p className="text-xs font-semibold uppercase tracking-wide text-slate-500 transition-colors group-hover:text-slate-700">{metric.label}</p><p className="mt-1 text-2xl font-bold text-slate-950">{metric.value}</p><p className="mt-1 text-xs text-slate-500">{metric.helper}</p></div>)}
+            </div>
+          </AnalyticsPanel>
+          <AnalyticsPanel title="Bug Delivery & QA Quality" description="Bug lifecycle and QA outcomes only — kept distinct from task performance.">
+            <div className="grid gap-3 sm:grid-cols-2">
+              {bugDeliveryRows.map((metric, index) => <div key={metric.label} className={cn("group cursor-default rounded-xl border p-4 transition-all duration-200 hover:-translate-y-1 hover:shadow-lg", bugCardTones[index % bugCardTones.length])}><p className="text-xs font-semibold uppercase tracking-wide text-slate-500 transition-colors group-hover:text-slate-700">{metric.label}</p><p className="mt-1 text-2xl font-bold text-slate-950">{metric.value}</p><p className="mt-1 text-xs text-slate-500">{metric.helper}</p></div>)}
+            </div>
+          </AnalyticsPanel>
         </div>
-
-        <div className="grid gap-4 xl:grid-cols-4">
-          {developerInsights.map((insight, index) => (
-            <motion.div key={insight.key} initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.24, delay: index * 0.05 }}>
-              <DeveloperInsightCard {...insight} onClick={() => setActiveInsightKey(insight.key)} />
-            </motion.div>
-          ))}
-        </div>
-
-        <DeveloperInsightDetails insight={activeInsight} />
       </section>
 
       <div className="grid gap-6 xl:grid-cols-[1.5fr_1fr]">
@@ -2436,7 +2578,7 @@ const OrganizationReportsDashboard = () => {
   }, [filters.projectId, projects]);
 
   const developers = members.filter((member) => member.role === "Developer");
-  const testers = members.filter((member) => member.role === "Tester");
+  const testers = members.filter((member) => member.role === "Tester" && !isPlaceholderTester(member));
   const taskIssues = asArray(taskAnalytics.issues?.issues);
   const bugIssues = asArray(bugAnalytics.issues?.issues);
   const taskSummary = taskAnalytics.overview?.summary || {};
@@ -3016,7 +3158,7 @@ const OrganizationReportsDashboard = () => {
   }
 
   if (isLoading) {
-    return <ReportsLoading />;
+    return <ReportsLoading title="Enterprise Reporting" subtitle="Loading workflow analytics and report data." />;
   }
 
   return (
@@ -3701,6 +3843,7 @@ const REPORT_PAGES = [
 ];
 
 const REPORT_PAGE_KEYS = new Set(REPORT_PAGES.map((page) => page.key));
+const EMPTY_REPORT_ISSUES = [];
 const REPORT_NAV_STORAGE_KEY = "jira-report-last-path";
 const DEFAULT_REPORT_DATE_PRESET = "overall";
 const DEFAULT_REPORT_COMPARISON_MODE = "sprint";
@@ -4101,7 +4244,7 @@ const QaTopPerformersCard = ({ rows = [] }) => (
                 <div className="min-w-0">
                   <p className="truncate text-sm font-semibold text-slate-950">{row.name}</p>
                   <p className="mt-0.5 text-xs text-slate-500">
-                    {row.completedWork} completed of {row.totalWork} total work
+                    {row.closed} verified of {row.totalBugs} bugs · {row.doneTasks} done of {row.testerTasks} tasks
                   </p>
                 </div>
               </div>
@@ -4464,6 +4607,7 @@ const JiraDrilldown = ({ rows = [], title, onClear }) => (
 
 const JiraReportsDashboard = () => {
   const { reportKey = "overview" } = useParams();
+  const { user } = useAuth();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const queryClient = useQueryClient();
@@ -4525,6 +4669,11 @@ const JiraReportsDashboard = () => {
     queryFn: fetchProjects,
     staleTime: 60_000,
   });
+  const { data: workspaceUsers = [] } = useQuery({
+    queryKey: ["workspace-users", "reports"],
+    queryFn: fetchUsers,
+    staleTime: 60_000,
+  });
   const selectedProjectId = filters.projectId !== "all" ? filters.projectId : "";
   const { data: sprints = [] } = useQuery({
     queryKey: ["jira-reports", "sprints", selectedProjectId],
@@ -4570,26 +4719,59 @@ const JiraReportsDashboard = () => {
     sprintId: filters.sprintId,
     ...statusParts,
   };
-  const taskAnalytics = useAnalytics({ ...analyticsFilters, type: ISSUE_TYPES.TASK }, { includeIssues: true });
-  const bugAnalytics = useAnalytics({ ...analyticsFilters, type: ISSUE_TYPES.BUG }, { includeIssues: true });
-  const rawTaskIssues = asArray(taskAnalytics.issues?.issues);
-  const rawBugIssues = asArray(bugAnalytics.issues?.issues);
-  const releaseMatches = (issue) => filters.releaseId === "all" || getIssueReleaseId(issue) === filters.releaseId;
-  const taskIssues = rawTaskIssues.filter((issue) => !isDeletedIssue(issue) && releaseMatches(issue));
-  const bugIssues = rawBugIssues.filter((issue) => !isDeletedIssue(issue) && releaseMatches(issue));
-  const allIssues = [...taskIssues, ...bugIssues];
+  const reportCacheScope = JSON.stringify([
+    user?._id || user?.id || "",
+    user?.tenantId || user?.companyId || "",
+    user?.workspaceId || user?.activeWorkspaceId || "",
+  ]);
+  const needsTaskIssues = ["overview", "tasks", "sprints", "developers", "qa", "releases"].includes(activePage);
+  const needsBugIssues = ["overview", "bugs", "developers", "qa", "releases"].includes(activePage);
+  const taskIssuesQuery = useAnalyticsIssues(
+    { ...analyticsFilters, type: ISSUE_TYPES.TASK },
+    { enabled: needsTaskIssues, cacheScope: reportCacheScope, ...(activePage === "qa" ? { staleTime: 15_000, refetchInterval: 15_000, refetchIntervalInBackground: true } : {}) }
+  );
+  const bugIssuesQuery = useAnalyticsIssues(
+    { ...analyticsFilters, type: ISSUE_TYPES.BUG },
+    { enabled: needsBugIssues, cacheScope: reportCacheScope, ...(activePage === "qa" ? { staleTime: 15_000, refetchInterval: 15_000, refetchIntervalInBackground: true } : {}) }
+  );
+  const needsQaMetrics = activePage === "qa";
+  const needsDeveloperMetrics = activePage === "developers";
+  const qaMetricsQuery = useQAMetrics(analyticsFilters, {
+    enabled: needsQaMetrics,
+    cacheScope: reportCacheScope,
+    staleTime: needsQaMetrics ? 15_000 : 5 * 60_000,
+    ...(needsQaMetrics ? { refetchInterval: 15_000, refetchIntervalInBackground: true } : {}),
+  });
+  const developerMetricsQuery = useDeveloperMetrics(analyticsFilters, {
+    enabled: needsDeveloperMetrics,
+    cacheScope: reportCacheScope,
+    staleTime: 5 * 60_000,
+  });
+  const rawTaskIssues = asArray(taskIssuesQuery.data?.issues);
+  const rawBugIssues = asArray(bugIssuesQuery.data?.issues);
+  const taskIssues = useMemo(
+    () => needsTaskIssues ? rawTaskIssues.filter((issue) => !isDeletedIssue(issue) && (filters.releaseId === "all" || getIssueReleaseId(issue) === filters.releaseId)) : EMPTY_REPORT_ISSUES,
+    [filters.releaseId, needsTaskIssues, rawTaskIssues]
+  );
+  const bugIssues = useMemo(
+    () => needsBugIssues ? rawBugIssues.filter((issue) => !isDeletedIssue(issue) && (filters.releaseId === "all" || getIssueReleaseId(issue) === filters.releaseId)) : EMPTY_REPORT_ISSUES,
+    [filters.releaseId, needsBugIssues, rawBugIssues]
+  );
+  const needsCombinedIssues = ["overview", "releases"].includes(activePage);
+  const allIssues = useMemo(() => needsCombinedIssues ? [...taskIssues, ...bugIssues] : EMPTY_REPORT_ISSUES, [bugIssues, needsCombinedIssues, taskIssues]);
   const reportExportIssues = activePage === "tasks"
     ? taskIssues
     : activePage === "bugs"
       ? bugIssues
       : allIssues;
-  const taskMetrics = useMemo(() => calculateTaskMetrics(taskIssues), [taskIssues]);
-  const bugMetrics = useMemo(() => calculateBugMetrics(bugIssues, taskMetrics.deliveredPoints), [bugIssues, taskMetrics.deliveredPoints]);
-  const developerPerformance = useMemo(() => calculateDeveloperPerformance(taskIssues, bugIssues), [bugIssues, taskIssues]);
-  const taskTrendRows = useMemo(() => buildIssueTrendRows(taskIssues), [taskIssues]);
-  const bugTrendRows = useMemo(() => buildIssueTrendRows(bugIssues), [bugIssues]);
-  const taskComparison = compareCurrentPrevious(taskTrendRows, "completed");
-  const bugComparison = compareCurrentPrevious(bugTrendRows, "completed");
+  const taskMetrics = useMemo(() => needsTaskIssues ? calculateTaskMetrics(taskIssues) : null, [needsTaskIssues, taskIssues]);
+  const bugMetrics = useMemo(() => needsBugIssues ? calculateBugMetrics(bugIssues, taskMetrics?.deliveredPoints || 0) : null, [bugIssues, needsBugIssues, taskMetrics?.deliveredPoints]);
+  const needsDeveloperPerformance = ["overview", "developers"].includes(activePage);
+  const developerPerformance = useMemo(() => needsDeveloperPerformance ? calculateDeveloperPerformance(taskIssues, bugIssues) : EMPTY_REPORT_ISSUES, [bugIssues, needsDeveloperPerformance, taskIssues]);
+  const taskTrendRows = useMemo(() => ["overview", "tasks", "sprints"].includes(activePage) ? buildIssueTrendRows(taskIssues) : EMPTY_REPORT_ISSUES, [activePage, taskIssues]);
+  const bugTrendRows = useMemo(() => ["overview", "bugs"].includes(activePage) ? buildIssueTrendRows(bugIssues) : EMPTY_REPORT_ISSUES, [activePage, bugIssues]);
+  const taskComparison = useMemo(() => compareCurrentPrevious(taskTrendRows, "completed"), [taskTrendRows]);
+  const bugComparison = useMemo(() => compareCurrentPrevious(bugTrendRows, "completed"), [bugTrendRows]);
   const releaseOptions = useMemo(() => {
     const rows = new Map();
     [...rawTaskIssues, ...rawBugIssues].forEach((issue) => {
@@ -4598,12 +4780,216 @@ const JiraReportsDashboard = () => {
     });
     return Array.from(rows.entries()).map(([id, name]) => ({ id, name }));
   }, [rawBugIssues, rawTaskIssues]);
+  const reportTesterSourceIssues = useMemo(() => needsBugIssues
+    ? bugIssues
+    : rawBugIssues.filter((issue) => !isDeletedIssue(issue) && (filters.releaseId === "all" || getIssueReleaseId(issue) === filters.releaseId)),
+  [bugIssues, filters.releaseId, needsBugIssues, rawBugIssues]);
+  // The tester filter remains available on every report. Keep its option list
+  // independent of the selected report and avoid rebuilding it on tab changes.
+  const reportTesters = useMemo(() => Array.from(
+    [
+      ...workspaceUsers.filter((user) => [ROLE_TESTER, ROLE_QA_LEAD].includes(user.role)),
+      ...members.filter((member) => [ROLE_TESTER, ROLE_QA_LEAD].includes(member.role)),
+      ...reportTesterSourceIssues.map(resolveBugTester),
+    ]
+      .filter((tester) => tester && !isPlaceholderTester(tester))
+      .reduce((rows, tester) => {
+        const testerId = resolveUserId(tester);
+        if (!rows.has(testerId)) rows.set(testerId, tester);
+        return rows;
+      }, new Map())
+      .values()
+  ).sort((left, right) => resolveUserLabel(left).localeCompare(resolveUserLabel(right))), [members, reportTesterSourceIssues, workspaceUsers]);
+  const reportDerivedData = useMemo(() => {
+    const taskStatusRows = ["tasks", "sprints"].includes(activePage) ? buildRows(taskIssues, (issue) => issue.status, (issue) => getIssueStatusLabel(issue.status)) : EMPTY_REPORT_ISSUES;
+    const bugSeverityRows = activePage === "bugs" ? buildGroupedBugRows(bugIssues, BUG_SEVERITY_GROUPS, getBugSeverityValue, { key: "Unspecified", label: "Unspecified", color: "#64748b" }) : EMPTY_REPORT_ISSUES;
+    const bugPriorityRows = activePage === "bugs" ? buildGroupedBugRows(bugIssues, BUG_PRIORITY_GROUPS.map((group) => ({ ...group, labels: [group.source] })), getBugPriorityValue, { key: "Unspecified", label: "Unspecified", color: "#64748b" }) : EMPTY_REPORT_ISSUES;
+    const workloadRows = activePage === "tasks" ? buildRows(taskIssues, (issue) => issue.assignee?._id, (issue) => resolveUserLabel(issue.assignee)).map((row) => ({ ...row, label: row.name })) : EMPTY_REPORT_ISSUES;
+    const developerMetricsByDeveloper = activePage === "developers" ? developerMetricsQuery.data?.byDeveloper || {} : {};
+    const developerMetricRows = Object.entries(developerMetricsByDeveloper)
+      .map(([id, metrics]) => ({
+        id,
+        name: resolveUserLabel(members.find((member) => String(resolveUserId(member)) === id), "Unknown developer"),
+        ...metrics,
+      }))
+      .sort((left, right) => right.totalCompleted - left.totalCompleted || left.name.localeCompare(right.name));
+    const qaIssueGroups = activePage === "qa" ? (() => {
+      const bugsByTester = new Map();
+      const tasksByTester = new Map();
+      bugIssues.forEach((issue) => {
+        getIssueTesterIds(issue).forEach((testerId) => {
+          const key = String(testerId);
+          if (!bugsByTester.has(key)) bugsByTester.set(key, new Map());
+          bugsByTester.get(key).set(String(issue._id), issue);
+        });
+      });
+      taskIssues.forEach((issue) => {
+        new Set([issue.assignee, ...(issue.assignees || [])].map(resolveUserId).filter(Boolean).map(String)).forEach((testerId) => {
+          if (!tasksByTester.has(testerId)) tasksByTester.set(testerId, []);
+          tasksByTester.get(testerId).push(issue);
+        });
+      });
+      return { bugsByTester, tasksByTester };
+    })() : null;
+    const availableTesterRows = activePage === "qa" ? reportTesters
+      .filter((tester) => !isPlaceholderTester(tester))
+      .map((tester) => {
+        const testerId = resolveUserId(tester);
+        const testerBugs = Array.from(qaIssueGroups.bugsByTester.get(String(testerId))?.values() || []);
+        const testerTasks = qaIssueGroups.tasksByTester.get(String(testerId)) || EMPTY_REPORT_ISSUES;
+        const bugBuckets = getTesterBugBuckets(testerBugs);
+        const doneTasks = testerTasks.filter(isClosed).length;
+        const activeTasks = testerTasks.length - doneTasks;
+        const inProgressTasks = testerTasks.filter((issue) => issue.status === ISSUE_STATUS.IN_PROGRESS).length;
+        const activeWork = bugBuckets.active + activeTasks;
+
+        return {
+          key: testerId,
+          name: resolveUserLabel(tester),
+          totalBugs: testerBugs.length,
+          testerTasks: testerTasks.length,
+          activeWork,
+          activeTasks,
+          inProgressTasks,
+          doneTasks,
+          active: bugBuckets.active,
+          readyForQa: bugBuckets.readyForQa,
+          closed: bugBuckets.closed,
+          rejected: bugBuckets.rejected,
+          otherBugs: bugBuckets.other,
+          availability: activeWork === 0 ? "Available" : "Assigned",
+          qaEfficiency: percent(bugBuckets.closed + bugBuckets.rejected, testerBugs.length),
+        };
+      })
+      .sort((left, right) => left.activeWork - right.activeWork || left.name.localeCompare(right.name)) : EMPTY_REPORT_ISSUES;
+    const topQaPerformerRows = activePage === "qa" ? [...availableTesterRows]
+      .filter((row) => row.totalBugs > 0 || row.testerTasks > 0)
+      .sort((left, right) =>
+        right.closed - left.closed ||
+        right.doneTasks - left.doneTasks ||
+        right.qaEfficiency - left.qaEfficiency ||
+        left.name.localeCompare(right.name)
+      )
+      .slice(0, 10) : EMPTY_REPORT_ISSUES;
+    // Rank each QA report by its own completed work so the leading performer
+    // is consistently first instead of inheriting the availability ordering.
+    const bugReportRows = activePage === "qa" ? [...availableTesterRows].sort((left, right) =>
+      right.closed - left.closed ||
+      right.qaEfficiency - left.qaEfficiency ||
+      right.totalBugs - left.totalBugs ||
+      left.name.localeCompare(right.name)
+    ) : EMPTY_REPORT_ISSUES;
+    const taskReportRows = activePage === "qa" ? [...availableTesterRows].sort((left, right) =>
+      right.doneTasks - left.doneTasks ||
+      right.testerTasks - left.testerTasks ||
+      left.name.localeCompare(right.name)
+    ) : EMPTY_REPORT_ISSUES;
+    const qaReportBugBuckets = activePage === "qa" ? getTesterBugBuckets(bugIssues) : getTesterBugBuckets(EMPTY_REPORT_ISSUES);
+    const qaEfficiency = activePage === "qa" ? percent(qaReportBugBuckets.closed + qaReportBugBuckets.rejected, bugIssues.length) : 0;
+    const releaseRows = activePage === "releases" ? buildRows(allIssues, getIssueReleaseId, getIssueReleaseName).map((row) => ({ ...row, label: row.name })) : EMPTY_REPORT_ISSUES;
+    const completedTasks = ["tasks", "sprints", "qa", "releases"].includes(activePage) ? taskIssues.filter(isClosed) : EMPTY_REPORT_ISSUES;
+    const inProgressTasks = activePage === "tasks" ? taskIssues.filter(isActive) : EMPTY_REPORT_ISSUES;
+    const closedBugs = ["bugs", "releases"].includes(activePage) ? bugIssues.filter(isClosed) : EMPTY_REPORT_ISSUES;
+    const reopenedBugs = activePage === "bugs" ? bugIssues.filter(isReopened) : EMPTY_REPORT_ISSUES;
+    const rejectedBugs = activePage === "bugs" ? bugIssues.filter((issue) => getNormalizedBugStatus(issue) === ISSUE_STATUS.REJECTED) : EMPTY_REPORT_ISSUES;
+    const regressionBugs = activePage === "bugs" ? bugIssues.filter((issue) => /regression/i.test(`${issue.title || ""} ${issue.labels?.join(" ") || ""}`)) : EMPTY_REPORT_ISSUES;
+    const escapedDefects = activePage === "bugs" ? bugIssues.filter((issue) => issue.severity === "Critical" && isClosed(issue)) : EMPTY_REPORT_ISSUES;
+    const qaAccepted = activePage === "bugs" ? bugIssues.filter((issue) => issue.status !== ISSUE_STATUS.REJECTED && isClosed(issue)).length : 0;
+    const workQueueBugs = activePage === "bugs" ? bugIssues.filter(isBugWorkQueue) : EMPTY_REPORT_ISSUES;
+    const assignedBugs = activePage === "bugs" ? bugIssues.filter(isBugAssigned) : EMPTY_REPORT_ISSUES;
+    const inProgressBugs = activePage === "bugs" ? bugIssues.filter(isBugInProgress) : EMPTY_REPORT_ISSUES;
+    const readyForQaBugs = activePage === "bugs" ? bugIssues.filter(isReadyForQa) : EMPTY_REPORT_ISSUES;
+    const currentReopenedBugs = reopenedBugs;
+    const closedReportBugs = activePage === "bugs" ? bugIssues.filter(isBugClosed) : EMPTY_REPORT_ISSUES;
+    const testerBoardMetrics = activePage === "qa" ? {
+      reported: bugIssues.filter((issue) => getBugColumnKey(issue, TESTER_BUG_COLUMNS) === "reported"),
+      active: bugIssues.filter((issue) => ["reported", "assigned", "inProgress", "readyForQa"].includes(getBugColumnKey(issue, TESTER_BUG_COLUMNS))),
+      readyForQa: bugIssues.filter((issue) => getBugColumnKey(issue, TESTER_BUG_COLUMNS) === "readyForQa"),
+      rejected: bugIssues.filter((issue) => getBugColumnKey(issue, TESTER_BUG_COLUMNS) === "rejected"),
+      closed: bugIssues.filter((issue) => getBugColumnKey(issue, TESTER_BUG_COLUMNS) === "closed"),
+    } : { reported: EMPTY_REPORT_ISSUES, active: EMPTY_REPORT_ISSUES, readyForQa: EMPTY_REPORT_ISSUES, rejected: EMPTY_REPORT_ISSUES, closed: EMPTY_REPORT_ISSUES };
+    const otherBugs = activePage === "bugs" ? bugIssues.filter((issue) =>
+      !isBugWorkQueue(issue) && !isBugAssigned(issue) && !isBugInProgress(issue) &&
+      !isReadyForQa(issue) && !isReopened(issue) && !isBugClosed(issue)
+    ) : EMPTY_REPORT_ISSUES;
+    const taskPerformanceRows = ["developers", "performance"].includes(activePage) ? buildDeveloperRankingRows(developerPerformance, (developer) => ({
+      closed: developer.taskMetrics.completed,
+      total: developer.taskMetrics.total,
+      meta: `${developer.taskMetrics.completed} closed tasks`,
+    })) : EMPTY_REPORT_ISSUES;
+    const bugPerformanceRows = ["developers", "performance"].includes(activePage) ? buildDeveloperRankingRows(developerPerformance, (developer) => ({
+      closed: developer.bugMetrics.resolved,
+      total: developer.bugMetrics.total,
+      meta: `${developer.bugMetrics.resolved} closed bugs`,
+    })) : EMPTY_REPORT_ISSUES;
+    const combinedPerformanceRows = ["developers", "performance"].includes(activePage) ? buildDeveloperRankingRows(developerPerformance, (developer) => ({
+      closed: developer.taskMetrics.completed + developer.bugMetrics.resolved,
+      total: developer.taskMetrics.total + developer.bugMetrics.total,
+      meta: `${developer.taskMetrics.completed} tasks, ${developer.bugMetrics.resolved} bugs closed`,
+    })) : EMPTY_REPORT_ISSUES;
+    const completedTasksOnTime = activePage === "performance" ? completedTasks.filter((issue) => {
+      const closedAt = issue?.closedAt ? new Date(issue.closedAt).getTime() : NaN;
+      const dueAt = issue?.dueAt ? new Date(issue.dueAt).getTime() : NaN;
+      return Number.isFinite(closedAt) && Number.isFinite(dueAt) && closedAt <= dueAt;
+    }) : EMPTY_REPORT_ISSUES;
+    const performanceMetricRows = activePage === "performance" ? PERFORMANCE_SCORE_WEIGHTS.map((metric) => {
+      const scoreByMetric = {
+        taskCompletion: taskMetrics?.completionRate || 0,
+        bugResolution: bugMetrics?.fixRate || 0,
+        onTimeDelivery: percent(completedTasksOnTime.length, completedTasks.length),
+        bugQuality: closedBugs.length ? clamp(100 - (reopenedBugs.length / closedBugs.length) * 100) : 100,
+        productivity: percent(completedTasks.length + closedBugs.length, taskIssues.length + bugIssues.length),
+      };
+      const score = clamp(scoreByMetric[metric.key]);
+      return { ...metric, score, contribution: (score * metric.weight) / 100 };
+    }) : EMPTY_REPORT_ISSUES;
+
+    return {
+      taskStatusRows, bugSeverityRows, bugPriorityRows, workloadRows,
+      developerMetricRows, availableTesterRows, topQaPerformerRows, bugReportRows, taskReportRows, qaReportBugBuckets,
+      qaEfficiency, releaseRows, completedTasks, inProgressTasks, closedBugs, reopenedBugs,
+      rejectedBugs, regressionBugs, escapedDefects, qaAccepted, workQueueBugs, assignedBugs,
+      inProgressBugs, readyForQaBugs, currentReopenedBugs, closedReportBugs, testerBoardMetrics,
+      otherBugs, taskPerformanceRows, bugPerformanceRows, combinedPerformanceRows,
+      completedTasksOnTime, performanceMetricRows,
+      performanceScore: Math.round(performanceMetricRows.reduce((sum, metric) => sum + metric.contribution, 0)),
+    };
+  }, [activePage, allIssues, bugIssues, bugMetrics, developerMetricsQuery.data, developerPerformance, members, reportTesters, taskIssues, taskMetrics]);
+  const {
+    taskStatusRows, bugSeverityRows, bugPriorityRows, workloadRows,
+    developerMetricRows, availableTesterRows, topQaPerformerRows, bugReportRows, taskReportRows, qaReportBugBuckets,
+    qaEfficiency, releaseRows, completedTasks, inProgressTasks, closedBugs, reopenedBugs,
+    rejectedBugs, regressionBugs, escapedDefects, qaAccepted, workQueueBugs, assignedBugs,
+    inProgressBugs, readyForQaBugs, currentReopenedBugs, closedReportBugs, testerBoardMetrics,
+    otherBugs, taskPerformanceRows, bugPerformanceRows, combinedPerformanceRows,
+    completedTasksOnTime, performanceMetricRows, performanceScore,
+  } = reportDerivedData;
   if (!REPORT_PAGE_KEYS.has(activePage)) {
     return <Navigate to="/reports" replace />;
   }
 
-  const isLoading = projectsLoading || taskAnalytics.isLoading || bugAnalytics.isLoading;
-  const error = projectsError || taskAnalytics.error || bugAnalytics.error;
+  const isLoading =
+    projectsLoading ||
+    (needsTaskIssues && taskIssuesQuery.isLoading) ||
+    (needsBugIssues && bugIssuesQuery.isLoading) ||
+    (needsQaMetrics && qaMetricsQuery.isLoading) ||
+    (needsDeveloperMetrics && developerMetricsQuery.isLoading);
+  const error =
+    projectsError ||
+    (needsTaskIssues && taskIssuesQuery.error) ||
+    (needsBugIssues && bugIssuesQuery.error) ||
+    (needsQaMetrics && qaMetricsQuery.error) ||
+    (needsDeveloperMetrics && developerMetricsQuery.error);
+  const activeReport = REPORT_PAGES.find((page) => page.key === activePage);
+  const retryActiveReport = () => {
+    const retries = [];
+    if (projectsError) retries.push(queryClient.refetchQueries({ queryKey: ["projects"], exact: true }));
+    if (needsTaskIssues && taskIssuesQuery.error) retries.push(taskIssuesQuery.refetch());
+    if (needsBugIssues && bugIssuesQuery.error) retries.push(bugIssuesQuery.refetch());
+    if (needsQaMetrics && qaMetricsQuery.error) retries.push(qaMetricsQuery.refetch());
+    if (needsDeveloperMetrics && developerMetricsQuery.error) retries.push(developerMetricsQuery.refetch());
+    return Promise.all(retries);
+  };
   const updateFilter = (key, value) => {
     setDrilldown(null);
     let nextFilters = {
@@ -4698,118 +5084,21 @@ const JiraReportsDashboard = () => {
       <JiraDrilldown rows={drilldown.rows} title={drilldown.title} onClear={() => setDrilldown(null)} />
     ) : null;
 
-  if (error) {
-    return (
-      <Card className="border-slate-200 bg-white">
-        <CardContent className="p-6 text-sm text-rose-700">
-          {error.response?.data?.message || error.message || "Unable to load reports analytics."}
-        </CardContent>
-      </Card>
-    );
-  }
-
-  if (isLoading) {
-    return <ReportsLoading />;
-  }
-
-  const taskStatusRows = buildRows(taskIssues, (issue) => issue.status, (issue) => getIssueStatusLabel(issue.status));
-  const bugSeverityRows = buildGroupedBugRows(bugIssues, BUG_SEVERITY_GROUPS, getBugSeverityValue, { key: "Unspecified", label: "Unspecified", color: "#64748b" });
-  const bugPriorityRows = buildGroupedBugRows(bugIssues, BUG_PRIORITY_GROUPS.map((group) => ({ ...group, labels: [group.source] })), getBugPriorityValue, { key: "Unspecified", label: "Unspecified", color: "#64748b" });
-  const workloadRows = buildRows(taskIssues, (issue) => issue.assignee?._id, (issue) => resolveUserLabel(issue.assignee)).map((row) => ({ ...row, label: row.name }));
-  const reportTesters = Array.from(
-    [
-      ...members.filter((member) => [ROLE_TESTER, ROLE_QA_LEAD].includes(member.role)),
-      ...bugIssues.map(resolveBugTester),
-    ]
-      .filter(Boolean)
-      .reduce((rows, tester) => {
-        const testerId = resolveUserId(tester);
-        const testerName = resolveUserLabel(tester, "");
-        if (
-          testerId &&
-          normalizeAnalyticsValue(testerId) !== "unassigned" &&
-          normalizeAnalyticsValue(testerName) !== "unassigned" &&
-          !rows.has(testerId)
-        ) {
-          rows.set(testerId, tester);
-        }
-        return rows;
-      }, new Map())
-      .values()
-  );
-  const availableTesterRows = reportTesters
-    .map((tester) => {
-      const testerId = resolveUserId(tester);
-      const testerBugs = bugIssues.filter(
-        (issue) => bugBelongsToTester(issue, testerId)
-      );
-      const testerTasks = taskIssues.filter((issue) => {
-        const assigneeIds = [issue.assignee, ...(issue.assignees || [])]
-          .map(resolveUserId)
-          .filter(Boolean);
-        return assigneeIds.includes(String(testerId));
-      });
-      const qaMetrics = getQaEfficiencyMetrics(testerBugs, testerTasks);
-      const active = testerBugs.length - qaMetrics.verifiedBugs - qaMetrics.rejectedBugs;
-      const activeTasks = testerTasks.length - qaMetrics.completedTests;
-      const inProgressTasks = testerTasks.filter(
-        (issue) => issue.status === ISSUE_STATUS.IN_PROGRESS
-      ).length;
-      const doneTasks = qaMetrics.completedTests;
-      const completedWork = qaMetrics.completedWork;
-      const totalWork = qaMetrics.totalWork;
-      const activeWork = active + activeTasks;
-
-      return {
-        key: testerId,
-        name: resolveUserLabel(tester),
-        totalBugs: testerBugs.length,
-        testerTasks: testerTasks.length,
-        totalWork,
-        completedWork,
-        activeWork,
-        activeTasks,
-        inProgressTasks,
-        doneTasks,
-        active,
-        readyForQa: testerBugs.filter(isReadyForQa).length,
-        closed: qaMetrics.verifiedBugs,
-        rejected: qaMetrics.rejectedBugs,
-        availability: active === 0 ? "Available" : "Assigned",
-        qaEfficiency: qaMetrics.efficiency,
-      };
-    })
-    .sort((left, right) => left.active - right.active || left.name.localeCompare(right.name));
-  const topQaPerformerRows = [...availableTesterRows]
-    .filter((row) => row.totalWork > 0)
-    .sort(
-      (left, right) =>
-        right.completedWork - left.completedWork ||
-        right.qaEfficiency - left.qaEfficiency ||
-        right.totalWork - left.totalWork ||
-        left.name.localeCompare(right.name)
-    )
-    .slice(0, 10);
-  const qaEfficiency = percent(
-    availableTesterRows.reduce((sum, tester) => sum + tester.completedWork, 0),
-    availableTesterRows.reduce((sum, tester) => sum + tester.totalWork, 0)
-  );
   const exportCurrentReport = () => {
     if (activePage === "qa") {
       exportCsv([
-        ["Tester", "Availability", "Total Work", "Bug - Total", "Bug - Active", "Bug - Ready For QA", "Bug - Closed", "Task - Total", "Task - Active", "Task - In Progress", "Task - Done"],
+        ["Tester", "Availability", "Task - Total", "Task - Active", "Task - In Progress", "Task - Done", "Bug - Total", "Bug - Active", "Bug - Ready For QA", "Bug - Closed"],
         ...availableTesterRows.map((tester) => [
           tester.name,
           tester.availability,
-          tester.totalWork,
-          tester.totalBugs,
-          tester.active,
-          tester.readyForQa,
-          tester.closed,
           tester.testerTasks,
           tester.activeTasks,
           tester.inProgressTasks,
           tester.doneTasks,
+          tester.totalBugs,
+          tester.active,
+          tester.readyForQa,
+          tester.closed,
         ]),
       ]);
       return;
@@ -4817,72 +5106,7 @@ const JiraReportsDashboard = () => {
 
     exportRows(reportExportIssues, activePage);
   };
-  const releaseRows = buildRows(allIssues, getIssueReleaseId, getIssueReleaseName).map((row) => ({ ...row, label: row.name }));
   const topDeveloper = developerPerformance[0] || null;
-  const completedTasks = taskIssues.filter(isClosed);
-  const inProgressTasks = taskIssues.filter(isActive);
-  const closedBugs = bugIssues.filter(isClosed);
-  const reopenedBugs = bugIssues.filter((issue) => Number(issue.reopenedCount || 0) > 0 || isReopened(issue));
-  const regressionBugs = bugIssues.filter((issue) => /regression/i.test(`${issue.title || ""} ${issue.labels?.join(" ") || ""}`));
-  const escapedDefects = bugIssues.filter((issue) => issue.severity === "Critical" && isClosed(issue));
-  const qaAccepted = bugIssues.filter((issue) => issue.status !== ISSUE_STATUS.REJECTED && isClosed(issue)).length;
-  const workQueueBugs = bugIssues.filter(isBugWorkQueue);
-  const assignedBugs = bugIssues.filter(isBugAssigned);
-  const inProgressBugs = bugIssues.filter(isBugInProgress);
-  const readyForQaBugs = bugIssues.filter(isReadyForQa);
-  const currentReopenedBugs = bugIssues.filter(isReopened);
-  const closedReportBugs = bugIssues.filter(isBugClosed);
-  const otherBugs = bugIssues.filter(
-    (issue) =>
-      !isBugWorkQueue(issue) &&
-      !isBugAssigned(issue) &&
-      !isBugInProgress(issue) &&
-      !isReadyForQa(issue) &&
-      !isReopened(issue) &&
-      !isBugClosed(issue)
-  );
-  const taskPerformanceRows = buildDeveloperRankingRows(developerPerformance, (developer) => ({
-    closed: developer.taskMetrics.completed,
-    total: developer.taskMetrics.total,
-    meta: `${developer.taskMetrics.completed} closed tasks`,
-  }));
-  const bugPerformanceRows = buildDeveloperRankingRows(developerPerformance, (developer) => ({
-    closed: developer.bugMetrics.resolved,
-    total: developer.bugMetrics.total,
-    meta: `${developer.bugMetrics.resolved} closed bugs`,
-  }));
-  const combinedPerformanceRows = buildDeveloperRankingRows(developerPerformance, (developer) => ({
-    closed: developer.taskMetrics.completed + developer.bugMetrics.resolved,
-    total: developer.taskMetrics.total + developer.bugMetrics.total,
-    meta: `${developer.taskMetrics.completed} tasks, ${developer.bugMetrics.resolved} bugs closed`,
-  }));
-  const completedTasksOnTime = completedTasks.filter((issue) => {
-    const closedAt = issue?.closedAt ? new Date(issue.closedAt).getTime() : NaN;
-    const dueAt = issue?.dueAt ? new Date(issue.dueAt).getTime() : NaN;
-
-    return Number.isFinite(closedAt) && Number.isFinite(dueAt) && closedAt <= dueAt;
-  });
-  const performanceMetricRows = PERFORMANCE_SCORE_WEIGHTS.map((metric) => {
-    const scoreByMetric = {
-      taskCompletion: taskMetrics.completionRate,
-      bugResolution: bugMetrics.fixRate,
-      onTimeDelivery: percent(completedTasksOnTime.length, completedTasks.length),
-      bugQuality: closedBugs.length
-        ? clamp(100 - (reopenedBugs.length / closedBugs.length) * 100)
-        : 100,
-      productivity: percent(completedTasks.length + closedBugs.length, taskIssues.length + bugIssues.length),
-    };
-    const score = clamp(scoreByMetric[metric.key]);
-
-    return {
-      ...metric,
-      score,
-      contribution: (score * metric.weight) / 100,
-    };
-  });
-  const performanceScore = Math.round(
-    performanceMetricRows.reduce((sum, metric) => sum + metric.contribution, 0)
-  );
   const renderPage = () => {
     if (activePage === "tasks") {
       return (
@@ -4964,26 +5188,23 @@ const JiraReportsDashboard = () => {
     if (activePage === "developers") {
       return (
         <>
-          <div className="grid gap-4 xl:grid-cols-3">
+          <div className="grid gap-4 xl:grid-cols-2">
             <PerformanceRankingCard
-              title="Task Report Performance"
-              description="Top 10 performers ranked by closed task count."
+              title="Task Delivery"
+              description="Completion volume and rate; not an overall performance score."
               rows={taskPerformanceRows}
               emptyTitle="No task performers"
             />
             <PerformanceRankingCard
-              title="Bug Report Performance"
-              description="Top 10 performers ranked by closed bug count."
+              title="Bug Delivery"
+              description="Resolved bug volume and rate; fix quality is shown separately below."
               rows={bugPerformanceRows}
               emptyTitle="No bug performers"
             />
-            <PerformanceRankingCard
-              title="Including Both Performance"
-              description="Top 10 performers ranked by combined task and bug closures."
-              rows={combinedPerformanceRows}
-              emptyTitle="No combined performers"
-            />
           </div>
+          <JiraSection title="Developer Fix Quality" description="QA returns are developer rework. They do not affect QA efficiency and are not combined into an overall developer score.">
+            {developerMetricRows.length ? <div className="overflow-x-auto"><table className="w-full min-w-[1120px] text-left text-sm"><thead className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-500"><tr><th className="px-3 py-2">Developer</th><th className="px-3 py-2 text-right">Tasks Done</th><th className="px-3 py-2 text-right">Bugs Resolved</th><th className="px-3 py-2 text-right">Total Completed</th><th className="px-3 py-2 text-right">First-Pass Fix</th><th className="px-3 py-2 text-right">QA Rejections</th><th className="px-3 py-2 text-right">Rework Rate</th><th className="px-3 py-2 text-right">Escapes</th><th className="px-3 py-2 text-right">Avg Resolution</th><th className="px-3 py-2 text-right">Active Work</th></tr></thead><tbody className="divide-y divide-slate-100">{developerMetricRows.map((row) => <tr key={row.id} className="hover:bg-slate-50"><td className="px-3 py-3 font-medium text-slate-900">{row.name}</td><td className="px-3 py-3 text-right">{row.tasksCompleted}</td><td className="px-3 py-3 text-right">{row.bugsResolved}</td><td className="px-3 py-3 text-right font-semibold">{row.totalCompleted}</td><td className="px-3 py-3 text-right">{row.qaSubmissions ? `${row.firstPassFixRate}%` : "—"}</td><td className="px-3 py-3 text-right">{row.qaRejected}</td><td className="px-3 py-3 text-right">{row.qaSubmissions ? `${row.reworkRate}%` : "—"}</td><td className="px-3 py-3 text-right">{row.productionEscapes}</td><td className="px-3 py-3 text-right">{formatMaybeDuration(row.averageBugResolutionTime)}</td><td className="px-3 py-3 text-right">{row.activeWork}</td></tr>)}</tbody></table></div> : <AnalyticsEmptyState icon={Users2} title="No developer metrics" description="Developer delivery and QA-fix activity will appear here for the selected filters." />}
+          </JiraSection>
         </>
       );
     }
@@ -4991,34 +5212,59 @@ const JiraReportsDashboard = () => {
     if (activePage === "qa") {
       return (
         <>
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-6">
-            <JiraKpi label="Total Bugs" value={formatCompactNumber(bugIssues.length)} helper="All filtered bugs" onClick={() => drillTo("All bugs", bugIssues)} />
-            <JiraKpi label="QA Acceptance" value={`${percent(qaAccepted, closedBugs.length)}%`} helper={`${qaAccepted} accepted fixes`} onClick={() => drillTo("QA accepted bugs", closedBugs.filter((issue) => issue.status !== ISSUE_STATUS.REJECTED))} />
-            <JiraKpi label="Ready For QA" value={bugIssues.filter(isReadyForQa).length} helper="Awaiting verification" onClick={() => drillTo("Ready for QA", bugIssues.filter(isReadyForQa))} />
-            <JiraKpi label="Rejected Fixes" value={bugIssues.filter((issue) => issue.status === ISSUE_STATUS.REJECTED).length} helper="Returned by QA" />
-            <JiraKpi label="Reopened" value={formatCompactNumber(reopenedBugs.length)} helper="Quality follow-up" onClick={() => drillTo("Reopened bugs", reopenedBugs)} />
-            <JiraKpi label="QA Efficiency" value={`${qaEfficiency}%`} helper="Verified/rejected bugs + completed tests" />
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+            <JiraKpi label="Reported" value={formatCompactNumber(testerBoardMetrics.reported.length)} helper="Waiting for developer pickup" onClick={() => drillTo("Reported bugs", testerBoardMetrics.reported)} />
+            <JiraKpi label="Active" value={formatCompactNumber(testerBoardMetrics.active.length)} helper="All non-terminal tester-board bugs" onClick={() => drillTo("Active bugs", testerBoardMetrics.active)} />
+            <JiraKpi label="Ready For QA" value={formatCompactNumber(testerBoardMetrics.readyForQa.length)} helper="Awaiting verification" onClick={() => drillTo("Ready for QA", testerBoardMetrics.readyForQa)} />
+            <JiraKpi label="Rejected" value={formatCompactNumber(testerBoardMetrics.rejected.length)} helper="Rejected or invalid bugs" onClick={() => drillTo("Rejected bugs", testerBoardMetrics.rejected)} />
+            <JiraKpi label="Closed" value={formatCompactNumber(testerBoardMetrics.closed.length)} helper="Verified and closed" onClick={() => drillTo("Closed bugs", testerBoardMetrics.closed)} />
           </div>
           {renderDrilldownPanel()}
           {!hasDrilldown ? (
-          <div className="grid gap-4 xl:grid-cols-2">
-            <JiraSection title="Available Tester Report">
+          <div className="grid gap-4">
+            <JiraSection title="Bug Report">
               {availableTesterRows.length ? (
                 <div className="overflow-x-auto">
-                  <table className="w-full min-w-[980px] text-left text-sm">
+                  <table className="w-full min-w-[620px] text-left text-sm">
                     <thead className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-500">
                       <tr>
-                        <th className="px-3 py-2" rowSpan="2">Tester</th>
-                        <th className="px-3 py-2" rowSpan="2">Availability</th>
-                        <th className="px-3 py-2 text-right" rowSpan="2">Total Work</th>
-                        <th className="border-l border-slate-200 bg-rose-50/60 px-3 py-2 text-center text-rose-700" colSpan="4">Bug Report</th>
-                        <th className="border-l border-slate-200 bg-blue-50/60 px-3 py-2 text-center text-blue-700" colSpan="4">Task Report</th>
-                      </tr>
-                      <tr>
-                        <th className="px-3 py-2 text-right">Total Bugs</th>
+                        <th className="px-3 py-2">Tester</th>
+                        <th className="border-l border-slate-200 px-3 py-2 text-right">Total Bugs</th>
                         <th className="px-3 py-2 text-right">Active Bugs</th>
                         <th className="px-3 py-2 text-right">Ready For QA</th>
+                        <th className="px-3 py-2 text-right">Rejected / Invalid</th>
                         <th className="px-3 py-2 text-right">Closed Bugs</th>
+                        <th className="px-3 py-2 text-right">Deferred / Other</th>
+                        <th className="px-3 py-2 text-right">QA Efficiency</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {bugReportRows.map((tester) => (
+                        <tr className="hover:bg-slate-50" key={tester.key}>
+                          <td className="px-3 py-3 font-medium text-slate-900">{tester.name}</td>
+                          <td className="border-l border-slate-100 px-3 py-3 text-right">{tester.totalBugs}</td>
+                          <td className="px-3 py-3 text-right">{tester.active}</td>
+                          <td className="px-3 py-3 text-right">{tester.readyForQa}</td>
+                          <td className="px-3 py-3 text-right">{tester.rejected}</td>
+                          <td className="px-3 py-3 text-right">{tester.closed}</td>
+                          <td className="px-3 py-3 text-right">{tester.otherBugs}</td>
+                          <td className="px-3 py-3 text-right">{tester.qaEfficiency}%</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <AnalyticsEmptyState icon={Users2} title="No testers available" description="No tester members are assigned to the selected project scope." />
+              )}
+            </JiraSection>
+            <JiraSection title="Task Report">
+              {availableTesterRows.length ? (
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[620px] text-left text-sm">
+                    <thead className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-500">
+                      <tr>
+                        <th className="px-3 py-2">Tester</th>
                         <th className="border-l border-slate-200 px-3 py-2 text-right">Total Tasks</th>
                         <th className="px-3 py-2 text-right">Active Tasks</th>
                         <th className="px-3 py-2 text-right">In-Progress Tasks</th>
@@ -5026,19 +5272,9 @@ const JiraReportsDashboard = () => {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
-                      {availableTesterRows.map((tester) => (
+                      {taskReportRows.map((tester) => (
                         <tr className="hover:bg-slate-50" key={tester.key}>
                           <td className="px-3 py-3 font-medium text-slate-900">{tester.name}</td>
-                          <td className="px-3 py-3">
-                            <Badge variant={tester.availability === "Available" ? "success" : "secondary"}>
-                              {tester.availability}
-                            </Badge>
-                          </td>
-                          <td className="px-3 py-3 text-right font-semibold">{tester.totalWork}</td>
-                          <td className="border-l border-slate-100 px-3 py-3 text-right">{tester.totalBugs}</td>
-                          <td className="px-3 py-3 text-right">{tester.active}</td>
-                          <td className="px-3 py-3 text-right">{tester.readyForQa}</td>
-                          <td className="px-3 py-3 text-right">{tester.closed}</td>
                           <td className="border-l border-slate-100 px-3 py-3 text-right">{tester.testerTasks}</td>
                           <td className="px-3 py-3 text-right">{tester.activeTasks}</td>
                           <td className="px-3 py-3 text-right">{tester.inProgressTasks}</td>
@@ -5052,7 +5288,6 @@ const JiraReportsDashboard = () => {
                 <AnalyticsEmptyState icon={Users2} title="No testers available" description="No tester members are assigned to the selected project scope." />
               )}
             </JiraSection>
-            <QaTopPerformersCard rows={topQaPerformerRows} />
           </div>
           ) : null}
         </>
@@ -5242,7 +5477,7 @@ const JiraReportsDashboard = () => {
             </select>
             <select className={ANALYTICS_SELECT_CLASS} value={filters.testerId} onChange={(event) => updateFilter("testerId", event.target.value)}>
               <option value="all">All testers</option>
-              {members.filter((member) => member.role === "Tester").map((member) => <option key={resolveUserId(member)} value={resolveUserId(member)}>{member.name}</option>)}
+              {reportTesters.map((tester) => <option key={resolveUserId(tester)} value={resolveUserId(tester)}>{resolveUserLabel(tester)}</option>)}
             </select>
             <select className={ANALYTICS_SELECT_CLASS} value={filters.priority} onChange={(event) => updateFilter("priority", event.target.value)}>
               <option value="all">All priorities</option>
@@ -5302,7 +5537,18 @@ const JiraReportsDashboard = () => {
           </div>
         </div>
 
-        {renderPage()}
+        {error ? (
+          <Card className="border-rose-200 bg-white">
+            <CardContent className="flex flex-col items-center gap-3 p-8 text-center">
+              <p className="text-sm text-rose-700">{error.response?.data?.message || error.message || `Unable to load ${activeReport?.label || "report"}.`}</p>
+              <Button type="button" variant="outline" size="sm" onClick={retryActiveReport}><RotateCcw className="mr-2 h-4 w-4" />Retry</Button>
+            </CardContent>
+          </Card>
+        ) : isLoading ? (
+          <ReportTabLoading label={activeReport?.label || "report"} />
+        ) : (
+          renderPage()
+        )}
       </div>
     </div>
   );
@@ -5310,6 +5556,10 @@ const JiraReportsDashboard = () => {
 
 const ReportsPage = () => {
   const { role, user } = useAuth();
+
+  // Refresh analytics immediately after bug workflow events rather than
+  // leaving the tester report page on its previous query-cache snapshot.
+  useBugWorkflowRealtime();
 
   if (hasTesterPanelAccess(role)) {
     return <TesterReportsDashboard user={user} />;

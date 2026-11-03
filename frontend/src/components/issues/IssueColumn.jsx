@@ -59,7 +59,7 @@ const IssueColumn = ({
       {issues.length ? (
         issues.map((issue) => (
           <IssueCard
-            key={issue._id}
+            key={issue.boardCardKey || issue._id}
             issue={issue}
             isUpdating={updatingId === issue._id}
             canEditIssue={canEditIssue}

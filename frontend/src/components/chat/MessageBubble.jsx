@@ -1,4 +1,4 @@
-import { memo, useState } from "react";
+import { memo, useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import {
   CalendarDays,
@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 import UserAvatar from "@/components/shared/UserAvatar";
 import { Button } from "@/components/ui/button";
-import { resolveApiAssetUrl } from "@/lib/api";
+import { fetchChatAttachmentBlob } from "@/lib/api";
 import { cn, formatDateTime, formatTime } from "@/lib/utils";
 
 const formatFileSize = (size = 0) => {
@@ -109,21 +109,80 @@ const MeetingCard = ({ metadata = {}, isOwn }) => {
   );
 };
 
-const AttachmentCard = ({ attachment, isOwn, onPreview }) => {
+const AttachmentCard = ({ attachment, attachmentIndex, conversationId, isOwn, messageId, onPreview }) => {
   const [imageLoadFailed, setImageLoadFailed] = useState(false);
+  const [imageUrl, setImageUrl] = useState("");
+  const [isDownloading, setIsDownloading] = useState(false);
   const fileName = getAttachmentName(attachment);
-  const fileUrl = resolveApiAssetUrl(getAttachmentUrl(attachment));
+  const fileUrl = getAttachmentUrl(attachment);
   const fileType = getAttachmentType(attachment);
+  const canLoadAttachment = Boolean(conversationId && messageId && fileUrl);
 
-  if (isImageAttachment(attachment) && fileUrl && !imageLoadFailed) {
+  useEffect(() => {
+    if (!isImageAttachment(attachment) || !canLoadAttachment) {
+      setImageUrl("");
+      return undefined;
+    }
+
+    let objectUrl = "";
+    let isCurrent = true;
+    setImageLoadFailed(false);
+    fetchChatAttachmentBlob({ conversationId, messageId, attachmentIndex })
+      .then((blob) => {
+        objectUrl = URL.createObjectURL(blob);
+        if (isCurrent) {
+          setImageUrl(objectUrl);
+        }
+      })
+      .catch(() => {
+        if (isCurrent) {
+          setImageLoadFailed(true);
+        }
+      });
+
+    return () => {
+      isCurrent = false;
+      if (objectUrl) {
+        URL.revokeObjectURL(objectUrl);
+      }
+    };
+  }, [attachment, attachmentIndex, canLoadAttachment, conversationId, messageId]);
+
+  const handleDownload = async () => {
+    if (!canLoadAttachment || isDownloading) {
+      return;
+    }
+
+    setIsDownloading(true);
+    try {
+      const blob = await fetchChatAttachmentBlob({
+        conversationId,
+        messageId,
+        attachmentIndex,
+        download: true,
+      });
+      const objectUrl = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = objectUrl;
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.setTimeout(() => URL.revokeObjectURL(objectUrl), 0);
+    } finally {
+      setIsDownloading(false);
+    }
+  };
+
+  if (isImageAttachment(attachment) && imageUrl && !imageLoadFailed) {
     return (
       <button
         type="button"
         className="group block w-64 max-w-full overflow-hidden rounded-[18px] border border-white/35 bg-white/16 text-left shadow-sm sm:w-80"
-        onClick={() => onPreview({ fileName, fileUrl })}
+          onClick={() => onPreview({ fileName, fileUrl: imageUrl })}
       >
         <img
-          src={fileUrl}
+          src={imageUrl}
           alt={fileName}
           loading="lazy"
           onError={() => setImageLoadFailed(true)}
@@ -166,12 +225,11 @@ const AttachmentCard = ({ attachment, isOwn, onPreview }) => {
           {formatFileSize(attachment.size)}
         </p>
       </div>
-      {fileUrl ? (
-        <a
-          href={fileUrl}
-          download={fileName}
-          target="_blank"
-          rel="noreferrer"
+      {canLoadAttachment ? (
+        <button
+          type="button"
+          onClick={handleDownload}
+          disabled={isDownloading}
           className={cn(
             "inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl transition",
             isOwn
@@ -179,10 +237,10 @@ const AttachmentCard = ({ attachment, isOwn, onPreview }) => {
               : "bg-white text-emerald-700 hover:bg-emerald-50"
           )}
           aria-label={`Download ${fileName}`}
-          title="Download"
+          title={isDownloading ? "Downloading" : "Download"}
         >
           <Download className="h-4 w-4" />
-        </a>
+        </button>
       ) : null}
     </div>
   );
@@ -249,9 +307,12 @@ const MessageBubble = memo(({ message, currentUserId }) => {
               <div className={cn("space-y-2", message?.message && "mt-3")}>
                 {message.attachments.map((attachment, index) => (
                   <AttachmentCard
+                    attachmentIndex={index}
                     key={`${getAttachmentName(attachment)}-${index}`}
                     attachment={attachment}
+                    conversationId={getId(message.conversationId)}
                     isOwn={isOwn}
+                    messageId={getId(message)}
                     onPreview={setPreviewImage}
                   />
                 ))}
@@ -270,7 +331,14 @@ const MessageBubble = memo(({ message, currentUserId }) => {
             {isOwn && !message?.pending ? (
               <CheckCheck className={cn("h-3.5 w-3.5", seenCount > 1 && "text-slate-900")} />
             ) : null}
-            {message?.failed ? <span className="text-rose-500">Failed</span> : null}
+            {message?.failed ? (
+              <span
+                className="text-rose-500"
+                title={message.errorMessage || "Unable to send message"}
+              >
+                Failed: {message.errorMessage || "Unable to send message"}
+              </span>
+            ) : null}
           </div>
         </div>
       </motion.div>

@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { FolderKanban } from "lucide-react";
-import { ISSUE_STATUS, getIssueWorkflowLane, normalizeIssueStatus } from "@/lib/issues";
+import { ISSUE_STATUS, getIssueWorkflowLane, normalizeIssueStatus, resolveIssueAssignees } from "@/lib/issues";
 import EmptyState from "@/components/shared/EmptyState";
 import IssueColumn from "@/components/issues/IssueColumn";
 import { Card, CardContent } from "@/components/ui/card";
@@ -49,7 +49,20 @@ const IssueBoard = ({
         (column) => !visibleColumnKeys.length || visibleColumnKeys.includes(column.key)
       ).map((column) => ({
         ...column,
-        items: issues.filter((issue) => getIssueWorkflowLane(issue.status) === column.key),
+        items: issues
+          .filter((issue) => getIssueWorkflowLane(issue.status) === column.key)
+          .flatMap((issue) => {
+            const assignees = resolveIssueAssignees(issue).filter(
+              (assignee) => assignee.name || assignee.email
+            );
+            return assignees.length > 1
+              ? assignees.map((assignee) => ({
+                  ...issue,
+                  boardCardKey: `${issue._id}-${assignee._id}`,
+                  boardAssignee: assignee,
+                }))
+              : [issue];
+          }),
       })),
     [issues, visibleColumnKeys]
   );

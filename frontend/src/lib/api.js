@@ -14,6 +14,9 @@ import { CURRENT_WORKSPACE_SCOPE } from "@/lib/workspace";
 
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL || "/api",
+  // A dead proxy or network connection must not leave the login UI pending
+  // forever. Individual long-running uploads can still provide an override.
+  timeout: Number(import.meta.env.VITE_API_TIMEOUT_MS) || 30_000,
   headers: {
     "Content-Type": "application/json",
   },
@@ -21,6 +24,7 @@ const api = axios.create({
 
 const platformApi = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL || "/api",
+  timeout: Number(import.meta.env.VITE_API_TIMEOUT_MS) || 30_000,
   headers: {
     "Content-Type": "application/json",
   },
@@ -37,19 +41,6 @@ api.interceptors.request.use((config) => {
   if (session?.token) {
     config.headers.Authorization = `Bearer ${session.token}`;
   }
-
-  if (typeof window !== "undefined") {
-    window.dispatchEvent(
-      new CustomEvent("app:user-activity", {
-        detail: {
-          source: "api",
-          method: config.method,
-          url: config.url,
-        },
-      })
-    );
-  }
-
   return config;
 });
 
@@ -819,9 +810,10 @@ export const fetchAnalyticsRecentActivity = async (filters = {}) => {
   return response.data;
 };
 
-export const fetchAnalyticsIssues = async (filters = {}) => {
+export const fetchAnalyticsIssues = async (filters = {}, signal) => {
   const response = await api.get("/analytics/issues", {
     params: buildParams(normalizeIssueFilters(filters)),
+    signal,
   });
   return response.data;
 };
@@ -977,6 +969,22 @@ export const startSprint = async (id) => {
 
 export const completeSprint = async ({ id, payload }) => {
   const response = await api.post(`/sprints/${id}/complete`, payload);
+  return response.data;
+};
+
+export const fetchQAMetrics = async (filters = {}, signal) => {
+  const response = await api.get("/analytics/qa-metrics", {
+    params: buildParams(normalizeIssueFilters(filters)),
+    signal,
+  });
+  return response.data;
+};
+
+export const fetchDeveloperMetrics = async (filters = {}, signal) => {
+  const response = await api.get("/analytics/developer-metrics", {
+    params: buildParams(normalizeIssueFilters(filters)),
+    signal,
+  });
   return response.data;
 };
 
@@ -1192,6 +1200,16 @@ export const saveScreenPermissions = async (permissions = {}) => {
   return response.data;
 };
 
+export const fetchWorkPermissions = async () => {
+  const response = await api.get("/settings/work-permissions");
+  return response.data?.permissions || {};
+};
+
+export const saveWorkPermissions = async (permissions = {}) => {
+  const response = await api.post("/settings/work-permissions", { permissions });
+  return response.data;
+};
+
 export const fetchAISettings = async () => {
   const response = await api.get("/settings/ai");
   return response.data?.settings || {};
@@ -1275,6 +1293,22 @@ export const sendChatMessage = async (payload) => {
   return response.data?.message || response.data;
 };
 
+export const fetchChatAttachmentBlob = async ({
+  conversationId,
+  messageId,
+  attachmentIndex,
+  download = false,
+}) => {
+  const response = await api.get(
+    `/chat/messages/${conversationId}/attachments/${messageId}/${attachmentIndex}`,
+    {
+      params: download ? { download: 1 } : undefined,
+      responseType: "blob",
+    }
+  );
+  return response.data;
+};
+
 export const fetchActiveQuickChatMessages = async () => {
   const response = await api.get("/chat/quick-chat/active");
   return response.data?.messages || [];
@@ -1308,6 +1342,8 @@ export const fetchAllChatMeetings = async (filters = {}) => {
   const response = await api.get("/chat/meetings", {
     params: buildParams({
       q: filters.q,
+      upcoming: filters.upcoming,
+      limit: filters.limit,
     }),
   });
   return response.data?.meetings || [];

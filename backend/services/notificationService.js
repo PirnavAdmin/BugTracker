@@ -285,16 +285,15 @@ const notifyIssueEvent = async ({
   if (eventType === "needs_triage") {
     // Notify all Admins about bugs needing triage
     const admins = await User.find({ role: ROLE_ADMIN }).select("_id").lean();
-    for (const admin of admins) {
-      if (String(admin._id) === String(actorId)) continue;
-      await createNotification({
+    await Promise.all(admins.filter((admin) => String(admin._id) !== String(actorId)).map((admin) =>
+      createNotification({
         recipientId: admin._id,
         text: `New bug ${issueKey} requires triage.`,
         type: "triage_required",
         relatedId: issue._id,
         link: `/admin/bugs?bug=${issue._id}`,
-      });
-    }
+      })
+    ));
   }
 
   if (eventType === "status_change") {
@@ -337,19 +336,19 @@ const notifyIssueEvent = async ({
     // Notify all project testers only when the bug is handed off for QA verification.
     if (isBug && readyStatuses.includes(issue.status)) {
       const projectTesters = await getTestersForProject(issue.projectId);
-      for (const tId of projectTesters) {
-        if (String(tId) === String(actorId)) continue;
-        if (String(tId) === String(currentAssigneeId)) continue;
-        if (String(tId) === String(testerOwnerId)) continue;
-
-        await createNotification({
+      await Promise.all(projectTesters.filter((tId) =>
+        String(tId) !== String(actorId) &&
+        String(tId) !== String(currentAssigneeId) &&
+        String(tId) !== String(testerOwnerId)
+      ).map((tId) =>
+        createNotification({
           recipientId: tId,
           text: `Bug ${issueKey} is ${statusLabel.toLowerCase().replace(/_/g, ' ')}.`,
           type: "status_change",
           relatedId: issue._id,
           link,
-        });
-      }
+        })
+      ));
     }
   }
 
@@ -362,17 +361,15 @@ const notifyIssueEvent = async ({
         isDeveloperQueueNotificationRole(teamRoleMap.get(String(userId)) || "")
       );
 
-      for (const recipientId of recipients) {
-        if (String(recipientId) === String(actorId)) continue;
-
-        await createNotification({
+      await Promise.all(recipients.filter((recipientId) => String(recipientId) !== String(actorId)).map((recipientId) =>
+        createNotification({
           recipientId,
           text: `New bug ${issueKey} added to your team's queue.`,
           type: "team_queue",
           relatedId: issue._id,
           link,
-        });
-      }
+        })
+      ));
     }
   }
 };
@@ -395,29 +392,27 @@ const notifySprintEvent = async ({
 
   if (!text) return;
 
-  const teamMembers = sprint.teamId
-    ? await TeamMember.find({ teamId: sprint.teamId }).lean()
-    : [];
+  const [teamMembers, projectTesters] = await Promise.all([
+    sprint.teamId ? TeamMember.find({ teamId: sprint.teamId }).lean() : Promise.resolve([]),
+    getTestersForProject(sprint.projectId),
+  ]);
   const teamUserIds = teamMembers.map(m => String(m.userId));
 
   // Rule 6: Notify all testers attached to the project
-  const projectTesters = await getTestersForProject(sprint.projectId);
   const projectTesterIds = projectTesters.map(id => String(id));
 
   const recipients = [...new Set([...teamUserIds, ...projectTesterIds])];
 
-  for (const recipientId of recipients) {
-    if (String(recipientId) === String(actorId)) continue;
-
-    await createNotification({
+  await Promise.all(recipients.filter((recipientId) => String(recipientId) !== String(actorId)).map((recipientId) =>
+    createNotification({
       recipientId,
       text,
       type: "sprint",
       relatedId: sprint._id,
       onModel: "Sprint",
       link,
-    });
-  }
+    })
+  ));
 };
 
 const notifyGitPushEvent = async ({

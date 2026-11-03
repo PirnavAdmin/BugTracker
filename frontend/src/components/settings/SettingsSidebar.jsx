@@ -4,7 +4,6 @@ import {
   MailCheck,
   MailPlus,
   MonitorCog,
-  Network,
   ServerCog,
   ShieldCheck,
   Users2,
@@ -16,7 +15,6 @@ const iconMap = {
   invite: MailPlus,
   roles: ShieldCheck,
   screens: MonitorCog,
-  ownership: Network,
   sender: MailCheck,
   smtp: ServerCog,
   password: KeyRound,
@@ -26,7 +24,7 @@ const iconMap = {
 const SettingsSidebar = ({ activeItem, items = [], onItemChange }) => (
   <aside className="min-w-0 lg:sticky lg:top-5 lg:self-start">
     <nav
-      className="flex w-full gap-2 overflow-x-auto rounded-[20px] border border-slate-200/80 bg-white/95 p-2.5 shadow-[0_18px_44px_-34px_rgba(15,23,42,0.32)] backdrop-blur [-ms-overflow-style:none] [scrollbar-width:none] lg:min-h-[calc(100vh-132px)] lg:flex-col lg:overflow-visible [&::-webkit-scrollbar]:hidden"
+      className="settings-sidebar-scrollbar flex w-full gap-2 overflow-x-auto rounded-[20px] border border-slate-200/80 bg-white/95 p-2.5 shadow-[0_18px_44px_-34px_rgba(15,23,42,0.32)] backdrop-blur lg:min-h-[calc(var(--app-viewport-height)-var(--app-navbar-height)-4.25rem)] lg:max-h-[calc(var(--app-viewport-height)-var(--app-navbar-height)-2.5rem)] lg:flex-col lg:overflow-x-hidden lg:overflow-y-auto lg:overscroll-contain"
       aria-label="Admin settings"
     >
       {items.map((item) => {

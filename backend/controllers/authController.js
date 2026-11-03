@@ -126,13 +126,15 @@ const buildAuthPayload = async (user, { rememberMe = false } = {}) => {
   const normalizedWorkspaceId = normalizeWorkspaceId(user.workspaceId);
   const tenantId = normalizeTenantId(user.tenantId);
   const maxAgeSeconds = generateToken.getTokenMaxAgeSeconds({ rememberMe });
-  const teams = await getUserTeams(user);
 
   return {
     token: generateToken(user._id, normalizedWorkspaceId, { rememberMe, tenantId }),
     expiresAt: new Date(Date.now() + maxAgeSeconds * 1000).toISOString(),
     rememberMe,
-    user: serializeAuthUser(user, { teams }),
+    // Login establishes the session only. Team membership is fetched by the
+    // authenticated profile endpoint when it is actually needed, so login is
+    // always one indexed user lookup plus password verification.
+    user: serializeAuthUser(user),
   };
 };
 
@@ -240,13 +242,10 @@ const register = asyncHandler(async (req, res) => {
 });
 
 const login = asyncHandler(async (req, res) => {
+  const startedAt = performance.now();
   const { email, password } = req.body;
   const normalizedEmail = email?.toLowerCase().trim();
   const rememberMe = normalizeRememberMe(req.body?.rememberMe);
-
-  console.log("[auth] Login request:", {
-    email: normalizedEmail || null,
-  });
 
   if (!normalizedEmail || !password) {
     res.status(400);
@@ -258,13 +257,13 @@ const login = asyncHandler(async (req, res) => {
     throw new Error("Default admin password is only available via /admin access");
   }
 
+  const lookupStartedAt = performance.now();
   const user = await User.findOne({ email: normalizedEmail }).select("+password");
+  const lookupDurationMs = performance.now() - lookupStartedAt;
 
-  console.log("[auth] User found:", Boolean(user));
-
+  const passwordStartedAt = performance.now();
   const passwordMatches = user ? await user.comparePassword(password) : false;
-
-  console.log("[auth] Password match:", passwordMatches);
+  const passwordDurationMs = performance.now() - passwordStartedAt;
 
   if (!user || !passwordMatches) {
     res.status(401);
@@ -272,6 +271,10 @@ const login = asyncHandler(async (req, res) => {
   }
 
   await syncUserForAuth(user, password);
+  res.setHeader(
+    "Server-Timing",
+    `db;dur=${lookupDurationMs.toFixed(1)}, bcrypt;dur=${passwordDurationMs.toFixed(1)}, total;dur=${(performance.now() - startedAt).toFixed(1)}`
+  );
   res.status(200).json(await buildAuthPayload(user, { rememberMe }));
 });
 

@@ -4,7 +4,7 @@ import { useLocation } from "react-router-dom";
 import ToastNotice from "@/components/shared/ToastNotice";
 import { useAuth } from "@/hooks/use-auth";
 import { useChatStore } from "@/lib/chatStore";
-import { disconnectChatSocket, getChatSocket } from "@/lib/socket";
+import { getChatSocket } from "@/lib/socket";
 
 const getId = (value) => String(value?._id || value?.id || value || "");
 
@@ -118,7 +118,6 @@ const ChatRealtimeBridge = () => {
       socket.off("user_typing", handleTyping);
       socket.off("message_seen", handleMessageSeen);
       socket.off("connect", handleConnect);
-      disconnectChatSocket();
     };
   }, [
     loadConversations,

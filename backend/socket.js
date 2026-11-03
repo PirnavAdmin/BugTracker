@@ -416,6 +416,7 @@ const setupChatSocket = (server) => {
           sender: socket.user,
           message: payload.message,
           attachments: payload.attachments,
+          clientMessageId: payload.tempId,
         });
         const eventPayload = {
           message,

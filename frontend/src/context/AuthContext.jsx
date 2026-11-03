@@ -7,6 +7,7 @@ import {
 } from "@/lib/session";
 import { fetchCurrentUser } from "@/lib/api";
 import { getDashboardPathByRole } from "@/lib/roles";
+import { disconnectChatSocket } from "@/lib/socket";
 
 export const AuthContext = createContext(null);
 
@@ -19,12 +20,16 @@ export const AuthProvider = ({ children }) => {
   };
 
   const logout = () => {
+    disconnectChatSocket();
     setSession(null);
     clearStoredSession();
   };
 
   useEffect(() => {
-    const handleSessionCleared = () => setSession(null);
+    const handleSessionCleared = () => {
+      disconnectChatSocket();
+      setSession(null);
+    };
 
     window.addEventListener(AUTH_SESSION_CLEARED_EVENT, handleSessionCleared);
 

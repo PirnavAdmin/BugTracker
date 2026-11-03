@@ -12,6 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 
 const ChatMeetingDialog = ({
   conversation,
+  conversations = [],
   error,
   isOpen,
   isSaving,
@@ -19,7 +20,9 @@ const ChatMeetingDialog = ({
   onClose,
   onSave,
   onChange,
+  onConversationChange,
   draft,
+  selectedConversationId = "",
 }) => {
   const participants = conversation?.participants || [];
   const startDate = draft.startDateTime ? draft.startDateTime.split("T")[0] : "";
@@ -61,14 +64,36 @@ const ChatMeetingDialog = ({
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="box-border w-[min(1040px,95vw)] max-w-none overflow-hidden rounded-[20px] border border-slate-200 bg-white p-5 shadow-[0_24px_80px_rgba(15,23,42,0.16)] sm:p-6">
-        <form className="grid max-h-[calc(95vh-48px)] gap-4 overflow-hidden" onSubmit={handleSubmit}>
-          <div className="grid min-h-0 gap-4 overflow-hidden">
+        <form className="grid max-h-[calc(95vh-48px)] gap-4 overflow-y-auto" onSubmit={handleSubmit}>
+          <div className="grid gap-4">
             <DialogHeader className="space-y-1 pr-12">
               <DialogTitle>{mode === "edit" ? "Edit meeting" : "Schedule meeting"}</DialogTitle>
               <DialogDescription className="leading-5">
                 The meeting link is generated automatically inside this chat module.
               </DialogDescription>
             </DialogHeader>
+
+            {mode === "create" ? (
+              <div className="grid gap-2">
+                <label htmlFor="meeting-chat" className="text-sm font-semibold text-slate-700">
+                  Chat
+                </label>
+                <select
+                  id="meeting-chat"
+                  className="h-11 rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-200"
+                  value={selectedConversationId}
+                  onChange={(event) => onConversationChange(event.target.value)}
+                  required
+                >
+                  <option value="" disabled>Select a chat for this meeting</option>
+                  {conversations.map((item) => (
+                    <option key={String(item._id || item.id)} value={String(item._id || item.id)}>
+                      {item.name || item.projectId?.name || item.teamId?.name || "Direct message"}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            ) : null}
 
             <div className="grid gap-2">
               <label htmlFor="meeting-title" className="text-sm font-semibold text-slate-700">

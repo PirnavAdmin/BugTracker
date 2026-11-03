@@ -6,7 +6,6 @@ import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
-  CardDescription,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
@@ -120,10 +119,6 @@ const TeamComposer = ({
               Workspace Teams
             </div>
             <CardTitle className="text-2xl text-slate-950">Create a new team</CardTitle>
-            <CardDescription className="max-w-2xl text-slate-600">
-              Group workspace users into a shared squad for planning, delivery, and
-              ownership. Only users from this workspace can be added.
-            </CardDescription>
           </CardHeader>
         </>
       ) : null}

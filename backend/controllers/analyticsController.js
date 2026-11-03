@@ -7,7 +7,7 @@ const Sprint = require("../models/Sprint");
 const Team = require("../models/Team");
 const TeamMember = require("../models/TeamMember");
 const asyncHandler = require("../utils/asyncHandler");
-const { BUG_TERMINAL_STATUS_VALUES } = require("../utils/bugLifecycle");
+const { BUG_TERMINAL_STATUS_VALUES, getBugLifecycleStatus } = require("../utils/bugLifecycle");
 const {
   ISSUE_STATUS,
   ISSUE_STATUS_VALUES,
@@ -41,6 +41,14 @@ const {
 const { applyActiveSprintVisibilityToIssueQuery } = require("../utils/sprintVisibility");
 const { withTenantFilter } = require("../utils/tenant");
 const { normalizeWorkspaceId } = require("../utils/workspace");
+const {
+  calculateQAMetrics,
+  calculateQAMetricsByTester,
+} = require("../services/qaMetricsService");
+const {
+  calculateDeveloperMetrics,
+  calculateDeveloperMetricsByDeveloper,
+} = require("../services/developerMetricsService");
 
 const DAY_IN_MS = 24 * 60 * 60 * 1000;
 const CLOSED_STATUSES = Array.from(
@@ -296,8 +304,16 @@ const addPersonalAccess = (match, user) => {
   match.$or = personalAccessQuery.$or;
 };
 
-const buildAnalyticsMatch = async (req, res) => {
-  const accessibleProjectIds = await getAccessibleProjectIds(req.user);
+const buildAnalyticsMatch = async (
+  req,
+  res,
+  { skipPersonalAccess = false, skipActiveSprintVisibility = false, useWorkspaceProjects = false } = {}
+) => {
+  const accessibleProjectIds = useWorkspaceProjects
+    ? await Project.find(withTenantFilter({
+        workspaceId: normalizeWorkspaceId(req.user.workspaceId),
+      }, req.user)).distinct("_id")
+    : await getAccessibleProjectIds(req.user);
   const match = {
     isDeleted: {
       $ne: true,
@@ -518,6 +534,12 @@ const buildAnalyticsMatch = async (req, res) => {
           assignee: developerObjectId,
         },
         {
+          assignees: developerObjectId,
+        },
+        {
+          assignedDeveloperId: developerObjectId,
+        },
+        {
           "bugDetails.developerLead": developerObjectId,
         },
       ],
@@ -538,6 +560,12 @@ const buildAnalyticsMatch = async (req, res) => {
         },
         {
           "bugDetails.testerOwner": testerObjectId,
+        },
+        {
+          testerOwner: testerObjectId,
+        },
+        {
+          testerOwnerId: testerObjectId,
         },
       ],
     });
@@ -592,11 +620,14 @@ const buildAnalyticsMatch = async (req, res) => {
     }
   }
 
-  if (!isOrganizationAnalyticsUser(req.user) && req.user.role !== ROLE_MANAGER) {
+  if (!skipPersonalAccess && !isOrganizationAnalyticsUser(req.user) && req.user.role !== ROLE_MANAGER) {
     addPersonalAccess(match, req.user);
   }
 
-  if (req.user.role === ROLE_DEVELOPER || hasTaskStoryLeadAccess(req.user.role)) {
+  if (
+    !skipActiveSprintVisibility &&
+    (req.user.role === ROLE_DEVELOPER || hasTaskStoryLeadAccess(req.user.role))
+  ) {
     await applyActiveSprintVisibilityToIssueQuery(match, Sprint);
   }
 
@@ -660,6 +691,27 @@ const serializeIssueRef = (issue, extra = {}) => {
           role: issue.bugDetails.developerLead.role,
         }
       : null;
+  const assignedDeveloper =
+    issue?.assignedDeveloperId && typeof issue.assignedDeveloperId === "object"
+      ? {
+          _id: issue.assignedDeveloperId._id,
+          name: issue.assignedDeveloperId.name,
+          email: issue.assignedDeveloperId.email,
+          role: issue.assignedDeveloperId.role,
+        }
+      : issue?.assignedDeveloperId || null;
+  const assignees = Array.isArray(issue?.assignees)
+    ? issue.assignees.map((assignee) =>
+        assignee && typeof assignee === "object"
+          ? {
+              _id: assignee._id,
+              name: assignee.name,
+              email: assignee.email,
+              role: assignee.role,
+            }
+          : assignee
+      )
+    : [];
   const testerOwner =
     issue?.bugDetails?.testerOwner && typeof issue.bugDetails.testerOwner === "object"
       ? {
@@ -678,6 +730,9 @@ const serializeIssueRef = (issue, extra = {}) => {
     type: issue.type || ISSUE_TYPES.TASK,
     priority: issue.priority || "Medium",
     status: getCanonicalIssueStatus(issue.status, ISSUE_STATUS.TODO),
+    bugLifecycleStatus: getCanonicalIssueType(issue.type, "") === ISSUE_TYPES.BUG
+      ? getBugLifecycleStatus(issue.status)
+      : null,
     project: issue.projectId
       ? {
           _id: resolveObjectId(issue.projectId),
@@ -691,6 +746,8 @@ const serializeIssueRef = (issue, extra = {}) => {
         }
       : null,
     assignee,
+    assignees,
+    assignedDeveloperId: assignedDeveloper,
     reporter,
     developerLead,
     testerOwner,
@@ -2012,6 +2069,8 @@ const getIssueAnalyticsRows = asyncHandler(async (req, res) => {
     .populate("projectId", "name")
     .populate("teamId", "name")
     .populate("assignee", "name email role")
+    .populate("assignees", "name email role")
+    .populate("assignedDeveloperId", "name email role")
     .populate("reporter", "name email role")
     .populate("bugDetails.developerLead", "name email role")
     .populate("bugDetails.testerOwner", "name email role")
@@ -2041,8 +2100,87 @@ const getIssueAnalyticsRows = asyncHandler(async (req, res) => {
   });
 });
 
+const getQAMetrics = asyncHandler(async (req, res) => {
+  const startedAt = performance.now();
+  const match = await buildAnalyticsMatch(req, res);
+  // QA activity belongs to the verification event, not the issue creation date.
+  delete match.createdAt;
+  const databaseStartedAt = performance.now();
+  const issues = await Issue.find({ ...match, type: ISSUE_TYPES.BUG })
+    .select("_id type status reporter bugDetails.testerOwner")
+    .lean();
+  const issueIds = issues.map((issue) => issue._id);
+  const history = issueIds.length
+    ? await IssueHistory.find({ issueId: { $in: issueIds }, field: "status" })
+      .select("issueId actorId fromValue toValue createdAt")
+      .lean()
+    : [];
+  const dateFrom = parseDateInput(req.query.dateFrom, "start date")?.value;
+  const dateTo = parseDateInput(req.query.dateTo, "end date", { end: true })?.value;
+
+  res.setHeader(
+    "Server-Timing",
+    `db;dur=${(performance.now() - databaseStartedAt).toFixed(1)}, total;dur=${(
+      performance.now() - startedAt
+    ).toFixed(1)}`
+  );
+
+  res.status(200).json({
+    metrics: calculateQAMetrics({ issues, history, dateFrom, dateTo }),
+    byTester: calculateQAMetricsByTester({ issues, history, dateFrom, dateTo }),
+  });
+});
+
+const getDeveloperMetrics = asyncHandler(async (req, res) => {
+  const startedAt = performance.now();
+  const developerId = req.query.developerId && req.query.developerId !== "all" ? req.query.developerId : "";
+  const isOwnDeveloperReport =
+    Boolean(developerId) && String(developerId) === String(req.user._id || req.user.id);
+  // Keep the project/filter scope but evaluate developer ownership from the
+  // lifecycle timeline, including fixes made before a later reassignment.
+  const match = await buildAnalyticsMatch(
+    { ...req, query: { ...req.query, developerId: "all" } },
+    res,
+    {
+      // An individual developer's metrics must include their historic work
+      // after the bug has been reassigned or the sprint has closed. The result
+      // remains limited to that developer by calculateDeveloperMetrics.
+      skipPersonalAccess: isOwnDeveloperReport,
+      skipActiveSprintVisibility: isOwnDeveloperReport,
+      useWorkspaceProjects: isOwnDeveloperReport,
+    }
+  );
+  // Delivery and QA quality are lifecycle events, so dates apply to those events.
+  delete match.createdAt;
+  const databaseStartedAt = performance.now();
+  const issues = await Issue.find(match)
+    .select("_id type status createdAt storyPoints assignee assignedDeveloperId bugDetails.developerLead")
+    .lean();
+  const issueIds = issues.map((issue) => issue._id);
+  const history = issueIds.length
+    ? await IssueHistory.find({ issueId: { $in: issueIds } })
+      .select("issueId actorId field fromValue toValue createdAt")
+      .lean()
+    : [];
+  const dateFrom = parseDateInput(req.query.dateFrom, "start date")?.value;
+  const dateTo = parseDateInput(req.query.dateTo, "end date", { end: true })?.value;
+  res.setHeader(
+    "Server-Timing",
+    `db;dur=${(performance.now() - databaseStartedAt).toFixed(1)}, total;dur=${(
+      performance.now() - startedAt
+    ).toFixed(1)}`
+  );
+
+  res.status(200).json({
+    metrics: calculateDeveloperMetrics({ issues, history, developerId, dateFrom, dateTo }),
+    byDeveloper: calculateDeveloperMetricsByDeveloper({ issues, history, dateFrom, dateTo }),
+  });
+});
+
 module.exports = {
   getIssueAnalyticsRows,
+  getQAMetrics,
+  getDeveloperMetrics,
   getOverview,
   getTrends,
   getPriorities,

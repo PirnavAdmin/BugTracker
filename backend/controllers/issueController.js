@@ -97,6 +97,7 @@ const {
 } = require("../utils/roles");
 const { normalizeWorkspaceId } = require("../utils/workspace");
 const { withTenantFilter } = require("../utils/tenant");
+const { hasWorkPermission } = require("../utils/workPermissions");
 const { loadTenantSafeIssue } = require("../utils/issueAccess");
 const { getNextIssueDisplayId } = require("../utils/displayIds");
 const { logProjectTeamsDebug } = require("../utils/projectTeamDiagnostics");
@@ -1202,9 +1203,14 @@ const addAndCondition = (query, condition) => {
 
 const buildHighPriorityCondition = buildHighPriorityIssueCondition;
 
-const isTeamProgressRequest = (req) =>
-  (hasAdminAccess(req.user?.role) || hasTaskStoryLeadAccess(req.user?.role)) &&
-  ["true", "1"].includes(String(req.query.teamProgress || "").trim().toLowerCase());
+const isTeamProgressRequest = async (req) => {
+  if (!["true", "1"].includes(String(req.query.teamProgress || "").trim().toLowerCase())) {
+    return false;
+  }
+
+  const isBugRequest = getCanonicalIssueType(req.query?.type, "") === ISSUE_TYPES.BUG;
+  return hasWorkPermission(req.user, isBugRequest ? "manageBugs" : "manageTasks");
+};
 
 const getAccessibleProjectIds = async (user) => {
   const workspaceId = normalizeWorkspaceId(user.workspaceId);
@@ -2109,12 +2115,15 @@ const getBugTransitionReason = (payload = {}, status) => {
   return toTrimmedString(getBugPayloadValue(payload, "statusChangeComment", ["comment"]));
 };
 
-const validateBugTransition = ({ user, fromStatus, toStatus, payload }) => {
+const validateBugTransition = ({ user, fromStatus, toStatus, payload, allowAnyTransition = false }) => {
   if (fromStatus === toStatus) {
     return "";
   }
 
-  if (isLeadRole(user?.role)) {
+  // Admins/managers and a Team Lead managing a bug in their accessible project
+  // may move the bug to any lifecycle state. Project/tenant access is checked
+  // by updateIssue before this validation runs.
+  if (isLeadRole(user?.role) || allowAnyTransition) {
     return "";
   }
 
@@ -2764,21 +2773,7 @@ const getPaginationOptions = (req) => {
 const shouldReturnPaginatedResponse = (req) =>
   ["true", "1", "yes"].includes(String(req.query.paginate || "").trim().toLowerCase());
 
-const ISSUE_LIST_PROJECTION = [
-  "-description",
-  "-activityLogs",
-  "-comments",
-  "-acceptanceCriteria",
-  "-definitionOfDone",
-  "-checklist",
-  "-linkedBranches",
-  "-linkedPullRequests",
-  "-bugDetails.stepsToReproduce",
-  "-bugDetails.expectedResult",
-  "-bugDetails.actualResult",
-  "-bugDetails.reopenReason",
-  "-bugDetails.rejectionReason",
-].join(" ");
+const ISSUE_LIST_PROJECTION = require("../utils/issueListProjection");
 
 const shouldReturnLightweightList = (req) =>
   String(req.query.view || "").trim().toLowerCase() === "list";
@@ -2963,9 +2958,9 @@ const buildIssueQueryFromRequest = async (
     const statusGroup = String(req.query.statusGroup).trim().toLowerCase();
 
     if (statusGroup === "open") {
-      Object.assign(query, buildOpenIssueCondition());
+      addAndCondition(query, buildOpenIssueCondition());
     } else if (statusGroup === "closed") {
-      Object.assign(query, buildClosedIssueCondition());
+      addAndCondition(query, buildClosedIssueCondition());
     } else {
       res.status(400);
       throw new Error("Invalid status group filter");
@@ -2976,11 +2971,11 @@ const buildIssueQueryFromRequest = async (
     const statusAlias = getFilterAlias(req.query.status);
 
     if (statusAlias === "open") {
-      Object.assign(query, buildOpenIssueCondition());
+      addAndCondition(query, buildOpenIssueCondition());
     } else if (statusAlias === "closed") {
-      Object.assign(query, buildClosedIssueCondition());
+      addAndCondition(query, buildClosedIssueCondition());
     } else if (statusAlias === "reopened") {
-      Object.assign(query, buildReopenedIssueCondition());
+      addAndCondition(query, buildReopenedIssueCondition());
     } else {
       const statusFilterResult = parseIssueStatusInput(req.query.status, "");
 
@@ -3007,11 +3002,11 @@ const buildIssueQueryFromRequest = async (
   const filterAlias = getFilterAlias(req.query.filter);
 
   if (filterAlias === "open") {
-    Object.assign(query, buildOpenIssueCondition());
+    addAndCondition(query, buildOpenIssueCondition());
   } else if (filterAlias === "closed") {
-    Object.assign(query, buildClosedIssueCondition());
+    addAndCondition(query, buildClosedIssueCondition());
   } else if (filterAlias === "reopened") {
-    Object.assign(query, buildReopenedIssueCondition());
+    addAndCondition(query, buildReopenedIssueCondition());
   } else if (filterAlias === "critical") {
     addAndCondition(query, buildCriticalIssueCondition());
   } else if (filterAlias === "overdue") {
@@ -3092,7 +3087,10 @@ const buildIssueQueryFromRequest = async (
       throw new Error("Invalid team id filter");
     }
 
-    query.teamId = req.query.teamId;
+    // Aggregation pipelines do not apply Mongoose query casting. Keep ID
+    // filters as ObjectIds so paginated list results and facet summaries use
+    // the same scope.
+    query.teamId = new mongoose.Types.ObjectId(req.query.teamId);
   }
 
   if (req.query.severity && req.query.severity !== "all") {
@@ -3134,11 +3132,12 @@ const buildIssueQueryFromRequest = async (
         throw new Error("Invalid developer filter");
       }
 
+      const developerObjectId = new mongoose.Types.ObjectId(developerFilter);
       mergeOrConditions(query, [
-        { assignee: developerFilter },
-        { assignees: developerFilter },
-        { assignedDeveloperId: developerFilter },
-        { "bugDetails.developerLead": developerFilter },
+        { assignee: developerObjectId },
+        { assignees: developerObjectId },
+        { assignedDeveloperId: developerObjectId },
+        { "bugDetails.developerLead": developerObjectId },
       ]);
     }
   }
@@ -3170,8 +3169,8 @@ const buildIssueQueryFromRequest = async (
       const selectedTesterName = String(selectedTester?.name || "").trim();
 
       mergeOrConditions(query, [
-        { reporter: testerFilter },
-        { "bugDetails.testerOwner": testerFilter },
+        { reporter: new mongoose.Types.ObjectId(testerFilter) },
+        { "bugDetails.testerOwner": new mongoose.Types.ObjectId(testerFilter) },
         ...(selectedTesterName
           ? [
               { reporterName: buildExactMatchRegex(selectedTesterName) },
@@ -3186,17 +3185,17 @@ const buildIssueQueryFromRequest = async (
     const lifecycle = String(req.query.lifecycle).trim().toLowerCase();
 
     if (lifecycle === "open") {
-      Object.assign(query, buildOpenIssueCondition());
+      addAndCondition(query, buildOpenIssueCondition());
     } else if (lifecycle === "reopened") {
-      Object.assign(query, buildReopenedIssueCondition());
+      addAndCondition(query, buildReopenedIssueCondition());
     } else if (lifecycle === "fixed" || lifecycle === "ready") {
-      query.status = {
+      addAndCondition(query, { status: {
         $in: [ISSUE_STATUS.READY_FOR_QA, ISSUE_STATUS.TESTING, ISSUE_STATUS.FIXED, ISSUE_STATUS.QA],
-      };
+      } });
     } else if (lifecycle === "resolved") {
-      query.status = {
+      addAndCondition(query, { status: {
         $in: [ISSUE_STATUS.FIXED, ISSUE_STATUS.QA, ISSUE_STATUS.CLOSED, ISSUE_STATUS.DONE],
-      };
+      } });
     } else {
       res.status(400);
       throw new Error("Invalid lifecycle filter");
@@ -3211,13 +3210,13 @@ const buildIssueQueryFromRequest = async (
       throw new Error("Invalid bucket filter");
     }
 
-    query.type = ISSUE_TYPES.BUG;
-    query.assignee = null;
-    query.assignedDeveloperId = null;
-    query["bugDetails.developerLead"] = null;
-    query.status = {
-      $in: AVAILABLE_BUG_QUEUE_STATUSES,
-    };
+    addAndCondition(query, {
+      type: ISSUE_TYPES.BUG,
+      assignee: null,
+      assignedDeveloperId: null,
+      "bugDetails.developerLead": null,
+      status: { $in: AVAILABLE_BUG_QUEUE_STATUSES },
+    });
   }
 
   if (req.query.epicId && req.query.epicId !== "all") {
@@ -3229,26 +3228,26 @@ const buildIssueQueryFromRequest = async (
         throw new Error("Invalid epic id filter");
       }
 
-      query.epicId = req.query.epicId;
+      query.epicId = new mongoose.Types.ObjectId(req.query.epicId);
     }
   }
 
   const isBugOnlyQuery = query.type === ISSUE_TYPES.BUG;
 
-  if (!isBugOnlyQuery) {
-    if (req.query.sprintId && req.query.sprintId !== "all") {
-      if (req.query.sprintId === "backlog") {
-        query.sprintId = null;
-      } else {
-        if (!mongoose.isValidObjectId(req.query.sprintId)) {
-          res.status(400);
-          throw new Error("Invalid sprint id filter");
-        }
-
-        query.sprintId = req.query.sprintId;
+  if (req.query.sprintId && req.query.sprintId !== "all") {
+    if (req.query.sprintId === "backlog") {
+      query.sprintId = null;
+    } else {
+      if (!mongoose.isValidObjectId(req.query.sprintId)) {
+        res.status(400);
+        throw new Error("Invalid sprint id filter");
       }
-    }
 
+      query.sprintId = new mongoose.Types.ObjectId(req.query.sprintId);
+    }
+  }
+
+  if (!isBugOnlyQuery) {
     if (req.query.sprintState && req.query.sprintState !== "all") {
       const sprintState = String(req.query.sprintState).trim().toUpperCase();
 
@@ -3379,7 +3378,7 @@ const buildIssueQueryFromRequest = async (
     return query;
   }
 
-  if (isTeamProgressRequest(req)) {
+  if (await isTeamProgressRequest(req)) {
     if (isWorkspaceAdmin(req.user)) {
       if (
         !query.type ||
@@ -4052,6 +4051,7 @@ const importTasksFromSpreadsheet = asyncHandler(async (req, res) => {
 });
 
 const getIssues = asyncHandler(async (req, res) => {
+  const startedAt = performance.now();
   const query = await buildIssueQueryFromRequest(req, res);
   const isBugListQuery = query.type === ISSUE_TYPES.BUG;
   const requestFilters = summarizeBugQueryFilters(req);
@@ -4072,12 +4072,19 @@ const getIssues = asyncHandler(async (req, res) => {
     issueListQuery = issueListQuery.lean();
   }
 
+  const databaseStartedAt = performance.now();
   const [issues, nonBugFilteredTotal, summary] = await Promise.all([
     applyListOptions(issueListQuery, req),
     shouldPaginate && !isBugListQuery ? Issue.countDocuments(query) : Promise.resolve(0),
     shouldPaginate && isBugListQuery ? getBugListSummary(query) : Promise.resolve(null),
   ]);
+  const databaseDurationMs = performance.now() - databaseStartedAt;
   const filteredTotal = isBugListQuery ? summary?.total || 0 : nonBugFilteredTotal;
+
+  res.setHeader(
+    "Server-Timing",
+    `db;dur=${databaseDurationMs.toFixed(1)}, total;dur=${(performance.now() - startedAt).toFixed(1)}`
+  );
 
   if (isBugListQuery) {
     logBugWorkflowQuery("triage-board", {
@@ -4140,6 +4147,7 @@ const getIssueById = asyncHandler(async (req, res) => {
 });
 
 const getStories = asyncHandler(async (req, res) => {
+  const startedAt = performance.now();
   const accessibleProjectIds = await getAccessibleProjectIds(req.user);
   const query = {
     ...ACTIVE_ISSUE_QUERY,
@@ -4185,28 +4193,48 @@ const getStories = asyncHandler(async (req, res) => {
     });
   }
 
-  const stories = await populateIssueQuery(
-    Issue.find(query).sort({ updatedAt: -1, createdAt: -1 })
-  );
+  const useLightweightList = shouldReturnLightweightList(req);
+  const populateStories = useLightweightList ? populateIssueListQuery : populateIssueQuery;
+  const databaseStartedAt = performance.now();
+  let storiesQuery = Issue.find(query).sort({ updatedAt: -1, createdAt: -1 });
+
+  if (useLightweightList) {
+    storiesQuery = storiesQuery.select(ISSUE_LIST_PROJECTION).lean();
+  }
+
+  const stories = await populateStories(storiesQuery);
   const storyIds = stories.map((story) => story._id);
-  const children = storyIds.length
-    ? await populateIssueQuery(
-        Issue.find({
-          ...ACTIVE_ISSUE_QUERY,
-          projectId: { $in: accessibleProjectIds },
-          parentStoryId: { $in: storyIds },
-          type: {
-            $in: [ISSUE_TYPES.TASK, ISSUE_TYPES.SUB_TASK, ISSUE_TYPES.BUG],
-          },
-        }).sort({ createdAt: -1 })
-      )
-    : [];
+  let children = [];
+
+  if (storyIds.length) {
+    let childrenQuery = Issue.find({
+      ...ACTIVE_ISSUE_QUERY,
+      projectId: { $in: accessibleProjectIds },
+      parentStoryId: { $in: storyIds },
+      type: {
+        $in: [ISSUE_TYPES.TASK, ISSUE_TYPES.SUB_TASK, ISSUE_TYPES.BUG],
+      },
+    }).sort({ createdAt: -1 });
+
+    if (useLightweightList) {
+      childrenQuery = childrenQuery.select(ISSUE_LIST_PROJECTION).lean();
+    }
+
+    children = await populateStories(childrenQuery);
+  }
   const serializedChildren = serializeIssues(children);
   const childrenByStory = serializedChildren.reduce((map, child) => {
     const storyId = String(child?.parentStoryId?._id || child?.parentStoryId || "");
     map.set(storyId, [...(map.get(storyId) || []), child]);
     return map;
   }, new Map());
+
+  res.setHeader(
+    "Server-Timing",
+    `db;dur=${(performance.now() - databaseStartedAt).toFixed(1)}, total;dur=${(
+      performance.now() - startedAt
+    ).toFixed(1)}`
+  );
 
   res.status(200).json(
     serializeIssues(stories).map((story) => {
@@ -5713,15 +5741,18 @@ const updateIssue = asyncHandler(async (req, res) => {
     throw new Error("You do not have access to this issue");
   }
 
+  const [hasTaskWorkPermission, hasBugWorkPermission] = await Promise.all([
+    hasWorkPermission(req.user, "manageTasks"),
+    hasWorkPermission(req.user, "manageBugs"),
+  ]);
   const hasProjectLeadershipAccess = canManageProjectPlanning(req.user, targetProject);
   const hasTeamLeadTaskAssignmentAccess =
-    canAssignTaskWork(req.user, issue.type) && Boolean(targetProject);
+    canAssignTaskWork(req.user, issue.type) && hasTaskWorkPermission && Boolean(targetProject);
   const hasTeamLeadBugAssignmentAccess =
-    canAssignBugWork(req.user, issue.type) && Boolean(targetProject);
+    canAssignBugWork(req.user, issue.type) && hasBugWorkPermission && Boolean(targetProject);
+  const canTesterEditReportedBug = canTesterModifyReportedBug(issue, req.user);
 
   if (!isWorkspaceAdmin(req.user)) {
-    const canTesterEditReportedBug = canTesterModifyReportedBug(issue, req.user);
-
     if (
       !hasProjectLeadershipAccess &&
       !hasTeamLeadTaskAssignmentAccess &&
@@ -5791,6 +5822,12 @@ const updateIssue = asyncHandler(async (req, res) => {
         ? [
             "assigneeId",
             "assignee",
+            "assigneeIds",
+            "assignees",
+            // Bug ownership is submitted by the details dialog as a nested
+            // value. Permit it for team leads so reassignment follows the
+            // same synchronized owner update used by admins and managers.
+            "bugDetails",
             "developerLeadId",
             "developerLead",
             "assignedDeveloperId",
@@ -5808,6 +5845,8 @@ const updateIssue = asyncHandler(async (req, res) => {
         ? [
             "title",
             "description",
+            "projectId",
+            "teamId",
             "priority",
             "bugDetails",
             "severity",
@@ -5845,6 +5884,27 @@ const updateIssue = asyncHandler(async (req, res) => {
             ? "Team Leads can assign work-queue bugs only to their team developers"
           : "Your role can only update issue status"
       );
+    }
+
+    // The details dialog sends bug ownership as `bugDetails.developerLeadId`.
+    // A team lead may use that reassignment control, but should not gain
+    // permission to alter unrelated bug-report fields through the same object.
+    if (
+      hasTeamLeadBugAssignmentAccess &&
+      !hasProjectLeadershipAccess &&
+      isPlainObject(req.body.bugDetails)
+    ) {
+      req.body.bugDetails = {
+        ...(hasOwnField(req.body.bugDetails, "developerLeadId")
+          ? { developerLeadId: req.body.bugDetails.developerLeadId }
+          : {}),
+        ...(hasOwnField(req.body.bugDetails, "developerLead")
+          ? { developerLead: req.body.bugDetails.developerLead }
+          : {}),
+        ...(hasOwnField(req.body.bugDetails, "assignedDeveloperId")
+          ? { assignedDeveloperId: req.body.bugDetails.assignedDeveloperId }
+          : {}),
+      };
     }
 
     if (canTesterEditReportedBug && isPlainObject(req.body.bugDetails)) {
@@ -5889,7 +5949,7 @@ const updateIssue = asyncHandler(async (req, res) => {
     String(req.body.projectId) !== String(issue.projectId || "");
 
   if (hasProjectChange) {
-    if (!isWorkspaceAdmin(req.user)) {
+    if (!isWorkspaceAdmin(req.user) && !canTesterEditReportedBug) {
       res.status(403);
       throw new Error("Only admins can move issues between projects");
     }
@@ -5971,6 +6031,7 @@ const updateIssue = asyncHandler(async (req, res) => {
       fromStatus: currentBugStatus,
       toStatus: nextStatus,
       payload: req.body,
+      allowAnyTransition: hasTeamLeadBugAssignmentAccess,
     });
 
     if (transitionError) {
@@ -6037,10 +6098,10 @@ const updateIssue = asyncHandler(async (req, res) => {
     hasSprintChange || hasProjectChange
       ? req.body.sprintId || null
       : issue.sprintId || null;
-  const nextAssigneeId = hasAssigneeChange
+  let nextAssigneeId = hasAssigneeChange
     ? resolveAssigneeInputs(req.body)[0] || null
     : issue.assignee || null;
-  const nextAssigneeIds = hasAssigneeChange
+  let nextAssigneeIds = hasAssigneeChange
     ? resolveAssigneeInputs(req.body)
     : Array.isArray(issue.assignees)
       ? issue.assignees.map((assignee) => getComparableUserId(assignee)).filter(Boolean)
@@ -6055,12 +6116,18 @@ const updateIssue = asyncHandler(async (req, res) => {
     : issue.parentStoryId || null;
   const isTeamChanged =
     hasTeamChange && String(nextTeamId || "") !== String(issue.teamId || "");
-  const isAssigneeChanged =
+  let isAssigneeChanged =
     hasAssigneeChange && !haveSameUserIds(previousAssigneeIds, nextAssigneeIds);
   let nextBugDetails = null;
   let nextDeveloperLeadUser = null;
   let nextTesterOwnerUser = null;
   let hasTesterOwnerChange = false;
+  const hasDeveloperLeadChange = hasBugPayloadField(req.body, "developerLeadId", [
+    "developerLead",
+    "assignedDeveloperId",
+    "devLeadId",
+    "devLead",
+  ]);
   const canChangeBugReporterOwnership =
     isWorkspaceAdmin(req.user) || req.user.role === ROLE_MANAGER;
 
@@ -6071,15 +6138,22 @@ const updateIssue = asyncHandler(async (req, res) => {
       nextBugDetails.testerOwner = req.user._id;
     }
 
-    if (
-      !nextBugDetails.developerLead &&
-      !hasBugPayloadField(req.body, "developerLeadId", [
-        "developerLead",
-        "devLeadId",
-        "devLead",
-      ]) &&
-      nextAssigneeId
-    ) {
+    const isDeveloperLeadActuallyChanged =
+      hasDeveloperLeadChange &&
+      String(nextBugDetails.developerLead || "") !==
+        String(issue.bugDetails?.developerLead || "");
+
+    // A bug's primary assignee and developer lead represent the same owner.
+    // The dialog can change either field, so synchronize in both directions.
+    // This prevents the prior developer retaining access through a stale
+    // assignee or developer-lead value.
+    if (isDeveloperLeadActuallyChanged) {
+      nextAssigneeId = nextBugDetails.developerLead || null;
+      nextAssigneeIds = nextAssigneeId ? [String(nextAssigneeId)] : [];
+      isAssigneeChanged = !haveSameUserIds(previousAssigneeIds, nextAssigneeIds);
+    } else if (hasAssigneeChange) {
+      nextBugDetails.developerLead = nextAssigneeId;
+    } else if (!nextBugDetails.developerLead && !hasDeveloperLeadChange && nextAssigneeId) {
       nextBugDetails.developerLead = nextAssigneeId;
     }
 
@@ -6156,9 +6230,9 @@ const updateIssue = asyncHandler(async (req, res) => {
   }
 
   if (shouldValidateAssigneeTeamMembership) {
-    const canTeamLeadAssignExistingTask = canAssignTaskWork(req.user, issue.type);
+    const canTeamLeadAssignExistingTask = hasTeamLeadTaskAssignmentAccess;
     const canTeamLeadAssignExistingBug =
-      req.user.role === ROLE_TEAM_LEAD && canAssignBugWork(req.user, issue.type);
+      req.user.role === ROLE_TEAM_LEAD && hasTeamLeadBugAssignmentAccess;
 
     console.log("[issues] validating assignee team membership", {
       issueId: String(issue._id),
@@ -6216,12 +6290,6 @@ const updateIssue = asyncHandler(async (req, res) => {
       "testerId",
       "qaOwnerId",
       "qaOwner",
-    ]);
-    const hasDeveloperLeadChange = hasBugPayloadField(req.body, "developerLeadId", [
-      "developerLead",
-      "assignedDeveloperId",
-      "devLeadId",
-      "devLead",
     ]);
     const isDeveloperLeadChanged =
       hasDeveloperLeadChange &&
@@ -6369,9 +6437,18 @@ const updateIssue = asyncHandler(async (req, res) => {
   }
 
   if (isAssigneeChanged) {
-    if (!canAssignTaskWork(req.user, issue.type)) {
+    const isBugIssue = getCanonicalIssueType(issue.type, "") === ISSUE_TYPES.BUG;
+    const canReassignIssue = isBugIssue
+      ? canAssignBugWork(req.user, issue.type) && hasBugWorkPermission
+      : canAssignTaskWork(req.user, issue.type) && hasTaskWorkPermission;
+
+    if (!canReassignIssue) {
       res.status(403);
-      throw new Error("Only admins, managers, and team leads can reassign tasks");
+      throw new Error(
+        isBugIssue
+          ? "Only admins, managers, and permitted team leads can reassign bugs"
+          : "Only admins, managers, and permitted team leads can reassign tasks"
+      );
     }
 
     const previousAssigneeId = issue.assignee || null;
@@ -6934,6 +7011,7 @@ const getNotifications = asyncHandler(async (req, res) => {
 
   try {
     const notifications = await Notification.find({ recipientId: userId })
+      .select("title text link isRead createdAt")
       .sort({ createdAt: -1 })
       .limit(20)
       .lean();

@@ -113,6 +113,7 @@ const EpicDialog = ({
   issues = [],
   members = [],
   isPending = false,
+  inline = false,
   onSubmit,
 }) => {
   const [draft, setDraft] = useState(createDraft(initialEpic));
@@ -127,6 +128,10 @@ const EpicDialog = ({
   );
   const menuPortalTarget =
     typeof document !== "undefined" ? document.body : undefined;
+  const Content = inline ? "section" : DialogContent;
+  const Header = inline ? "div" : DialogHeader;
+  const Title = inline ? "h3" : DialogTitle;
+  const Description = inline ? "p" : DialogDescription;
 
   useEffect(() => {
     if (!open) {
@@ -138,15 +143,21 @@ const EpicDialog = ({
   }, [initialEpic, open]);
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl overflow-visible border border-slate-200/80 bg-white p-0 shadow-[0_36px_90px_-50px_rgba(15,23,42,0.35)]">
-        <div className="max-h-[90vh] overflow-y-auto">
-          <DialogHeader className="border-b border-slate-200/80 px-5 py-4 sm:px-6">
-            <DialogTitle>{initialEpic ? "Edit Epic" : "Create Epic"}</DialogTitle>
-            <DialogDescription>
+    <Dialog open={inline ? false : open} onOpenChange={onOpenChange}>
+      <Content
+        className={inline
+          ? "animate-[epic-form-enter_220ms_ease-out_both] overflow-hidden rounded-2xl border border-blue-100 bg-blue-50/30"
+          : "max-w-2xl overflow-visible border border-slate-200/80 bg-white p-0 shadow-[0_36px_90px_-50px_rgba(15,23,42,0.35)]"}
+      >
+        <div className={inline ? "" : "max-h-[90vh] overflow-y-auto"}>
+          <Header className="border-b border-slate-200/80 px-5 py-4 sm:px-6">
+            <Title className="text-base font-semibold text-slate-950">
+              {initialEpic ? "Edit Epic" : "Create Epic"}
+            </Title>
+            <Description className="text-sm text-slate-500">
               Keep larger workstreams visible without turning planning into a long form.
-            </DialogDescription>
-          </DialogHeader>
+            </Description>
+          </Header>
 
           <form
             className="space-y-4 px-5 py-4 sm:px-6"
@@ -400,7 +411,10 @@ const EpicDialog = ({
               </div>
             ) : null}
 
-            <div className="sticky bottom-0 -mx-5 flex justify-end gap-2 border-t border-slate-200/80 bg-white/95 px-5 py-3 backdrop-blur sm:-mx-6 sm:px-6">
+            <div className={inline
+              ? "flex justify-end gap-2 border-t border-slate-200/80 bg-white/95 px-5 py-3 sm:px-6"
+              : "sticky bottom-0 -mx-5 flex justify-end gap-2 border-t border-slate-200/80 bg-white/95 px-5 py-3 backdrop-blur sm:-mx-6 sm:px-6"}
+            >
               <Button
                 type="button"
                 variant="outline"
@@ -415,7 +429,7 @@ const EpicDialog = ({
             </div>
           </form>
         </div>
-      </DialogContent>
+      </Content>
     </Dialog>
   );
 };

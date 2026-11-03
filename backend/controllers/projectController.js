@@ -1133,6 +1133,7 @@ const getAttachedTeamParticipants = async ({ projectId, workspaceId, user }) => 
 };
 
 const getProjects = asyncHandler(async (req, res) => {
+  const startedAt = performance.now();
   if (!req.user) {
     res.status(401);
     throw new Error("Unauthorized");
@@ -1146,10 +1147,13 @@ const getProjects = asyncHandler(async (req, res) => {
   }
 
   const projectQuery = await buildProjectQuery(req.user);
+  const projectDataStartedAt = performance.now();
   const projects = await populateProject(Project.find(projectQuery))
     .sort({ createdAt: -1 })
     .lean();
   const serializedProjects = await serializeProjectsWithRelations(projects);
+  const projectDataDurationMs = performance.now() - projectDataStartedAt;
+  const issueCountsStartedAt = performance.now();
   const issueCounts = await Issue.aggregate([
     {
       $match: {
@@ -1165,8 +1169,14 @@ const getProjects = asyncHandler(async (req, res) => {
       },
     },
   ]);
+  const issueCountsDurationMs = performance.now() - issueCountsStartedAt;
   const issueCountMap = new Map(
     issueCounts.map((item) => [String(item._id), item.count])
+  );
+
+  res.setHeader(
+    "Server-Timing",
+    `projects;dur=${projectDataDurationMs.toFixed(1)}, issue-counts;dur=${issueCountsDurationMs.toFixed(1)}, total;dur=${(performance.now() - startedAt).toFixed(1)}`
   );
 
   res.status(200).json(

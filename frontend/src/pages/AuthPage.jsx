@@ -64,7 +64,7 @@ const fieldClassName =
   "h-12 rounded-[10px] border border-[#DFE4F2] bg-white pl-11 pr-4 text-[15px] font-semibold text-[#080B2F] shadow-[0_8px_22px_-18px_rgba(8,11,47,0.38)] transition placeholder:text-[#8B94B8] hover:border-[#B7C3E8] focus-visible:border-[#6D28D9] focus-visible:ring-4 focus-visible:ring-violet-500/10 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-500";
 
 const passwordFieldClassName =
-  "h-12 rounded-[10px] border border-[#DFE4F2] bg-white pl-11 pr-12 text-[15px] font-semibold text-[#080B2F] shadow-[0_8px_22px_-18px_rgba(8,11,47,0.38)] transition placeholder:text-[#8B94B8] hover:border-[#B7C3E8] focus-visible:border-[#6D28D9] focus-visible:ring-4 focus-visible:ring-violet-500/10 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-500";
+  "password-visibility-input h-12 rounded-[10px] border border-[#DFE4F2] bg-white pl-11 pr-12 text-[15px] font-semibold text-[#080B2F] shadow-[0_8px_22px_-18px_rgba(8,11,47,0.38)] transition placeholder:text-[#8B94B8] hover:border-[#B7C3E8] focus-visible:border-[#6D28D9] focus-visible:ring-4 focus-visible:ring-violet-500/10 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-500";
 
 const features = [
   { title: "Bug Tracking", text: "Track issues and resolve faster", icon: Bug, tone: "violet" },
@@ -478,6 +478,15 @@ const AuthPage = () => {
     });
     navigate(location.pathname, { replace: true, state: null });
   }, [authMutation, location.pathname, location.state, navigate]);
+
+  useEffect(() => {
+    const reason = new URLSearchParams(location.search).get("reason");
+    if (reason === "inactivity") {
+      setSuccessMessage(
+        "You have been automatically logged out due to 30 minutes of inactivity. Please sign in to resume."
+      );
+    }
+  }, [location.search]);
 
   const handleChange = (event) => {
     const { name, value } = event.target;

@@ -106,7 +106,9 @@ const NotificationButton = ({ user }) => {
   const { data: notifications = [], isLoading } = useQuery({
     queryKey: notificationsQueryKey,
     queryFn: fetchNotifications,
-    enabled: Boolean(user?._id),
+    // The badge needs only the count at startup. Defer the list payload until
+    // the user opens this optional dropdown.
+    enabled: Boolean(user?._id) && isOpen,
   });
 
   const { data: unreadCount = 0 } = useQuery({

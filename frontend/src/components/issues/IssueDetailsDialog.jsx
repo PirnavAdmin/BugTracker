@@ -20,6 +20,7 @@ import {
   fetchIssueHistory,
   fetchAttachmentBlob,
   fetchIssueWorklogs,
+  fetchUsers,
   resolveApiAssetUrl,
   uploadIssueAttachment,
   downloadAttachment,
@@ -325,6 +326,53 @@ const pruneUnchangedDetailPayload = (issue, payload = {}) => {
   );
 };
 
+// Testers may amend the bug they reported while it is waiting in the work queue.
+// Keep their request intentionally small: the dialog also holds planning and
+// assignment state, neither of which is editable by a tester at this stage.
+const buildReporterBugDetailsUpdatePayload = (issue, detailDraft) => {
+  const originalDraft = buildDetailDraft(issue);
+  const payload = {};
+
+  if (detailDraft.title.trim() !== originalDraft.title.trim()) {
+    payload.title = detailDraft.title.trim();
+  }
+
+  if (detailDraft.description.trim() !== originalDraft.description.trim()) {
+    payload.description = detailDraft.description.trim();
+  }
+
+  if (String(detailDraft.projectId || "") !== String(originalDraft.projectId || "")) {
+    payload.projectId = detailDraft.projectId;
+  }
+
+  if (String(detailDraft.teamId || "") !== String(originalDraft.teamId || "")) {
+    payload.teamId = detailDraft.teamId;
+  }
+
+  if (detailDraft.priority !== originalDraft.priority) {
+    payload.priority = detailDraft.priority;
+  }
+
+  const bugDetails = {
+    severity: detailDraft.bugDetails.severity,
+    stepsToReproduce: detailDraft.bugDetails.stepsToReproduce.trim(),
+    expectedResult: detailDraft.bugDetails.expectedResult.trim(),
+    actualResult: detailDraft.bugDetails.actualResult.trim(),
+  };
+  const originalBugDetails = {
+    severity: originalDraft.bugDetails.severity,
+    stepsToReproduce: originalDraft.bugDetails.stepsToReproduce.trim(),
+    expectedResult: originalDraft.bugDetails.expectedResult.trim(),
+    actualResult: originalDraft.bugDetails.actualResult.trim(),
+  };
+
+  if (!valuesMatch(bugDetails, originalBugDetails)) {
+    payload.bugDetails = bugDetails;
+  }
+
+  return payload;
+};
+
 const IssueDetailsDialog = ({
   issue,
   open,
@@ -336,6 +384,7 @@ const IssueDetailsDialog = ({
   updatingId,
   deletingId,
   canEditCoreDetails = false,
+  restrictToReporterBugDetails = false,
   canEditStatus = true,
   canEditPriority = true,
   canEditAssignee = true,
@@ -363,6 +412,13 @@ const IssueDetailsDialog = ({
   const [isReporterOwnershipOpen, setIsReporterOwnershipOpen] = useState(false);
   const commentTextareaRef = useRef(null);
 
+  const { data: workspaceUsers = [] } = useQuery({
+    queryKey: ["workspace-users", "reporter-ownership"],
+    queryFn: fetchUsers,
+    enabled: Boolean(issue?._id) && hasAdminPanelAccess(role) && isBugIssue(issue),
+    staleTime: 60_000,
+  });
+
   const selectedProject = useMemo(
     () => findProjectById(projects, detailDraft.projectId),
     [detailDraft.projectId, projects]
@@ -382,7 +438,13 @@ const IssueDetailsDialog = ({
   const qaOwnerOptions = useMemo(() => {
     const uniqueMembers = new Map();
 
-    [...getProjectMembers(selectedProject), ...availableAssignees].forEach((member) => {
+    [
+      // Admins/managers can transfer ownership across teams, so start with the
+      // complete workspace tester directory instead of the selected team.
+      ...(hasAdminPanelAccess(role) ? workspaceUsers : []),
+      ...getProjectMembers(selectedProject),
+      ...availableAssignees,
+    ].forEach((member) => {
       const memberId = resolveUserId(member);
 
       if (!memberId || uniqueMembers.has(memberId)) {
@@ -396,8 +458,8 @@ const IssueDetailsDialog = ({
       [ROLE_QA_LEAD, ROLE_TESTER].includes(member?.role)
     );
 
-    return qaMembers.length ? qaMembers : availableAssignees;
-  }, [availableAssignees, selectedProject]);
+    return qaMembers;
+  }, [availableAssignees, role, selectedProject, workspaceUsers]);
   const taskAssignableAssignees = useMemo(
     () =>
       hasTaskStoryLeadAccess(role) && ["Task", "Sub-task"].includes(detailDraft.type)
@@ -1534,7 +1596,9 @@ const IssueDetailsDialog = ({
                         detailDraft.bugDetails.statusChangeComment.trim();
                     }
 
-                    const changedPayload = pruneUnchangedDetailPayload(issue, updatePayload);
+                    const changedPayload = restrictToReporterBugDetails
+                      ? buildReporterBugDetailsUpdatePayload(issue, detailDraft)
+                      : pruneUnchangedDetailPayload(issue, updatePayload);
 
                     if (!Object.keys(changedPayload).length) {
                       onOpenChange(false);

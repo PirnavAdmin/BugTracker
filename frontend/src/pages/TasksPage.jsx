@@ -12,6 +12,7 @@ import {
   deleteIssue,
   fetchIssues,
   fetchProjects,
+  fetchWorkPermissions,
   uploadIssueAttachment,
   updateIssue,
   updateTaskStatus,
@@ -29,6 +30,8 @@ import {
   hasAdminPanelAccess,
   hasTaskStoryLeadAccess,
   ROLE_ADMIN,
+  DEFAULT_WORK_PERMISSIONS,
+  normalizeWorkPermissions,
 } from "@/lib/roles";
 import IssueCreateDialog from "@/components/issues/IssueCreateDialog";
 import IssueDetailsDialog from "@/components/issues/IssueDetailsDialog";
@@ -72,7 +75,14 @@ const TasksPage = () => {
   });
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [toast, setToast] = useState(null);
-  const canCoordinateTasks = hasAdminPanelAccess(role) || hasTaskStoryLeadAccess(role);
+  const { data: workPermissions = DEFAULT_WORK_PERMISSIONS } = useQuery({
+    queryKey: ["work-permissions"],
+    queryFn: fetchWorkPermissions,
+    enabled: Boolean(user),
+  });
+  const canCoordinateTasks =
+    hasAdminPanelAccess(role) ||
+    (hasTaskStoryLeadAccess(role) && Boolean(normalizeWorkPermissions(workPermissions)?.[role]?.manageTasks));
   const canDeleteTask = canDeleteIssues(role);
   const isAdminRole = role === ROLE_ADMIN;
   const statusFilter = useMemo(() => {

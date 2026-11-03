@@ -17,6 +17,7 @@ import {
   ISSUE_STATUS,
   getIssueDisplayKey,
   groupBugsByLifecycle,
+  issueBelongsToTester,
   normalizeBugStatusForIssue,
   resolveBugDetails,
   resolveIssueProjectId,
@@ -48,10 +49,53 @@ const ATTACHMENT_ACCEPT =
 const TESTER_BUG_SELECTION_KEY = "curecode_tester_bug_saved_selection";
 const ACTIVE_TESTING_SESSION_KEY = "curecode_active_testing_session";
 
-const getReporterId = (issue) => resolveUserId(issue?.reporter);
-const getTesterOwnerId = (issue) =>
-  String(resolveBugDetails(issue)?.testerOwner?._id || resolveBugDetails(issue)?.testerOwner || "");
 const getIssueSeverity = (issue) => resolveBugDetails(issue)?.severity || "Not set";
+const isIssueWithinDateRange = (issue, dateFrom, dateTo) => {
+  if (!dateFrom && !dateTo) {
+    return true;
+  }
+
+  const createdAt = new Date(issue?.createdAt || issue?.updatedAt || 0);
+
+  if (Number.isNaN(createdAt.getTime())) {
+    return false;
+  }
+
+  if (dateFrom && createdAt < new Date(`${dateFrom}T00:00:00`)) {
+    return false;
+  }
+
+  return !dateTo || createdAt <= new Date(`${dateTo}T23:59:59.999`);
+};
+const isReporterEditableWorkQueueBug = (issue, testerId) => {
+  const status = normalizeBugStatusForIssue(issue);
+  const reporterId = String(issue?.reporter?._id || issue?.reporter || "");
+  const testerOwnerId = String(
+    resolveBugDetails(issue)?.testerOwner?._id || resolveBugDetails(issue)?.testerOwner || ""
+  );
+  const developerId = String(
+    resolveBugDetails(issue)?.developerLead?._id ||
+      resolveBugDetails(issue)?.developerLead ||
+      issue?.assignedDeveloperId?._id ||
+      issue?.assignedDeveloperId ||
+      issue?.assignee?._id ||
+      issue?.assignee ||
+      ""
+  );
+
+  return (
+    (reporterId === String(testerId) || testerOwnerId === String(testerId)) &&
+    !developerId &&
+    [
+      ISSUE_STATUS.REPORTED,
+      ISSUE_STATUS.NEW,
+      ISSUE_STATUS.NEEDS_TRIAGE,
+      ISSUE_STATUS.AVAILABLE_QUEUE,
+      ISSUE_STATUS.OPEN,
+      ISSUE_STATUS.TRIAGED,
+    ].includes(status)
+  );
+};
 const isTesterTeam = (team, testerId) =>
   (team?.members || []).some((member) => resolveUserId(member) === testerId);
 const getAssignedTeamsForTester = (project, testerId) =>
@@ -143,6 +187,8 @@ const TesterBugsPage = () => {
     severity: "all",
     priority: "all",
     projectId: "all",
+    dateFrom: "",
+    dateTo: "",
   });
   const testerId = String(user?._id || user?.id || "");
   const focusedBugId = searchParams.get("bug") || "";
@@ -200,7 +246,7 @@ const TesterBugsPage = () => {
   const reportedIssues = useMemo(
     () =>
       issues
-        .filter((issue) => getReporterId(issue) === testerId || getTesterOwnerId(issue) === testerId)
+        .filter((issue) => issueBelongsToTester(issue, testerId))
         .sort(
           (a, b) =>
             new Date(b.updatedAt || b.createdAt || 0).getTime() -
@@ -259,6 +305,10 @@ const TesterBugsPage = () => {
       }
 
       if (filters.projectId !== "all" && projectId !== filters.projectId) {
+        return false;
+      }
+
+      if (!isIssueWithinDateRange(issue, filters.dateFrom, filters.dateTo)) {
         return false;
       }
 
@@ -476,7 +526,14 @@ const TesterBugsPage = () => {
 
   if (isLoading) {
     return (
-      <div className="grid gap-6">
+      <div className="mx-auto w-[98%] max-w-none space-y-4">
+        <Card className="rounded-[24px] border-white/70 bg-white">
+          <CardContent className="p-5">
+            <p className="text-xs font-bold uppercase tracking-[0.18em] text-blue-600">Tester Workspace</p>
+            <h1 className="mt-2 text-2xl font-semibold text-slate-950 sm:text-3xl">Create and track project bugs</h1>
+            <p className="mt-2 text-sm leading-6 text-slate-600">Report assigned project issues with screenshots, then switch back to the board to verify fixes.</p>
+          </CardContent>
+        </Card>
         <Skeleton className="h-[620px] w-full rounded-[24px]" />
       </div>
     );
@@ -608,7 +665,7 @@ const TesterBugsPage = () => {
             ))}
           </div>
 
-          <div className="grid gap-3 lg:grid-cols-[minmax(240px,1.4fr)_repeat(4,minmax(150px,0.8fr))]">
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-7">
             <label className="relative">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
               <input
@@ -663,6 +720,24 @@ const TesterBugsPage = () => {
                 </option>
               ))}
             </select>
+            <label className="sr-only" htmlFor="tester-bug-date-from">Created from</label>
+            <input
+              className="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm outline-none transition focus:border-blue-300 focus:ring-2 focus:ring-blue-500/20"
+              id="tester-bug-date-from"
+              aria-label="Created from"
+              type="date"
+              value={filters.dateFrom}
+              onChange={(event) => setFilters((current) => ({ ...current, dateFrom: event.target.value }))}
+            />
+            <label className="sr-only" htmlFor="tester-bug-date-to">Created to</label>
+            <input
+              className="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm outline-none transition focus:border-blue-300 focus:ring-2 focus:ring-blue-500/20"
+              id="tester-bug-date-to"
+              aria-label="Created to"
+              type="date"
+              value={filters.dateTo}
+              onChange={(event) => setFilters((current) => ({ ...current, dateTo: event.target.value }))}
+            />
           </div>
 
           <BugKanbanBoard
@@ -741,20 +816,9 @@ const TesterBugsPage = () => {
         open={Boolean(selectedIssue)}
         projects={assignedProjects}
         updatingId={updateIssueMutation.isPending ? updateIssueMutation.variables?.id : ""}
-        canEditCoreDetails={
-          selectedIssue &&
-          normalizeBugStatusForIssue(selectedIssue) === ISSUE_STATUS.NEW &&
-          !selectedIssue.assignee &&
-          !resolveBugDetails(selectedIssue)?.developerLead &&
-          String(selectedIssue.reporter?._id || selectedIssue.reporter || "") === testerId
-        }
-        canEditPriority={
-          selectedIssue &&
-          normalizeBugStatusForIssue(selectedIssue) === ISSUE_STATUS.NEW &&
-          !selectedIssue.assignee &&
-          !resolveBugDetails(selectedIssue)?.developerLead &&
-          String(selectedIssue.reporter?._id || selectedIssue.reporter || "") === testerId
-        }
+        canEditCoreDetails={isReporterEditableWorkQueueBug(selectedIssue, testerId)}
+        restrictToReporterBugDetails={isReporterEditableWorkQueueBug(selectedIssue, testerId)}
+        canEditPriority={isReporterEditableWorkQueueBug(selectedIssue, testerId)}
         canEditAssignee={false}
         canDeleteIssue={
           selectedIssue &&

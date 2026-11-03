@@ -3,7 +3,6 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Activity,
   AlertTriangle,
-  Bell,
   Bug,
   CalendarDays,
   CheckCircle2,
@@ -33,9 +32,6 @@ import {
   fetchMyReportedBugs,
   fetchProjects,
   fetchRecentTasks,
-  fetchNotifications,
-  fetchUnreadNotificationCount,
-  markNotificationAsRead,
 } from "@/lib/api";
 import {
   ISSUE_STATUS,
@@ -43,6 +39,7 @@ import {
   getIssuePriorityVariant,
   getIssueStatusLabel,
   getIssueStatusVariant,
+  issueBelongsToTester,
   isIssueOverdue,
   normalizeBugStatusForIssue,
   normalizeIssueStatus,
@@ -54,9 +51,6 @@ import { getLatestGitActivity } from "@/lib/delivery-workflow";
 import { hasTesterPanelAccess } from "@/lib/roles";
 import { cn, formatDate, formatDateTime } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
-import { readStoredSession } from "@/lib/session";
-import { getChatSocket } from "@/lib/socket";
-import NotificationCard from "@/components/dashboard/NotificationCard";
 import GreetingBeachScene from "@/components/dashboard/GreetingBeachScene";
 import {
   QAGitActivityPanel,
@@ -174,8 +168,6 @@ const createEmptyMetrics = () => ({
   deferred: 0,
 });
 
-const getReporterId = (issue) => resolveUserId(issue?.reporter);
-
 const getComparableStatus = (issue) =>
   issue?.type === "Bug"
     ? normalizeBugStatusForIssue(issue)
@@ -192,8 +184,6 @@ const incrementMetrics = (metrics, issue) => {
     }
   });
 };
-
-const getIssueTesterOwnerId = (issue) => resolveUserId(resolveBugDetails(issue)?.testerOwner);
 
 const isTesterTeam = (team, testerId) =>
   (team?.members || []).some((member) => resolveUserId(member) === testerId);
@@ -226,7 +216,7 @@ const buildTesterProject = (project, testerId, issues = []) => {
   const hasOwnedBugInProject = issues.some(
     (issue) =>
       resolveIssueProjectId(issue) === projectId &&
-      (getReporterId(issue) === testerId || getIssueTesterOwnerId(issue) === testerId)
+      issueBelongsToTester(issue, testerId)
   );
 
   if (!assignedTeams.length && !isTesterProjectParticipant(project, testerId) && !hasOwnedBugInProject) {
@@ -781,23 +771,6 @@ const TesterDashboardPage = () => {
     enabled: Boolean(testerId && isTester),
   });
 
-  const {
-    data: notifications = [],
-    isLoading: isNotificationsLoading,
-  } = useQuery({
-    queryKey: ["issues", "notifications", testerId],
-    queryFn: fetchNotifications,
-    enabled: Boolean(testerId),
-  });
-
-  const {
-    data: unreadCount = 0,
-  } = useQuery({
-    queryKey: ["issues", "notifications", "unread-count", testerId],
-    queryFn: fetchUnreadNotificationCount,
-    enabled: Boolean(testerId),
-  });
-
   useEffect(() => {
     try {
       setDailyNote(
@@ -878,33 +851,6 @@ const TesterDashboardPage = () => {
   }, [buildModuleStatuses, testerId]);
 
   useEffect(() => {
-    const session = readStoredSession();
-    const token = session?.token;
-    const socket = getChatSocket(token);
-
-    if (!socket || !testerId) return;
-
-    if (!socket.connected) {
-      socket.connect();
-    }
-
-    const handleNewNotification = (notification) => {
-      queryClient.setQueryData(["issues", "notifications", testerId], (old = []) => {
-        return [notification, ...old].slice(0, 20);
-      });
-      queryClient.invalidateQueries({
-        queryKey: ["issues", "notifications", "unread-count", testerId],
-      });
-    };
-
-    socket.on("notification_received", handleNewNotification);
-
-    return () => {
-      socket.off("notification_received", handleNewNotification);
-    };
-  }, [testerId, queryClient]);
-
-  useEffect(() => {
     if (testingSession?.status !== "In Progress") {
       return undefined;
     }
@@ -923,7 +869,7 @@ const TesterDashboardPage = () => {
   );
 
   const reportedIssues = useMemo(
-    () => issues.filter((issue) => getReporterId(issue) === testerId),
+    () => issues.filter((issue) => issueBelongsToTester(issue, testerId)),
     [issues, testerId]
   );
 
@@ -1320,27 +1266,6 @@ const TesterDashboardPage = () => {
     navigate(`/bugs?bug=${encodeURIComponent(issueId)}`);
   };
 
-  const handleOpenNotification = async (notification) => {
-    const notificationId = notification.id || notification._id;
-    if (!notification.isRead) {
-      try {
-        await markNotificationAsRead(notificationId);
-        queryClient.invalidateQueries({
-          queryKey: ["issues", "notifications", testerId],
-        });
-        queryClient.invalidateQueries({
-          queryKey: ["issues", "notifications", "unread-count", testerId],
-        });
-      } catch (error) {
-        console.error("Failed to mark notification as read:", error);
-      }
-    }
-
-    if (notification.link) {
-      navigate(notification.link);
-    }
-  };
-
   const error = projectsError || issuesError || reportedBugsError;
   const isLoading = isProjectsLoading || isIssuesLoading;
 
@@ -1388,7 +1313,7 @@ const TesterDashboardPage = () => {
 
       {activeTestingSession || selectedQaProject ? (
         <div className="mt-3 space-y-2">
-          <div className="flex items-center justify-between rounded-xl bg-slate-50/90 px-3 py-2">
+          <div className="flex items-center justify-between rounded-xl bg-blue-50/75 px-3 py-2">
             <span className="text-xs font-bold uppercase tracking-[0.1em] text-slate-500">Environment</span>
             <span className="text-sm font-semibold text-slate-900">{activeTestingSession?.environment || selectedQaProject?.environment}</span>
           </div>
@@ -1406,7 +1331,7 @@ const TesterDashboardPage = () => {
               </p>
             </div>
           )}
-          <div className="flex items-center justify-between rounded-xl bg-slate-50/90 px-3 py-2">
+          <div className="flex items-center justify-between rounded-xl bg-blue-50/75 px-3 py-2">
             <span className="text-xs font-bold uppercase tracking-[0.1em] text-slate-500">Session</span>
             <span className={cn(
               "rounded-full px-2 py-0.5 text-xs font-bold",
@@ -1463,7 +1388,7 @@ const TesterDashboardPage = () => {
   const currentBuildPushedAt = currentBuildActivity.pushedAt ? formatDateTime(currentBuildActivity.pushedAt) : "-";
 
   const currentBuildPanel = (
-    <WorkspaceCard>
+    <div className="mt-4 border-t border-blue-200/80 pt-4">
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-blue-600">Current Build</p>
@@ -1475,21 +1400,21 @@ const TesterDashboardPage = () => {
       </div>
 
       <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
-        <div className="rounded-xl bg-slate-50/90 px-3 py-2">
+        <div className="rounded-xl bg-blue-50/75 px-3 py-2">
           <p className="font-bold uppercase tracking-[0.1em] text-slate-500">Branch</p>
           <p className="mt-1 truncate font-semibold text-slate-950">{currentBuildBranch}</p>
         </div>
-        <div className="rounded-xl bg-slate-50/90 px-3 py-2">
+        <div className="rounded-xl bg-blue-50/75 px-3 py-2">
           <p className="font-bold uppercase tracking-[0.1em] text-slate-500">Commit</p>
           <p className="mt-1 truncate font-semibold text-slate-950">{currentBuildSha || "-"}</p>
         </div>
-        <div className="col-span-2 rounded-xl bg-slate-50/90 px-3 py-2">
+        <div className="col-span-2 rounded-xl bg-blue-50/75 px-3 py-2">
           <p className="font-bold uppercase tracking-[0.1em] text-slate-500">Push Time</p>
           <p className="mt-1 font-semibold text-slate-950">{currentBuildPushedAt}</p>
         </div>
       </div>
 
-      <div className="mt-3 rounded-2xl border border-slate-200 bg-white/90 p-3">
+      <div className="mt-3 rounded-2xl border border-blue-100 bg-white/85 p-3">
         <div className="flex items-center justify-between gap-2">
           <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-slate-500">Modules</p>
           <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-bold text-emerald-700">{moduleProgress}%</span>
@@ -1500,7 +1425,7 @@ const TesterDashboardPage = () => {
             const canDeleteModule = Boolean(customBuildModules[activeTestingSession?.projectId || selectedQaProject?.id]?.includes(module));
 
             return (
-              <div className="flex items-center justify-between gap-3 rounded-xl bg-slate-50/90 px-3 py-2" key={module}>
+              <div className="flex items-center justify-between gap-3 rounded-xl bg-blue-50/65 px-3 py-2" key={module}>
                 <span className="min-w-0 truncate text-sm font-semibold text-slate-800">{module}</span>
                 <span className="flex shrink-0 items-center gap-1.5">
                   {canDeleteModule ? (
@@ -1563,7 +1488,7 @@ const TesterDashboardPage = () => {
           {activeTestingSession?.status === "In Progress" ? "Continue Testing" : "Start Testing"}
         </Button>
       </div>
-    </WorkspaceCard>
+    </div>
   );
 
   const readyForQaPanel = (
@@ -1721,7 +1646,7 @@ const TesterDashboardPage = () => {
         </div>
       </section>
 
-      <section className="grid gap-4 xl:grid-cols-[minmax(0,4fr)_minmax(280px,1fr)]">
+      <section className="grid gap-4 xl:grid-cols-[minmax(0,3fr)_minmax(340px,1fr)] 2xl:grid-cols-[minmax(0,3.2fr)_minmax(380px,1fr)]">
         <div className="min-w-0 space-y-4">
           {selectedQaProject && (
             <QAGitActivityPanel
@@ -1837,11 +1762,10 @@ const TesterDashboardPage = () => {
         </div>
 
         <aside className="space-y-4">
-          <WorkspaceCard>
+          <WorkspaceCard className="border-blue-200/90 bg-gradient-to-br from-blue-50 via-white to-indigo-50/80 shadow-[0_16px_38px_-30px_rgba(37,99,235,0.38)]">
             {todayQaMetricPanel}
+            {currentBuildPanel}
           </WorkspaceCard>
-
-          {currentBuildPanel}
 
           <WorkspaceCard>
             <div className="flex items-center gap-2.5">

@@ -58,138 +58,67 @@ const summaryIconMap = {
 
 const usageCardThemes = {
   violet: {
-    card: "border-violet-200/80 bg-gradient-to-br from-violet-50 via-white to-fuchsia-50/70",
-    glow: "bg-violet-300/30",
-    icon: "bg-violet-100 text-violet-700 ring-violet-200/80",
-    badge: "border-violet-200 bg-white/80 text-violet-700",
+    icon: "bg-violet-100 text-violet-700 ring-violet-200",
+    badge: "bg-violet-50 text-violet-700",
     value: "text-violet-950",
-    track: "bg-violet-100",
-    progress: "from-violet-600 via-fuchsia-500 to-violet-500",
-    pulse: "bg-violet-500",
   },
   sky: {
-    card: "border-sky-200/80 bg-gradient-to-br from-sky-50 via-white to-cyan-50/70",
-    glow: "bg-sky-300/30",
-    icon: "bg-sky-100 text-sky-700 ring-sky-200/80",
-    badge: "border-sky-200 bg-white/80 text-sky-700",
+    icon: "bg-sky-100 text-sky-700 ring-sky-200",
+    badge: "bg-sky-50 text-sky-700",
     value: "text-sky-950",
-    track: "bg-sky-100",
-    progress: "from-sky-600 via-cyan-400 to-blue-500",
-    pulse: "bg-sky-500",
   },
   slate: {
-    card: "border-slate-200 bg-gradient-to-br from-slate-50 via-white to-blue-50/60",
-    glow: "bg-slate-300/30",
     icon: "bg-slate-100 text-slate-700 ring-slate-200",
-    badge: "border-slate-200 bg-white/80 text-slate-600",
+    badge: "bg-slate-100 text-slate-600",
     value: "text-slate-950",
-    track: "bg-slate-100",
-    progress: "from-slate-700 via-slate-500 to-blue-500",
-    pulse: "bg-emerald-500",
   },
 };
 
 const UsageMetricCard = ({
   badge,
-  description,
   icon: Icon,
-  indeterminate = false,
   label,
-  progress,
-  progressLabel,
   theme = "slate",
   value,
   valueSuffix,
 }) => {
   const reduceMotion = useReducedMotion();
   const colors = usageCardThemes[theme];
-  const safeProgress = Math.min(Math.max(Number(progress) || 0, 0), 100);
 
   return (
     <motion.article
       layout
-      initial={reduceMotion ? false : { opacity: 0, y: 18, scale: 0.98 }}
-      animate={{ opacity: 1, y: 0, scale: 1 }}
-      whileHover={reduceMotion ? undefined : { y: -4, scale: 1.01 }}
+      initial={reduceMotion ? false : { opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      whileHover={reduceMotion ? undefined : { backgroundColor: "rgba(248,250,252,0.9)" }}
       transition={{ type: "spring", stiffness: 260, damping: 24 }}
-      className={cn(
-        "group relative min-h-56 overflow-hidden rounded-[22px] border p-5 shadow-[0_12px_35px_-24px_rgba(15,23,42,0.45)]",
-        colors.card
-      )}
+      className="group flex min-w-0 items-center gap-3 rounded-xl px-4 py-3 transition-colors"
     >
-      <div className={cn("pointer-events-none absolute -right-10 -top-12 h-32 w-32 rounded-full blur-3xl transition-transform duration-500 group-hover:scale-125", colors.glow)} />
-
-      <div className="relative flex h-full flex-col">
-        <div className="flex items-start justify-between gap-3">
-          <motion.div
-            animate={reduceMotion ? undefined : { y: [0, -3, 0] }}
-            transition={{ duration: 3, ease: "easeInOut", repeat: Infinity }}
-            className={cn("flex h-11 w-11 items-center justify-center rounded-2xl ring-1", colors.icon)}
-          >
-            <Icon className="h-5 w-5" aria-hidden="true" />
-          </motion.div>
-          <span className={cn("rounded-full border px-2.5 py-1 text-[11px] font-semibold", colors.badge)}>
-            {badge}
-          </span>
-        </div>
-
-        <p className="mt-5 text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">{label}</p>
-        <div className="mt-1 flex min-h-10 items-end gap-1.5">
+      <motion.span
+        animate={reduceMotion ? undefined : { y: [0, -3, 0], rotate: [0, -5, 5, 0] }}
+        whileHover={reduceMotion ? undefined : { scale: 1.14, rotate: 12 }}
+        transition={{ duration: 2.8, ease: "easeInOut", repeat: reduceMotion ? 0 : Infinity }}
+        className={cn("flex h-11 w-11 shrink-0 items-center justify-center rounded-[17px] ring-1 shadow-sm", colors.icon)}
+      >
+        <Icon className="h-5 w-5" aria-hidden="true" />
+      </motion.span>
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-[11px] font-bold uppercase tracking-[0.12em] text-slate-500">{label}</p>
+        <div className="mt-0.5 flex flex-wrap items-baseline gap-x-1.5 gap-y-1">
           <AnimatePresence mode="wait" initial={false}>
             <motion.strong
               key={value}
-              initial={reduceMotion ? false : { opacity: 0, y: 8, filter: "blur(3px)" }}
-              animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
-              exit={reduceMotion ? undefined : { opacity: 0, y: -8 }}
-              transition={{ duration: 0.28 }}
-              className={cn("text-3xl font-bold tracking-tight", colors.value)}
+              initial={reduceMotion ? false : { opacity: 0, y: 5 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={reduceMotion ? undefined : { opacity: 0, y: -5 }}
+              transition={{ duration: 0.22 }}
+              className={cn("text-xl font-bold tracking-tight", colors.value)}
             >
               {value}
             </motion.strong>
           </AnimatePresence>
-          {valueSuffix ? <span className="pb-1 text-sm font-medium text-slate-500">{valueSuffix}</span> : null}
-        </div>
-        <p className="mt-2 min-h-10 text-xs leading-5 text-slate-600">{description}</p>
-
-        <div className="mt-auto pt-4">
-          <div className={cn("relative h-2.5 overflow-hidden rounded-full", colors.track)}>
-            <motion.div
-              initial={
-                indeterminate
-                  ? { width: "35%", x: reduceMotion ? "90%" : "-120%" }
-                  : { width: reduceMotion ? `${safeProgress}%` : 0 }
-              }
-              animate={
-                indeterminate && !reduceMotion
-                  ? { width: "35%", x: ["-120%", "350%"] }
-                  : { width: indeterminate ? "35%" : `${safeProgress}%` }
-              }
-              transition={
-                indeterminate
-                  ? { duration: 2.4, ease: "easeInOut", repeat: reduceMotion ? 0 : Infinity }
-                  : { duration: reduceMotion ? 0 : 0.9, ease: [0.22, 1, 0.36, 1] }
-              }
-              className={cn("relative h-full overflow-hidden rounded-full bg-gradient-to-r", colors.progress)}
-            >
-              {!reduceMotion && !indeterminate ? (
-                <motion.span
-                  className="absolute inset-y-0 w-16 -skew-x-12 bg-white/35 blur-sm"
-                  animate={{ x: ["-150%", "350%"] }}
-                  transition={{ duration: 2.2, ease: "easeInOut", repeat: Infinity, repeatDelay: 0.7 }}
-                />
-              ) : null}
-            </motion.div>
-          </div>
-          <div className="mt-2 flex items-center justify-between gap-3 text-[11px] font-medium text-slate-500">
-            <span className="flex items-center gap-1.5">
-              <span className="relative flex h-2 w-2">
-                {!reduceMotion ? <span className={cn("absolute inline-flex h-full w-full animate-ping rounded-full opacity-50", colors.pulse)} /> : null}
-                <span className={cn("relative inline-flex h-2 w-2 rounded-full", colors.pulse)} />
-              </span>
-              Live usage
-            </span>
-            <span>{progressLabel}</span>
-          </div>
+          {valueSuffix ? <span className="text-xs font-medium text-slate-500">{valueSuffix}</span> : null}
+          <span className={cn("rounded-full px-2 py-0.5 text-[10px] font-semibold", colors.badge)}>{badge}</span>
         </div>
       </div>
     </motion.article>
@@ -210,6 +139,7 @@ const UsersSettings = ({
 }) => {
   const [searchDraft, setSearchDraft] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
+  const [selectedSummaryCard, setSelectedSummaryCard] = useState(null);
   const [editingUser, setEditingUser] = useState(null);
   const [deletingUser, setDeletingUser] = useState(null);
   const [editForm, setEditForm] = useState({
@@ -314,6 +244,9 @@ const UsersSettings = ({
 
   const activeCard =
     summaryCards.find((card) => card.key === activeFilter) || summaryCards[0];
+  const hasSelectedSummaryCard =
+    selectedSummaryCard !== null ||
+    (activeFilter != null && activeFilter !== USER_FILTER_KEY_ALL);
   const activeLabel =
     !activeFilter || activeFilter === USER_FILTER_KEY_ALL
       ? "Workspace Users"
@@ -397,7 +330,10 @@ const UsersSettings = ({
           <Button
             type="button"
             variant="outline"
-            onClick={() => onActiveFilterChange(USER_FILTER_KEY_ALL)}
+            onClick={() => {
+              setSelectedSummaryCard(null);
+              onActiveFilterChange(USER_FILTER_KEY_ALL);
+            }}
           >
             <X className="h-4 w-4" />
             Clear Filter
@@ -406,20 +342,12 @@ const UsersSettings = ({
       }
     >
       {usage || storage || databaseUsage ? (
-        <section className="mb-6 grid gap-4 md:grid-cols-2 xl:grid-cols-3" aria-label="Workspace usage">
+        <section className="mb-6 grid gap-1 md:grid-cols-3 md:divide-x md:divide-slate-200" aria-label="Workspace usage">
           {usage ? (
             <UsageMetricCard
               badge={usage.unlimited ? "Unlimited plan" : `${usage.limit} seat limit`}
-              description={
-                usage.unlimited
-                  ? "No seat limit—invite teammates whenever you need."
-                  : `${Math.max((Number(usage.limit) || 0) - (Number(usage.current) || 0), 0)} seats still available.`
-              }
               icon={Users2}
-              indeterminate={usage.unlimited}
               label="User seats"
-              progress={usage.unlimited ? 100 : ((Number(usage.current) || 0) / Math.max(Number(usage.limit) || 1, 1)) * 100}
-              progressLabel={usage.unlimited ? "No limit" : `${Math.min((((Number(usage.current) || 0) / Math.max(Number(usage.limit) || 1, 1)) * 100), 100).toFixed(0)}% used`}
               theme="violet"
               value={Number(usage.current || 0).toLocaleString()}
               valueSuffix="active seats"
@@ -428,20 +356,8 @@ const UsersSettings = ({
           {storage ? (
             <UsageMetricCard
               badge={storage.unlimited ? "Unlimited storage" : `${storage.limitGB} GB limit`}
-              description={
-                storage.usagePercent >= 100
-                  ? "Storage limit reached. Upgrade your plan to upload more files."
-                  : storage.usagePercent >= 90
-                    ? "Storage usage is almost full."
-                    : storage.usagePercent >= 80
-                      ? "Storage usage is approaching your plan limit."
-                      : "Files and attachments used by your workspace."
-              }
               icon={HardDrive}
-              indeterminate={storage.unlimited}
               label="Customer storage"
-              progress={storage.unlimited ? 100 : storage.usagePercent}
-              progressLabel={storage.unlimited ? "No limit" : `${Math.min(Math.max(Number(storage.usagePercent) || 0, 0), 100).toFixed(1)}% used`}
               theme="sky"
               value={storage.usedMB?.toFixed?.(2) || "0.00"}
               valueSuffix="MB used"
@@ -450,12 +366,8 @@ const UsersSettings = ({
           {databaseUsage ? (
             <UsageMetricCard
               badge={`${Number(databaseUsage.recordCount || 0).toLocaleString()} records`}
-              description="Database usage is separate from your subscription storage quota."
               icon={Database}
-              indeterminate
               label="Database utilization"
-              progress={0}
-              progressLabel="Measured live"
               theme="slate"
               value={databaseUsage.estimatedDataMB?.toFixed?.(2) || "0.00"}
               valueSuffix="MB"
@@ -477,9 +389,7 @@ const UsersSettings = ({
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
             {summaryCards.map((card) => {
               const Icon = summaryIconMap[card.key] || Users2;
-              const isActive =
-                (!activeFilter && card.key === USER_FILTER_KEY_ALL) ||
-                activeFilter === card.key;
+              const isActive = selectedSummaryCard === card.key;
 
               return (
                 <button
@@ -491,7 +401,10 @@ const UsersSettings = ({
                       ? "border-blue-200 bg-blue-50 text-blue-900 shadow-sm"
                       : "border-slate-200 bg-white text-slate-800 hover:border-slate-300 hover:bg-slate-50"
                   )}
-                  onClick={() => onActiveFilterChange(card.key)}
+                  onClick={() => {
+                    setSelectedSummaryCard(card.key);
+                    onActiveFilterChange(card.key);
+                  }}
                   aria-pressed={isActive}
                 >
                   <div className="flex items-center justify-between gap-3">
@@ -516,7 +429,8 @@ const UsersSettings = ({
             })}
           </div>
 
-          <div className="rounded-[16px] border border-slate-200 bg-white">
+          {hasSelectedSummaryCard ? (
+            <div className="rounded-[16px] border border-slate-200 bg-white">
             <div className="flex flex-col gap-2 border-b border-slate-100 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <h3 className="text-base font-semibold text-slate-950">
@@ -623,7 +537,8 @@ const UsersSettings = ({
                 />
               </div>
             )}
-          </div>
+            </div>
+          ) : null}
 
           <Dialog open={Boolean(editingUser)} onOpenChange={(open) => !open && setEditingUser(null)}>
             <DialogContent className="max-w-xl rounded-[24px]">

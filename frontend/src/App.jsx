@@ -1,4 +1,4 @@
-import { Suspense, lazy, useEffect, useState } from "react";
+import { Suspense, lazy } from "react";
 import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 import AppShell from "@/components/layout/AppShell";
 import ActivityTracker from "@/components/presence/ActivityTracker";
@@ -64,84 +64,9 @@ const PublicRouteFallback = () => (
   </main>
 );
 
-const AUTH_SPLASH_DESKTOP_VIDEO = "/animations/create_a_animation_for_mobile.mp4";
-const AUTH_SPLASH_MOBILE_VIDEO = "/animations/need_this_for_mobile_aspect_ra.mp4";
-const AUTH_SPLASH_FALLBACK_MS = 12000;
-const MOBILE_SPLASH_MEDIA_QUERY = "(max-width: 767px)";
-
 const LegacyBacklogRedirect = () => {
   const location = useLocation();
   return <Navigate to={`/sprint-planning${location.search}`} replace />;
-};
-
-const useIsMobileSplashViewport = () => {
-  const getIsMobile = () =>
-    typeof window !== "undefined" &&
-    window.matchMedia(MOBILE_SPLASH_MEDIA_QUERY).matches;
-
-  const [isMobile, setIsMobile] = useState(getIsMobile);
-
-  useEffect(() => {
-    if (typeof window === "undefined") {
-      return undefined;
-    }
-
-    const mediaQuery = window.matchMedia(MOBILE_SPLASH_MEDIA_QUERY);
-    const handleChange = (event) => setIsMobile(event.matches);
-
-    setIsMobile(mediaQuery.matches);
-    mediaQuery.addEventListener("change", handleChange);
-
-    return () => mediaQuery.removeEventListener("change", handleChange);
-  }, []);
-
-  return isMobile;
-};
-
-const AuthSplashScreen = ({ onComplete }) => {
-  const isMobile = useIsMobileSplashViewport();
-  const splashVideo = isMobile ? AUTH_SPLASH_MOBILE_VIDEO : AUTH_SPLASH_DESKTOP_VIDEO;
-
-  return (
-    <main
-      className="relative min-h-screen overflow-hidden bg-[#020617] text-white"
-      style={{ minHeight: "var(--app-viewport-height)" }}
-    >
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_24%,rgba(14,165,233,0.16),transparent_34%),linear-gradient(135deg,#031A33_0%,#020617_62%,#000814_100%)]" />
-      <video
-        key={splashVideo}
-        autoPlay
-        className="absolute inset-0 z-10 h-full w-full object-cover"
-        muted
-        playsInline
-        preload="auto"
-        src={splashVideo}
-        onEnded={onComplete}
-        onError={onComplete}
-      />
-      <span className="sr-only">Loading CureCode</span>
-    </main>
-  );
-};
-
-const AuthSplashGate = ({ children }) => {
-  const [isSplashComplete, setIsSplashComplete] = useState(false);
-
-  useEffect(() => {
-    const timerId = window.setTimeout(() => {
-      setIsSplashComplete(true);
-    }, AUTH_SPLASH_FALLBACK_MS);
-
-    return () => window.clearTimeout(timerId);
-  }, []);
-
-  if (!isSplashComplete) {
-    return (
-      <AuthSplashScreen onComplete={() => setIsSplashComplete(true)} />
-    );
-  }
-
-  return children;
 };
 
 const getSafeRedirectPath = (search = "", fallback = "") => {
@@ -382,11 +307,9 @@ const App = () => (
       path="/admin"
       element={
         <PublicRoute>
-          <AuthSplashGate>
-            <Suspense fallback={<PublicRouteFallback />}>
-              <AuthPage />
-            </Suspense>
-          </AuthSplashGate>
+          <Suspense fallback={<PublicRouteFallback />}>
+            <AuthPage />
+          </Suspense>
         </PublicRoute>
       }
     />
@@ -394,11 +317,9 @@ const App = () => (
       path="/auth"
       element={
         <PublicRoute>
-          <AuthSplashGate>
-            <Suspense fallback={<PublicRouteFallback />}>
-              <AuthPage />
-            </Suspense>
-          </AuthSplashGate>
+          <Suspense fallback={<PublicRouteFallback />}>
+            <AuthPage />
+          </Suspense>
         </PublicRoute>
       }
     />

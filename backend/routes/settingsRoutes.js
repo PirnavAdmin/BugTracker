@@ -7,6 +7,8 @@ const {
   testEmailConfig,
   getScreenPermissions,
   saveScreenPermissions,
+  getWorkPermissions,
+  saveWorkPermissions,
   getAISettings,
   saveAISettings,
   getAIUsage,
@@ -20,6 +22,7 @@ const {
 const router = express.Router();
 
 router.get("/screen-permissions", protect, getScreenPermissions);
+router.get("/work-permissions", protect, getWorkPermissions);
 router.get("/ai", protect, getAISettings);
 router.post("/ai", protect, saveAISettings);
 router.get("/ai/usage", protect, getAIUsage);
@@ -30,6 +33,7 @@ router.get("/email-config", getEmailConfig);
 router.post("/email-config", saveEmailConfig);
 router.post("/test-email", testEmailConfig);
 router.post("/screen-permissions", saveScreenPermissions);
+router.post("/work-permissions", saveWorkPermissions);
 router.get("/module-ownerships", getModuleOwnerships);
 router.post("/module-ownerships", saveModuleOwnerships);
 router.get("/workspace-sender", getWorkspaceSender);

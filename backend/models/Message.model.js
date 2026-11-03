@@ -82,6 +82,11 @@ const messageSchema = new Schema(
       required: true,
       index: true,
     },
+    clientMessageId: {
+      type: String,
+      trim: true,
+      maxlength: 120,
+    },
     message: {
       type: String,
       trim: true,
@@ -118,5 +123,12 @@ const messageSchema = new Schema(
 
 messageSchema.index({ conversationId: 1, createdAt: -1 });
 messageSchema.index({ conversationId: 1, "seenBy.userId": 1 });
+messageSchema.index(
+  { conversationId: 1, senderId: 1, clientMessageId: 1 },
+  {
+    unique: true,
+    partialFilterExpression: { clientMessageId: { $type: "string" } },
+  }
+);
 
 module.exports = models.Message || model("Message", messageSchema);

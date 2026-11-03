@@ -14,6 +14,7 @@ import EmptyState from "@/components/shared/EmptyState";
 import { Card, CardContent } from "@/components/ui/card";
 import TaskKanbanColumn from "@/components/tasks/TaskKanbanColumn";
 import TaskCard from "@/components/tasks/TaskCard";
+import { resolveIssueAssignees } from "@/lib/issues";
 import {
   TASK_BOARD_COLUMNS,
   getTaskBoardStatus,
@@ -52,12 +53,28 @@ const TaskKanbanBoard = ({
       TASK_BOARD_COLUMNS.map((column) => ({
         ...column,
         items: sortTasksByPriority(
-          issues.filter(
-            (issue) => (pendingStatuses[issue._id] || getTaskBoardStatus(issue)) === column.key
-          )
+          issues
+            .filter(
+              (issue) => (pendingStatuses[issue._id] || getTaskBoardStatus(issue)) === column.key
+            )
+            .flatMap((issue) => {
+              if (!readOnly) return [issue];
+
+              const assignees = resolveIssueAssignees(issue).filter(
+                (assignee) => assignee.name || assignee.email
+              );
+
+              return assignees.length > 1
+                ? assignees.map((assignee) => ({
+                    ...issue,
+                    boardCardKey: `${issue._id}-${assignee._id || assignee.id}`,
+                    boardAssignee: assignee,
+                  }))
+                : [issue];
+            })
         ),
       })),
-    [issues, pendingStatuses]
+    [issues, pendingStatuses, readOnly]
   );
 
   const handleDragStart = (event) => {

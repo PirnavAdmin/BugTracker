@@ -51,7 +51,7 @@ Full-stack Jira-like bug tracking and project management app with:
 |   `-- PROJECT_API_AND_FLOW.md
 |-- docker-compose.yml
 |-- .env.example
-`-- README.md
+`-- README.md hh
 ```
 
 ## What Is Included

@@ -122,13 +122,25 @@ const attachTeamsToProjects = async (projects = []) => {
     new Set(normalizedProjects.map((project) => normalizeTenantId(project.tenantId)).filter(Boolean))
   );
 
-  const projectTeams = await ProjectTeam.find({
-    projectId: {
-      $in: projectIds,
-    },
-  })
-    .sort({ createdAt: 1 })
-    .lean();
+  // These relationship reads share the project ids but neither depends on
+  // the other, so one request no longer waits for the other to finish.
+  const [projectTeams, projectMembers] = await Promise.all([
+    ProjectTeam.find({
+      projectId: {
+        $in: projectIds,
+      },
+    })
+      .sort({ createdAt: 1 })
+      .lean(),
+    ProjectMember.find({
+      projectId: {
+        $in: projectIds,
+      },
+    })
+      .populate("userId", "name email role avatarUrl workspaceId")
+      .sort({ createdAt: 1 })
+      .lean(),
+  ]);
 
   const projectTeamsByProjectId = new Map(
     projectIds.map((projectId) => [String(projectId), []])
@@ -152,14 +164,6 @@ const attachTeamsToProjects = async (projects = []) => {
   const attachedTeamIds = Array.from(
     new Set(Array.from(teamIdsByProjectId.values()).flat())
   );
-  const projectMembers = await ProjectMember.find({
-    projectId: {
-      $in: projectIds,
-    },
-  })
-    .populate("userId", "name email role avatarUrl workspaceId")
-    .sort({ createdAt: 1 })
-    .lean();
   const directMembersByProjectId = new Map(
     projectIds.map((projectId) => [String(projectId), []])
   );

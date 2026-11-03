@@ -16,7 +16,7 @@ const { buildAppUrl } = require("../config/env");
 const { sendChatMeetingInviteEmail } = require("../services/emailService");
 const { createNotification } = require("../services/notificationService");
 const asyncHandler = require("../utils/asyncHandler");
-const { deleteS3Object, uploadToS3 } = require("../utils/s3");
+const { deleteS3Object, getS3ObjectStream, uploadToS3 } = require("../utils/s3");
 const { confirmStorage, releaseStorage, reserveStorage } = require("../services/storageUsageService");
 const {
   buildProjectAccessQuery,
@@ -24,6 +24,7 @@ const {
 } = require("../utils/projectRelations");
 const { resolveMeetingWindow } = require("../utils/meetingWindow");
 const { formatDateTime } = require("../utils/dateTime");
+const { normalizeTenantId } = require("../utils/tenant");
 const { normalizeWorkspaceId } = require("../utils/workspace");
 const { ROLE_ADMIN, ROLE_MANAGER, ROLE_TEAM_LEAD } = require("../utils/roles");
 
@@ -522,9 +523,11 @@ const createMessageDocument = async ({
   message,
   attachments = [],
   metadata = null,
+  clientMessageId = "",
 }) => {
   const sanitizedMessage = sanitizeText(message);
   const sanitizedAttachments = sanitizeAttachments(attachments, sender.tenantId);
+  const sanitizedClientMessageId = sanitizeText(clientMessageId, 120);
   const sanitizedMetadata =
     metadata && typeof metadata === "object" && !Array.isArray(metadata)
       ? metadata
@@ -548,9 +551,24 @@ const createMessageDocument = async ({
     throw error;
   }
 
+  if (sanitizedClientMessageId) {
+    const existingMessage = await Message.findOne({
+      conversationId: conversation._id,
+      senderId: sender._id,
+      clientMessageId: sanitizedClientMessageId,
+    })
+      .populate("senderId", userSelect)
+      .lean();
+
+    if (existingMessage) {
+      return existingMessage;
+    }
+  }
+
   const createdMessage = await Message.create({
     conversationId: conversation._id,
     senderId: sender._id,
+    clientMessageId: sanitizedClientMessageId || undefined,
     message: sanitizedMessage,
     attachments: sanitizedAttachments,
     metadata: sanitizedMetadata,
@@ -1308,6 +1326,77 @@ const getMessages = asyncHandler(async (req, res) => {
   });
 });
 
+const downloadChatAttachment = asyncHandler(async (req, res) => {
+  ensureChatAccess(req, res);
+
+  if (!isValidObjectId(req.params.conversationId) || !isValidObjectId(req.params.messageId)) {
+    res.status(400);
+    throw new Error("Invalid chat attachment request");
+  }
+
+  const attachmentIndex = Number(req.params.attachmentIndex);
+  if (!Number.isInteger(attachmentIndex) || attachmentIndex < 0) {
+    res.status(400);
+    throw new Error("Invalid chat attachment index");
+  }
+
+  const conversation = await Conversation.findOne({
+    _id: req.params.conversationId,
+    workspaceId: normalizeWorkspaceId(req.user.workspaceId),
+    participants: req.user._id,
+  })
+    .select("_id")
+    .lean();
+
+  if (!conversation) {
+    res.status(404);
+    throw new Error("Conversation not found or inaccessible");
+  }
+
+  const message = await Message.findOne({
+    _id: req.params.messageId,
+    conversationId: conversation._id,
+    deleted: false,
+  })
+    .select("attachments")
+    .lean();
+  const attachment = message?.attachments?.[attachmentIndex];
+  const storagePath = attachment?.fileUrl || attachment?.url || "";
+
+  if (!attachment || !storagePath) {
+    res.status(404);
+    throw new Error("Chat attachment not found");
+  }
+
+  const fileName = sanitizeFileName(attachment.fileName || attachment.name);
+  res.setHeader("Content-Type", attachment.fileType || attachment.type || "application/octet-stream");
+  res.setHeader(
+    "Content-Disposition",
+    `${req.query.download === "1" ? "attachment" : "inline"}; filename="${encodeURIComponent(fileName)}"`
+  );
+  res.setHeader("Cache-Control", "private, no-store");
+
+  const fileStream = /^https?:\/\//i.test(storagePath)
+    ? await getS3ObjectStream(storagePath)
+    : (() => {
+        const localPath = path.resolve(chatAttachmentsRoot, path.basename(storagePath));
+        if (!fs.existsSync(localPath)) {
+          const error = new Error("Chat attachment not found on disk");
+          error.statusCode = 404;
+          throw error;
+        }
+        return fs.createReadStream(localPath);
+      })();
+
+  fileStream.on("error", (error) => {
+    console.error("[chat] attachment stream failed", error.message);
+    if (!res.headersSent) {
+      res.status(500).json({ message: "Unable to read chat attachment" });
+    }
+  });
+  fileStream.pipe(res);
+});
+
 const createMessage = asyncHandler(async (req, res) => {
   ensureChatAccess(req, res);
 
@@ -1321,6 +1410,7 @@ const createMessage = asyncHandler(async (req, res) => {
     sender: req.user,
     message: req.body.message,
     attachments: req.body.attachments,
+    clientMessageId: req.body.clientMessageId,
   });
 
   res.status(201).json({
@@ -1484,6 +1574,10 @@ const getAllMeetings = asyncHandler(async (req, res) => {
     },
   };
   const search = sanitizeText(req.query.q || "", 120);
+  const upcomingOnly = ["true", "1", "yes"].includes(
+    String(req.query.upcoming || "").trim().toLowerCase()
+  );
+  const limit = Math.min(Math.max(Number(req.query.limit) || 0, 0), 50);
 
   if (search) {
     query.title = {
@@ -1492,9 +1586,33 @@ const getAllMeetings = asyncHandler(async (req, res) => {
     };
   }
 
-  const meetings = await ChatMeeting.find(query)
-    .sort({ startTime: 1, createdAt: -1 })
-    .lean();
+  if (upcomingOnly) {
+    const now = new Date();
+    query.$or = [
+      { startTime: null },
+      {
+        $expr: {
+          $gte: [
+            {
+              $add: [
+                "$startTime",
+                { $multiply: [{ $ifNull: ["$durationMinutes", 0] }, 60 * 1000] },
+              ],
+            },
+            now,
+          ],
+        },
+      },
+    ];
+  }
+
+  let meetingsQuery = ChatMeeting.find(query).sort({ startTime: 1, createdAt: -1 });
+
+  if (limit) {
+    meetingsQuery = meetingsQuery.limit(limit);
+  }
+
+  const meetings = await meetingsQuery.lean();
 
   res.status(200).json({
     meetings: meetings.map(serializeChatMeeting).filter(Boolean),
@@ -1921,6 +2039,7 @@ module.exports = {
   removeConversationParticipant,
   createConversation,
   deleteConversation,
+  downloadChatAttachment,
   createMessage,
   createMessageDocument,
   createSystemMessageDocument,

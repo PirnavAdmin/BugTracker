@@ -401,5 +401,7 @@ issueSchema.index({ assignee: 1, sprintId: 1, status: 1 });
 issueSchema.index({ assignees: 1, sprintId: 1, status: 1 });
 issueSchema.index({ projectId: 1, displayBugId: 1 });
 issueSchema.index({ isDeleted: 1, projectId: 1, status: 1 });
+// Supports the project scoped story list's update-time ordering.
+issueSchema.index({ projectId: 1, type: 1, updatedAt: -1, createdAt: -1 });
 
 module.exports = models.Issue || model("Issue", issueSchema);

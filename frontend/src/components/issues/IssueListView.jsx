@@ -6,7 +6,7 @@ import {
   getIssuePriorityVariant,
   ISSUE_STATUS,
   normalizeIssueStatus,
-  resolveIssueAssignee,
+  resolveIssueAssignees,
   resolveIssueAssigneeId,
   getIssueStatusLabel,
   getIssueStatusVariant,
@@ -165,18 +165,28 @@ const TeamCell = ({ issue }) =>
   );
 
 const AssigneeCell = ({ issue }) => {
-  const assignee = resolveIssueAssignee(issue);
+  const assignees = resolveIssueAssignees(issue).filter(
+    (assignee) => assignee.name || assignee.email
+  );
   const assigneeId = resolveIssueAssigneeId(issue);
 
-  return assignee ? (
-    <div className="flex items-center gap-3">
-      <UserAvatar user={assignee} className="h-9 w-9 rounded-xl" />
-      <div className="min-w-0">
-        <p className="truncate text-sm font-medium text-slate-900">
-          {assignee.name}
-        </p>
-        <p className="text-xs text-slate-500">{assignee.role}</p>
+  return assignees.length ? (
+    <div className="flex min-w-0 items-center gap-2">
+      <div className="flex shrink-0 -space-x-2">
+        {assignees.map((assignee) => (
+          <UserAvatar
+            key={assignee._id}
+            user={assignee}
+            className="h-8 w-8 rounded-xl ring-2 ring-white"
+          />
+        ))}
       </div>
+      <p
+        className="min-w-0 truncate text-sm font-medium text-slate-900"
+        title={assignees.map((assignee) => assignee.name || assignee.email).join(", ")}
+      >
+        {assignees.map((assignee) => assignee.name || assignee.email).join(", ")}
+      </p>
     </div>
   ) : (
     <div className="flex items-center gap-2 text-sm text-slate-500">

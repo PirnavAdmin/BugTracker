@@ -46,7 +46,7 @@ const TaskKanbanColumn = ({
         {issues.length ? (
           issues.map((issue) => (
             <TaskCard
-              key={issue._id}
+              key={issue.boardCardKey || issue._id}
               issue={issue}
               isUpdating={updatingId === issue._id}
               onSelectIssue={onSelectIssue}

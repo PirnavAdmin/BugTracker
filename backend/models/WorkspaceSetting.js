@@ -110,6 +110,10 @@ const workspaceSettingSchema = new Schema(
       type: Schema.Types.Mixed,
       default: {},
     },
+    workPermissions: {
+      type: Schema.Types.Mixed,
+      default: {},
+    },
     aiSettings: {
       type: Schema.Types.Mixed,
       default: {},

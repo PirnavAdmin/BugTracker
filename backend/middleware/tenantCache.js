@@ -44,9 +44,13 @@ const createTenantCacheMiddleware = (cacheService = defaultCacheService) => {
     try {
       tenantId = requireTenant(req, res);
       resolvedResource = resolveOption(resource, req);
+      const generation = typeof cacheService.getTenantCacheGeneration === "function"
+        ? await cacheService.getTenantCacheGeneration(tenantId, resolvedResource)
+        : 0;
       key = defaultCacheService.getTenantCacheKey({
         tenantId,
         resource: resolvedResource,
+        generation,
         filters: getRequestFilters(req),
         access: getAccessContext(req),
       });
@@ -106,18 +110,21 @@ const createTenantCacheMiddleware = (cacheService = defaultCacheService) => {
         CACHE_TTLS[resolvedResource] || 30
       );
       res.setHeader("X-Cache", "MISS");
-      cacheService
-        .setCached({
+      // The database response is authoritative. Send it immediately and warm
+      // Redis in the background so cache writes cannot add API latency.
+      settlePending(resolvePending, { body, statusCode: res.statusCode });
+      const response = originalJson(body);
+      Promise.resolve()
+        .then(() => cacheService.setCached({
           key,
           tenantId,
           value: body,
           ttlSeconds: resolvedTtl,
-        })
-        .finally(() => {
-          settlePending(resolvePending, { body, statusCode: res.statusCode });
-          originalJson(body);
+        }))
+        .catch((error) => {
+          console.warn(`[cache] write ERROR { reason: "${error.message}" }; response remains available`);
         });
-      return res;
+      return response;
     };
 
     if (typeof res.once === "function") {
@@ -146,9 +153,15 @@ const createTenantInvalidationMiddleware = (cacheService = defaultCacheService) 
         return originalJson(body);
       }
 
-      cacheService
-        .invalidateTenantCache(tenantId, resolveOption(resources, req))
-        .finally(() => originalJson(body));
+      // Finish invalidating before acknowledging a successful mutation. This
+      // prevents another user refreshing immediately after the mutation from
+      // receiving a stale cached issue list.
+      Promise.resolve()
+        .then(() => cacheService.invalidateTenantCache(tenantId, resolveOption(resources, req)))
+        .catch((error) => {
+          console.warn(`[cache] invalidation ERROR { reason: "${error.message}" }; TTL fallback remains active`);
+        })
+        .then(() => originalJson(body));
       return res;
     };
     return next();

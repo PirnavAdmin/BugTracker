@@ -2,12 +2,10 @@ import { useEffect, useMemo, useState } from "react";
 import {
   CheckCircle2,
   Copy,
-  FileText,
   GitBranch,
   GitCommit,
   Layers3,
   Package,
-  Play,
   Rocket,
   ShieldCheck,
 } from "lucide-react";
@@ -30,6 +28,7 @@ const metricTone = {
   amber: "bg-amber-50 text-amber-700",
   slate: "bg-slate-100 text-slate-700",
 };
+const WORK_QUEUE_CHART_COLORS = ["#2563eb", "#7c3aed", "#0891b2", "#059669", "#d97706", "#e11d48", "#4f46e5", "#64748b"];
 
 const MetricPill = ({ label, value, tone = "blue" }) => (
   <div className={cn("rounded-xl px-3 py-2", metricTone[tone] || metricTone.blue)}>
@@ -164,13 +163,13 @@ const getPersonInitials = (name = "QA") =>
     .map((part) => part[0]?.toUpperCase())
     .join("") || "QA";
 
-const ActivityAvatar = ({ name }) => (
-  <div className="relative h-11 w-11 shrink-0">
-    <div className="grid h-11 w-11 place-items-center rounded-full border border-slate-200 bg-slate-100 text-sm font-bold text-slate-700">
+const ActivityAvatar = ({ name, compact = false }) => (
+  <div className={cn("relative shrink-0", compact ? "h-9 w-9" : "h-11 w-11")}>
+    <div className={cn("grid place-items-center rounded-full border border-slate-200 bg-slate-100 text-sm font-bold text-slate-700", compact ? "h-9 w-9" : "h-11 w-11")}>
       {getPersonInitials(name)}
     </div>
-    <span className="absolute -bottom-0.5 -right-1 grid h-5 w-5 place-items-center rounded-full border-2 border-white bg-slate-950 text-white">
-      <GitCommit className="h-3 w-3" />
+    <span className="absolute -bottom-0.5 -right-1 grid h-4 w-4 place-items-center rounded-full border-2 border-white bg-slate-950 text-white">
+      <GitCommit className="h-2.5 w-2.5" />
     </span>
   </div>
 );
@@ -227,21 +226,21 @@ export const QAGitActivityPanel = ({
   }
 
   return (
-    <section className="grid gap-4 xl:grid-cols-[minmax(0,1.05fr)_minmax(360px,0.95fr)]">
-      <Card className="rounded-2xl border-blue-100/80 bg-white/92 shadow-[0_18px_46px_-36px_rgba(37,99,235,0.45)]">
-        <CardContent className="p-5">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+    <Card className="rounded-2xl border-violet-200 bg-gradient-to-br from-violet-100 via-purple-50 to-indigo-100 shadow-[0_18px_46px_-30px_rgba(124,58,237,0.5)]">
+      <CardContent className="grid gap-3 p-3 sm:p-4 xl:grid-cols-2">
+        <div className="min-w-0">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <p className="inline-flex items-center gap-2 text-sm font-bold uppercase tracking-[0.14em] text-blue-600">
-                <GitBranch className="h-5 w-5" />
+                <GitBranch className="h-4 w-4" />
                 QA Git Activity
               </p>
-              <p className="mt-2 text-sm font-medium text-slate-600">
+              <p className="mt-1 text-xs font-medium text-slate-600">
                 Testing Queue · {visibleActivityRows.length} {visibleActivityRows.length === 1 ? "build" : "builds"} waiting for QA.
               </p>
             </div>
             <select
-              className="h-11 rounded-xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 outline-none transition focus:border-blue-300 focus:ring-2 focus:ring-blue-500/20"
+              className="h-9 rounded-xl border border-violet-200 bg-white/90 px-3 text-sm font-medium text-slate-700 outline-none transition focus:border-blue-300 focus:ring-2 focus:ring-blue-500/20"
               value={selectedRow?.id || ""}
               onChange={(event) => onSelectProject?.(event.target.value)}
             >
@@ -254,7 +253,7 @@ export const QAGitActivityPanel = ({
             </select>
           </div>
 
-          <div className="mt-5 space-y-3">
+          <div className="mt-3 space-y-2">
             {visibleActivityRows.map((row, index) => {
               const isSelected = row.id === selectedRow?.id;
               const commitShortSha = getCommitShortSha(row.activity.commitSha);
@@ -269,29 +268,29 @@ export const QAGitActivityPanel = ({
               return (
                 <div key={row.id}>
                   {groupLabel !== previousGroupLabel && (
-                    <p className="px-1 pb-2 text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400">
+                    <p className="px-1 pb-1 text-[10px] font-bold uppercase tracking-[0.14em] text-slate-500">
                       {groupLabel}
                     </p>
                   )}
                   <button
                     className={cn(
-                      "grid w-full gap-3 rounded-xl border bg-white px-4 py-4 text-left transition hover:border-blue-200 hover:bg-blue-50/30 md:grid-cols-[minmax(0,1.05fr)_minmax(170px,0.95fr)_auto] md:items-center",
-                      isSelected && "border-blue-400 bg-blue-50/30 shadow-[0_18px_40px_-34px_rgba(37,99,235,0.6)]"
+                      "grid w-full gap-2 rounded-xl border bg-white/90 px-3 py-2 text-left transition hover:border-violet-300 hover:bg-white md:grid-cols-[minmax(0,1.05fr)_minmax(140px,0.95fr)_auto] md:items-center",
+                      isSelected && "border-violet-400 bg-white shadow-[0_12px_28px_-24px_rgba(124,58,237,0.7)]"
                     )}
                     onClick={() => onSelectProject?.(row.id)}
                     type="button"
                   >
-                    <div className="flex min-w-0 items-center gap-3">
-                      <ActivityAvatar name={row.activity.pushedByName} />
+                    <div className="flex min-w-0 items-center gap-2">
+                      <ActivityAvatar compact name={row.activity.pushedByName} />
                       <div className="min-w-0">
                         <p className="truncate text-sm font-semibold text-slate-950">
                           {formatRepositoryName(row.repository)}
                         </p>
-                        <p className="mt-1 flex items-center gap-1.5 text-sm font-semibold text-blue-600">
-                          <GitBranch className="h-4 w-4 shrink-0" />
+                        <p className="mt-0.5 flex items-center gap-1.5 text-xs font-semibold text-blue-600">
+                          <GitBranch className="h-3.5 w-3.5 shrink-0" />
                           <span className="min-w-0 truncate">{row.activity.branch}</span>
                         </p>
-                        <p className="mt-1 truncate text-xs text-slate-500">
+                        <p className="truncate text-[11px] text-slate-500">
                           {row.activity.pushedByName}
                         </p>
                       </div>
@@ -300,14 +299,14 @@ export const QAGitActivityPanel = ({
                       <p className="truncate text-sm font-semibold text-slate-950">
                         pushed {commitShortSha || "-"}
                       </p>
-                      <p className="mt-1 text-sm text-slate-600">
+                      <p className="mt-0.5 truncate text-xs text-slate-600">
                         {row.activity.branch} · {row.filesChanged} {row.filesChanged === 1 ? "file" : "files"} · {moduleLabel}
                       </p>
-                      <p className="mt-1 text-xs font-medium text-slate-500">
+                      <p className="text-[11px] font-medium text-slate-500">
                         {formatActivityClock(row.activity.pushedAt)}
                       </p>
                     </div>
-                    <Badge className={cn("justify-self-start rounded-full border px-3 py-1", getActivityStatusTone(row.activity.qaStatus))} variant="outline">
+                    <Badge className={cn("justify-self-start rounded-full border px-2 py-0.5 text-[10px]", getActivityStatusTone(row.activity.qaStatus))} variant="outline">
                       {getActivityStatusLabel(row.activity.qaStatus)}
                     </Badge>
                   </button>
@@ -315,62 +314,60 @@ export const QAGitActivityPanel = ({
               );
             })}
           </div>
-        </CardContent>
-      </Card>
+        </div>
 
-      <Card className="rounded-2xl border-blue-100/80 bg-white/92 shadow-[0_18px_46px_-36px_rgba(37,99,235,0.45)]">
-        <CardContent className="p-5">
+        <div className="min-w-0 border-t border-violet-300/80 pt-3 xl:border-l xl:border-t-0 xl:pl-4 xl:pt-0">
           <div className="flex items-start justify-between gap-3">
             <div>
               <p className="inline-flex items-center gap-2 text-sm font-bold uppercase tracking-[0.14em] text-blue-600">
-                <Rocket className="h-5 w-5" />
+                <Rocket className="h-4 w-4" />
                 Latest Push
               </p>
-              <div className="mt-5 flex items-center gap-3">
-                <span className="grid h-9 w-9 place-items-center rounded-lg bg-violet-50 text-violet-600">
-                  <Package className="h-5 w-5" />
+              <div className="mt-2 flex items-center gap-2">
+                <span className="grid h-7 w-7 place-items-center rounded-lg bg-violet-200/80 text-violet-700">
+                  <Package className="h-4 w-4" />
                 </span>
                 <h3 className="text-base font-semibold text-slate-950">
                   {latestActivity.projectName}
                 </h3>
               </div>
             </div>
-            <Badge className={cn("rounded-full border px-4 py-2", getActivityStatusTone(latestActivity.qaStatus))} variant="outline">
+            <Badge className={cn("rounded-full border px-3 py-1 text-xs", getActivityStatusTone(latestActivity.qaStatus))} variant="outline">
               {getActivityStatusLabel(latestActivity.qaStatus)}
             </Badge>
           </div>
 
-          <div className="mt-5 border-t border-slate-200 pt-5">
-            <div className="grid gap-4 sm:grid-cols-3">
+          <div className="mt-3 border-t border-violet-200 pt-3">
+            <div className="grid gap-2 sm:grid-cols-3">
               <div>
                 <p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-500">Pushed By</p>
-                <div className="mt-4 flex items-center gap-3">
-                  <ActivityAvatar name={latestActivity.pushedByName} />
+                <div className="mt-2 flex items-center gap-2">
+                  <ActivityAvatar compact name={latestActivity.pushedByName} />
                   <div className="min-w-0">
                     <p className="truncate text-sm font-semibold text-slate-950">{latestActivity.pushedByName}</p>
                     <p className="truncate text-xs text-slate-500">{formatRepositoryName(latestRepository)}</p>
                   </div>
                 </div>
               </div>
-              <div className="border-slate-200 sm:border-l sm:pl-5">
+              <div className="border-slate-200 sm:border-l sm:pl-3">
                 <p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-500">Branch</p>
-                <p className="mt-4 flex items-center gap-2 text-base font-semibold text-slate-950">
-                  <GitBranch className="h-5 w-5 text-blue-600" />
+                <p className="mt-2 flex items-center gap-2 text-sm font-semibold text-slate-950">
+                  <GitBranch className="h-4 w-4 text-blue-600" />
                   {latestActivity.branch}
                 </p>
               </div>
-              <div className="border-slate-200 sm:border-l sm:pl-5">
+              <div className="border-slate-200 sm:border-l sm:pl-3">
                 <p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-500">Push Time</p>
-                <p className="mt-4 text-base font-semibold text-slate-950">
+                <p className="mt-2 text-sm font-semibold text-slate-950">
                   {formatActivityTime(latestActivity.pushedAt)}
                 </p>
               </div>
             </div>
 
-            <div className="mt-6 grid gap-3 sm:grid-cols-2">
-              <div className="rounded-xl border border-slate-200 bg-white px-4 py-3">
+            <div className="mt-3 grid gap-2 sm:grid-cols-2">
+              <div className="rounded-xl border border-violet-200 bg-white/90 px-3 py-2">
                 <p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-500">Commit</p>
-                <p className="mt-4 flex items-center gap-2 text-base font-semibold text-slate-950">
+                <p className="mt-1 flex items-center gap-2 text-sm font-semibold text-slate-950">
                   {latestSha || "-"}
                   {latestSha ? (
                     <button
@@ -383,18 +380,18 @@ export const QAGitActivityPanel = ({
                   ) : null}
                 </p>
               </div>
-              <div className="rounded-xl border border-slate-200 bg-white px-4 py-3">
+              <div className="rounded-xl border border-violet-200 bg-white/90 px-3 py-2">
                 <p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-500">Commit Message</p>
-                <p className="mt-4 text-base font-semibold text-slate-950">{latestActivity.commitMessage}</p>
+                <p className="mt-1 truncate text-sm font-semibold text-slate-950">{latestActivity.commitMessage}</p>
               </div>
             </div>
 
-            <div className="mt-4 grid gap-3 sm:grid-cols-3">
+            <div className="mt-2 grid gap-2 sm:grid-cols-3">
               <MetricPill label="Files Changed" value={selectedRow?.filesChanged || 0} tone="blue" />
               <MetricPill label="Modules Affected" value={latestModules.length} tone="blue" />
-              <div className="rounded-xl bg-white px-4 py-3 ring-1 ring-slate-200">
+              <div className="rounded-xl bg-white/90 px-3 py-2 ring-1 ring-violet-200">
                 <p className="text-xs font-bold uppercase tracking-[0.1em] text-slate-500">Additions / Deletions</p>
-                <p className="mt-4 text-lg font-semibold">
+                <p className="mt-1 text-base font-semibold">
                   <span className="text-emerald-600">+{changeTotals.additions || 0}</span>
                   <span className="mx-5 text-slate-300"> </span>
                   <span className="text-rose-600">-{changeTotals.deletions || 0}</span>
@@ -402,11 +399,11 @@ export const QAGitActivityPanel = ({
               </div>
             </div>
 
-            <div className="mt-5">
-              <p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-500">Changed Modules</p>
-              <div className="mt-3 flex flex-wrap gap-2">
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-500">Changed Modules</p>
+              <div className="flex flex-wrap gap-1.5">
                 {(latestModules.length ? latestModules : ["No module changes detected"]).map((module) => (
-                  <span className="rounded-full border border-blue-100 bg-blue-50 px-3 py-1.5 text-sm font-semibold text-blue-700" key={module}>
+                  <span className="rounded-full border border-violet-200 bg-white/80 px-2 py-0.5 text-xs font-semibold text-violet-700" key={module}>
                     {module}
                   </span>
                 ))}
@@ -415,24 +412,14 @@ export const QAGitActivityPanel = ({
 
             <AiCodeReviewPanel
               activity={latestActivity}
-              className="mt-5"
+              className="mt-2"
               project={selectedRow?.record || selectedRow?.project}
             />
 
-            <div className="mt-6 border-t border-slate-200 pt-5">
-              <Button className="h-11 w-full rounded-xl bg-blue-600 text-white hover:bg-blue-700" onClick={() => onStartTesting?.(selectedRow?.project)} type="button">
-                <Play className="h-4 w-4" />
-                Start Testing / Create Test Flow
-              </Button>
-              <Button className="mt-3 h-11 w-full rounded-xl border-blue-200 text-blue-700" onClick={() => onSelectProject?.(selectedRow?.id)} type="button" variant="outline">
-                <FileText className="h-4 w-4" />
-                View Full Activity
-              </Button>
-            </div>
           </div>
-        </CardContent>
-      </Card>
-    </section>
+        </div>
+      </CardContent>
+    </Card>
   );
 };
 
@@ -545,59 +532,7 @@ const isGitConnected = (project = {}) => {
   return Boolean(repository.url || repository.name || normalizedStatus.includes("connected"));
 };
 
-const getProjectQaStatus = ({ metrics, project }) => {
-  const activity = getLatestGitActivity(project);
-
-  if (!isGitConnected(project)) {
-    return "Git not connected";
-  }
-
-  if (metrics.criticalBugs > 0) {
-    return "Critical attention";
-  }
-
-  if (metrics.failedQa > 0) {
-    return "QA rework";
-  }
-
-  if (metrics.pendingQa > 0) {
-    return "Waiting for QA";
-  }
-
-  if (String(activity.qaStatus || "").toLowerCase().includes("test")) {
-    return "Testing";
-  }
-
-  if (hasRecordedPush(activity)) {
-    return "Active";
-  }
-
-  return "No recent activity";
-};
-
-const getProjectStatusTone = (status = "") => {
-  const normalized = String(status).toLowerCase();
-
-  if (normalized.includes("critical") || normalized.includes("rework") || normalized.includes("fail")) {
-    return "border-rose-200 bg-rose-50 text-rose-700";
-  }
-
-  if (normalized.includes("waiting")) {
-    return "border-amber-200 bg-amber-50 text-amber-700";
-  }
-
-  if (normalized.includes("testing") || normalized.includes("active")) {
-    return "border-blue-200 bg-blue-50 text-blue-700";
-  }
-
-  if (normalized.includes("not connected")) {
-    return "border-slate-200 bg-slate-100 text-slate-600";
-  }
-
-  return "border-emerald-200 bg-emerald-50 text-emerald-700";
-};
-
-export const ProjectOverviewDashboardPanel = ({ issues = [], onViewGitActivity, projects = [] }) => {
+export const ProjectOverviewDashboardPanel = ({ issues = [], onViewGitActivity, projects = [], workQueueBugs = [] }) => {
   const [selectedGitProjectId, setSelectedGitProjectId] = useState("");
   const activeProjects = projects.filter((project) => project.status !== "Completed");
   const projectRows = useMemo(
@@ -611,8 +546,6 @@ export const ProjectOverviewDashboardPanel = ({ issues = [], onViewGitActivity, 
             ? activity.modulesChanged
             : normalizeDeliveryModules(project);
           const connected = isGitConnected(project);
-          const status = getProjectQaStatus({ metrics, project });
-
           return {
             activity,
             connected,
@@ -621,7 +554,6 @@ export const ProjectOverviewDashboardPanel = ({ issues = [], onViewGitActivity, 
             project,
             projectId: getProjectId(project),
             repository,
-            status,
           };
         })
         .sort(
@@ -640,6 +572,29 @@ export const ProjectOverviewDashboardPanel = ({ issues = [], onViewGitActivity, 
     (row) => row.projectId === selectedGitProjectId
   );
   const latestPush = selectedGitProject || latestConnectedPush || null;
+  const workQueueProjectRows = useMemo(() => {
+    const projectNames = new Map(projects.map((project) => [
+      getProjectId(project),
+      project.name || "Untitled project",
+    ]));
+    const counts = new Map();
+
+    workQueueBugs.forEach((bug) => {
+      const projectId = String(bug.project?._id || bug.project || bug.projectId?._id || bug.projectId || "");
+      const name = projectNames.get(projectId) || bug.project?.name || bug.projectId?.name || "Other projects";
+      counts.set(name, (counts.get(name) || 0) + 1);
+    });
+
+    return Array.from(counts, ([name, value]) => ({ name, value }))
+      .sort((left, right) => right.value - left.value || left.name.localeCompare(right.name));
+  }, [projects, workQueueBugs]);
+  const workQueueTotal = workQueueProjectRows.reduce((total, row) => total + row.value, 0);
+  let pieOffset = 0;
+  const workQueuePieGradient = workQueueProjectRows.map((row, index) => {
+    const start = pieOffset;
+    pieOffset += workQueueTotal ? (row.value / workQueueTotal) * 100 : 0;
+    return `${WORK_QUEUE_CHART_COLORS[index % WORK_QUEUE_CHART_COLORS.length]} ${start}% ${pieOffset}%`;
+  }).join(", ");
 
   useEffect(() => {
     const nextSelectedId =
@@ -655,10 +610,7 @@ export const ProjectOverviewDashboardPanel = ({ issues = [], onViewGitActivity, 
   const totals = projectRows.reduce(
     (summary, project) => {
       return {
-        criticalBugs: summary.criticalBugs + project.metrics.criticalBugs,
-        failedQa: summary.failedQa + project.metrics.failedQa,
         gitConnected: summary.gitConnected + (project.connected ? 1 : 0),
-        openBugs: summary.openBugs + project.metrics.openBugs,
         pendingQa: summary.pendingQa + project.metrics.pendingQa,
         pushesToday:
           summary.pushesToday +
@@ -669,7 +621,7 @@ export const ProjectOverviewDashboardPanel = ({ issues = [], onViewGitActivity, 
           (String(project.activity.qaStatus || "").toLowerCase().includes("test") ? 1 : 0),
       };
     },
-    { criticalBugs: 0, failedQa: 0, gitConnected: 0, openBugs: 0, pendingQa: 0, pushesToday: 0, recentActive: 0, testing: 0 }
+    { gitConnected: 0, pendingQa: 0, pushesToday: 0, recentActive: 0, testing: 0 }
   );
 
   return (
@@ -769,58 +721,50 @@ export const ProjectOverviewDashboardPanel = ({ issues = [], onViewGitActivity, 
           <section className="rounded-2xl border border-slate-200/80 bg-slate-50/50 p-4">
             <div className="flex items-start justify-between gap-3">
               <div>
-                <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-violet-600">Project Health</p>
-                <h2 className="mt-1 text-lg font-semibold text-slate-950">Current health of active projects.</h2>
+                <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-violet-600">Bug Work Queue</p>
+                <h2 className="mt-1 text-lg font-semibold text-slate-950">Unassigned bugs by project.</h2>
               </div>
               <Layers3 className="h-5 w-5 text-violet-500" />
             </div>
-
-            <div className="mt-4 grid gap-2 sm:grid-cols-2">
-              <MetricPill label="Active Projects" value={activeProjects.length} tone="blue" />
-              <MetricPill label="Waiting for QA" value={totals.pendingQa} tone="amber" />
-              <MetricPill label="Critical Bugs" value={totals.criticalBugs} tone="rose" />
-              <MetricPill label="QA Rework" value={totals.failedQa} tone="rose" />
-            </div>
-
-            <div className="mt-4 space-y-2">
-              {projectRows.slice(0, 5).map((row) => (
-                <div className="rounded-2xl border border-white/80 bg-white/86 px-3 py-2.5 shadow-sm" key={row.project._id || row.project.id}>
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-semibold text-slate-950">{row.project.name}</p>
-                      <p className={cn("mt-1 text-xs font-semibold", row.connected ? "text-emerald-700" : "text-slate-500")}>
-                        {row.connected ? "Git Connected" : "Git not connected"}
-                      </p>
-                    </div>
-                    <Badge className={cn("shrink-0 rounded-full border px-2.5 py-1", getProjectStatusTone(row.status))} variant="outline">
-                      {row.status}
-                    </Badge>
-                  </div>
-                  <div className="mt-2 flex flex-wrap gap-1.5 text-xs">
-                    {row.metrics.pendingQa ? (
-                      <span className="rounded-full bg-amber-50 px-2 py-1 font-semibold text-amber-700">
-                        {row.metrics.pendingQa} pending QA
-                      </span>
-                    ) : null}
-                    {row.metrics.criticalBugs ? (
-                      <span className="rounded-full bg-rose-50 px-2 py-1 font-semibold text-rose-700">
-                        {row.metrics.criticalBugs} critical
-                      </span>
-                    ) : null}
-                    {hasRecordedPush(row.activity) ? (
-                      <span className="rounded-full bg-blue-50 px-2 py-1 font-semibold text-blue-700">
-                        Recent push {formatActivityClock(row.activity.pushedAt)}
-                      </span>
-                    ) : null}
-                  </div>
+            {workQueueProjectRows.length ? (
+              <div className="mt-3">
+                <div className="flex h-[320px] justify-center">
+                  <div
+                    aria-label={`${workQueueTotal} unassigned work queue bugs across ${workQueueProjectRows.length} projects`}
+                    className="aspect-square w-full max-w-[320px] rounded-full border border-white shadow-inner"
+                    role="img"
+                    style={{ backgroundImage: `conic-gradient(${workQueuePieGradient})` }}
+                    title={`${workQueueTotal} work queue bugs`}
+                  />
                 </div>
-              ))}
-              {!projectRows.length && (
-                <div className="rounded-2xl border border-dashed border-slate-200 bg-white/70 p-5 text-center text-sm text-slate-500">
-                  Project health appears once active projects are created.
-                </div>
-              )}
-            </div>
+                <ul className="mt-4 grid gap-2 sm:grid-cols-2">
+                  {workQueueProjectRows.map((row, index) => (
+                    <li className="rounded-xl border border-slate-200/80 bg-white/80 px-3 py-2.5" key={row.name}>
+                      <div className="flex items-center gap-2">
+                        <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: WORK_QUEUE_CHART_COLORS[index % WORK_QUEUE_CHART_COLORS.length] }} />
+                        <span className="min-w-0 flex-1 truncate text-sm font-medium text-slate-700" title={row.name}>{row.name}</span>
+                        <span className="shrink-0 text-xs font-semibold tabular-nums text-slate-900">
+                          {row.value} <span className="font-normal text-slate-500">({Math.round((row.value / workQueueTotal) * 100)}%)</span>
+                        </span>
+                      </div>
+                      <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-100">
+                        <div
+                          className="h-full rounded-full"
+                          style={{
+                            width: `${(row.value / workQueueTotal) * 100}%`,
+                            backgroundColor: WORK_QUEUE_CHART_COLORS[index % WORK_QUEUE_CHART_COLORS.length],
+                          }}
+                        />
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : (
+              <div className="mt-4 grid h-[260px] place-items-center rounded-xl border border-dashed border-slate-200 bg-white/70 p-5 text-center text-sm text-slate-500">
+                No unassigned work queue bugs.
+              </div>
+            )}
           </section>
         </div>
       </CardContent>

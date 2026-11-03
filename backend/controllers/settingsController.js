@@ -32,6 +32,7 @@ const {
   buildWorkspaceSenderResponse,
 } = require("../utils/workspaceSender");
 const { normalizeWorkspaceId } = require("../utils/workspace");
+const { normalizeWorkPermissions } = require("../utils/workPermissions");
 const {
   getAIUsageAnalytics,
   getWorkspaceAISettings,
@@ -321,6 +322,8 @@ const saveModuleOwnerships = asyncHandler(async (req, res) => {
   const rows = Array.isArray(req.body?.ownerships) ? req.body.ownerships : [];
   const moduleNames = new Set();
   const normalizedRows = [];
+  const teamIds = new Set();
+  const developerIds = new Set();
 
   for (const row of rows) {
     const moduleName = String(row?.moduleName || "").trim();
@@ -347,15 +350,7 @@ const saveModuleOwnerships = asyncHandler(async (req, res) => {
         throw new Error(`Invalid team for ${moduleName}`);
       }
 
-      const team = await Team.findOne({
-        _id: teamId,
-        workspaceId,
-      }).lean();
-
-      if (!team) {
-        res.status(400);
-        throw new Error(`Team not found for ${moduleName}`);
-      }
+      teamIds.add(teamId);
     }
 
     if (developerId) {
@@ -364,15 +359,7 @@ const saveModuleOwnerships = asyncHandler(async (req, res) => {
         throw new Error(`Invalid developer for ${moduleName}`);
       }
 
-      const developer = await User.findOne({
-        _id: developerId,
-        workspaceId,
-      }).lean();
-
-      if (!developer) {
-        res.status(400);
-        throw new Error(`Developer not found for ${moduleName}`);
-      }
+      developerIds.add(developerId);
     }
 
     normalizedRows.push({
@@ -383,6 +370,31 @@ const saveModuleOwnerships = asyncHandler(async (req, res) => {
       updatedBy: req.user._id,
       updatedAt: new Date(),
     });
+  }
+
+  const [teams, developers] = await Promise.all([
+    teamIds.size
+      ? Team.find({ _id: { $in: Array.from(teamIds) }, workspaceId }).select("_id").lean()
+      : Promise.resolve([]),
+    developerIds.size
+      ? User.find({ _id: { $in: Array.from(developerIds) }, workspaceId }).select("_id").lean()
+      : Promise.resolve([]),
+  ]);
+  const availableTeamIds = new Set(teams.map((team) => String(team._id)));
+  const availableDeveloperIds = new Set(
+    developers.map((developer) => String(developer._id))
+  );
+
+  for (const row of normalizedRows) {
+    if (row.teamId && !availableTeamIds.has(row.teamId)) {
+      res.status(400);
+      throw new Error(`Team not found for ${row.moduleName}`);
+    }
+
+    if (row.developerId && !availableDeveloperIds.has(row.developerId)) {
+      res.status(400);
+      throw new Error(`Developer not found for ${row.moduleName}`);
+    }
   }
 
   const settings = await WorkspaceSetting.findOneAndUpdate(
@@ -427,6 +439,38 @@ const getScreenPermissions = asyncHandler(async (req, res) => {
 
   res.status(200).json({
     permissions: serializeScreenPermissions(settings?.screenPermissions || {}),
+  });
+});
+
+const getWorkPermissions = asyncHandler(async (req, res) => {
+  const workspaceId = normalizeWorkspaceId(req.user.workspaceId);
+  const settings = await WorkspaceSetting.findOne({ workspaceId })
+    .select("workPermissions")
+    .lean();
+
+  res.status(200).json({
+    permissions: normalizeWorkPermissions(settings?.workPermissions || {}),
+  });
+});
+
+const saveWorkPermissions = asyncHandler(async (req, res) => {
+  requireScreenPermissionSettingsAccess(req, res);
+  const workspaceId = normalizeWorkspaceId(req.user.workspaceId);
+  const permissions = normalizeWorkPermissions(req.body?.permissions || {});
+  const settings = await WorkspaceSetting.findOneAndUpdate(
+    { workspaceId },
+    {
+      $set: { workspaceId, workPermissions: permissions, updatedAt: new Date() },
+      $setOnInsert: { createdAt: new Date() },
+    },
+    { upsert: true, new: true, setDefaultsOnInsert: true }
+  )
+    .select("workPermissions")
+    .lean();
+
+  res.status(200).json({
+    message: "Work permissions saved.",
+    permissions: normalizeWorkPermissions(settings?.workPermissions || permissions),
   });
 });
 
@@ -1409,6 +1453,8 @@ module.exports = {
   testEmailConfig,
   getScreenPermissions,
   saveScreenPermissions,
+  getWorkPermissions,
+  saveWorkPermissions,
   getModuleOwnerships,
   saveModuleOwnerships,
   getWorkspaceSender,
