@@ -2791,6 +2791,37 @@ const mergeOrConditions = (query, conditions = []) => {
   return query;
 };
 
+const buildOtherBugCondition = () => {
+  const workQueueStatuses = AVAILABLE_BUG_QUEUE_STATUSES.filter(
+    (status) => status !== ISSUE_STATUS.REOPEN
+  );
+
+  return {
+    $nor: [
+      {
+        assignee: null,
+        assignedDeveloperId: null,
+        "bugDetails.developerLead": null,
+        status: { $in: workQueueStatuses },
+      },
+      { status: ISSUE_STATUS.ASSIGNED },
+      { status: ISSUE_STATUS.IN_PROGRESS },
+      buildReopenedIssueCondition(),
+      {
+        status: {
+          $in: [
+            ISSUE_STATUS.READY_FOR_QA,
+            ISSUE_STATUS.TESTING,
+            ISSUE_STATUS.FIXED,
+            ISSUE_STATUS.QA,
+          ],
+        },
+      },
+      buildClosedIssueCondition(),
+    ],
+  };
+};
+
 const getBugListSummary = async (query) => {
   const workQueueStatuses = AVAILABLE_BUG_QUEUE_STATUSES.filter(
     (status) => status !== ISSUE_STATUS.REOPEN
@@ -3011,6 +3042,8 @@ const buildIssueQueryFromRequest = async (
     addAndCondition(query, buildCriticalIssueCondition());
   } else if (filterAlias === "overdue") {
     addAndCondition(query, buildOverdueIssueCondition());
+  } else if (filterAlias === "other" || req.query.filter === "other") {
+    addAndCondition(query, buildOtherBugCondition());
   } else if (req.query.filter && req.query.filter !== "all") {
     res.status(400);
     throw new Error("Invalid issue filter");
@@ -3192,6 +3225,8 @@ const buildIssueQueryFromRequest = async (
       addAndCondition(query, { status: {
         $in: [ISSUE_STATUS.READY_FOR_QA, ISSUE_STATUS.TESTING, ISSUE_STATUS.FIXED, ISSUE_STATUS.QA],
       } });
+    } else if (lifecycle === "other") {
+      addAndCondition(query, buildOtherBugCondition());
     } else if (lifecycle === "resolved") {
       addAndCondition(query, { status: {
         $in: [ISSUE_STATUS.FIXED, ISSUE_STATUS.QA, ISSUE_STATUS.CLOSED, ISSUE_STATUS.DONE],
@@ -3205,18 +3240,20 @@ const buildIssueQueryFromRequest = async (
   if (req.query.bucket && req.query.bucket !== "all") {
     const bucketMode = String(req.query.bucket).trim().toLowerCase();
 
-    if (!["true", "1", "available", "unassigned"].includes(bucketMode)) {
+    if (bucketMode === "other") {
+      addAndCondition(query, buildOtherBugCondition());
+    } else if (!["true", "1", "available", "unassigned"].includes(bucketMode)) {
       res.status(400);
       throw new Error("Invalid bucket filter");
+    } else {
+      addAndCondition(query, {
+        type: ISSUE_TYPES.BUG,
+        assignee: null,
+        assignedDeveloperId: null,
+        "bugDetails.developerLead": null,
+        status: { $in: AVAILABLE_BUG_QUEUE_STATUSES },
+      });
     }
-
-    addAndCondition(query, {
-      type: ISSUE_TYPES.BUG,
-      assignee: null,
-      assignedDeveloperId: null,
-      "bugDetails.developerLead": null,
-      status: { $in: AVAILABLE_BUG_QUEUE_STATUSES },
-    });
   }
 
   if (req.query.epicId && req.query.epicId !== "all") {

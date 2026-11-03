@@ -120,7 +120,7 @@ const normalizePriorityQueryValue = (value) => {
 const normalizeLifecycleQueryValue = (value) => {
   const normalizedValue = String(value || "").trim().toLowerCase();
 
-  return ["open", "reopened", "fixed", "resolved"].includes(normalizedValue)
+  return ["open", "reopened", "fixed", "resolved", "other"].includes(normalizedValue)
     ? normalizedValue
     : "all";
 };
@@ -578,7 +578,7 @@ const OTHER_BUGS_VIEW = {
 };
 
 const getBugCardView = (value) =>
-  [...BUG_CARD_VIEWS, TOTAL_BUGS_VIEW].find(
+  [...BUG_CARD_VIEWS, OTHER_BUGS_VIEW, TOTAL_BUGS_VIEW].find(
     (view) => view.id === String(value || "").trim().toLowerCase()
   ) ||
   BUG_CARD_VIEWS[0];
@@ -632,6 +632,13 @@ const getCardViewFilterState = (viewId) => {
       ...baseFilters,
       filter: "reopened",
       lifecycle: "reopened",
+    };
+  }
+
+  if (view.id === "other") {
+    return {
+      ...baseFilters,
+      lifecycle: "other",
     };
   }
 
@@ -1306,6 +1313,18 @@ const AdminBugsPage = () => {
         return false;
       }
 
+      if (
+        filters.lifecycle === "other" &&
+        (isWorkQueueBug(bugIssue) ||
+          normalizeBugStatusForIssue(bugIssue) === ISSUE_STATUS.ASSIGNED ||
+          normalizeBugStatusForIssue(bugIssue) === ISSUE_STATUS.IN_PROGRESS ||
+          isReadyForQa(bugIssue) ||
+          isReopenedBug(bugIssue) ||
+          isClosedBug(bugIssue))
+      ) {
+        return false;
+      }
+
       return true;
     });
   }, [bugs, filters.developerId, filters.filter, filters.lifecycle, filters.severity, filters.testerId]);
@@ -1353,7 +1372,7 @@ const AdminBugsPage = () => {
     [pagination.total, summary, visibleBugs]
   );
   const activeCard =
-    [...BUG_CARD_VIEWS, TOTAL_BUGS_VIEW].find((view) => view.id === activeCardView) || {
+    [...BUG_CARD_VIEWS, OTHER_BUGS_VIEW, TOTAL_BUGS_VIEW].find((view) => view.id === activeCardView) || {
       label: "Filtered Bugs",
       description: "Quick filter results",
     };
@@ -2001,11 +2020,13 @@ const AdminBugsPage = () => {
           />
         ))}
         <MetricTile
+          active={activeCardView === OTHER_BUGS_VIEW.id}
           description={OTHER_BUGS_VIEW.description}
           icon={OTHER_BUGS_VIEW.icon}
           label={OTHER_BUGS_VIEW.label}
           value={metrics.other}
           tone={OTHER_BUGS_VIEW.tone}
+          onClick={() => applyCardView(OTHER_BUGS_VIEW.id)}
         />
         <MetricTile
           active={activeCardView === TOTAL_BUGS_VIEW.id}
