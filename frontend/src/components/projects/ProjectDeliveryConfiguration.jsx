@@ -266,6 +266,8 @@ const ProjectDeliveryConfiguration = ({
   const webhookEndpoint = normalizeWebhookEndpoint(config.git.webhookEndpoint, config.git.provider);
   const tokenReady = Boolean(config.git.tokenConfigured || config.git.token?.trim());
   const patChecklistComplete = Boolean(config.git.tokenAcknowledged && tokenReady);
+  const canTestConnection = typeof onTestConnection === "function";
+  const canSyncRepository = typeof onSyncNow === "function";
   const updateGit = (field, nextValue) => {
     const git = {
       ...config.git,
@@ -530,20 +532,31 @@ const ProjectDeliveryConfiguration = ({
           </label>
         </div>
 
-        <div className="mt-4 flex flex-wrap gap-2">
-          <Button type="button" className="h-9 rounded-xl" disabled={readOnly || isTestingConnection || !patChecklistComplete} onClick={() => onTestConnection?.(config)}>
-            <ShieldCheck className="h-4 w-4" />
-            {isTestingConnection ? "Testing..." : "Test Connection"}
-          </Button>
-          <Button type="button" variant="outline" className="h-9 rounded-xl" disabled={readOnly || isSyncing || !config.git.tokenConfigured} onClick={() => onSyncNow?.(config)}>
-            <RefreshCcw className="h-4 w-4" />
-            {isSyncing ? "Syncing..." : "Sync Now"}
-          </Button>
+        <div className="mt-4 flex flex-wrap items-center gap-2">
+          {canTestConnection ? (
+            <Button type="button" className="h-9 rounded-xl" disabled={readOnly || isTestingConnection || !patChecklistComplete} onClick={() => onTestConnection?.(config)}>
+              <ShieldCheck className="h-4 w-4" />
+              {isTestingConnection ? "Testing..." : "Test Connection"}
+            </Button>
+          ) : null}
+          {canSyncRepository ? (
+            <Button type="button" variant="outline" className="h-9 rounded-xl" disabled={readOnly || isSyncing || !config.git.tokenConfigured} onClick={() => onSyncNow?.(config)}>
+              <RefreshCcw className="h-4 w-4" />
+              {isSyncing ? "Syncing..." : "Sync Now"}
+            </Button>
+          ) : null}
           <span className={chipClassName}>
             <KeyRound className="h-3.5 w-3.5" />
             {config.git.tokenConfigured ? "Token stored securely" : "Token not saved"}
           </span>
         </div>
+        {!canTestConnection ? (
+          <p className="mt-2 text-xs text-slate-500">
+            {mode === "create"
+              ? "GitHub connection and token permissions are verified automatically when you create the project. Test Connection and Sync Now are available in the project's Git Configuration tab after creation."
+              : "Open the project's Git Configuration tab to test the connection or sync commits."}
+          </p>
+        ) : null}
 
         {[testResult, syncResult].filter(Boolean).map((result, index) => (
           <div

@@ -1245,7 +1245,7 @@ const createProject = asyncHandler(async (req, res) => {
     throw new Error("Project name must be unique");
   }
 
-  const repositoryInput = repository || git || {};
+  const repositoryInput = git || repository || {};
   const shouldRequireRepository = Boolean(git);
 
   if (shouldRequireRepository) {
