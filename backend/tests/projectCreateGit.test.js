@@ -297,4 +297,105 @@ test("createProject allows optional repository payload when git is omitted", asy
 
   assert.equal(res.statusCode, 201);
   assert.equal(createdPayload.repository.name, "");
+  assert.equal(createdPayload.git.enabled, false);
 });
+
+const stubProjectCreateWithoutGitHubCalls = () => {
+  const projectId = new mongoose.Types.ObjectId();
+  let createdPayload = null;
+  let fetchCalled = false;
+
+  Project.exists = async () => null;
+  Project.findOne = () => ({
+    select: () => ({
+      lean: async () => null,
+    }),
+  });
+  Project.create = async (payload) => {
+    createdPayload = payload;
+    return {
+      _id: projectId,
+      ...payload,
+    };
+  };
+  Project.findById = () => ({
+    populate() {
+      return this;
+    },
+    lean: async () => ({
+      _id: projectId,
+      name: createdPayload.name,
+      workspaceId: createdPayload.workspaceId,
+      tenantId: createdPayload.tenantId,
+      git: createdPayload.git,
+      repository: createdPayload.repository,
+      attachedTeams: [],
+      teamIds: [],
+      teams: [],
+    }),
+  });
+  ProjectTeam.find = () => ({
+    sort: () => ({
+      lean: async () => [],
+    }),
+  });
+  ProjectMember.find = () => ({
+    populate: () => ({
+      sort: () => ({
+        lean: async () => [],
+      }),
+    }),
+  });
+  Issue.countDocuments = async () => 0;
+  global.fetch = async () => {
+    fetchCalled = true;
+    throw new Error("GitHub API should not be called when Git configuration is skipped");
+  };
+
+  return {
+    getCreatedPayload: () => createdPayload,
+    wasFetchCalled: () => fetchCalled,
+  };
+};
+
+for (const testCase of [
+  {
+    name: "createProject succeeds with git.enabled=false and omits repository verification",
+    git: { enabled: false },
+  },
+  {
+    name: "createProject ignores autofilled token when git.enabled=false",
+    git: { enabled: false, token: "autofilled-password" },
+  },
+  {
+    name: "createProject succeeds with an empty git object and persists git.enabled=false",
+    git: {},
+  },
+  {
+    name: "createProject skips validation when git.enabled=true but all git inputs are empty",
+    git: {
+      enabled: true,
+      repositoryOwner: "",
+      repositoryName: "",
+      repositoryUrl: "",
+      token: "",
+    },
+  },
+]) {
+  test(testCase.name, async () => {
+    const tracker = stubProjectCreateWithoutGitHubCalls();
+
+    const res = await invokeCreateProject({
+      name: `Optional Git Project - ${testCase.name}`,
+      deliveryModules: [{ name: "Login" }],
+      git: testCase.git,
+    });
+
+    const createdPayload = tracker.getCreatedPayload();
+    assert.equal(res.statusCode, 201);
+    assert.equal(tracker.wasFetchCalled(), false);
+    assert.equal(createdPayload.git.enabled, false);
+    assert.equal(createdPayload.repository.enabled, false);
+    assert.equal(createdPayload.repository.webhookEnabled, false);
+  });
+}

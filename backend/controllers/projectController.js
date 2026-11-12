@@ -347,6 +347,23 @@ const parseGitHubRepositoryUrl = (url = "") => {
   }
 };
 
+const hasGitCreateInput = (gitInput) => {
+  if (!gitInput || typeof gitInput !== "object" || gitInput.enabled === false) {
+    return false;
+  }
+
+  return [
+    gitInput.repositoryOwner,
+    gitInput.owner,
+    gitInput.repositoryName,
+    gitInput.name,
+    gitInput.repositoryUrl,
+    gitInput.url,
+    gitInput.token,
+    gitInput.personalAccessToken,
+  ].some((value) => Boolean(normalizeString(value)));
+};
+
 const normalizeGitConfiguration = ({ payload = {}, project = {}, tokenRequired = false } = {}) => {
   const incoming = payload.git || payload.repository || {};
   const existingGit = project.git || {};
@@ -1245,8 +1262,9 @@ const createProject = asyncHandler(async (req, res) => {
     throw new Error("Project name must be unique");
   }
 
+  const shouldConfigureGit = hasGitCreateInput(git);
   const repositoryInput = git || repository || {};
-  const shouldRequireRepository = Boolean(git);
+  const shouldRequireRepository = shouldConfigureGit;
 
   if (shouldRequireRepository) {
     const requiredRepositoryFields = [
@@ -1358,7 +1376,7 @@ const createProject = asyncHandler(async (req, res) => {
   const normalizedEpicInputs = normalizeProjectEpicInputs(epics);
   let createGitPatch = {};
 
-  if (git) {
+  if (shouldConfigureGit) {
     if (!canConfigureProjectDelivery(req.user.role)) {
       res.status(403);
       throw new Error("Only Admins and Managers can create Git settings");
@@ -1434,9 +1452,26 @@ const createProject = asyncHandler(async (req, res) => {
     tenantId,
     createdBy: userId,
     isCompleted: statusResult.value === "Completed",
+    ...(!createGitPatch.git
+      ? {
+          git: {
+            enabled: false,
+          },
+        }
+      : {}),
     ...buildDeliveryWorkflowPatch(
       {
-        ...(createGitPatch.git ? {} : { repository }),
+        ...(createGitPatch.git
+          ? {}
+          : {
+              repository:
+                repository && typeof repository === "object"
+                  ? repository
+                  : {
+                      enabled: false,
+                      webhookEnabled: false,
+                    },
+            }),
         ...(createGitPatch.git ? { git: createGitPatch.git } : {}),
         deliveryWorkflow,
         deliveryModules,
