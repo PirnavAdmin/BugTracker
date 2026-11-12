@@ -18,6 +18,7 @@ import {
   ROLE_TESTER,
 } from "@/lib/roles";
 import { getWorkspaceSenderResponseState } from "@/lib/workspaceSender";
+import { getTestEmailNotice } from "@/lib/testEmailResult";
 import { useAuth } from "@/hooks/use-auth";
 import { useEmailSettings } from "@/hooks/useEmailSettings";
 import { useWorkspaceSender } from "@/hooks/useWorkspaceSender";
@@ -97,11 +98,12 @@ const UserSettingsPage = () => {
   const [selectedSenderId, setSelectedSenderId] = useState("");
   const [isSenderDirty, setIsSenderDirty] = useState(false);
 
-  const showToast = (type, message) => {
+  const showToast = (type, message, title) => {
     setToast({
       id: Date.now(),
       type,
       message,
+      title,
     });
   };
 
@@ -708,7 +710,8 @@ const UserSettingsPage = () => {
           fromEmail: testerEmailConfig.fromEmail,
         });
 
-        showToast("success", response?.message || "Test email sent successfully.");
+        const notice = getTestEmailNotice(response);
+        showToast(notice.type, notice.message, notice.title);
       } catch (mutationError) {
         showToast(
           "error",
@@ -747,7 +750,8 @@ const UserSettingsPage = () => {
         fromEmail: activeSenderEmailConfig.fromEmail,
       });
 
-      showToast("success", response?.message || "Test email sent successfully.");
+      const notice = getTestEmailNotice(response);
+      showToast(notice.type, notice.message, notice.title);
     } catch (mutationError) {
       showToast(
         "error",

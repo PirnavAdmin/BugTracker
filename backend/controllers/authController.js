@@ -4,6 +4,7 @@ const path = require("path");
 const User = require("../models/User");
 const TeamMember = require("../models/TeamMember");
 const { sendWorkspaceEmail } = require("../services/emailService");
+const { publicSmtpFailure } = require("../utils/smtpDelivery");
 const asyncHandler = require("../utils/asyncHandler");
 const { DEFAULT_USER } = require("../utils/defaultUser");
 const generateToken = require("../utils/generateToken");
@@ -433,7 +434,7 @@ const changePassword = asyncHandler(async (req, res) => {
   });
 });
 
-const sendPasswordResetEmail = ({ email, name, otp, workspaceId }) => {
+const sendPasswordResetEmail = ({ email, name, otp, workspaceId, tenantId }) => {
   const subject = "Your Pirnav password reset OTP";
   const text = [
     `Hello ${name || "there"},`,
@@ -444,6 +445,7 @@ const sendPasswordResetEmail = ({ email, name, otp, workspaceId }) => {
 
   return sendWorkspaceEmail({
     workspaceId,
+    tenantId,
     to: email,
     subject,
     html: `
@@ -478,7 +480,7 @@ const requestPasswordReset = asyncHandler(async (req, res) => {
   );
 
   const responseMessage =
-    "If an account exists for this email, an OTP has been sent.";
+    "If an account exists for this email, a password reset email has been requested. Check your inbox; delivery is not guaranteed.";
 
   if (!user) {
     res.status(200).json({ message: responseMessage });
@@ -507,12 +509,26 @@ const requestPasswordReset = asyncHandler(async (req, res) => {
       name: user.name,
       otp,
       workspaceId: user.workspaceId,
+      tenantId: user.tenantId,
     });
   } catch (error) {
     user.passwordResetOtpHash = "";
     user.passwordResetOtpExpiresAt = null;
+    user.passwordResetRequestedAt = null;
     await user.save();
-    throw error;
+    // Keep transport failures visible without returning raw SMTP replies, From
+    // identities, or OTP content through this public authentication endpoint.
+    console.error("[auth] Password reset email failed", {
+      ...publicSmtpFailure(error),
+      workspaceId: user.workspaceId,
+      tenantId: user.tenantId || "",
+      senderSource: ["workspace", "default"].includes(error.senderSource) ? error.senderSource : "unknown",
+    });
+    res.status(503);
+    throw Object.assign(new Error("Password reset email could not be accepted. Please try again later or contact support."), {
+      code: "PASSWORD_RESET_EMAIL_FAILED",
+      statusCode: 503,
+    });
   }
 
   res.status(200).json({ message: responseMessage });

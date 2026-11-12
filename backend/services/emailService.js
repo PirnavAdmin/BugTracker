@@ -4,6 +4,8 @@ const User = require("../models/User");
 const UserEmailConfig = require("../models/UserEmailConfig");
 const WorkspaceSetting = require("../models/WorkspaceSetting");
 const { decryptSecret } = require("../utils/emailCrypto");
+const { getDeliveryReceipt, logSmtpFailure } = require("../utils/smtpDelivery");
+const { normalizeTenantId } = require("../utils/tenant");
 const {
   hasTesterAccess,
   isEligibleWorkspaceSenderRole,
@@ -407,7 +409,6 @@ const buildTransportDebugPayload = ({
     smtpUser: normalizedConfig.username,
     fromEmail: normalizedConfig.fromEmail,
     hasPassword: Boolean(normalizedConfig.password),
-    passwordLength: String(normalizedConfig.password || "").length,
   };
 };
 
@@ -567,6 +568,7 @@ const loadUserMailerConfig = async ({
   workspaceId,
   allowSelfSenderUserId = null,
   sourceLabel = "Sender",
+  tenantId = "",
 }) => {
   const normalizedWorkspaceId = workspaceId ? normalizeWorkspaceId(workspaceId) : "";
 
@@ -591,6 +593,7 @@ const loadUserMailerConfig = async ({
   const senderUser = await User.findOne({
     _id: userId,
     workspaceId: normalizedWorkspaceId,
+    ...(normalizeTenantId(tenantId) ? { tenantId: normalizeTenantId(tenantId) } : {}),
   })
     .select("_id name email role workspaceId")
     .lean();
@@ -783,7 +786,7 @@ const getRequiredUserMailer = async ({
   });
 };
 
-const loadWorkspaceMailerConfig = async (workspaceId) => {
+const loadWorkspaceMailerConfig = async (workspaceId, { tenantId = "" } = {}) => {
   const normalizedWorkspaceId = normalizeWorkspaceId(workspaceId);
 
   const settings = await WorkspaceSetting.findOne({
@@ -824,6 +827,7 @@ const loadWorkspaceMailerConfig = async (workspaceId) => {
     userId: workspaceSenderUserId,
     workspaceId: normalizedWorkspaceId,
     sourceLabel: "Workspace default sender",
+    tenantId,
   });
 };
 
@@ -952,7 +956,7 @@ const loadManualSenderPreferenceConfig = async ({
   };
 };
 
-const getWorkspaceMailer = async (workspaceId, { overrideConfig = null } = {}) => {
+const getWorkspaceMailer = async (workspaceId, { overrideConfig = null, tenantId = "" } = {}) => {
   const normalizedWorkspaceId = workspaceId ? normalizeWorkspaceId(workspaceId) : "";
 
   if (overrideConfig) {
@@ -976,7 +980,7 @@ const getWorkspaceMailer = async (workspaceId, { overrideConfig = null } = {}) =
   }
 
   if (normalizedWorkspaceId) {
-    const workspaceMailerConfig = await loadWorkspaceMailerConfig(normalizedWorkspaceId);
+    const workspaceMailerConfig = await loadWorkspaceMailerConfig(normalizedWorkspaceId, { tenantId });
 
     if (workspaceMailerConfig.config) {
       return buildMailerResult({
@@ -1190,8 +1194,19 @@ const sendMailWithMailer = async ({
     text,
   });
 
+  const deliveryReceipt = getDeliveryReceipt(info, {
+    recipients: [...toRecipients, ...ccRecipients, ...bccRecipients],
+    secrets: [mailer.config.password, ...(String(text || "").match(/\b\d{6}\b/g) || [])],
+  });
+  console.info("[email] SMTP acceptance", {
+    workspaceId: mailer.workspaceId,
+    senderSource: mailer.senderSource,
+    ...deliveryReceipt,
+  });
+
   return {
     info,
+    deliveryReceipt,
     from: mailer.from,
     replyTo: mailer.replyTo,
     authUser: mailer.config.username,
@@ -1204,6 +1219,7 @@ const sendMailWithMailer = async ({
 
 const sendWorkspaceEmail = async ({
   workspaceId,
+  tenantId = "",
   to,
   cc,
   bcc,
@@ -1222,19 +1238,25 @@ const sendWorkspaceEmail = async ({
 
   const workspaceMailer = await getWorkspaceMailer(workspaceId, {
     overrideConfig,
+    tenantId,
   });
 
-  return sendMailWithMailer({
-    mailer: workspaceMailer,
-    workspaceId,
-    to: toRecipients,
-    cc: ccRecipients,
-    bcc: bccRecipients,
-    subject,
-    html,
-    text,
-    logLabel: "sendWorkspaceEmail",
-  });
+  try {
+    return await sendMailWithMailer({
+      mailer: workspaceMailer,
+      workspaceId,
+      to: toRecipients,
+      cc: ccRecipients,
+      bcc: bccRecipients,
+      subject,
+      html,
+      text,
+      logLabel: "sendWorkspaceEmail",
+    });
+  } catch (error) {
+    error.senderSource = workspaceMailer.senderSource;
+    throw error;
+  }
 };
 
 const sendUserNotificationEmail = async ({
@@ -1398,7 +1420,7 @@ const sendIssueNotificationEmail = async ({
     } catch (error) {
       lastError = error;
 
-      console.error("[email] Issue notification send attempt failed", {
+      logSmtpFailure("[email] Issue notification send attempt failed", {
         attempt: index + 1,
         senderSource: candidateMailer?.senderSource || "unknown",
         from: candidateMailer?.from || "",
@@ -1468,7 +1490,7 @@ const sendPreferredUserNotificationEmail = async ({
     } catch (error) {
       lastError = error;
 
-      console.error("[email] Preferred user send attempt failed", {
+      logSmtpFailure("[email] Preferred user send attempt failed", {
         attempt: index + 1,
         senderSource: candidateMailer?.senderSource || "unknown",
         from: candidateMailer?.from || "",

@@ -1,0 +1,63 @@
+const test = require("node:test");
+const assert = require("node:assert/strict");
+const nodemailer = require("nodemailer");
+const User = require("../models/User");
+const Config = require("../models/UserEmailConfig");
+const Settings = require("../models/WorkspaceSetting");
+const { encryptSecret } = require("../utils/emailCrypto");
+const { sendWorkspaceEmail, sendTestEmail } = require("../services/emailService");
+const query = (value) => ({ select() { return this; }, async lean() { return value; } });
+const profile = { host: "smtp.workspace.test", port: 465, secure: true, username: "workspace-auth@example.test", password: "test-password", fromName: "Workspace", fromEmail: "workspace-authorized@example.test" };
+const setup = (t) => {
+  const keys = ["EMAIL_CONFIG_SECRET", "EMAIL_HOST", "EMAIL_PORT", "EMAIL_SECURE", "EMAIL_USER", "EMAIL_PASS", "EMAIL_FROM"];
+  const oldEnv = Object.fromEntries(keys.map((key) => [key, process.env[key]]));
+  const old = { create: nodemailer.createTransport, user: User.findOne, config: Config.findOne, settings: Settings.findOne, log: console.log };
+  t.after(() => { nodemailer.createTransport = old.create; User.findOne = old.user; Config.findOne = old.config; Settings.findOne = old.settings; console.log = old.log; for (const key of keys) { if (oldEnv[key] === undefined) delete process.env[key]; else process.env[key] = oldEnv[key]; } });
+  Object.assign(process.env, { EMAIL_CONFIG_SECRET: "test-key", EMAIL_HOST: "smtp.global.test", EMAIL_PORT: "465", EMAIL_SECURE: "true", EMAIL_USER: "global-auth@example.test", EMAIL_PASS: "global-test-password", EMAIL_FROM: "Service <global-authorized@example.test>" });
+  console.log = () => {};
+  const options = [], messages = [];
+  nodemailer.createTransport = (config) => { options.push(config); return { async sendMail(message) { messages.push(message); return { accepted: [message.to], rejected: [], response: "250 2.0.0 queued", messageId: "<abcdefab-abcd-abcd-abcd-abcdefabcdef@example.test>" }; } }; };
+  Settings.findOne = (filter) => { assert.equal(filter.workspaceId, "workspace-test"); return query({ workspaceSender: { enabled: true, userId: "default-sender" } }); };
+  User.findOne = (filter) => { assert.equal(filter.workspaceId, "workspace-test"); assert.equal(filter.tenantId, "TENANT_001"); return query({ _id: "default-sender", email: "profile@example.test", role: "Admin" }); };
+  Config.findOne = (filter) => { assert.equal(filter.userId, "default-sender"); return query({ ...profile, passwordEncrypted: encryptSecret("stored-password") }); };
+  return { options, messages };
+};
+test("test override is real SMTP mode, independent login/from, and no workspace/global fallback", async (t) => {
+  const { options, messages } = setup(t);
+  Settings.findOne = () => assert.fail("Explicit test configuration must not read defaults");
+  const result = await sendTestEmail({ workspaceId: "workspace-test", to: "recipient@example.test", overrideConfig: profile });
+  assert.equal(options.length, 1);
+  assert.equal(options[0].host, profile.host);
+  assert.equal(options[0].auth.user, profile.username);
+  assert.equal(options[0].secure, true);
+  assert.equal(options[0].jsonTransport, undefined);
+  assert.equal(options[0].streamTransport, undefined);
+  assert.equal(messages[0].from, "Workspace <workspace-authorized@example.test>");
+  assert.equal(result.deliveryReceipt.status, "smtp_accepted");
+});
+test("authentication mail uses database workspace default before global, not manual preference", async (t) => {
+  const { messages } = setup(t);
+  const payload = { workspaceId: "workspace-test", tenantId: "TENANT_001", to: "recipient@example.test", text: "OTP 123456", subject: "Reset" };
+  const result = await sendWorkspaceEmail(payload);
+  assert.equal(result.senderSource, "workspace");
+  assert.equal(messages[0].from, "Workspace <workspace-authorized@example.test>");
+  Settings.findOne = () => query(null);
+  const fallback = await sendWorkspaceEmail(payload);
+  assert.equal(fallback.senderSource, "default");
+  assert.equal(messages[1].from, "Service <global-authorized@example.test>");
+});
+test("cross-tenant default sender is excluded and only approved global fallback is used", async (t) => {
+  const { messages } = setup(t);
+  User.findOne = (filter) => { assert.equal(filter.tenantId, "TENANT_001"); return query(null); };
+  Config.findOne = () => assert.fail("Other tenant's credentials must never be read");
+  const result = await sendWorkspaceEmail({ workspaceId: "workspace-test", tenantId: "TENANT_001", to: "recipient@example.test", text: "OTP 123456" });
+  assert.equal(result.senderSource, "default");
+  assert.equal(messages[0].from, "Service <global-authorized@example.test>");
+});
+test("send errors propagate; SMTP rejection does not retry global authentication mail", async (t) => {
+  setup(t);
+  let attempts = 0;
+  nodemailer.createTransport = () => ({ async sendMail() { attempts++; throw Object.assign(new Error("sender refused"), { code: "EENVELOPE", responseCode: 553 }); } });
+  await assert.rejects(sendWorkspaceEmail({ workspaceId: "workspace-test", tenantId: "TENANT_001", to: "recipient@example.test", text: "OTP 123456" }), (error) => error.responseCode === 553 && error.senderSource === "workspace");
+  assert.equal(attempts, 1);
+});

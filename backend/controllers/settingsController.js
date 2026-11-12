@@ -12,6 +12,8 @@ const {
 } = require("../services/emailService");
 const asyncHandler = require("../utils/asyncHandler");
 const { decryptSecret, encryptSecret } = require("../utils/emailCrypto");
+const { getDeliveryReceipt, publicSmtpFailure, deliveryError } = require("../utils/smtpDelivery");
+const { withTenantFilter } = require("../utils/tenant");
 const {
   ROLE_ADMIN,
   ROLE_MANAGER,
@@ -574,10 +576,10 @@ const resolveAccessibleSenderUser = async ({
     throw new Error("Please provide a valid sender user");
   }
 
-  const user = await User.findOne({
+  const user = await User.findOne(withTenantFilter({
     _id: userId,
     workspaceId,
-  })
+  }, requestUser))
     .select("_id name email role workspaceId senderPreference")
     .lean();
 
@@ -1211,14 +1213,20 @@ const testEmailConfig = asyncHandler(async (req, res) => {
   })
     .select("+passwordEncrypted host port secure username fromName fromEmail")
     .lean();
+  let storedPassword = "";
+  if (!normalizeSubmittedPassword(req.body.password) && existingConfig?.passwordEncrypted) {
+    try {
+      storedPassword = decryptSecret(existingConfig.passwordEncrypted);
+    } catch {
+      return res.status(400).json(publicSmtpFailure({ code: "SMTP_CREDENTIALS_UNREADABLE" }));
+    }
+  }
   const nextConfig = buildConfigFromRequest({
     body: req.body,
     existingConfig: existingConfig
       ? {
           ...existingConfig,
-          password: existingConfig.passwordEncrypted
-            ? decryptSecret(existingConfig.passwordEncrypted)
-            : "",
+          password: storedPassword,
         }
       : null,
   });
@@ -1235,19 +1243,23 @@ const testEmailConfig = asyncHandler(async (req, res) => {
   }
 
   try {
-    await sendTestEmail({
+    const recipient = String(req.user.email || "").trim().toLowerCase();
+    if (!isValidEmailAddress(recipient)) throw deliveryError("SMTP_RECIPIENT_REQUIRED");
+    const result = await sendTestEmail({
       to: req.user.email,
       workspaceId,
       overrideConfig: nextConfig,
     });
+    const delivery = getDeliveryReceipt(result?.info, { recipients: [recipient], secrets: [nextConfig.password] });
+    console.info("[email] Test SMTP acceptance", { workspaceId, senderUserId: userId, ...delivery });
+    return res.status(200).json({
+      message: `The SMTP provider accepted the test email for ${recipient}. Inbox delivery is not confirmed; check provider delivery logs if it does not arrive.`,
+      recipient,
+      delivery,
+    });
   } catch (error) {
-    res.status(400);
-    throw new Error(getEmailSendFailureMessage(error));
+    return res.status(400).json(publicSmtpFailure(error));
   }
-
-  res.status(200).json({
-    message: "Test email sent successfully",
-  });
 });
 
 const getEligibleSenders = asyncHandler(async (req, res) => {

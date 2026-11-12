@@ -248,6 +248,7 @@ const WorkspaceMailSenderCard = ({
                 </div>
               </div>
 
+              <p className="text-xs text-slate-500">SMTP Configured means settings are saved. Send Test Mail checks SMTP acceptance, not Inbox delivery.</p>
               <div className="flex flex-col gap-2 sm:flex-row">
                 {!isUsingGlobalFallback ? (
                   <Button
