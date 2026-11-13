@@ -159,6 +159,11 @@ const projectSchema = new Schema(
       },
       default: "Medium",
     },
+    favoriteUserIds: {
+      type: [{ type: Schema.Types.ObjectId, ref: "User" }],
+      default: [],
+      select: false,
+    },
     themeColor: {
       type: String,
       trim: true,

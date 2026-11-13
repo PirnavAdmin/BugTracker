@@ -2,6 +2,7 @@ const express = require("express");
 const { tenantCache, tenantCacheInvalidation } = require("../middleware/tenantCache");
 const {
   getProjects,
+  updateProjectFavorite,
   getProjectTeams,
   createProject,
   updateProject,
@@ -34,6 +35,7 @@ const PROJECT_CACHE_RESOURCES = [
 
 router.get("/", auth, tenantCache({ resource: "projects" }), getProjects);
 router.post("/", auth, tenantCacheInvalidation(PROJECT_CACHE_RESOURCES), createProject);
+router.patch("/:id/favorite", auth, tenantCacheInvalidation(PROJECT_CACHE_RESOURCES), updateProjectFavorite);
 router.patch("/:id", auth, tenantCacheInvalidation(PROJECT_CACHE_RESOURCES), updateProject);
 router.patch("/:id/leadership", auth, tenantCacheInvalidation(PROJECT_CACHE_RESOURCES), updateProjectLeadership);
 router.patch("/:id/delivery-workflow", auth, tenantCacheInvalidation(PROJECT_CACHE_RESOURCES), updateProjectDeliveryWorkflow);
