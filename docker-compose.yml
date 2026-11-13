@@ -1,8 +1,42 @@
+services:
+  mongo:
+    image: 384489631175.dkr.ecr.ap-south-1.amazonaws.com/curecode-mongo:latest
+    container_name: bug-tracking-mongo
+    restart: unless-stopped
+
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USERNAME:-bugtracker}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD:-bugtracker}
+      MONGO_INITDB_DATABASE: ${MONGO_APP_DATABASE:-bugtracker}
+
+    expose:
+      - "27017"
+
+    volumes:
+      - mongo-data:/data/db
+
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          'mongosh --quiet --username "$${MONGO_INITDB_ROOT_USERNAME}" --password "$${MONGO_INITDB_ROOT_PASSWORD}" --authenticationDatabase admin --eval "db.adminCommand(''ping'').ok" | grep 1',
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   backend:
     build:
       context: ./backend
       dockerfile: Dockerfile
+
     image: curecode-backend:latest
     container_name: bug-tracking-backend
     restart: unless-stopped
@@ -78,10 +112,70 @@
         max-size: "20m"
         max-file: "5"
 
+  redis:
+    image: redis:7-alpine
+    container_name: bug-tracking-redis
+    restart: unless-stopped
+
+    expose:
+      - "6379"
+
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  coturn:
+    image: coturn/coturn
+    container_name: coturn
+    restart: unless-stopped
+
+    network_mode: host
+
+    command: >
+      -n
+      --realm=curecode.site
+      --listening-ip=${TURN_LISTENING_IP:-172.31.6.195}
+      --relay-ip=${TURN_RELAY_IP:-172.31.6.195}
+      --external-ip=${TURN_EXTERNAL_IP:-3.109.251.146}/${TURN_RELAY_IP:-172.31.6.195}
+      --listening-port=3478
+      --tls-listening-port=5349
+      --min-port=49160
+      --max-port=49200
+      --lt-cred-mech
+      --user=${TURN_USERNAME:-turnuser}:${TURN_PASSWORD:?Set TURN_PASSWORD in production .env}
+      --fingerprint
+      --no-multicast-peers
+      --no-cli
+
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+
+      args:
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-/api}
+        VITE_ENABLE_ADMIN_DEFAULT_LOGIN: ${VITE_ENABLE_ADMIN_DEFAULT_LOGIN:-true}
+        VITE_DEBUG_TEAM_SELECTION: ${VITE_DEBUG_TEAM_SELECTION:-false}
+        VITE_STUN_URL: ${VITE_STUN_URL:-stun:stun.l.google.com:19302}
+        VITE_TURN_URL: ${VITE_TURN_URL:-}
+        VITE_TURN_USERNAME: ${VITE_TURN_USERNAME:-}
+        VITE_TURN_CREDENTIAL: ${VITE_TURN_CREDENTIAL:-}
+        VITE_ICE_TRANSPORT_POLICY: ${VITE_ICE_TRANSPORT_POLICY:-all}
+
     image: curecode-frontend:latest
     container_name: bug-tracking-frontend
     restart: unless-stopped
@@ -98,3 +192,8 @@
       options:
         max-size: "10m"
         max-file: "3"
+
+volumes:
+  mongo-data:
+    external: true
+    name: bug-tracking_mongo-data
