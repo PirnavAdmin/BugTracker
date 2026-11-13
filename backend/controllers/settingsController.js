@@ -1398,6 +1398,13 @@ const saveWorkspaceSender = asyncHandler(async (req, res) => {
       updatedByUserId: req.user._id,
     });
 
+    if (hasAdminAccess(req.user.role) || hasWorkspaceMailAccess(req.user.role)) {
+      await clearWorkspaceSenderSelection({
+        workspaceId,
+        userId: req.user._id,
+      });
+    }
+
     const effectiveSender = await resolveEffectiveSenderSelection({
       workspaceId,
       ownerUserId: req.user._id,
@@ -1441,6 +1448,14 @@ const saveWorkspaceSender = asyncHandler(async (req, res) => {
     updatedByUserId: req.user._id,
   });
 
+  if (hasAdminAccess(req.user.role) || hasWorkspaceMailAccess(req.user.role)) {
+    await saveWorkspaceSenderSelection({
+      workspaceId,
+      senderUserId: senderUser._id,
+      updatedByUserId: req.user._id,
+    });
+  }
+
   const effectiveSender = await resolveEffectiveSenderSelection({
     workspaceId,
     ownerUserId: req.user._id,
@@ -1450,7 +1465,9 @@ const saveWorkspaceSender = asyncHandler(async (req, res) => {
 
   res.status(200).json(
     buildWorkspaceSenderResponse({
-      message: `${senderUser.name} is now the active sender for your account`,
+      message: hasAdminAccess(req.user.role) || hasWorkspaceMailAccess(req.user.role)
+        ? `${senderUser.name} is now the active sender for this workspace`
+        : `${senderUser.name} is now the active sender for your account`,
       senderSelection: effectiveSender,
     })
   );
