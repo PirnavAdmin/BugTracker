@@ -1,9 +1,7 @@
 services:
   mongo:
     image: 384489631175.dkr.ecr.ap-south-1.amazonaws.com/curecode-mongo:latest
-
     container_name: bug-tracking-mongo
-
     restart: unless-stopped
 
     environment:
@@ -11,8 +9,9 @@ services:
       MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD:-bugtracker}
       MONGO_INITDB_DATABASE: ${MONGO_APP_DATABASE:-bugtracker}
 
-    ports:
-      - "${MONGO_PORT:-27017}:27017"
+    # MongoDB is internal to Docker
+    expose:
+      - "27017"
 
     volumes:
       - mongo-data:/data/db
@@ -21,18 +20,22 @@ services:
       test:
         [
           "CMD-SHELL",
-          "mongosh --quiet --username \"$${MONGO_INITDB_ROOT_USERNAME}\" --password \"$${MONGO_INITDB_ROOT_PASSWORD}\" --authenticationDatabase admin --eval \"db.adminCommand('ping').ok\" | grep 1"
+          'mongosh --quiet --username "$${MONGO_INITDB_ROOT_USERNAME}" --password "$${MONGO_INITDB_ROOT_PASSWORD}" --authenticationDatabase admin --eval "db.adminCommand(''ping'').ok" | grep 1',
         ]
       interval: 10s
       timeout: 5s
       retries: 12
       start_period: 20s
 
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
   backend:
     image: 384489631175.dkr.ecr.ap-south-1.amazonaws.com/curecode-backend:latest
-
     container_name: bug-tracking-backend
-
     restart: unless-stopped
 
     environment:
@@ -47,6 +50,7 @@ services:
 
       ADMIN_DEFAULT_PASSWORD: ${ADMIN_DEFAULT_PASSWORD:-admin123}
       ENABLE_ADMIN_DEFAULT_LOGIN: ${ENABLE_ADMIN_DEFAULT_LOGIN:-true}
+
       PLATFORM_ADMIN_NAME: ${PLATFORM_ADMIN_NAME:-CureCode SaaS Owner}
       PLATFORM_ADMIN_EMAIL: ${PLATFORM_ADMIN_EMAIL:-}
       PLATFORM_ADMIN_PASSWORD: ${PLATFORM_ADMIN_PASSWORD:-}
@@ -65,7 +69,7 @@ services:
       CASHFREE_APP_ID: ${CASHFREE_APP_ID}
       CASHFREE_SECRET_KEY: ${CASHFREE_SECRET_KEY}
 
-      AWS_REGION: ${AWS_REGION:-}
+      AWS_REGION: ${AWS_REGION:-ap-south-1}
       AWS_S3_BUCKET: ${AWS_S3_BUCKET:-}
       AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
       AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
@@ -73,10 +77,12 @@ services:
       BEDROCK_REGION: ${BEDROCK_REGION:-ap-south-1}
       BEDROCK_MODEL_ID: ${BEDROCK_MODEL_ID:-global.amazon.nova-2-lite-v1:0}
 
+      TURN_USERNAME: ${TURN_USERNAME:-turnuser}
+      TURN_PASSWORD: ${TURN_PASSWORD}
+
     depends_on:
       redis:
         condition: service_healthy
-
       mongo:
         condition: service_healthy
 
@@ -90,22 +96,27 @@ services:
       test:
         [
           "CMD-SHELL",
-          "node -e \"fetch('http://127.0.0.1:5000/api/health').then((response) => process.exit(response.ok ? 0 : 1)).catch(() => process.exit(1))\""
+          'node -e "fetch(''http://127.0.0.1:5000/api/health'').then((response) => process.exit(response.ok ? 0 : 1)).catch(() => process.exit(1))"',
         ]
-      interval: 10s
+      interval: 15s
       timeout: 10s
       retries: 30
       start_period: 180s
 
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "5"
+
   redis:
     image: redis:7-alpine
-
     container_name: bug-tracking-redis
-
     restart: unless-stopped
 
-    ports:
-      - "6379:6379"
+    # Redis is internal to Docker
+    expose:
+      - "6379"
 
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
@@ -113,11 +124,15 @@ services:
       timeout: 5s
       retries: 12
 
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
   coturn:
     image: coturn/coturn
-
     container_name: coturn
-
     restart: unless-stopped
 
     network_mode: host
@@ -133,16 +148,20 @@ services:
       --min-port=49160
       --max-port=49200
       --lt-cred-mech
-      --user=${TURN_USERNAME:-turnuser}:${TURN_PASSWORD:?Set TURN_PASSWORD in the production .env file}
+      --user=${TURN_USERNAME:-turnuser}:${TURN_PASSWORD:?Set TURN_PASSWORD in production .env}
       --fingerprint
       --no-multicast-peers
       --no-cli
 
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
   frontend:
     image: 384489631175.dkr.ecr.ap-south-1.amazonaws.com/curecode-frontend:latest
-
     container_name: bug-tracking-frontend
-
     restart: unless-stopped
 
     depends_on:
@@ -152,9 +171,13 @@ services:
     ports:
       - "${FRONTEND_PORT:-3000}:80"
 
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
 
 volumes:
   mongo-data:
     external: true
     name: bug-tracking_mongo-data
-
