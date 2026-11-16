@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Activity, RefreshCw, Users2 } from "lucide-react";
 import { fetchTeamActivity } from "@/lib/api";
@@ -13,20 +13,27 @@ const statusMeta = {
     label: "Active",
     variant: "success",
     dotClassName: "bg-emerald-500",
+    activeCardClass: "border-emerald-500/60 bg-emerald-50/70 shadow-sm ring-2 ring-emerald-500/20",
+    hoverCardClass: "hover:border-emerald-300 hover:bg-emerald-50/30",
   },
   idle: {
     label: "Idle",
     variant: "warning",
     dotClassName: "bg-amber-500",
+    activeCardClass: "border-amber-500/60 bg-amber-50/70 shadow-sm ring-2 ring-amber-500/20",
+    hoverCardClass: "hover:border-amber-300 hover:bg-amber-50/30",
   },
   offline: {
     label: "Offline",
     variant: "secondary",
     dotClassName: "bg-slate-400",
+    activeCardClass: "border-slate-500/60 bg-slate-100/80 shadow-sm ring-2 ring-slate-400/20",
+    hoverCardClass: "hover:border-slate-300 hover:bg-slate-100/40",
   },
 };
 
 const TeamActivityPage = () => {
+  const [selectedStatus, setSelectedStatus] = useState("all");
   const {
     data,
     isLoading,
@@ -40,6 +47,17 @@ const TeamActivityPage = () => {
   });
   const users = useMemo(() => (Array.isArray(data?.users) ? data.users : []), [data]);
   const summary = data?.summary || { active: 0, idle: 0, offline: 0 };
+
+  const filteredUsers = useMemo(() => {
+    if (selectedStatus === "all") {
+      return users;
+    }
+    return users.filter((row) => (row.status || "offline") === selectedStatus);
+  }, [users, selectedStatus]);
+
+  const handleCardClick = (status) => {
+    setSelectedStatus((current) => (current === status ? "all" : status));
+  };
 
   if (isLoading) {
     return (
@@ -77,20 +95,37 @@ const TeamActivityPage = () => {
           <div className="mt-4 grid gap-3 sm:grid-cols-3">
             {["active", "idle", "offline"].map((status) => {
               const meta = statusMeta[status];
+              const isSelected = selectedStatus === status;
 
               return (
-                <div
+                <button
                   key={status}
-                  className="rounded-lg border border-white/60 bg-white/55 px-3 py-2"
+                  type="button"
+                  onClick={() => handleCardClick(status)}
+                  className={cn(
+                    "rounded-lg border px-3 py-2 text-left transition-all cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500/20",
+                    isSelected
+                      ? meta.activeCardClass
+                      : cn("border-white/60 bg-white/55", meta.hoverCardClass)
+                  )}
+                  aria-pressed={isSelected}
+                  title={`Filter by ${meta.label} members`}
                 >
-                  <div className="flex items-center gap-2 text-xs font-semibold text-slate-500">
-                    <span className={cn("h-2.5 w-2.5 rounded-full", meta.dotClassName)} />
-                    {meta.label}
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2 text-xs font-semibold text-slate-500">
+                      <span className={cn("h-2.5 w-2.5 rounded-full", meta.dotClassName)} />
+                      {meta.label}
+                    </div>
+                    {isSelected && (
+                      <span className="rounded-full bg-white/80 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-slate-600 shadow-xs">
+                        Filtered
+                      </span>
+                    )}
                   </div>
                   <p className="mt-1 text-2xl font-bold text-slate-950">
                     {summary[status] || 0}
                   </p>
-                </div>
+                </button>
               );
             })}
           </div>
@@ -103,14 +138,31 @@ const TeamActivityPage = () => {
             <Users2 className="h-4 w-4 text-blue-600" />
             Users
           </CardTitle>
-          <Badge variant="outline">{users.length} members</Badge>
+          <div className="flex items-center gap-2">
+            {selectedStatus !== "all" && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-7 px-2 text-xs text-slate-500 hover:text-slate-900"
+                onClick={() => setSelectedStatus("all")}
+              >
+                Clear filter
+              </Button>
+            )}
+            <Badge variant="outline">
+              {selectedStatus !== "all"
+                ? `${filteredUsers.length} of ${users.length} members`
+                : `${users.length} members`}
+            </Badge>
+          </div>
         </CardHeader>
         <CardContent className="p-0">
           {error ? (
             <div className="p-4 text-sm text-rose-700">
               {error.response?.data?.message || "Unable to load team activity."}
             </div>
-          ) : users.length ? (
+          ) : filteredUsers.length ? (
             <div className="overflow-x-auto">
               <table className="min-w-full text-left text-sm">
                 <thead className="border-y border-slate-200/70 bg-slate-50/70 text-xs uppercase text-slate-500">
@@ -122,7 +174,7 @@ const TeamActivityPage = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {users.map((row) => {
+                  {filteredUsers.map((row) => {
                     const user = row.user || {};
                     const status = row.status || "offline";
                     const meta = statusMeta[status] || statusMeta.offline;
@@ -153,7 +205,21 @@ const TeamActivityPage = () => {
             </div>
           ) : (
             <div className="p-8 text-center text-sm text-slate-500">
-              No users found for this workspace.
+              {selectedStatus !== "all" ? (
+                <div className="space-y-3">
+                  <p>No {selectedStatus} members found.</p>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setSelectedStatus("all")}
+                  >
+                    Show all members
+                  </Button>
+                </div>
+              ) : (
+                "No users found for this workspace."
+              )}
             </div>
           )}
         </CardContent>
