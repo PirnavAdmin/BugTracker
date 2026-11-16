@@ -193,11 +193,35 @@ const inviteUser = asyncHandler(async (req, res) => {
     throw new Error(`Role must be one of ${User.availableRoles.join(", ")}`);
   }
 
-  const existingUser = await User.findOne({ email }).select("_id").lean();
+  const existingUser = await User.findOne({ email })
+    .select("_id workspaceId tenantId")
+    .lean();
 
   if (existingUser) {
-    res.status(409);
-    throw new Error("A user with that email already exists");
+    const isCurrentWorkspaceUser =
+      existingUser.workspaceId === workspaceId &&
+      (!tenantId || normalizeTenantId(existingUser.tenantId) === tenantId);
+
+    if (isCurrentWorkspaceUser) {
+      res.status(409);
+      throw new Error("A user with that email already exists");
+    }
+
+    // The user self-registered or exists in a separate/standalone workspace.
+    // Clean up their orphan external account so the admin can invite them cleanly into this workspace.
+    await clearUserSenderSelectionsForSender({
+      workspaceId: existingUser.workspaceId,
+      senderUserId: existingUser._id,
+      updatedByUserId: req.user._id,
+    });
+    await clearWorkspaceSenderSelection({
+      workspaceId: existingUser.workspaceId,
+      userId: req.user._id,
+      matchUserId: existingUser._id,
+    });
+    await UserEmailConfig.deleteMany({ userId: existingUser._id });
+    await TeamMember.deleteMany({ userId: existingUser._id });
+    await User.deleteOne({ _id: existingUser._id });
   }
 
   const { temporaryPassword, user } = await withTenantLimitLock(tenantId, async () => {
