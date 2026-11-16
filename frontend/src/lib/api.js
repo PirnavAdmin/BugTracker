@@ -398,6 +398,13 @@ export const updateProject = async ({ projectId, payload }) => {
   return response.data;
 };
 
+export const updateProjectFavorite = async ({ projectId, isFavorite }) => {
+  const response = await api.patch(`/projects/${projectId}/favorite`, {
+    isFavorite,
+  });
+  return response.data;
+};
+
 export const updateProjectDeliveryWorkflow = async ({ projectId, payload }) => {
   const response = await api.patch(`/projects/${projectId}/delivery-workflow`, payload);
   return response.data;

@@ -1165,7 +1165,9 @@ const getProjects = asyncHandler(async (req, res) => {
 
   const projectQuery = await buildProjectQuery(req.user);
   const projectDataStartedAt = performance.now();
-  const projects = await populateProject(Project.find(projectQuery))
+  const projects = await populateProject(
+    Project.find(projectQuery).select("+favoriteUserIds")
+  )
     .sort({ createdAt: -1 })
     .lean();
   const serializedProjects = await serializeProjectsWithRelations(projects);
@@ -1197,11 +1199,63 @@ const getProjects = asyncHandler(async (req, res) => {
   );
 
   res.status(200).json(
-    serializedProjects.map((project) => ({
-      ...project,
-      issueCount: issueCountMap.get(String(project._id)) || 0,
-    }))
+    serializedProjects.map((project) => {
+      const { favoriteUserIds = [], ...safeProject } = project;
+
+      return {
+        ...safeProject,
+        issueCount: issueCountMap.get(String(project._id)) || 0,
+        isFavorite: favoriteUserIds.some(
+          (favoriteUserId) => String(favoriteUserId) === String(userId)
+        ),
+      };
+    })
   );
+});
+
+const updateProjectFavorite = asyncHandler(async (req, res) => {
+  if (!req.user) {
+    res.status(401);
+    throw new Error("Unauthorized");
+  }
+
+  if (!mongoose.isValidObjectId(req.params.id)) {
+    res.status(400);
+    throw new Error("Invalid project id");
+  }
+
+  if (typeof req.body?.isFavorite !== "boolean") {
+    res.status(400);
+    throw new Error("isFavorite must be a boolean");
+  }
+
+  const userId = req.user.id || req.user._id;
+
+  if (!userId) {
+    res.status(401);
+    throw new Error("Unauthorized");
+  }
+
+  const projectQuery = await buildProjectQuery(req.user);
+  const project = await Project.findOneAndUpdate(
+    {
+      _id: req.params.id,
+      ...projectQuery,
+    },
+    req.body.isFavorite
+      ? { $addToSet: { favoriteUserIds: userId } }
+      : { $pull: { favoriteUserIds: userId } },
+    { new: true }
+  )
+    .select("_id")
+    .lean();
+
+  if (!project) {
+    res.status(404);
+    throw new Error("Project not found or inaccessible");
+  }
+
+  res.status(200).json({ isFavorite: req.body.isFavorite });
 });
 
 const createProject = asyncHandler(async (req, res) => {
@@ -2674,6 +2728,7 @@ const getProjectMeetings = asyncHandler(async (req, res) => {
 
 module.exports = {
   getProjects,
+  updateProjectFavorite,
   getProjectTeams,
   createProject,
   updateProject,

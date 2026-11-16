@@ -58,6 +58,7 @@ import {
   updateEpic,
   updateIssuePlanning,
   updateProject,
+  updateProjectFavorite,
   updateProjectDeliveryWorkflow,
   updateProjectStatus,
 } from "@/lib/api";
@@ -405,6 +406,9 @@ const getProjectListProgress = (project = {}) => {
   return project?.issueCount ? 68 : 0;
 };
 
+const isProjectFavorite = (project = {}) =>
+  Boolean(project.isFavorite || project.isStarred || project.favorite);
+
 const getStatusChipClassName = (status = "Active") => {
   const normalizedStatus = String(status || "Active").toLowerCase();
 
@@ -739,6 +743,17 @@ const ProjectsPage = () => {
     },
   });
 
+  const updateProjectFavoriteMutation = useMutation({
+    mutationFn: updateProjectFavorite,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["projects"] }),
+    onError: (error) => {
+      showToast(
+        "error",
+        error?.response?.data?.message || "Couldn't update the project favorite."
+      );
+    },
+  });
+
   const updateProjectDeliveryWorkflowMutation = useMutation({
     mutationFn: updateProjectDeliveryWorkflow,
     onSuccess: () => {
@@ -979,7 +994,7 @@ const ProjectsPage = () => {
       .filter((project) => {
         if (
           projectStatusFilter === "favorites" &&
-          !(project.isFavorite || project.isStarred || project.favorite)
+          !isProjectFavorite(project)
         ) {
           return false;
         }
@@ -994,9 +1009,15 @@ const ProjectsPage = () => {
 
         return matchesProjectName(project, normalizedSearch);
       })
-      .sort((left, right) =>
-        String(left.name || "").localeCompare(String(right.name || ""))
-      );
+      .sort((left, right) => {
+        const favoriteOrder =
+          Number(isProjectFavorite(right)) - Number(isProjectFavorite(left));
+
+        return (
+          favoriteOrder ||
+          String(left.name || "").localeCompare(String(right.name || ""))
+        );
+      });
   }, [projectSearch, projectStatusFilter, projects]);
 
   const selectedProject = useMemo(
@@ -2139,11 +2160,39 @@ const ProjectsPage = () => {
                               {selectedProject.name}
                             </h2>
                             <button
-                              className="rounded-lg p-1 text-slate-400 transition hover:bg-slate-50 hover:text-amber-500"
+                              aria-label={
+                                isProjectFavorite(selectedProject)
+                                  ? "Unstar project"
+                                  : "Star project"
+                              }
+                              aria-pressed={isProjectFavorite(selectedProject)}
+                              className={`rounded-lg p-1 transition hover:bg-slate-50 hover:text-amber-500 ${
+                                isProjectFavorite(selectedProject)
+                                  ? "text-amber-500"
+                                  : "text-slate-400"
+                              }`}
+                              disabled={updateProjectFavoriteMutation.isPending}
                               type="button"
-                              title="Star project"
+                              title={
+                                isProjectFavorite(selectedProject)
+                                  ? "Unstar project"
+                                  : "Star project"
+                              }
+                              onClick={() =>
+                                updateProjectFavoriteMutation.mutate({
+                                  projectId: selectedProject._id,
+                                  isFavorite: !isProjectFavorite(selectedProject),
+                                })
+                              }
                             >
-                              <Star className="h-4 w-4" />
+                              <Star
+                                className="h-4 w-4"
+                                fill={
+                                  isProjectFavorite(selectedProject)
+                                    ? "currentColor"
+                                    : "none"
+                                }
+                              />
                             </button>
                             <button
                               className="rounded-lg p-1.5 text-slate-500 transition hover:bg-white/80 hover:text-blue-700"
