@@ -47,6 +47,7 @@ const ADMIN_SETTINGS_ITEMS = [
   { id: "sender", label: "Workspace Mail Sender" },
   { id: "smtp", label: "SMTP Configuration" },
   { id: "import", label: "Import Users from CSV" },
+  { id: "password", label: "Change Password" },
 ];
 
 const TESTER_SETTINGS_ITEMS = [
@@ -85,7 +86,19 @@ const UserSettingsPage = () => {
     ? ADMIN_DEFAULT_SETTINGS_ITEM
     : TESTER_DEFAULT_SETTINGS_ITEM;
 
-  const [activeSettingsItem, setActiveSettingsItem] = useState(defaultSettingsItem);
+  const [activeSettingsItem, setActiveSettingsItem] = useState(() => {
+    const params = new URLSearchParams(location.search);
+    const initial = params.get("tab") || params.get("panel");
+    const items = canManageWorkspaceUsers
+      ? ADMIN_SETTINGS_ITEMS
+      : canManageWorkspaceMail
+        ? MAIL_ADMIN_SETTINGS_ITEMS
+        : TESTER_SETTINGS_ITEMS;
+    if (initial && (items.some((item) => item.id === initial) || initial === "password")) {
+      return initial;
+    }
+    return defaultSettingsItem;
+  });
   const [activeUserFilter, setActiveUserFilter] = useState(null);
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState("Developer");
@@ -137,19 +150,15 @@ const UserSettingsPage = () => {
   }, [activeSettingsItem, defaultSettingsItem, settingsItems]);
 
   useEffect(() => {
-    if (!canManageWorkspaceUsers) {
-      return;
-    }
-
     const searchParams = new URLSearchParams(location.search);
-    const requestedPanel = searchParams.get("panel");
+    const requestedPanel = searchParams.get("tab") || searchParams.get("panel");
     const requestedRole = searchParams.get("role");
 
-    if (requestedPanel && settingsItems.some((item) => item.id === requestedPanel)) {
+    if (requestedPanel && (settingsItems.some((item) => item.id === requestedPanel) || requestedPanel === "password")) {
       setActiveSettingsItem(requestedPanel);
     }
 
-    if (requestedRole) {
+    if (canManageWorkspaceUsers && requestedRole) {
       setActiveUserFilter(requestedRole);
       setActiveSettingsItem("users");
     }
