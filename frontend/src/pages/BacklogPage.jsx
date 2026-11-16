@@ -1,6 +1,7 @@
 import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  AlertTriangle,
   BarChart3,
   BookOpen,
   CalendarDays,
@@ -13,10 +14,12 @@ import {
   KanbanSquare,
   Layers3,
   List,
+  LoaderCircle,
   MoreVertical,
   Plus,
   Search,
   TimerReset,
+  Trash2,
   UserRound,
   Zap,
 } from "lucide-react";
@@ -49,6 +52,14 @@ import ToastNotice from "@/components/shared/ToastNotice";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/hooks/use-auth";
@@ -677,6 +688,7 @@ const BacklogPage = () => {
     sprint: null,
   });
   const [completionSprint, setCompletionSprint] = useState(null);
+  const [deletingSprint, setDeletingSprint] = useState(null);
   const previousProjectIdRef = useRef(filters.projectId);
   const deferredSearch = useDeferredValue(filters.search);
   const queryFilters = useMemo(
@@ -948,6 +960,29 @@ const BacklogPage = () => {
   const startingSprintId = startSprintMutation.isPending
     ? startSprintMutation.variables || ""
     : "";
+
+  const handleConfirmDeleteSprint = async () => {
+    if (!deletingSprint || deleteSprintMutation.isPending) {
+      return;
+    }
+
+    const sprintToDelete = deletingSprint;
+    try {
+      await deleteSprintMutation.mutateAsync(sprintToDelete._id);
+      setToast({
+        type: "success",
+        message: `${sprintToDelete.name} was deleted.`,
+      });
+      setDeletingSprint(null);
+    } catch (error) {
+      setToast({
+        type: "error",
+        message:
+          error.response?.data?.message ||
+          "Unable to delete that sprint right now.",
+      });
+    }
+  };
 
   const handleFilterChange = (field, value) => {
     if (field === "projectId") {
@@ -1288,9 +1323,6 @@ const BacklogPage = () => {
                     </p>
                   )}
                 </div>
-                <Button type="button" variant="outline" size="icon" className="h-8 w-8 rounded-[8px]">
-                  <MoreVertical className="h-4 w-4" />
-                </Button>
               </div>
               {activeSprintSection ? (
                 <div className="mt-3 grid gap-3 sm:grid-cols-4">
@@ -1358,34 +1390,7 @@ const BacklogPage = () => {
                           sprint: section.sprint,
                         })
                       }
-                      onDeleteSprint={async () => {
-                        if (deleteSprintMutation.isPending) {
-                          return;
-                        }
-
-                        const confirmed = window.confirm(
-                          `Delete sprint "${section.sprint.name}"? This action cannot be undone.`
-                        );
-
-                        if (!confirmed) {
-                          return;
-                        }
-
-                        try {
-                          await deleteSprintMutation.mutateAsync(section.sprint._id);
-                          setToast({
-                            type: "success",
-                            message: `${section.sprint.name} was deleted.`,
-                          });
-                        } catch (error) {
-                          setToast({
-                            type: "error",
-                            message:
-                              error.response?.data?.message ||
-                              "Unable to delete that sprint right now.",
-                          });
-                        }
-                      }}
+                      onDeleteSprint={() => setDeletingSprint(section.sprint)}
                       onStartSprint={async () => {
                         if (startSprintMutation.isPending) {
                           return;
@@ -1575,6 +1580,62 @@ const BacklogPage = () => {
           return result;
         }}
       />
+
+      <Dialog
+        open={Boolean(deletingSprint)}
+        onOpenChange={(open) => {
+          if (!open && !deleteSprintMutation.isPending) {
+            setDeletingSprint(null);
+          }
+        }}
+      >
+        <DialogContent
+          className="w-[calc(100%-2rem)] max-w-md rounded-[24px] border border-slate-200/80 bg-white p-6 shadow-2xl sm:p-7"
+          overlayClassName="z-50 bg-slate-950/40 backdrop-blur-sm"
+        >
+          <DialogHeader>
+            <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-2xl border border-rose-100 bg-rose-50 text-rose-600 shadow-sm">
+              <AlertTriangle className="h-6 w-6" />
+            </div>
+            <DialogTitle className="text-xl font-semibold text-slate-950">
+              Delete Sprint
+            </DialogTitle>
+            <DialogDescription className="mt-1.5 text-sm leading-6 text-slate-600">
+              Are you sure you want to delete <span className="font-semibold text-slate-900">&ldquo;{deletingSprint?.name}&rdquo;</span>? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            <Button
+              type="button"
+              variant="outline"
+              className="h-10 rounded-[10px] px-4 font-medium text-slate-700 hover:bg-slate-100"
+              disabled={deleteSprintMutation.isPending}
+              onClick={() => setDeletingSprint(null)}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              className="h-10 rounded-[10px] px-4 font-medium"
+              disabled={deleteSprintMutation.isPending}
+              onClick={handleConfirmDeleteSprint}
+            >
+              {deleteSprintMutation.isPending ? (
+                <>
+                  <LoaderCircle className="h-4 w-4 animate-spin" />
+                  <span>Deleting...</span>
+                </>
+              ) : (
+                <>
+                  <Trash2 className="h-4 w-4" />
+                  <span>Delete Sprint</span>
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <ToastNotice toast={toast} onDismiss={() => setToast(null)} />
       </main>

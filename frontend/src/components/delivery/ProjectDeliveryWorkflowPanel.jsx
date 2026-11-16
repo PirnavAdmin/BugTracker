@@ -28,7 +28,18 @@ const metricTone = {
   amber: "bg-amber-50 text-amber-700",
   slate: "bg-slate-100 text-slate-700",
 };
-const WORK_QUEUE_CHART_COLORS = ["#2563eb", "#7c3aed", "#0891b2", "#059669", "#d97706", "#e11d48", "#4f46e5", "#64748b"];
+const WORK_QUEUE_CHART_COLORS = [
+  "#60a5fa", // Light Sky Blue
+  "#fb7185", // Soft Coral Rose
+  "#34d399", // Fresh Mint Green
+  "#fbbf24", // Warm Honey Amber
+  "#c084fc", // Soft Lilac Purple
+  "#2dd4bf", // Light Aqua Teal
+  "#fb923c", // Soft Apricot Peach
+  "#f472b6", // Soft Blossom Pink
+  "#818cf8", // Soft Periwinkle
+  "#a3e635", // Soft Lime Green
+];
 
 const MetricPill = ({ label, value, tone = "blue" }) => (
   <div className={cn("rounded-xl px-3 py-2", metricTone[tone] || metricTone.blue)}>
