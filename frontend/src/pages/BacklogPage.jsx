@@ -1,4 +1,5 @@
 import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   AlertTriangle,
@@ -46,6 +47,7 @@ import IssueDetailsDrawer from "@/components/backlog/IssueDetailsDrawer";
 import IssuePlanningCard from "@/components/backlog/IssuePlanningCard";
 import SprintCompletionDialog from "@/components/backlog/SprintCompletionDialog";
 import SprintDialog from "@/components/backlog/SprintDialog";
+import SprintOverviewScreen from "@/components/backlog/SprintOverviewScreen";
 import SprintSection from "@/components/backlog/SprintSection";
 import EmptyState from "@/components/shared/EmptyState";
 import ToastNotice from "@/components/shared/ToastNotice";
@@ -243,12 +245,12 @@ const BacklogSkeleton = () => (
 );
 
 const PLANNING_NAV_ITEMS = [
-  { label: "Overview", icon: BookOpen },
-  { label: "Sprint Planning", icon: ClipboardList, active: true },
-  { label: "Active Sprint", icon: Flag },
-  { label: "Upcoming Sprints", icon: CalendarDays },
-  { label: "Completed Sprints", icon: CheckCircle2 },
-  { label: "My Work", icon: UserRound },
+  { id: "overview", label: "Overview", icon: BookOpen },
+  { id: "planning", label: "Sprint Planning", icon: ClipboardList },
+  { id: "active", label: "Active Sprint", icon: Flag },
+  { id: "upcoming", label: "Upcoming Sprints", icon: CalendarDays },
+  { id: "completed", label: "Completed Sprints", icon: CheckCircle2 },
+  { id: "my-work", label: "My Work", icon: UserRound },
 ];
 
 const getIssueProgressPercent = (issue) =>
@@ -298,6 +300,8 @@ const PlanningFilterSelect = ({ label, value, onChange, children, disabled = fal
 );
 
 const PlanningSidebar = ({
+  activeView = "overview",
+  onSelectView,
   filters,
   projects = [],
   teams = [],
@@ -322,21 +326,25 @@ const PlanningSidebar = ({
 
       <div className="mt-3 space-y-4 px-3 pb-5">
         <nav className="space-y-1">
-          {PLANNING_NAV_ITEMS.map(({ label, icon: Icon, active }) => (
-            <button
-              key={label}
-              type="button"
-              className={cn(
-                "flex h-9 w-full items-center gap-2 rounded-[8px] px-2.5 text-left text-sm font-medium transition",
-                active
-                  ? "bg-[linear-gradient(135deg,rgba(79,70,229,0.12),rgba(14,165,233,0.1))] text-blue-700 shadow-sm"
-                  : "text-slate-600 hover:bg-slate-100/80 hover:text-slate-950"
-              )}
-            >
-              <Icon className="h-4 w-4 shrink-0" />
-              <span className="truncate">{label}</span>
-            </button>
-          ))}
+          {PLANNING_NAV_ITEMS.map(({ id, label, icon: Icon }) => {
+            const isActive = activeView === id;
+            return (
+              <button
+                key={id}
+                type="button"
+                onClick={() => onSelectView?.(id)}
+                className={cn(
+                  "flex h-9 w-full items-center gap-2 rounded-[8px] px-2.5 text-left text-sm font-medium transition",
+                  isActive
+                    ? "bg-[linear-gradient(135deg,rgba(79,70,229,0.12),rgba(14,165,233,0.1))] text-blue-700 shadow-sm font-semibold"
+                    : "text-slate-600 hover:bg-slate-100/80 hover:text-slate-950"
+                )}
+              >
+                <Icon className="h-4 w-4 shrink-0" />
+                <span className="truncate">{label}</span>
+              </button>
+            );
+          })}
         </nav>
 
         <div className="border-t border-slate-200/70 pt-4">
@@ -466,6 +474,8 @@ const PlanningSidebar = ({
 );
 
 const PlanningHeader = ({
+  activeView = "overview",
+  onSelectView,
   filters,
   permissions = {},
   onChange,
@@ -474,9 +484,13 @@ const PlanningHeader = ({
   <section className="rounded-[20px] border border-white/70 bg-white/88 p-4 shadow-[0_18px_48px_-38px_rgba(15,23,42,0.36)] backdrop-blur-xl">
     <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight text-slate-950">Sprint Planning</h1>
+        <h1 className="text-2xl font-semibold tracking-tight text-slate-950">
+          {activeView === "overview" ? "Sprint Overview" : "Sprint Planning"}
+        </h1>
         <p className="mt-1 text-sm text-slate-600">
-          Prioritize Stories and arrange them into successful sprints.
+          {activeView === "overview"
+            ? "Monitor active sprint health, delivery progress, defect status, and team allocation."
+            : "Prioritize Stories and arrange them into successful sprints."}
         </p>
       </div>
       <div className="flex flex-wrap items-center gap-2">
@@ -501,22 +515,37 @@ const PlanningHeader = ({
       </div>
       <div className="flex items-center gap-2">
         <div className="inline-flex rounded-[8px] border border-slate-200 bg-white p-1 shadow-sm">
-          <Button type="button" size="sm" className="h-8 rounded-[6px] px-3">
-            <List className="h-4 w-4" />
-            List
+          <Button
+            type="button"
+            size="sm"
+            variant={activeView === "overview" ? "default" : "ghost"}
+            className={cn(
+              "h-8 rounded-[6px] px-3",
+              activeView === "overview"
+                ? "bg-blue-600 text-white hover:bg-blue-700"
+                : "text-slate-600 hover:text-slate-950"
+            )}
+            onClick={() => onSelectView?.("overview")}
+          >
+            <BookOpen className="h-4 w-4" />
+            Overview
           </Button>
-          <Button type="button" size="sm" variant="ghost" className="h-8 rounded-[6px] px-3 text-slate-600">
-            <KanbanSquare className="h-4 w-4" />
-            Board
-          </Button>
-          <Button type="button" size="sm" variant="ghost" className="h-8 rounded-[6px] px-3 text-slate-600">
-            <BarChart3 className="h-4 w-4" />
-            Timeline
+          <Button
+            type="button"
+            size="sm"
+            variant={activeView === "planning" ? "default" : "ghost"}
+            className={cn(
+              "h-8 rounded-[6px] px-3",
+              activeView === "planning"
+                ? "bg-blue-600 text-white hover:bg-blue-700"
+                : "text-slate-600 hover:text-slate-950"
+            )}
+            onClick={() => onSelectView?.("planning")}
+          >
+            <ClipboardList className="h-4 w-4" />
+            Planning Board
           </Button>
         </div>
-        <Button type="button" variant="outline" size="icon" className="h-10 w-10 rounded-[8px]">
-          <MoreVertical className="h-4 w-4" />
-        </Button>
       </div>
     </div>
   </section>
@@ -676,7 +705,12 @@ const moveIssueLocally = ({ boardState, issueId, destinationSprintId = "", overI
 };
 
 const BacklogPage = () => {
-  const { role } = useAuth();
+  const { role, user } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const urlView = searchParams.get("view");
+  const [activeView, setActiveView] = useState(
+    urlView === "planning" ? "planning" : "overview"
+  );
   const queryClient = useQueryClient();
   const [filters, setFilters] = useState(createDefaultFilters);
   const [boardState, setBoardState] = useState(createBoardState(null));
@@ -691,12 +725,100 @@ const BacklogPage = () => {
   const [deletingSprint, setDeletingSprint] = useState(null);
   const previousProjectIdRef = useRef(filters.projectId);
   const deferredSearch = useDeferredValue(filters.search);
+
+  useEffect(() => {
+    const nextView = searchParams.get("view");
+    if (nextView === "planning" || nextView === "overview") {
+      setActiveView(nextView);
+    }
+  }, [searchParams]);
+
+  const handleSelectView = (viewId) => {
+    if (viewId === "overview") {
+      setActiveView("overview");
+      setSearchParams(
+        (params) => {
+          const next = new URLSearchParams(params);
+          next.set("view", "overview");
+          return next;
+        },
+        { replace: true }
+      );
+    } else if (viewId === "planning") {
+      setActiveView("planning");
+      setSearchParams(
+        (params) => {
+          const next = new URLSearchParams(params);
+          next.set("view", "planning");
+          return next;
+        },
+        { replace: true }
+      );
+    } else if (viewId === "active") {
+      setActiveView("planning");
+      setSearchParams(
+        (params) => {
+          const next = new URLSearchParams(params);
+          next.set("view", "planning");
+          return next;
+        },
+        { replace: true }
+      );
+    } else if (viewId === "upcoming") {
+      setActiveView("planning");
+      setFilters((current) => ({
+        ...current,
+        includeCompletedSprints: false,
+      }));
+      setSearchParams(
+        (params) => {
+          const next = new URLSearchParams(params);
+          next.set("view", "planning");
+          return next;
+        },
+        { replace: true }
+      );
+    } else if (viewId === "completed") {
+      setActiveView("planning");
+      setFilters((current) => ({
+        ...current,
+        includeCompletedSprints: true,
+      }));
+      setSearchParams(
+        (params) => {
+          const next = new URLSearchParams(params);
+          next.set("view", "planning");
+          return next;
+        },
+        { replace: true }
+      );
+    } else if (viewId === "my-work") {
+      setActiveView("planning");
+      if (user?._id) {
+        setFilters((current) => ({
+          ...current,
+          assigneeId: String(user._id),
+        }));
+      }
+      setSearchParams(
+        (params) => {
+          const next = new URLSearchParams(params);
+          next.set("view", "planning");
+          return next;
+        },
+        { replace: true }
+      );
+    }
+  };
+
   const queryFilters = useMemo(
     () => ({
       ...filters,
       search: deferredSearch,
+      includeCompletedSprints:
+        activeView === "overview" ? true : filters.includeCompletedSprints,
     }),
-    [deferredSearch, filters]
+    [activeView, deferredSearch, filters]
   );
 
   const {
@@ -870,6 +992,10 @@ const BacklogPage = () => {
   );
   const plannedSprints = useMemo(
     () => allSprints.filter((sprint) => sprint.state === "PLANNED"),
+    [allSprints]
+  );
+  const completedSprints = useMemo(
+    () => allSprints.filter((sprint) => getSprintLifecycleState(sprint) === "COMPLETED"),
     [allSprints]
   );
   const activeSprintSection = useMemo(
@@ -1140,6 +1266,8 @@ const BacklogPage = () => {
     return (
       <div className="grid w-full gap-4 lg:grid-cols-[238px_minmax(0,1fr)]">
         <PlanningSidebar
+          activeView={activeView}
+          onSelectView={handleSelectView}
           filters={filters}
           projects={projects}
           teams={availableTeams}
@@ -1158,6 +1286,8 @@ const BacklogPage = () => {
 
         <main className="min-w-0 space-y-4 pr-1">
           <PlanningHeader
+            activeView={activeView}
+            onSelectView={handleSelectView}
             filters={filters}
             permissions={{}}
             onChange={handleFilterChange}
@@ -1183,6 +1313,8 @@ const BacklogPage = () => {
   return (
     <div className="grid w-full gap-4 lg:grid-cols-[238px_minmax(0,1fr)]">
       <PlanningSidebar
+        activeView={activeView}
+        onSelectView={handleSelectView}
         filters={filters}
         projects={projects}
         teams={availableTeams}
@@ -1203,19 +1335,48 @@ const BacklogPage = () => {
 
       <main className="min-w-0 space-y-4 pr-1">
         <PlanningHeader
+          activeView={activeView}
+          onSelectView={handleSelectView}
           filters={filters}
           permissions={permissions}
           onChange={handleFilterChange}
           onCreateSprint={() => setSprintDialogState({ open: true, sprint: null })}
-      />
+        />
 
-      <PlanningSummary
-        backlogCount={backlogData?.summary?.backlogIssueCount || boardState.backlogIssues.length}
-        activeIssueCount={activeSprintMetrics.issueCount}
-        activeProgress={activeSprintMetrics.completionPercent}
-        plannedCount={backlogData?.summary?.plannedSprintCount || plannedSprints.length}
-        unassignedCount={unassignedEpicCount}
-      />
+        {activeView === "overview" ? (
+          <SprintOverviewScreen
+            project={selectedProject}
+            activeSprintSection={activeSprintSection}
+            activeSprintMetrics={activeSprintMetrics}
+            allSprints={allSprints}
+            plannedSprints={plannedSprints}
+            completedSprints={completedSprints}
+            backlogCount={backlogData?.summary?.backlogIssueCount || boardState.backlogIssues.length}
+            unassignedEpicCount={unassignedEpicCount}
+            permissions={permissions}
+            onSelectIssue={(issue) => setSelectedIssueId(issue._id)}
+            onSwitchToPlanning={() => handleSelectView("planning")}
+            onCreateSprint={() => setSprintDialogState({ open: true, sprint: null })}
+            onStartSprint={(sprint) => {
+              startSprintMutation.mutate(sprint._id);
+            }}
+            onCompleteSprint={(sprint) => {
+              setCompletionSprint({
+                sprint,
+                issues: activeSprintSection?.issues || [],
+              });
+            }}
+            onEditSprint={(sprint) => setSprintDialogState({ open: true, sprint })}
+          />
+        ) : (
+          <>
+            <PlanningSummary
+              backlogCount={backlogData?.summary?.backlogIssueCount || boardState.backlogIssues.length}
+              activeIssueCount={activeSprintMetrics.issueCount}
+              activeProgress={activeSprintMetrics.completionPercent}
+              plannedCount={backlogData?.summary?.plannedSprintCount || plannedSprints.length}
+              unassignedCount={unassignedEpicCount}
+            />
 
       <div className="grid items-start gap-4 xl:grid-cols-[minmax(360px,0.95fr)_minmax(420px,1.05fr)]">
         <Card className="overflow-hidden rounded-[20px] border-white/70 bg-white/90 shadow-[0_18px_48px_-36px_rgba(15,23,42,0.42)] backdrop-blur-xl">
@@ -1488,6 +1649,8 @@ const BacklogPage = () => {
           </CardContent>
         </Card>
       </div>
+      </>
+      )}
 
       <IssueDetailsDrawer
         issue={selectedIssue}
