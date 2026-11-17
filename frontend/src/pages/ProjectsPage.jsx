@@ -23,6 +23,7 @@ import {
   Route,
   Rocket,
   Search,
+  Settings,
   Settings2,
   ShieldCheck,
   Sparkles,
@@ -2224,7 +2225,7 @@ const ProjectsPage = () => {
                           onClick={() => setProjectPanelView("settings")}
                           disabled={!canManageProjects}
                         >
-                          <Settings2 className="h-4 w-4" />
+                          <Settings className="h-4 w-4" />
                         </Button>
                         <div className="relative">
                           <Button
@@ -2846,7 +2847,7 @@ const ProjectsPage = () => {
 
                 {projectPanelView === "git" ? (
                   <section className="space-y-4">
-                    <div className="flex flex-col gap-3 border-b border-[#EEF2F7] pb-4 sm:flex-row sm:items-start sm:justify-between">
+                    <div className="border-b border-[#EEF2F7] pb-4">
                       <div>
                         <h3 className="text-base font-semibold text-slate-950">
                           Git Configuration
@@ -2855,18 +2856,6 @@ const ProjectsPage = () => {
                           Configure repository, webhooks, branch strategy, modules, and QA defaults.
                         </p>
                       </div>
-                      <Button
-                        className="h-9 rounded-lg"
-                        type="button"
-                        disabled={
-                          !canManageGitConfiguration ||
-                          updateProjectDeliveryWorkflowMutation.isPending
-                        }
-                        onClick={handleSaveGitConfiguration}
-                      >
-                        <CheckCircle2 className="h-4 w-4" />
-                        Save Git Configuration
-                      </Button>
                     </div>
 
                     {gitConfigError ? (
@@ -2887,12 +2876,26 @@ const ProjectsPage = () => {
                       testResult={gitTestResult}
                       syncResult={gitSyncResult}
                     />
+                    <div className="flex justify-end">
+                      <Button
+                        className="h-9 rounded-lg"
+                        type="button"
+                        disabled={
+                          !canManageGitConfiguration ||
+                          updateProjectDeliveryWorkflowMutation.isPending
+                        }
+                        onClick={handleSaveGitConfiguration}
+                      >
+                        <CheckCircle2 className="h-4 w-4" />
+                        Save Git Configuration
+                      </Button>
+                    </div>
                   </section>
                 ) : null}
 
                 {projectPanelView === "settings" ? (
                   <section className="space-y-4">
-                    <div className="flex flex-col gap-3 border-b border-[#EEF2F7] pb-4 sm:flex-row sm:items-start sm:justify-between">
+                    <div className="border-b border-[#EEF2F7] pb-4">
                       <div>
                         <h3 className="text-base font-semibold text-slate-950">
                           Project Settings
@@ -2901,15 +2904,6 @@ const ProjectsPage = () => {
                           Edit project details, ownership, theme, and attached teams.
                         </p>
                       </div>
-                      <Button
-                        className="h-9 rounded-lg"
-                        type="button"
-                        disabled={!canManageProjects || updateProjectMutation.isPending}
-                        onClick={handleSaveProjectSettings}
-                      >
-                        <CheckCircle2 className="h-4 w-4" />
-                        Save Changes
-                      </Button>
                     </div>
 
                     {settingsError ? (
@@ -3149,6 +3143,17 @@ const ProjectsPage = () => {
                           )}
                         </div>
                       </div>
+                    </div>
+                    <div className="flex justify-end">
+                      <Button
+                        className="h-9 rounded-lg"
+                        type="button"
+                        disabled={!canManageProjects || updateProjectMutation.isPending}
+                        onClick={handleSaveProjectSettings}
+                      >
+                        <CheckCircle2 className="h-4 w-4" />
+                        Save Changes
+                      </Button>
                     </div>
                   </section>
                 ) : null}
