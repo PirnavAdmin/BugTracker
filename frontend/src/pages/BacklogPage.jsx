@@ -43,12 +43,16 @@ import {
   getProjectTeams,
   resolveTeamId,
 } from "@/lib/project-teams";
+import ActiveSprintScreen from "@/components/backlog/ActiveSprintScreen";
+import CompletedSprintsScreen from "@/components/backlog/CompletedSprintsScreen";
 import IssueDetailsDrawer from "@/components/backlog/IssueDetailsDrawer";
 import IssuePlanningCard from "@/components/backlog/IssuePlanningCard";
+import MyWorkScreen from "@/components/backlog/MyWorkScreen";
 import SprintCompletionDialog from "@/components/backlog/SprintCompletionDialog";
 import SprintDialog from "@/components/backlog/SprintDialog";
 import SprintOverviewScreen from "@/components/backlog/SprintOverviewScreen";
 import SprintSection from "@/components/backlog/SprintSection";
+import UpcomingSprintsScreen from "@/components/backlog/UpcomingSprintsScreen";
 import EmptyState from "@/components/shared/EmptyState";
 import ToastNotice from "@/components/shared/ToastNotice";
 import { Badge } from "@/components/ui/badge";
@@ -473,6 +477,47 @@ const PlanningSidebar = ({
   </aside>
 );
 
+const getHeaderMeta = (activeView) => {
+  switch (activeView) {
+    case "overview":
+      return {
+        title: "Sprint Overview",
+        subtitle:
+          "Monitor active sprint health, delivery progress, defect status, and team allocation.",
+      };
+    case "active":
+      return {
+        title: "Active Sprint Execution",
+        subtitle:
+          "Daily standup board, active story workflow swimlanes, and sprint delivery progress.",
+      };
+    case "upcoming":
+      return {
+        title: "Upcoming Sprints Roadmap",
+        subtitle:
+          "Plan, estimate, and organize stories into upcoming sprint milestones.",
+      };
+    case "completed":
+      return {
+        title: "Completed Sprints Archive",
+        subtitle:
+          "Historical record of finished sprints, velocity benchmarks, and retrospective reports.",
+      };
+    case "my-work":
+      return {
+        title: "My Sprint Work",
+        subtitle:
+          "Track all stories, tasks, and bugs assigned to you across sprints and the backlog.",
+      };
+    case "planning":
+    default:
+      return {
+        title: "Sprint Planning",
+        subtitle: "Prioritize Stories and arrange them into successful sprints.",
+      };
+  }
+};
+
 const PlanningHeader = ({
   activeView = "overview",
   onSelectView,
@@ -480,76 +525,78 @@ const PlanningHeader = ({
   permissions = {},
   onChange,
   onCreateSprint,
-}) => (
-  <section className="rounded-[20px] border border-white/70 bg-white/88 p-4 shadow-[0_18px_48px_-38px_rgba(15,23,42,0.36)] backdrop-blur-xl">
-    <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight text-slate-950">
-          {activeView === "overview" ? "Sprint Overview" : "Sprint Planning"}
-        </h1>
-        <p className="mt-1 text-sm text-slate-600">
-          {activeView === "overview"
-            ? "Monitor active sprint health, delivery progress, defect status, and team allocation."
-            : "Prioritize Stories and arrange them into successful sprints."}
-        </p>
-      </div>
-      <div className="flex flex-wrap items-center gap-2">
-        {permissions.canManageSprints ? (
-          <Button type="button" className="h-9 rounded-[8px]" onClick={onCreateSprint}>
-            <Plus className="h-4 w-4" />
-            Create Sprint
-          </Button>
-        ) : null}
-      </div>
-    </div>
+}) => {
+  const headerMeta = getHeaderMeta(activeView);
 
-    <div className="mt-4 flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-      <div className="relative max-w-xl flex-1">
-        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-        <Input
-          className="h-10 rounded-[8px] border-slate-200 bg-white pl-9 text-sm shadow-sm"
-          placeholder="Search Stories and sprints..."
-          value={filters.search}
-          onChange={(event) => onChange("search", event.target.value)}
-        />
-      </div>
-      <div className="flex items-center gap-2">
-        <div className="inline-flex rounded-[8px] border border-slate-200 bg-white p-1 shadow-sm">
-          <Button
-            type="button"
-            size="sm"
-            variant={activeView === "overview" ? "default" : "ghost"}
-            className={cn(
-              "h-8 rounded-[6px] px-3",
-              activeView === "overview"
-                ? "bg-blue-600 text-white hover:bg-blue-700"
-                : "text-slate-600 hover:text-slate-950"
-            )}
-            onClick={() => onSelectView?.("overview")}
-          >
-            <BookOpen className="h-4 w-4" />
-            Overview
-          </Button>
-          <Button
-            type="button"
-            size="sm"
-            variant={activeView === "planning" ? "default" : "ghost"}
-            className={cn(
-              "h-8 rounded-[6px] px-3",
-              activeView === "planning"
-                ? "bg-blue-600 text-white hover:bg-blue-700"
-                : "text-slate-600 hover:text-slate-950"
-            )}
-            onClick={() => onSelectView?.("planning")}
-          >
-            <ClipboardList className="h-4 w-4" />
-            Planning Board
-          </Button>
+  return (
+    <section className="rounded-[20px] border border-white/70 bg-white/88 p-4 shadow-[0_18px_48px_-38px_rgba(15,23,42,0.36)] backdrop-blur-xl">
+      <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight text-slate-950">
+            {headerMeta.title}
+          </h1>
+          <p className="mt-1 text-sm text-slate-600">
+            {headerMeta.subtitle}
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          {permissions.canManageSprints ? (
+            <Button type="button" className="h-9 rounded-[8px]" onClick={onCreateSprint}>
+              <Plus className="h-4 w-4" />
+              Create Sprint
+            </Button>
+          ) : null}
         </div>
       </div>
-    </div>
-  </section>
-);
+
+      <div className="mt-4 flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+        <div className="relative max-w-xl flex-1">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+          <Input
+            className="h-10 rounded-[8px] border-slate-200 bg-white pl-9 text-sm shadow-sm"
+            placeholder="Search Stories and sprints..."
+            value={filters.search}
+            onChange={(event) => onChange("search", event.target.value)}
+          />
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="inline-flex rounded-[8px] border border-slate-200 bg-white p-1 shadow-sm">
+            <Button
+              type="button"
+              size="sm"
+              variant={activeView === "overview" ? "default" : "ghost"}
+              className={cn(
+                "h-8 rounded-[6px] px-3",
+                activeView === "overview"
+                  ? "bg-blue-600 text-white hover:bg-blue-700"
+                  : "text-slate-600 hover:text-slate-950"
+              )}
+              onClick={() => onSelectView?.("overview")}
+            >
+              <BookOpen className="h-4 w-4" />
+              Overview
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant={activeView === "planning" ? "default" : "ghost"}
+              className={cn(
+                "h-8 rounded-[6px] px-3",
+                activeView === "planning"
+                  ? "bg-blue-600 text-white hover:bg-blue-700"
+                  : "text-slate-600 hover:text-slate-950"
+              )}
+              onClick={() => onSelectView?.("planning")}
+            >
+              <ClipboardList className="h-4 w-4" />
+              Planning Board
+            </Button>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+};
 
 const SummaryCard = ({ title, value, detail, icon: Icon, accentClass, progress = null }) => (
   <div className="rounded-[18px] border border-white/70 bg-white/90 p-4 shadow-[0_16px_42px_-34px_rgba(15,23,42,0.34)] backdrop-blur-xl">
@@ -726,89 +773,25 @@ const BacklogPage = () => {
   const previousProjectIdRef = useRef(filters.projectId);
   const deferredSearch = useDeferredValue(filters.search);
 
+  const VALID_VIEWS = ["planning", "overview", "active", "upcoming", "completed", "my-work"];
+
   useEffect(() => {
     const nextView = searchParams.get("view");
-    if (nextView === "planning" || nextView === "overview") {
+    if (nextView && VALID_VIEWS.includes(nextView)) {
       setActiveView(nextView);
     }
   }, [searchParams]);
 
   const handleSelectView = (viewId) => {
-    if (viewId === "overview") {
-      setActiveView("overview");
-      setSearchParams(
-        (params) => {
-          const next = new URLSearchParams(params);
-          next.set("view", "overview");
-          return next;
-        },
-        { replace: true }
-      );
-    } else if (viewId === "planning") {
-      setActiveView("planning");
-      setSearchParams(
-        (params) => {
-          const next = new URLSearchParams(params);
-          next.set("view", "planning");
-          return next;
-        },
-        { replace: true }
-      );
-    } else if (viewId === "active") {
-      setActiveView("planning");
-      setSearchParams(
-        (params) => {
-          const next = new URLSearchParams(params);
-          next.set("view", "planning");
-          return next;
-        },
-        { replace: true }
-      );
-    } else if (viewId === "upcoming") {
-      setActiveView("planning");
-      setFilters((current) => ({
-        ...current,
-        includeCompletedSprints: false,
-      }));
-      setSearchParams(
-        (params) => {
-          const next = new URLSearchParams(params);
-          next.set("view", "planning");
-          return next;
-        },
-        { replace: true }
-      );
-    } else if (viewId === "completed") {
-      setActiveView("planning");
-      setFilters((current) => ({
-        ...current,
-        includeCompletedSprints: true,
-      }));
-      setSearchParams(
-        (params) => {
-          const next = new URLSearchParams(params);
-          next.set("view", "planning");
-          return next;
-        },
-        { replace: true }
-      );
-    } else if (viewId === "my-work") {
-      setActiveView("planning");
-      if (user?._id) {
-        setFilters((current) => ({
-          ...current,
-          assigneeId: String(user._id),
-        }));
-      }
-      setSearchParams(
-        (params) => {
-          const next = new URLSearchParams(params);
-          next.set("view", "planning");
-          return next;
-        },
-        { replace: true }
-      );
-    }
+    setActiveView(viewId);
+    setSearchParams(
+      (params) => {
+        const next = new URLSearchParams(params);
+        next.set("view", viewId);
+        return next;
+      },
+      { replace: true }
+    );
   };
 
   const queryFilters = useMemo(
@@ -816,7 +799,9 @@ const BacklogPage = () => {
       ...filters,
       search: deferredSearch,
       includeCompletedSprints:
-        activeView === "overview" ? true : filters.includeCompletedSprints,
+        activeView === "overview" || activeView === "completed"
+          ? true
+          : filters.includeCompletedSprints,
     }),
     [activeView, deferredSearch, filters]
   );
@@ -1343,7 +1328,7 @@ const BacklogPage = () => {
           onCreateSprint={() => setSprintDialogState({ open: true, sprint: null })}
         />
 
-        {activeView === "overview" ? (
+        {activeView === "overview" && (
           <SprintOverviewScreen
             project={selectedProject}
             activeSprintSection={activeSprintSection}
@@ -1368,7 +1353,91 @@ const BacklogPage = () => {
             }}
             onEditSprint={(sprint) => setSprintDialogState({ open: true, sprint })}
           />
-        ) : (
+        )}
+
+        {activeView === "active" && (
+          <ActiveSprintScreen
+            project={selectedProject}
+            activeSprintSection={activeSprintSection}
+            activeSprintMetrics={activeSprintMetrics}
+            plannedSprints={plannedSprints}
+            permissions={permissions}
+            onSelectIssue={(issue) => setSelectedIssueId(issue._id)}
+            onSwitchToPlanning={() => handleSelectView("planning")}
+            onCreateSprint={() => setSprintDialogState({ open: true, sprint: null })}
+            onStartSprint={(sprint) => {
+              startSprintMutation.mutate(sprint._id);
+            }}
+            onCompleteSprint={(sprint) => {
+              setCompletionSprint({
+                sprint,
+                issues: activeSprintSection?.issues || [],
+              });
+            }}
+            onEditSprint={(sprint) => setSprintDialogState({ open: true, sprint })}
+          />
+        )}
+
+        {activeView === "upcoming" && (
+          <UpcomingSprintsScreen
+            project={selectedProject}
+            plannedSprints={plannedSprints}
+            sprintSections={boardState.sprintSections}
+            permissions={permissions}
+            onSelectIssue={(issue) => setSelectedIssueId(issue._id)}
+            onSwitchToPlanning={() => handleSelectView("planning")}
+            onCreateSprint={() => setSprintDialogState({ open: true, sprint: null })}
+            onStartSprint={(sprint) => {
+              startSprintMutation.mutate(sprint._id);
+            }}
+            onEditSprint={(sprint) => setSprintDialogState({ open: true, sprint })}
+            onDeleteSprint={(sprint) => setDeletingSprint(sprint)}
+          />
+        )}
+
+        {activeView === "completed" && (
+          <CompletedSprintsScreen
+            project={selectedProject}
+            completedSprints={completedSprints}
+            sprintSections={boardState.sprintSections}
+            role={role}
+            onSelectIssue={(issue) => setSelectedIssueId(issue._id)}
+            onSwitchToPlanning={() => handleSelectView("planning")}
+            onReopenSprint={async (sprint) => {
+              const confirmed = window.confirm(
+                `Reopen sprint "${sprint.name}"? Developers will be allowed to update tasks again.`
+              );
+              if (!confirmed) return;
+              try {
+                await reopenSprintMutation.mutateAsync(sprint._id);
+                setToast({
+                  type: "success",
+                  message: `${sprint.name} was reopened.`,
+                });
+              } catch (error) {
+                setToast({
+                  type: "error",
+                  message:
+                    error.response?.data?.message ||
+                    "Unable to reopen that sprint right now.",
+                });
+              }
+            }}
+          />
+        )}
+
+        {activeView === "my-work" && (
+          <MyWorkScreen
+            user={user}
+            project={selectedProject}
+            boardState={boardState}
+            activeSprintSection={activeSprintSection}
+            onSelectIssue={(issue) => setSelectedIssueId(issue._id)}
+            onSwitchToPlanning={() => handleSelectView("planning")}
+          />
+        )}
+
+        {(!activeView || activeView === "planning") && (
           <>
             <PlanningSummary
               backlogCount={backlogData?.summary?.backlogIssueCount || boardState.backlogIssues.length}
