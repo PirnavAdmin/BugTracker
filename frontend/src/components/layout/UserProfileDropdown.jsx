@@ -123,11 +123,11 @@ const UserProfileDropdown = () => {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -10, scale: 0.94 }}
             transition={{ type: "spring", stiffness: 350, damping: 30 }}
-            className="profile-dropdown-scrollbar absolute right-0 top-[calc(100%+12px)] z-[10000] max-h-[calc(100vh-100px)] w-[min(calc(100vw-2rem),20rem)] min-w-[260px] max-w-[320px] overflow-y-auto overscroll-contain rounded-xl border border-white/70 bg-white/90 py-1 shadow-[0_24px_60px_-28px_rgba(15,23,42,0.45),0_8px_24px_-16px_rgba(37,99,235,0.28)] backdrop-blur-xl"
+            className="profile-dropdown-scrollbar absolute right-0 top-[calc(100%+12px)] z-[10000] max-h-[calc(100vh-100px)] w-[min(calc(100vw-2rem),20rem)] min-w-[260px] max-w-[320px] overflow-y-auto overscroll-contain rounded-xl border border-slate-200/80 bg-white py-1 shadow-[0_24px_60px_-28px_rgba(15,23,42,0.45),0_8px_24px_-16px_rgba(37,99,235,0.28)]"
             role="menu"
           >
             {/* User Info Header */}
-            <div className="sticky top-0 z-10 border-b border-slate-200/70 bg-white/95 px-3.5 py-3 backdrop-blur-xl">
+            <div className="sticky top-0 z-10 border-b border-slate-200/70 bg-white px-3.5 py-3">
               <div className="flex items-center gap-3">
                 <span className="relative shrink-0">
                   <UserAvatar
