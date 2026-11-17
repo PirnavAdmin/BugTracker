@@ -2895,7 +2895,7 @@ const ProjectsPage = () => {
 
                 {projectPanelView === "settings" ? (
                   <section className="space-y-4">
-                    <div className="flex flex-col gap-3 border-b border-[#EEF2F7] pb-4 sm:flex-row sm:items-start sm:justify-between">
+                    <div className="border-b border-[#EEF2F7] pb-4">
                       <div>
                         <h3 className="text-base font-semibold text-slate-950">
                           Project Settings
@@ -2904,15 +2904,6 @@ const ProjectsPage = () => {
                           Edit project details, ownership, theme, and attached teams.
                         </p>
                       </div>
-                      <Button
-                        className="h-9 rounded-lg"
-                        type="button"
-                        disabled={!canManageProjects || updateProjectMutation.isPending}
-                        onClick={handleSaveProjectSettings}
-                      >
-                        <CheckCircle2 className="h-4 w-4" />
-                        Save Changes
-                      </Button>
                     </div>
 
                     {settingsError ? (
@@ -3152,6 +3143,17 @@ const ProjectsPage = () => {
                           )}
                         </div>
                       </div>
+                    </div>
+                    <div className="flex justify-end">
+                      <Button
+                        className="h-9 rounded-lg"
+                        type="button"
+                        disabled={!canManageProjects || updateProjectMutation.isPending}
+                        onClick={handleSaveProjectSettings}
+                      >
+                        <CheckCircle2 className="h-4 w-4" />
+                        Save Changes
+                      </Button>
                     </div>
                   </section>
                 ) : null}
