@@ -290,10 +290,10 @@ const getSprintIssueMetrics = (issues = []) => {
 };
 
 const PlanningFilterSelect = ({ label, value, onChange, children, disabled = false }) => (
-  <label className="space-y-1">
+  <label className="flex min-w-0 flex-col gap-1">
     <span className="text-[11px] font-medium text-slate-500">{label}</span>
     <select
-      className="field-select h-9 rounded-[8px] border-slate-200 bg-white px-2.5 py-1.5 text-xs shadow-sm disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400"
+      className="field-select h-9 min-w-0 w-full rounded-[8px] border-slate-200 bg-white px-2.5 py-1.5 text-xs shadow-sm disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400"
       value={value}
       onChange={(event) => onChange(event.target.value)}
       disabled={disabled}
@@ -303,18 +303,125 @@ const PlanningFilterSelect = ({ label, value, onChange, children, disabled = fal
   </label>
 );
 
-const PlanningSidebar = ({
-  activeView = "overview",
-  onSelectView,
+const PlanningFilters = ({
   filters,
   projects = [],
   teams = [],
   members = [],
   epics = [],
   sprints = [],
-  permissions = {},
   onChange,
   onResetFilters,
+}) => (
+  <section aria-labelledby="planning-filters-heading" className="min-w-0 rounded-[20px] border border-white/70 bg-white/92 p-4 shadow-[0_18px_48px_-38px_rgba(15,23,42,0.36)]">
+    <div className="mb-3 flex items-center justify-between">
+      <h2 id="planning-filters-heading" className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-slate-700">
+        <Filter className="h-3.5 w-3.5 text-blue-500" />
+        Filters
+      </h2>
+      <Button type="button" variant="ghost" size="icon" className="h-7 w-7" aria-label="Reset filters" title="Reset filters" onClick={onResetFilters}>
+        <TimerReset className="h-3.5 w-3.5" />
+      </Button>
+    </div>
+
+    <div className="grid min-w-0 grid-cols-1 gap-x-4 gap-y-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+      <PlanningFilterSelect label="Project" value={filters.projectId} onChange={(value) => onChange("projectId", value)}>
+        <option value="">Choose project</option>
+        {projects.map((project) => (
+          <option key={project._id} value={project._id}>
+            {project.name}
+          </option>
+        ))}
+      </PlanningFilterSelect>
+      <PlanningFilterSelect label="Team" value={filters.teamId} onChange={(value) => onChange("teamId", value)}>
+        <option value="all">All teams</option>
+        {teams.map((team) => (
+          <option key={team._id} value={team._id}>
+            {team.name}
+          </option>
+        ))}
+      </PlanningFilterSelect>
+      <PlanningFilterSelect label="Assignee" value={filters.assigneeId} onChange={(value) => onChange("assigneeId", value)}>
+        <option value="all">All members</option>
+        {members.map((member) => (
+          <option key={member._id} value={member._id}>
+            {member.name}
+          </option>
+        ))}
+      </PlanningFilterSelect>
+      <PlanningFilterSelect
+        label="Sprint Scope"
+        value={filters.includeCompletedSprints ? "all" : "active"}
+        onChange={(value) => onChange("includeCompletedSprints", value === "all")}
+      >
+        <option value="active">Planned + active</option>
+        <option value="all">Include completed</option>
+      </PlanningFilterSelect>
+      <PlanningFilterSelect label="Sprint" value={filters.sprintId} onChange={(value) => onChange("sprintId", value)}>
+        <option value="all">All sprints</option>
+        <option value="backlog">Backlog only</option>
+        {sprints.map((sprint) => (
+          <option key={sprint._id} value={sprint._id}>
+            {sprint.name}
+          </option>
+        ))}
+      </PlanningFilterSelect>
+      <PlanningFilterSelect label="Epic" value={filters.epicId} onChange={(value) => onChange("epicId", value)}>
+        <option value="all">All epics</option>
+        <option value="unassigned">Unassigned epic</option>
+        {epics.map((epic) => (
+          <option key={epic._id} value={epic._id}>
+            {epic.name}
+          </option>
+        ))}
+      </PlanningFilterSelect>
+      <PlanningFilterSelect label="Priority" value={filters.priority} onChange={(value) => onChange("priority", value)}>
+        <option value="all">All priorities</option>
+        <option value="Critical">Critical</option>
+        <option value="High">High</option>
+        <option value="Medium">Medium</option>
+        <option value="Low">Low</option>
+      </PlanningFilterSelect>
+      <PlanningFilterSelect label="Status" value={filters.status} onChange={(value) => onChange("status", value)}>
+        <option value="all">All statuses</option>
+        <option value="DRAFT">Draft</option>
+        <option value="READY">Ready</option>
+        <option value="SPRINT_BACKLOG">Sprint Backlog</option>
+        <option value="IN_PROGRESS">In Progress</option>
+        <option value="TESTING">Testing</option>
+        <option value="READY_FOR_UAT">Ready for UAT</option>
+        <option value="DONE">Done</option>
+        <option value="CLOSED">Closed</option>
+      </PlanningFilterSelect>
+      <PlanningFilterSelect label="Issue Type" value="STORY" disabled onChange={() => {}}>
+        <option value="STORY">Story items</option>
+      </PlanningFilterSelect>
+      <label className="flex min-w-0 flex-col gap-1">
+        <span className="text-[11px] font-medium text-slate-500">Created From</span>
+        <Input
+          type="date"
+          className="h-9 min-w-0 w-full rounded-[8px] border-slate-200 bg-white px-2.5 text-xs shadow-sm"
+          value={filters.dateFrom}
+          onChange={(event) => onChange("dateFrom", event.target.value)}
+        />
+      </label>
+      <label className="flex min-w-0 flex-col gap-1">
+        <span className="text-[11px] font-medium text-slate-500">Created To</span>
+        <Input
+          type="date"
+          className="h-9 min-w-0 w-full rounded-[8px] border-slate-200 bg-white px-2.5 text-xs shadow-sm"
+          value={filters.dateTo}
+          onChange={(event) => onChange("dateTo", event.target.value)}
+        />
+      </label>
+    </div>
+  </section>
+);
+
+const PlanningSidebar = ({
+  activeView = "overview",
+  onSelectView,
+  permissions = {},
   onCreateSprint,
   onAddWorkItem,
 }) => (
@@ -350,110 +457,6 @@ const PlanningSidebar = ({
             );
           })}
         </nav>
-
-        <div className="border-t border-slate-200/70 pt-4">
-          <div className="mb-3 flex items-center justify-between">
-            <span className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-slate-700">
-              <Filter className="h-3.5 w-3.5 text-blue-500" />
-              Filters
-            </span>
-            <Button type="button" variant="ghost" size="icon" className="h-7 w-7" onClick={onResetFilters}>
-              <TimerReset className="h-3.5 w-3.5" />
-            </Button>
-          </div>
-
-          <div className="space-y-2.5">
-            <PlanningFilterSelect label="Project" value={filters.projectId} onChange={(value) => onChange("projectId", value)}>
-              <option value="">Choose project</option>
-              {projects.map((project) => (
-                <option key={project._id} value={project._id}>
-                  {project.name}
-                </option>
-              ))}
-            </PlanningFilterSelect>
-            <PlanningFilterSelect label="Team" value={filters.teamId} onChange={(value) => onChange("teamId", value)}>
-              <option value="all">All teams</option>
-              {teams.map((team) => (
-                <option key={team._id} value={team._id}>
-                  {team.name}
-                </option>
-              ))}
-            </PlanningFilterSelect>
-            <PlanningFilterSelect label="Assignee" value={filters.assigneeId} onChange={(value) => onChange("assigneeId", value)}>
-              <option value="all">All members</option>
-              {members.map((member) => (
-                <option key={member._id} value={member._id}>
-                  {member.name}
-                </option>
-              ))}
-            </PlanningFilterSelect>
-            <PlanningFilterSelect
-              label="Sprint Scope"
-              value={filters.includeCompletedSprints ? "all" : "active"}
-              onChange={(value) => onChange("includeCompletedSprints", value === "all")}
-            >
-              <option value="active">Planned + active</option>
-              <option value="all">Include completed</option>
-            </PlanningFilterSelect>
-            <PlanningFilterSelect label="Sprint" value={filters.sprintId} onChange={(value) => onChange("sprintId", value)}>
-              <option value="all">All sprints</option>
-              <option value="backlog">Backlog only</option>
-              {sprints.map((sprint) => (
-                <option key={sprint._id} value={sprint._id}>
-                  {sprint.name}
-                </option>
-              ))}
-            </PlanningFilterSelect>
-            <PlanningFilterSelect label="Epic" value={filters.epicId} onChange={(value) => onChange("epicId", value)}>
-              <option value="all">All epics</option>
-              <option value="unassigned">Unassigned epic</option>
-              {epics.map((epic) => (
-                <option key={epic._id} value={epic._id}>
-                  {epic.name}
-                </option>
-              ))}
-            </PlanningFilterSelect>
-            <PlanningFilterSelect label="Priority" value={filters.priority} onChange={(value) => onChange("priority", value)}>
-              <option value="all">All priorities</option>
-              <option value="Critical">Critical</option>
-              <option value="High">High</option>
-              <option value="Medium">Medium</option>
-              <option value="Low">Low</option>
-            </PlanningFilterSelect>
-            <PlanningFilterSelect label="Status" value={filters.status} onChange={(value) => onChange("status", value)}>
-              <option value="all">All statuses</option>
-              <option value="DRAFT">Draft</option>
-              <option value="READY">Ready</option>
-              <option value="SPRINT_BACKLOG">Sprint Backlog</option>
-              <option value="IN_PROGRESS">In Progress</option>
-              <option value="TESTING">Testing</option>
-              <option value="READY_FOR_UAT">Ready for UAT</option>
-              <option value="DONE">Done</option>
-              <option value="CLOSED">Closed</option>
-            </PlanningFilterSelect>
-            <PlanningFilterSelect label="Issue Type" value="STORY" disabled onChange={() => {}}>
-              <option value="STORY">Story items</option>
-            </PlanningFilterSelect>
-            <label className="space-y-1">
-              <span className="text-[11px] font-medium text-slate-500">Created From</span>
-              <Input
-                type="date"
-                className="h-9 rounded-[8px] border-slate-200 bg-white px-2.5 text-xs shadow-sm"
-                value={filters.dateFrom}
-                onChange={(event) => onChange("dateFrom", event.target.value)}
-              />
-            </label>
-            <label className="space-y-1">
-              <span className="text-[11px] font-medium text-slate-500">Created To</span>
-              <Input
-                type="date"
-                className="h-9 rounded-[8px] border-slate-200 bg-white px-2.5 text-xs shadow-sm"
-                value={filters.dateTo}
-                onChange={(event) => onChange("dateTo", event.target.value)}
-              />
-            </label>
-          </div>
-        </div>
 
         <div className="border-t border-slate-200/70 pt-4">
           <span className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-700">
@@ -1253,13 +1256,7 @@ const BacklogPage = () => {
         <PlanningSidebar
           activeView={activeView}
           onSelectView={handleSelectView}
-          filters={filters}
-          projects={projects}
-          teams={availableTeams}
-          members={availableMembers}
           permissions={{}}
-          onChange={handleFilterChange}
-          onResetFilters={handleResetFilters}
           onCreateSprint={() => setSprintDialogState({ open: true, sprint: null })}
           onAddWorkItem={() =>
             setToast({
@@ -1270,6 +1267,16 @@ const BacklogPage = () => {
         />
 
         <main className="min-w-0 space-y-4 pr-1">
+          <PlanningFilters
+            filters={filters}
+            projects={projects}
+            teams={availableTeams}
+            members={availableMembers}
+            epics={backlogData?.epics || []}
+            sprints={(backlogData?.sprintSections || []).map((section) => section.sprint)}
+            onChange={handleFilterChange}
+            onResetFilters={handleResetFilters}
+          />
           <PlanningHeader
             activeView={activeView}
             onSelectView={handleSelectView}
@@ -1300,15 +1307,7 @@ const BacklogPage = () => {
       <PlanningSidebar
         activeView={activeView}
         onSelectView={handleSelectView}
-        filters={filters}
-        projects={projects}
-        teams={availableTeams}
-        members={availableMembers}
-        epics={backlogData?.epics || []}
-        sprints={(backlogData?.sprintSections || []).map((section) => section.sprint)}
         permissions={permissions}
-        onChange={handleFilterChange}
-        onResetFilters={handleResetFilters}
         onCreateSprint={() => setSprintDialogState({ open: true, sprint: null })}
         onAddWorkItem={() =>
           setToast({
@@ -1319,6 +1318,16 @@ const BacklogPage = () => {
       />
 
       <main className="min-w-0 space-y-4 pr-1">
+        <PlanningFilters
+          filters={filters}
+          projects={projects}
+          teams={availableTeams}
+          members={availableMembers}
+          epics={backlogData?.epics || []}
+          sprints={(backlogData?.sprintSections || []).map((section) => section.sprint)}
+          onChange={handleFilterChange}
+          onResetFilters={handleResetFilters}
+        />
         <PlanningHeader
           activeView={activeView}
           onSelectView={handleSelectView}
