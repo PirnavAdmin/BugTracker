@@ -50,30 +50,34 @@ const TaskKanbanBoard = ({
 
   const columns = useMemo(
     () =>
-      TASK_BOARD_COLUMNS.map((column) => ({
-        ...column,
-        items: sortTasksByPriority(
-          issues
-            .filter(
-              (issue) => (pendingStatuses[issue._id] || getTaskBoardStatus(issue)) === column.key
-            )
-            .flatMap((issue) => {
-              if (!readOnly) return [issue];
+      TASK_BOARD_COLUMNS.map((column) => {
+        const laneIssues = issues.filter(
+          (issue) => (pendingStatuses[issue._id] || getTaskBoardStatus(issue)) === column.key
+        );
+        const seen = new Set();
+        const uniqueItems = [];
 
-              const assignees = resolveIssueAssignees(issue).filter(
-                (assignee) => assignee.name || assignee.email
-              );
+        for (const issue of laneIssues) {
+          const idKey = String(issue?._id || "");
+          const displayKey = issue?.displayBugId
+            ? `${issue.projectId?._id || issue.projectId || ""}-${issue.displayBugId}`
+            : "";
+          const primaryKey = displayKey || idKey;
 
-              return assignees.length > 1
-                ? assignees.map((assignee) => ({
-                    ...issue,
-                    boardCardKey: `${issue._id}-${assignee._id || assignee.id}`,
-                    boardAssignee: assignee,
-                  }))
-                : [issue];
-            })
-        ),
-      })),
+          if (!primaryKey || seen.has(primaryKey)) {
+            continue;
+          }
+
+          seen.add(primaryKey);
+          if (idKey) seen.add(idKey);
+          uniqueItems.push(issue);
+        }
+
+        return {
+          ...column,
+          items: sortTasksByPriority(uniqueItems),
+        };
+      }),
     [issues, pendingStatuses, readOnly]
   );
 

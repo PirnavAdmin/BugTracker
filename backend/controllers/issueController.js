@@ -4019,6 +4019,20 @@ const importTasksFromSpreadsheet = asyncHandler(async (req, res) => {
         throw new Error(dueAtResult.error?.message || "Due Date is required");
       }
 
+      const existingIssue = await Issue.findOne({
+        ...ACTIVE_ISSUE_QUERY,
+        projectId: project._id,
+        title: { $regex: new RegExp(`^${escapeRegExp(title)}$`, "i") },
+        type: ISSUE_TYPES.TASK,
+        ...(parentStoryResult.story?._id ? { parentStoryId: parentStoryResult.story._id } : {}),
+      });
+
+      if (existingIssue) {
+        const populatedIssue = await populateIssueDocument(existingIssue);
+        successIssues.push(serializeIssue(populatedIssue));
+        continue;
+      }
+
       const planningOrder = await getNextPlanningOrder(Issue, {
         projectId: project._id,
         sprintId: parentStoryResult.story?.sprintId || null,
@@ -4135,28 +4149,47 @@ const getIssues = asyncHandler(async (req, res) => {
     });
   }
 
+  const seenIssueKeys = new Set();
+  const uniqueIssues = [];
+  for (const issue of issues) {
+    const idKey = String(issue?._id || "");
+    const displayKey = issue?.displayBugId
+      ? `${issue?.projectId?._id || issue?.projectId || ""}-${issue.displayBugId}`
+      : "";
+    const primaryKey = displayKey || idKey;
+    if (!primaryKey || seenIssueKeys.has(primaryKey)) {
+      continue;
+    }
+    seenIssueKeys.add(primaryKey);
+    if (idKey) seenIssueKeys.add(idKey);
+    uniqueIssues.push(issue);
+  }
+
+  const duplicatesCount = issues.length - uniqueIssues.length;
+  const effectiveTotal = Math.max(0, filteredTotal - duplicatesCount);
+
   if (shouldPaginate) {
-    const totalPages = Math.max(1, Math.ceil(filteredTotal / paginationOptions.limit));
-    const serializedIssues = serializeIssues(issues);
+    const totalPages = Math.max(1, Math.ceil(effectiveTotal / paginationOptions.limit));
+    const serializedIssues = serializeIssues(uniqueIssues);
 
     res.status(200).json({
       ...(isBugListQuery ? { bugs: serializedIssues } : { issues: serializedIssues }),
       pagination: {
         page: paginationOptions.page,
         pageSize: paginationOptions.limit,
-        total: filteredTotal,
+        total: effectiveTotal,
         totalPages,
         hasPreviousPage: paginationOptions.page > 1,
         hasNextPage: paginationOptions.page < totalPages,
       },
       summary: summary || {
-        total: filteredTotal,
+        total: effectiveTotal,
       },
     });
     return;
   }
 
-  res.status(200).json(serializeIssues(issues));
+  res.status(200).json(serializeIssues(uniqueIssues));
 });
 
 const getIssueById = asyncHandler(async (req, res) => {
@@ -5545,6 +5578,21 @@ const createIssue = asyncHandler(async (req, res) => {
 
   if (String(process.env.PERF_DIAGNOSTICS_ENABLED || "").toLowerCase() === "true") {
     console.log("Creating bug", { projectId, teamId, status: statusResult.value });
+  }
+
+  const recentDuplicate = await Issue.findOne({
+    ...ACTIVE_ISSUE_QUERY,
+    projectId,
+    title: { $regex: new RegExp(`^${escapeRegExp(title)}$`, "i") },
+    type: normalizedType,
+    reporter: req.user._id,
+    createdAt: { $gte: new Date(Date.now() - 5000) },
+  });
+
+  if (recentDuplicate) {
+    const populatedRecent = await populateIssueDocument(recentDuplicate);
+    res.status(200).json(serializeIssue(populatedRecent));
+    return;
   }
 
   const issue = await Issue.create({

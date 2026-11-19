@@ -47,23 +47,34 @@ const IssueBoard = ({
     () =>
       BOARD_COLUMNS.filter(
         (column) => !visibleColumnKeys.length || visibleColumnKeys.includes(column.key)
-      ).map((column) => ({
-        ...column,
-        items: issues
-          .filter((issue) => getIssueWorkflowLane(issue.status) === column.key)
-          .flatMap((issue) => {
-            const assignees = resolveIssueAssignees(issue).filter(
-              (assignee) => assignee.name || assignee.email
-            );
-            return assignees.length > 1
-              ? assignees.map((assignee) => ({
-                  ...issue,
-                  boardCardKey: `${issue._id}-${assignee._id}`,
-                  boardAssignee: assignee,
-                }))
-              : [issue];
-          }),
-      })),
+      ).map((column) => {
+        const laneIssues = issues.filter(
+          (issue) => getIssueWorkflowLane(issue.status) === column.key
+        );
+        const seen = new Set();
+        const uniqueItems = [];
+
+        for (const issue of laneIssues) {
+          const idKey = String(issue?._id || "");
+          const displayKey = issue?.displayBugId
+            ? `${issue.projectId?._id || issue.projectId || ""}-${issue.displayBugId}`
+            : "";
+          const primaryKey = displayKey || idKey;
+
+          if (!primaryKey || seen.has(primaryKey)) {
+            continue;
+          }
+
+          seen.add(primaryKey);
+          if (idKey) seen.add(idKey);
+          uniqueItems.push(issue);
+        }
+
+        return {
+          ...column,
+          items: uniqueItems,
+        };
+      }),
     [issues, visibleColumnKeys]
   );
 
