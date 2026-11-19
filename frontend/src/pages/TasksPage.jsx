@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useSearchParams } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import {
   ListTodo,
   Plus,
@@ -11,6 +11,7 @@ import {
   createIssue,
   deleteIssue,
   fetchIssues,
+  fetchMyIssues,
   fetchProjects,
   fetchWorkPermissions,
   uploadIssueAttachment,
@@ -51,6 +52,8 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+
+import { ACTIVE_SPRINT_TASK_FILTER, selectMyActiveSprintTasks } from "@/lib/sprint-task-progress";
 
 const STATUS_ONLY_TASK_FIELDS = new Set([
   "status",
@@ -95,6 +98,8 @@ const TasksPage = () => {
     [searchParams]
   );
 
+  const isSprintTaskView = taskFilter === ACTIVE_SPRINT_TASK_FILTER;
+
   const {
     data: projects = [],
     isLoading: isProjectsLoading,
@@ -109,9 +114,11 @@ const TasksPage = () => {
     isLoading: isTasksLoading,
     error: tasksError,
   } = useQuery({
-    queryKey: ["issues", "my", "tasks"],
-    queryFn: () => fetchIssues({ type: ISSUE_TYPES.TASK, assigneeId: "me" }),
-    enabled: !canCoordinateTasks || taskScope === "mine",
+    queryKey: ["issues", "my", "tasks", user?._id, isSprintTaskView],
+    queryFn: () => isSprintTaskView
+      ? fetchMyIssues({ sortBy: "recently-updated" })
+      : fetchIssues({ type: ISSUE_TYPES.TASK, assigneeId: "me" }),
+    enabled: isSprintTaskView || !canCoordinateTasks || taskScope === "mine",
   });
 
   const {
@@ -121,7 +128,7 @@ const TasksPage = () => {
   } = useQuery({
     queryKey: ["issues", "task-progress", "tasks", user?._id || user?.id || ""],
     queryFn: () => fetchIssues({ type: ISSUE_TYPES.TASK, teamProgress: true }),
-    enabled: canCoordinateTasks && taskScope === "team",
+    enabled: !isSprintTaskView && canCoordinateTasks && taskScope === "team",
   });
 
   const {
@@ -132,8 +139,8 @@ const TasksPage = () => {
     enabled: canCoordinateTasks && isCreateDialogOpen,
   });
 
-  const activeTaskIssues = canCoordinateTasks && taskScope === "team" ? teamTaskIssues : taskIssues;
-  const isTeamProgressView = canCoordinateTasks && taskScope === "team";
+  const isTeamProgressView = !isSprintTaskView && canCoordinateTasks && taskScope === "team";
+  const activeTaskIssues = isTeamProgressView ? teamTaskIssues : taskIssues;
 
   useEffect(() => {
     if (isAdminRole && taskScope === "mine") {
@@ -195,6 +202,9 @@ const TasksPage = () => {
   );
 
   const progressIssues = useMemo(() => {
+    if (isSprintTaskView) {
+      return selectMyActiveSprintTasks(activeTaskIssues, user?._id);
+    }
     if (!isTeamProgressView) {
       return activeTaskIssues;
     }
@@ -209,7 +219,7 @@ const TasksPage = () => {
 
       return isInSelectedProject && isAssignedToSelectedPerson;
     });
-  }, [activeTaskIssues, isTeamProgressView, progressFilters.assigneeId, progressFilters.projectId]);
+  }, [activeTaskIssues, isSprintTaskView, user?._id, isTeamProgressView, progressFilters.assigneeId, progressFilters.projectId]);
 
   const progressAssigneeOptions = useMemo(() => {
     const people = new Map();
@@ -345,7 +355,7 @@ const TasksPage = () => {
             <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
               <div>
                 <CardTitle>
-                  {isTeamProgressView ? "Team Progress" : "Assigned Tasks"}
+                  {isSprintTaskView ? "My Sprint Tasks" : isTeamProgressView ? "Team Progress" : "Assigned Tasks"}
                 </CardTitle>
                 <CardDescription>
                   {canCoordinateTasks
@@ -354,7 +364,9 @@ const TasksPage = () => {
                 </CardDescription>
               </div>
 
-              {canCoordinateTasks ? (
+              {isSprintTaskView ? (
+                <Link className="rounded text-sm font-semibold text-blue-700 underline focus-visible:ring-2 focus-visible:ring-blue-600" to="/tasks">View My Tasks</Link>
+              ) : canCoordinateTasks ? (
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
                   <div className="inline-flex rounded-2xl border border-slate-200 bg-white/80 p-1 shadow-sm">
                     {!isAdminRole ? (
@@ -462,7 +474,7 @@ const TasksPage = () => {
                 </div>
               </div>
             ) : null}
-            {activeTaskIssues.length ? (
+            {progressIssues.length ? (
               <TaskKanbanBoard
                 issues={visibleTaskIssues}
                 updatingId={

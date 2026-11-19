@@ -65,6 +65,8 @@ import {
   removeIssueFromBucketCaches,
 } from "@/lib/bug-workflow-cache";
 import IssueDetailsDialog from "@/components/issues/IssueDetailsDialog";
+import SprintProgressWidget from "@/components/dashboard/SprintProgressWidget";
+import { calculateSprintTaskProgress } from "@/lib/sprint-task-progress";
 import GreetingBeachScene from "@/components/dashboard/GreetingBeachScene";
 import AiCodeReviewPanel from "@/components/ai/AiCodeReviewPanel";
 import { getLatestGitActivity, normalizeDeliveryModules } from "@/lib/delivery-workflow";
@@ -513,46 +515,6 @@ const getActivitySummary = (entry) => {
   };
 };
 
-
-const SprintProgressWidget = ({ metrics, isLoading }) => {
-  const percentage = metrics?.percentage || 0;
-
-  return (
-    <div
-      className="group flex h-16 min-w-0 w-full flex-1 flex-col justify-center rounded-[22px] border border-cyan-100/80 bg-[linear-gradient(135deg,rgba(255,255,255,0.86),rgba(239,246,255,0.78),rgba(236,254,255,0.68))] px-4 py-2 shadow-[0_16px_34px_-26px_rgba(14,165,233,0.78)] backdrop-blur-xl transition-all duration-300 hover:-translate-y-0.5 hover:border-cyan-200 hover:shadow-[0_18px_38px_-24px_rgba(14,165,233,0.9)] sm:min-w-[240px] sm:max-w-[340px]"
-      title="Sprint completion based on assigned tasks."
-    >
-      {isLoading ? (
-        <div className="space-y-2">
-          <Skeleton className="h-3 w-28 rounded-full" />
-          <Skeleton className="h-2 w-full rounded-full" />
-          <Skeleton className="h-2.5 w-36 rounded-full" />
-        </div>
-      ) : metrics?.hasActiveSprint ? (
-        <>
-          <div className="mb-1 flex items-center justify-between gap-3">
-            <p className="truncate text-xs font-semibold text-slate-900">Sprint Progress</p>
-            <span className="shrink-0 text-xs font-bold text-cyan-700">{percentage}%</span>
-          </div>
-          <div className="h-2 overflow-hidden rounded-full bg-slate-200/80 shadow-inner">
-            <div
-              className="h-full rounded-full bg-[linear-gradient(90deg,#2563EB_0%,#06B6D4_100%)] shadow-[0_0_16px_rgba(14,165,233,0.45)] transition-[width] duration-700 ease-out"
-              style={{ width: `${percentage}%` }}
-            />
-          </div>
-          <p className="mt-1 truncate text-[11px] font-medium text-slate-500">
-            {metrics.completed} / {metrics.total} Tasks Completed
-          </p>
-        </>
-      ) : (
-        <>
-          <p className="text-xs font-semibold text-slate-900">Sprint Progress</p>
-          <p className="mt-1 text-[11px] font-medium text-slate-500">No active sprint</p>
-        </>
-      )}
-    </div>
-  );
-};
 
 const shortSha = (value) => String(value || "").slice(0, 7) || "-";
 const formatCompactDuration = (value) => {
@@ -2009,20 +1971,7 @@ const DeveloperDashboardPage = () => {
     ]
   );
   const sprintProgress = useMemo(
-    () => {
-      const activeSprintTasks = taskIssues.filter(
-        (issue) => String(issue?.sprintId?.state || issue?.sprintId?.status || "") === "ACTIVE"
-      );
-      const total = activeSprintTasks.length;
-      const completed = activeSprintTasks.filter(isIssueClosed).length;
-
-      return {
-        completed,
-        total,
-        percentage: total ? Math.round((completed / total) * 100) : 0,
-        hasActiveSprint: total > 0,
-      };
-    },
+    () => calculateSprintTaskProgress(taskIssues),
     [taskIssues]
   );
   useEffect(() => {
