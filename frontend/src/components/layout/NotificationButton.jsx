@@ -213,7 +213,7 @@ const NotificationButton = ({ user }) => {
       <button
         type="button"
         className={cn(
-          "relative inline-flex h-11 w-11 items-center justify-center rounded-full border border-white/50 bg-white/55 text-slate-700 shadow-sm transition hover:-translate-y-0.5 hover:border-blue-200 hover:bg-white/80 hover:text-blue-700",
+          "relative inline-flex h-11 w-11 items-center justify-center rounded-full border border-white/50 bg-white/55 text-slate-700 shadow-sm transition hover:-translate-y-0.5 hover:border-blue-200 hover:bg-white/80 hover:text-blue-700 dark:border-white/10 dark:bg-slate-900/60 dark:text-slate-200 dark:hover:border-blue-400/40 dark:hover:bg-slate-800 dark:hover:text-blue-300",
           isOpen && "border-blue-200 bg-white text-blue-700"
         )}
         aria-label="Notifications"
@@ -228,10 +228,10 @@ const NotificationButton = ({ user }) => {
       </button>
 
       {isOpen ? (
-        <div className="fixed right-3 top-[calc(var(--app-navbar-height)+0.6rem)] z-[120] w-[calc(100vw-1.5rem)] max-w-[360px] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_24px_70px_-32px_rgba(15,23,42,0.5)] sm:right-4 sm:w-[min(360px,calc(100vw-2rem))]">
+        <div className="fixed right-3 top-[calc(var(--app-navbar-height)+0.6rem)] z-[120] w-[calc(100vw-1.5rem)] max-w-[360px] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_24px_70px_-32px_rgba(15,23,42,0.5)] sm:right-4 sm:w-[min(360px,calc(100vw-2rem))] dark:border-slate-700 dark:bg-slate-900 dark:shadow-black/40">
           <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
             <div>
-              <p className="text-sm font-bold text-slate-950">Notifications</p>
+              <p className="text-sm font-bold text-slate-950 dark:text-slate-100">Notifications</p>
               <p className="text-xs text-slate-500">
                 {unreadCount ? `${unreadCount} unread` : "All caught up"}
               </p>
@@ -265,7 +265,7 @@ const NotificationButton = ({ user }) => {
                   <button
                     key={normalizedNotification.id || normalizedNotification.timestamp}
                     type="button"
-                    className="flex w-full gap-3 px-4 py-3 text-left transition hover:bg-slate-50"
+                    className="flex w-full gap-3 px-4 py-3 text-left transition hover:bg-slate-50 dark:hover:bg-slate-800"
                     onClick={() => handleOpenNotification(normalizedNotification)}
                   >
                     <span

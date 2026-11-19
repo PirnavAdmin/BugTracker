@@ -6,6 +6,7 @@ import Navbar from "@/components/layout/Navbar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useBugWorkflowRealtime } from "@/hooks/useBugWorkflowRealtime";
 import useScrollRestoration from "@/hooks/use-scroll-restoration";
+import { useTheme } from "@/context/ThemeContext";
 import { cn } from "@/lib/utils";
 
 const RouteContentFallback = () => (
@@ -21,6 +22,7 @@ const RouteContentFallback = () => (
 
 const AppShell = () => {
   const location = useLocation();
+  const { theme } = useTheme();
   const isChatPage = location.pathname === "/chat";
   const isProjectsPage =
     location.pathname === "/projects" || location.pathname.startsWith("/projects/");
@@ -46,8 +48,10 @@ const AppShell = () => {
 
   return (
     <div
+      data-theme={theme}
       className={cn(
-        "relative h-full overflow-hidden bg-transparent text-gray-900"
+        "app-theme-root relative h-full overflow-hidden bg-[var(--app-page-background)] text-[var(--app-text-primary)]",
+        theme === "dark" && "dark"
       )}
     >
       <CallProvider>

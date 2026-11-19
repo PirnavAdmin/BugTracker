@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
-import { ArrowRight, Eye, EyeOff, Moon, Sun } from "lucide-react";
+import { ArrowRight, Eye, EyeOff } from "lucide-react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import pirnavLogo from "@/assets/pirnav-logo.png";
 import { loginRequest, registerRequest, requestPasswordReset, resetPassword } from "@/lib/api";
@@ -15,7 +15,7 @@ const safeRedirect = (search) => {
 
 const Error = ({ error }) =>
   error ? (
-    <p className="rounded-lg bg-rose-50 p-3 text-sm font-medium text-rose-700 dark:bg-rose-950/50 dark:text-rose-200">
+    <p className="rounded-lg bg-rose-50 p-3 text-sm font-medium text-rose-700">
       {error?.response?.data?.message || "Something went wrong. Please try again."}
     </p>
   ) : null;
@@ -51,7 +51,6 @@ export default function LoginPage({ signup = false }) {
   const [otp, setOtp] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [sent, setSent] = useState(false);
-  const [isDarkMode, setIsDarkMode] = useState(false);
 
   const auth = useMutation({
     mutationFn: () =>
@@ -98,45 +97,29 @@ export default function LoginPage({ signup = false }) {
     }
   };
   const field =
-    "h-12 w-full rounded-lg border border-slate-300 bg-white px-4 text-slate-950 outline-none transition placeholder:text-slate-400 focus:border-violet-600 focus:ring-4 focus:ring-violet-100 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-400 dark:focus:ring-violet-900/50";
+    "h-12 w-full rounded-lg border border-slate-300 bg-white px-4 text-slate-950 outline-none transition placeholder:text-slate-400 focus:border-violet-600 focus:ring-4 focus:ring-violet-100";
 
   return (
-    <main
-      className={`min-h-screen px-5 py-3 ${
-        isDarkMode
-          ? "dark bg-[radial-gradient(circle_at_15%_20%,rgba(124,58,237,.18),transparent_30%),radial-gradient(circle_at_85%_80%,rgba(37,99,235,.16),transparent_30%),#0f172a] text-slate-100"
-          : "bg-[radial-gradient(circle_at_15%_20%,rgba(124,58,237,.12),transparent_30%),radial-gradient(circle_at_85%_80%,rgba(37,99,235,.1),transparent_30%),#f8fafc] text-slate-950"
-      }`}
-    >
+    <main className="min-h-screen bg-[radial-gradient(circle_at_15%_20%,rgba(124,58,237,.12),transparent_30%),radial-gradient(circle_at_85%_80%,rgba(37,99,235,.1),transparent_30%),#f8fafc] px-5 py-3 text-slate-950">
       <header className="mx-auto flex max-w-6xl items-center justify-between">
         <Link to="/">
           <img className="h-14 w-auto" src={pirnavLogo} alt="CureCode" />
         </Link>
-        <button
-          type="button"
-          aria-label={`Switch to ${isDarkMode ? "light" : "dark"} theme`}
-          aria-pressed={isDarkMode}
-          className="flex h-10 items-center gap-2 rounded-lg border border-slate-300 bg-white/80 px-3 text-sm font-semibold text-slate-700 transition hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 dark:border-slate-600 dark:bg-slate-800/80 dark:text-slate-100 dark:hover:bg-slate-700"
-          onClick={() => setIsDarkMode((current) => !current)}
-        >
-          {isDarkMode ? <Sun size={18} /> : <Moon size={18} />}
-          <span>{isDarkMode ? "Light mode" : "Dark mode"}</span>
-        </button>
       </header>
       <div className="mx-auto grid max-w-5xl items-center gap-10 py-6 lg:grid-cols-[1fr_430px] lg:py-4">
         <section className="hidden lg:block">
-          <p className="text-sm font-bold uppercase tracking-widest text-violet-700 dark:text-violet-300">
+          <p className="text-sm font-bold uppercase tracking-widest text-violet-700">
             CureCode workspace
           </p>
           <h1 className="mt-4 text-5xl font-black leading-tight">
             Work with clarity.{" "}
-            <span className="text-violet-700 dark:text-violet-300">Deliver with confidence.</span>
+            <span className="text-violet-700">Deliver with confidence.</span>
           </h1>
-          <p className="mt-5 max-w-md text-lg leading-8 text-slate-600 dark:text-slate-300">
+          <p className="mt-5 max-w-md text-lg leading-8 text-slate-600">
             A focused workspace for development, QA, project management and collaboration.
           </p>
         </section>
-        <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-xl shadow-slate-200/70 dark:border-slate-700 dark:bg-slate-900 dark:shadow-black/30 sm:p-8">
+        <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-xl shadow-slate-200/70 sm:p-8">
           <h2 className="text-2xl font-black">
             {forgot
               ? sent
@@ -146,7 +129,7 @@ export default function LoginPage({ signup = false }) {
                 ? "Create your workspace"
                 : "Welcome back"}
           </h2>
-          <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">
+          <p className="mt-2 text-sm text-slate-600">
             {forgot
               ? "Use your workspace email to securely reset access."
               : mode === "signup"
@@ -205,7 +188,7 @@ export default function LoginPage({ signup = false }) {
               </button>
               <button
                 type="button"
-                className="w-full text-sm font-bold text-violet-700 dark:text-violet-300"
+                className="w-full text-sm font-bold text-violet-700"
                 onClick={() => setForgot(false)}
               >
                 Back to sign in
@@ -248,7 +231,7 @@ export default function LoginPage({ signup = false }) {
                   <button
                     type="button"
                     aria-label="Toggle password"
-                    className="absolute right-3 top-3 text-slate-500 dark:text-slate-300"
+                    className="absolute right-3 top-3 text-slate-500"
                     onClick={() => setShow(!show)}
                   >
                     {show ? <Eye size={20} /> : <EyeOff size={20} />}
@@ -267,7 +250,7 @@ export default function LoginPage({ signup = false }) {
                   </label>
                   <button
                     type="button"
-                    className="font-bold text-violet-700 dark:text-violet-300"
+                    className="font-bold text-violet-700"
                     onClick={() => setForgot(true)}
                   >
                     Forgot password?
@@ -276,7 +259,7 @@ export default function LoginPage({ signup = false }) {
               )}
               <Error error={auth.error} />
               <button
-                className="flex h-12 w-full items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-violet-700 to-blue-600 font-bold text-white shadow-lg shadow-violet-200 dark:shadow-black/20"
+                className="flex h-12 w-full items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-violet-700 to-blue-600 font-bold text-white shadow-lg shadow-violet-200"
                 disabled={auth.isPending}
               >
                 {auth.isPending ? "Please wait..." : mode === "signup" ? "Create account" : "Sign In"}
@@ -284,12 +267,12 @@ export default function LoginPage({ signup = false }) {
               </button>
             </form>
           )}
-          <p className="mt-6 text-center text-sm text-slate-600 dark:text-slate-300">
+          <p className="mt-6 text-center text-sm text-slate-600">
             {mode === "login"
               ? "Don't have a CureCode workspace? "
               : "Already have a workspace? "}
             <button
-              className="font-bold text-violet-700 dark:text-violet-300"
+              className="font-bold text-violet-700"
               onClick={() => setMode(mode === "login" ? "signup" : "login")}
             >
               {mode === "login" ? "Create account" : "Sign in"}

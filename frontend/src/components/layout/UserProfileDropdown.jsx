@@ -96,7 +96,7 @@ const UserProfileDropdown = () => {
       <button
         ref={triggerRef}
         onClick={() => setIsOpen(!isOpen)}
-        className="group flex items-center gap-1.5 rounded-full border border-white/40 bg-white/35 px-1.5 py-1.5 transition-all duration-200 hover:border-blue-300/60 hover:bg-white/45 focus:outline-none focus:ring-2 focus:ring-blue-400/60 focus:ring-offset-2 focus:ring-offset-transparent"
+        className="group flex items-center gap-1.5 rounded-full border border-white/40 bg-white/35 px-1.5 py-1.5 transition-all duration-200 hover:border-blue-300/60 hover:bg-white/45 focus:outline-none focus:ring-2 focus:ring-blue-400/60 focus:ring-offset-2 focus:ring-offset-transparent dark:border-white/10 dark:bg-slate-900/55 dark:hover:border-blue-400/50 dark:hover:bg-slate-800/80"
         aria-label="User profile menu"
         aria-expanded={isOpen}
       >
@@ -109,7 +109,7 @@ const UserProfileDropdown = () => {
           <StatusIndicator userId={user?._id || user?.id} className="absolute -bottom-0.5 -right-0.5" />
         </span>
         <ChevronDown
-          className={`h-3.5 w-3.5 text-slate-700 shrink-0 transition-all duration-300 ${
+          className={`h-3.5 w-3.5 shrink-0 text-slate-700 transition-all duration-300 dark:text-slate-200 ${
             isOpen ? "rotate-180 text-blue-600" : ""
           }`}
         />
@@ -123,11 +123,11 @@ const UserProfileDropdown = () => {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -10, scale: 0.94 }}
             transition={{ type: "spring", stiffness: 350, damping: 30 }}
-            className="profile-dropdown-scrollbar absolute right-0 top-[calc(100%+12px)] z-[10000] max-h-[calc(100vh-100px)] w-[min(calc(100vw-2rem),20rem)] min-w-[260px] max-w-[320px] overflow-y-auto overscroll-contain rounded-xl border border-slate-200/80 bg-white py-1 shadow-[0_24px_60px_-28px_rgba(15,23,42,0.45),0_8px_24px_-16px_rgba(37,99,235,0.28)]"
+            className="profile-dropdown-scrollbar absolute right-0 top-[calc(100%+12px)] z-[10000] max-h-[calc(100vh-100px)] w-[min(calc(100vw-2rem),20rem)] min-w-[260px] max-w-[320px] overflow-y-auto overscroll-contain rounded-xl border border-slate-200/80 bg-white py-1 shadow-[0_24px_60px_-28px_rgba(15,23,42,0.45),0_8px_24px_-16px_rgba(37,99,235,0.28)] dark:border-slate-700 dark:bg-slate-900 dark:shadow-black/40"
             role="menu"
           >
             {/* User Info Header */}
-            <div className="sticky top-0 z-10 border-b border-slate-200/70 bg-white px-3.5 py-3">
+            <div className="sticky top-0 z-10 border-b border-slate-200/70 bg-white px-3.5 py-3 dark:border-slate-700 dark:bg-slate-900">
               <div className="flex items-center gap-3">
                 <span className="relative shrink-0">
                   <UserAvatar
@@ -138,10 +138,10 @@ const UserProfileDropdown = () => {
                   <StatusIndicator userId={user?._id || user?.id} className="absolute -bottom-0.5 -right-0.5" />
                 </span>
                 <div className="min-w-0 flex-1">
-                  <p className="truncate whitespace-nowrap text-sm font-semibold leading-tight text-slate-900">
+                  <p className="truncate whitespace-nowrap text-sm font-semibold leading-tight text-slate-900 dark:text-slate-100">
                     {user?.name}
                   </p>
-                  <p className="mt-0.5 truncate whitespace-nowrap text-xs leading-tight text-slate-500">
+                  <p className="mt-0.5 truncate whitespace-nowrap text-xs leading-tight text-slate-400">
                     {user?.email}
                   </p>
                   {user?.role && (
@@ -165,9 +165,9 @@ const UserProfileDropdown = () => {
                     key={item.label}
                     onClick={item.onClick}
                     role="menuitem"
-                    className="group/item flex h-9 w-full items-center gap-3 rounded-lg px-3 text-sm font-medium text-slate-700 transition-all duration-150 hover:bg-blue-50 hover:text-blue-700 active:bg-blue-100 focus:outline-none focus:ring-1 focus:ring-inset focus:ring-blue-400"
+                    className="group/item flex h-9 w-full items-center gap-3 rounded-lg px-3 text-sm font-medium text-slate-700 transition-all duration-150 hover:bg-blue-50 hover:text-blue-700 active:bg-blue-100 focus:outline-none focus:ring-1 focus:ring-inset focus:ring-blue-400 dark:text-slate-200 dark:hover:bg-blue-950/50 dark:hover:text-blue-300 dark:active:bg-blue-900/60"
                   >
-                    <Icon className="h-4 w-4 shrink-0 text-slate-500 group-hover/item:text-blue-600 transition-colors" />
+                    <Icon className="h-4 w-4 shrink-0 text-slate-500 transition-colors group-hover/item:text-blue-600 dark:text-slate-400 dark:group-hover/item:text-blue-300" />
                     <span className="min-w-0 flex-1 truncate whitespace-nowrap text-left">
                       {item.label}
                     </span>
@@ -177,7 +177,7 @@ const UserProfileDropdown = () => {
             </nav>
 
             {/* Divider */}
-            <div className="mx-2 h-px bg-slate-100" />
+            <div className="mx-2 h-px bg-slate-100 dark:bg-slate-700" />
 
             {/* Logout Button */}
             <div className="px-2 py-2">

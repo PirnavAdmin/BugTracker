@@ -27,6 +27,7 @@ import { useChatStore } from "@/lib/chatStore";
 import { filterRoleNavigation, getRoleNavigation } from "@/lib/roles";
 import { cn } from "@/lib/utils";
 import NotificationButton from "./NotificationButton";
+import ThemeToggle from "./ThemeToggle";
 import UserProfileDropdown from "./UserProfileDropdown";
 
 const iconMap = {
@@ -139,7 +140,7 @@ const Navbar = () => {
   }, [isMenuOpen]);
 
   return (
-    <header className="fixed inset-x-0 top-0 z-40 h-[var(--app-navbar-height)] overflow-visible border-b border-white/40 bg-gradient-to-r from-white/78 via-blue-50/72 to-sky-100/68 shadow-[0_8px_24px_rgba(15,23,42,0.06)] backdrop-blur-2xl">
+    <header className="fixed inset-x-0 top-0 z-40 h-[var(--app-navbar-height)] overflow-visible border-b border-white/40 bg-gradient-to-r from-white/78 via-blue-50/72 to-sky-100/68 shadow-[0_8px_24px_rgba(15,23,42,0.06)] backdrop-blur-2xl dark:border-white/10 dark:from-slate-950/95 dark:via-slate-900/95 dark:to-indigo-950/90 dark:shadow-black/25">
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,_rgba(96,165,250,0.14),transparent_32%),radial-gradient(circle_at_top_right,_rgba(186,230,253,0.20),transparent_40%)]" />
 
       <div className="relative z-10 mx-auto h-full w-full max-w-screen-2xl overflow-visible px-4 sm:px-6 lg:px-8">
@@ -169,7 +170,7 @@ const Navbar = () => {
                       navItemClassName,
                       isActive
                         ? "border-blue-200/70 bg-gradient-to-r from-blue-500/80 via-sky-400/75 to-cyan-300/70 font-semibold text-white shadow-[0_10px_24px_rgba(37,99,235,0.25)]"
-                        : "border-white/30 bg-white/32 text-slate-700 hover:-translate-y-0.5 hover:border-blue-200/60 hover:bg-white/48 hover:text-slate-900"
+                        : "border-white/30 bg-white/32 text-slate-700 hover:-translate-y-0.5 hover:border-blue-200/60 hover:bg-white/48 hover:text-slate-900 dark:border-white/10 dark:bg-slate-950/30 dark:text-slate-200 dark:hover:border-blue-400/40 dark:hover:bg-slate-800/80 dark:hover:text-white"
                     )
                   }
                 >
@@ -186,19 +187,23 @@ const Navbar = () => {
           </nav>
 
           <div className="relative z-[100] ml-auto hidden items-center gap-2 overflow-visible lg:flex">
+            <ThemeToggle />
             <NotificationButton user={user} />
             <UserProfileDropdown />
           </div>
 
-          <Button
-            className="ml-auto shrink-0 lg:hidden"
-            variant="outline"
-            size="icon"
-            type="button"
-            onClick={() => setIsMenuOpen((current) => !current)}
-          >
-            {isMenuOpen ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
-          </Button>
+          <div className="ml-auto flex shrink-0 items-center gap-2 lg:hidden">
+            <ThemeToggle />
+            <Button
+              variant="outline"
+              size="icon"
+              type="button"
+              aria-label={isMenuOpen ? "Close menu" : "Open menu"}
+              onClick={() => setIsMenuOpen((current) => !current)}
+            >
+              {isMenuOpen ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
+            </Button>
+          </div>
         </div>
       </div>
 
@@ -222,7 +227,7 @@ const Navbar = () => {
               animate={{ x: 0 }}
               exit={{ x: "100%" }}
               transition={{ type: "spring", stiffness: 350, damping: 35 }}
-              className="fixed right-0 top-0 z-[9999] flex h-screen w-[80%] max-w-[320px] flex-col border-l border-slate-200 bg-white shadow-2xl lg:hidden"
+              className="fixed right-0 top-0 z-[9999] flex h-screen w-[80%] max-w-[320px] flex-col border-l border-slate-200 bg-white shadow-2xl dark:border-slate-800 dark:bg-slate-950 lg:hidden"
               onClick={(e) => e.stopPropagation()}
             >
               {/* Drawer header with close button */}
@@ -260,7 +265,7 @@ const Navbar = () => {
                             "group flex w-full items-center gap-3 rounded-lg border px-4 py-2.5 text-sm font-medium transition-all duration-200",
                             isActive
                               ? "border-blue-200/60 bg-blue-50 text-blue-700 shadow-sm"
-                              : "border-slate-200 bg-white text-slate-700 hover:border-blue-200/50 hover:bg-blue-50/70 hover:text-blue-700"
+                              : "border-slate-200 bg-white text-slate-700 hover:border-blue-200/50 hover:bg-blue-50/70 hover:text-blue-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:border-blue-500/40 dark:hover:bg-slate-800 dark:hover:text-blue-300"
                           )
                         }
                       >
@@ -284,17 +289,17 @@ const Navbar = () => {
                   <div className="flex justify-end">
                     <NotificationButton user={user} />
                   </div>
-                  <div className="flex items-center gap-3 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 shadow-sm">
+                  <div className="flex items-center gap-3 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 shadow-sm dark:border-slate-700 dark:bg-slate-900">
                     <UserAvatar
                       user={user}
                       className="h-10 w-10 shrink-0 ring-2 ring-blue-100"
                       fallbackClassName="font-bold"
                     />
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-semibold text-slate-900">
+                      <p className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">
                         {user?.name}
                       </p>
-                      <p className="truncate text-xs text-slate-600">{user?.email}</p>
+                      <p className="truncate text-xs text-slate-600 dark:text-slate-400">{user?.email}</p>
                     </div>
                   </div>
 
