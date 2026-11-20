@@ -14,7 +14,7 @@ import {
   UsersRound,
 } from "lucide-react";
 import UserAvatar from "@/components/shared/UserAvatar";
-import StatusIndicator from "@/components/presence/StatusIndicator";
+import ChatPresenceIndicator from "@/components/chat/ChatPresenceIndicator";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -84,9 +84,6 @@ const ChatHeader = memo(
     );
     const isOnline =
       conversation?.type === "direct" && onlineUsers.includes(getId(directUser));
-    const directUserPresence = callPresence[getId(directUser)] || "";
-    const directPresenceStatus =
-      directUserPresence || (isOnline ? "active" : "offline");
     const currentUserPresence = callPresence[String(currentUserId)] || "";
     const isDirectCallAvailable =
       conversation?.type === "direct" && directUser && !activeCall && currentUserPresence !== "in-call";
@@ -304,7 +301,7 @@ const ChatHeader = memo(
 
           <div className="mt-1 flex flex-wrap items-center gap-2 text-xs font-medium text-slate-500 dark:text-slate-400">
             {conversation?.type === "direct" ? (
-              <StatusIndicator status={directPresenceStatus} showLabel />
+              <ChatPresenceIndicator userId={getId(directUser)} isOnline={isOnline} showLabel />
             ) : (
               <span className="inline-flex items-center gap-1.5">
                 {`${participants.length} participants`}

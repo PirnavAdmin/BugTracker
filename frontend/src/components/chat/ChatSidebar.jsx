@@ -4,6 +4,7 @@ import { Check, Hash, MessageCircle, Plus, Search, Trash2, UsersRound, X } from 
 import UserAvatar from "@/components/shared/UserAvatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import ChatPresenceIndicator from "@/components/chat/ChatPresenceIndicator";
 import StatusIndicator from "@/components/presence/StatusIndicator";
 import { cn } from "@/lib/utils";
 
@@ -100,9 +101,9 @@ const ConversationButton = memo(
               </span>
             )}
             {conversation.type === "direct" ? (
-              <StatusIndicator
+              <ChatPresenceIndicator
                 userId={getId(directUser)}
-                status={isOnline ? "active" : "offline"}
+                isOnline={isOnline}
                 className="absolute -bottom-0.5 -right-0.5"
               />
             ) : null}

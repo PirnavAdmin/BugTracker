@@ -12,10 +12,13 @@ const { withTenantFilter } = require("../utils/tenant");
 const { normalizeWorkspaceId } = require("../utils/workspace");
 const {
   getDayStart,
+  getPresenceForUsers,
   getWorkspacePresence,
 } = require("../services/presenceService");
 
 const MS_PER_HOUR = 60 * 60 * 1000;
+const ACTIVITY_PAGE_SIZES = new Set([5, 10, 50, 100]);
+const USER_STATUSES = new Set(["active", "idle", "offline"]);
 
 const requireAdmin = (req, res) => {
   if (req.user.role !== ROLE_ADMIN) {
@@ -79,21 +82,57 @@ const getTeamActivity = asyncHandler(async (req, res) => {
 
   const workspaceId = normalizeWorkspaceId(req.user.workspaceId);
   const { start, end } = parseDateRange(req.query);
-  const tenantUserIds = await getTenantUserIds(req.user, workspaceId);
-  const [presenceRows, activityRows] = await Promise.all([
-    getWorkspacePresence(workspaceId, req.user),
-    UserActivity.find({
-      workspaceId,
-      userId: { $in: tenantUserIds },
-      date: {
-        $gte: start,
-        $lte: end,
-      },
-    })
-      .populate("userId", "_id name email role workspaceId")
-      .sort({ date: -1, updatedAt: -1 })
-      .lean(),
-  ]);
+  const requestedPage = Number(req.query.page);
+  const requestedLimit = Number(req.query.limit);
+  const page = Number.isSafeInteger(requestedPage) && requestedPage > 0
+    ? requestedPage
+    : 1;
+  const limit = ACTIVITY_PAGE_SIZES.has(requestedLimit) ? requestedLimit : 10;
+  const search = typeof req.query.search === "string"
+    ? req.query.search.trim().slice(0, 100)
+    : "";
+  const status = USER_STATUSES.has(req.query.status) ? req.query.status : "all";
+  const workspaceFilter = withTenantFilter({ workspaceId }, req.user);
+  const workspaceUserIds = await User.distinct("_id", workspaceFilter);
+  const presenceByUserId = await getPresenceForUsers(workspaceUserIds);
+  const userFilter = { ...workspaceFilter };
+
+  if (search) {
+    const escapedSearch = search.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const searchRegex = new RegExp(escapedSearch, "i");
+    userFilter.$or = [{ name: searchRegex }, { email: searchRegex }];
+  }
+
+  if (status !== "all") {
+    userFilter._id = {
+      $in: Object.entries(presenceByUserId)
+        .filter(([, presence]) => presence.status === status)
+        .map(([userId]) => userId),
+    };
+  }
+
+  const totalUsers = await User.countDocuments(userFilter);
+  const totalPages = Math.ceil(totalUsers / limit);
+  const currentPage = Math.min(page, Math.max(totalPages, 1));
+  const pageUsers = await User.find(userFilter)
+    .select("_id name email role workspaceId tenantId")
+    .sort({ name: 1, _id: 1 })
+    .skip((currentPage - 1) * limit)
+    .limit(limit)
+    .lean();
+  const activityRows = pageUsers.length
+    ? await UserActivity.find({
+        workspaceId,
+        userId: { $in: pageUsers.map((user) => user._id) },
+        date: {
+          $gte: start,
+          $lte: end,
+        },
+      })
+        .populate("userId", "_id name email role workspaceId")
+        .sort({ date: -1, updatedAt: -1 })
+        .lean()
+    : [];
   const latestByUserId = new Map();
 
   activityRows.forEach((record) => {
@@ -104,7 +143,11 @@ const getTeamActivity = asyncHandler(async (req, res) => {
     }
   });
 
-  const users = presenceRows.map(({ user, presence }) => {
+  const users = pageUsers.map((user) => {
+    const presence = presenceByUserId[String(user._id)] || {
+      status: "offline",
+      lastSeen: null,
+    };
     const record = latestByUserId.get(String(user._id));
 
     return {
@@ -120,10 +163,10 @@ const getTeamActivity = asyncHandler(async (req, res) => {
       ),
     };
   });
-  const summary = users.reduce(
-    (current, row) => ({
+  const summary = Object.values(presenceByUserId).reduce(
+    (current, presence) => ({
       ...current,
-      [row.status]: (current[row.status] || 0) + 1,
+      [presence.status]: (current[presence.status] || 0) + 1,
     }),
     { active: 0, idle: 0, offline: 0 }
   );
@@ -132,6 +175,10 @@ const getTeamActivity = asyncHandler(async (req, res) => {
     range: { start, end },
     summary,
     users,
+    totalUsers,
+    totalPages,
+    currentPage,
+    limit,
   });
 });
 

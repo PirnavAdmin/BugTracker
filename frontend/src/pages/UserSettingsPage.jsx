@@ -166,12 +166,12 @@ const UserSettingsPage = () => {
 
   const {
     data: users = [],
-    isLoading,
-    error,
+    isLoading: isLoadingManagedUsers,
+    error: managedUsersError,
   } = useQuery({
     queryKey: ["managed-users"],
     queryFn: fetchManagedUsers,
-    enabled: canManageWorkspaceUsers,
+    enabled: canManageWorkspaceUsers && activeSettingsItem === "roles",
   });
 
   const {
@@ -790,7 +790,7 @@ const UserSettingsPage = () => {
       return (
         <ModifyRoleSettings
           currentRole={currentRole}
-          isLoading={isLoading}
+          isLoading={isLoadingManagedUsers}
           isRoleUpdateDisabled={isRoleUpdateDisabled}
           newRole={newRole}
           onNewRoleChange={setNewRole}
@@ -929,10 +929,8 @@ const UserSettingsPage = () => {
           activeFilter={activeUserFilter}
           currentUserId={authUser?._id || ""}
           deleteMutation={userDeleteMutation}
-          isLoading={isLoading}
           onActiveFilterChange={setActiveUserFilter}
           updateMutation={userUpdateMutation}
-          users={users}
           usage={subscriptionPlan?.usage?.users}
           storage={subscriptionPlan?.storage}
           databaseUsage={databaseUsage}
@@ -964,11 +962,16 @@ const UserSettingsPage = () => {
     );
   };
 
-  if (canManageWorkspaceUsers && error) {
+  if (
+    canManageWorkspaceUsers &&
+    activeSettingsItem === "roles" &&
+    managedUsersError
+  ) {
     return (
       <Card>
         <CardContent className="p-6 text-sm text-rose-700">
-          {error.response?.data?.message || "Unable to load settings right now."}
+          {managedUsersError.response?.data?.message ||
+            "Unable to load settings right now."}
         </CardContent>
       </Card>
     );

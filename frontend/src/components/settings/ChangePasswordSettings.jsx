@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
-import { KeyRound, LoaderCircle } from "lucide-react";
+import { Eye, EyeOff, KeyRound, LoaderCircle } from "lucide-react";
 import ToastNotice from "@/components/shared/ToastNotice";
 import { Button } from "@/components/ui/button";
 import {
@@ -12,10 +12,11 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { changePasswordRequest } from "@/lib/api";
+import {
+  getPasswordStrength,
+  getPasswordValidationError,
+} from "@/lib/passwordValidation";
 import { cn } from "@/lib/utils";
-
-const passwordHasLetter = /[A-Za-z]/;
-const passwordHasNumber = /\d/;
 
 const initialFormState = {
   currentPassword: "",
@@ -29,56 +30,10 @@ const initialTouchedState = {
   confirmPassword: false,
 };
 
-const getPasswordChecks = (password = "") => ({
-  minLength: password.length >= 8,
-  hasLetter: passwordHasLetter.test(password),
-  hasNumber: passwordHasNumber.test(password),
-});
-
-const getStrengthMeta = (password, checks) => {
-  if (!password) {
-    return {
-      label: "Not set",
-      tone: "slate",
-      width: 0,
-    };
-  }
-
-  let score = 0;
-
-  if (checks.minLength) {
-    score += 1;
-  }
-
-  if (checks.hasLetter && checks.hasNumber) {
-    score += 1;
-  }
-
-  if (password.length >= 12) {
-    score += 1;
-  }
-
-  if (score <= 1) {
-    return {
-      label: "Weak",
-      tone: "rose",
-      width: 34,
-    };
-  }
-
-  if (score === 2) {
-    return {
-      label: "Medium",
-      tone: "amber",
-      width: 68,
-    };
-  }
-
-  return {
-    label: "Strong",
-    tone: "emerald",
-    width: 100,
-  };
+const initialPasswordVisibility = {
+  currentPassword: false,
+  newPassword: false,
+  confirmPassword: false,
 };
 
 const getSafeMessage = (value, fallback) =>
@@ -94,32 +49,48 @@ const PasswordField = ({
   name,
   onBlur,
   onChange,
+  onToggleVisibility,
   placeholder,
-  showPassword,
+  passwordVisible,
   value,
 }) => (
   <div className="space-y-2">
     <label htmlFor={name} className="text-sm font-medium text-slate-700">
       {label}
     </label>
-    <Input
-      autoComplete={autoComplete}
-      aria-describedby={message ? `${name}-message` : undefined}
-      aria-invalid={Boolean(error)}
-      className={cn(
-        "h-12 rounded-2xl border-slate-200 bg-white px-4 shadow-none transition-all duration-200 focus-visible:border-blue-500 focus-visible:ring-4 focus-visible:ring-blue-500/10",
-        error &&
-          "border-rose-300 bg-rose-50/70 focus-visible:border-rose-400 focus-visible:ring-rose-500/25"
-      )}
-      disabled={disabled}
-      id={name}
-      name={name}
-      placeholder={placeholder}
-      type={showPassword ? "text" : "password"}
-      value={value}
-      onBlur={onBlur}
-      onChange={onChange}
-    />
+    <div className="relative">
+      <Input
+        autoComplete={autoComplete}
+        aria-describedby={message ? `${name}-message` : undefined}
+        aria-invalid={Boolean(error)}
+        className={cn(
+          "h-12 rounded-2xl border-slate-200 bg-white px-4 pr-12 shadow-none transition-all duration-200 focus-visible:border-blue-500 focus-visible:ring-4 focus-visible:ring-blue-500/10",
+          error &&
+            "border-rose-300 bg-rose-50/70 focus-visible:border-rose-400 focus-visible:ring-rose-500/25"
+        )}
+        disabled={disabled}
+        id={name}
+        name={name}
+        placeholder={placeholder}
+        type={passwordVisible ? "text" : "password"}
+        value={value}
+        onBlur={onBlur}
+        onChange={onChange}
+      />
+      <button
+        aria-label={`${passwordVisible ? "Hide" : "Show"} ${label.toLowerCase()}`}
+        className="absolute right-3 top-1/2 grid h-9 w-9 -translate-y-1/2 place-items-center rounded-full text-slate-500 transition hover:bg-slate-100 hover:text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40 disabled:cursor-not-allowed disabled:opacity-50"
+        disabled={disabled}
+        type="button"
+        onClick={onToggleVisibility}
+      >
+        {passwordVisible ? (
+          <Eye className="h-5 w-5" aria-hidden="true" />
+        ) : (
+          <EyeOff className="h-5 w-5" aria-hidden="true" />
+        )}
+      </button>
+    </div>
     {message ? (
       <p
         id={`${name}-message`}
@@ -134,7 +105,9 @@ const PasswordField = ({
 const ChangePasswordSettings = () => {
   const [formData, setFormData] = useState(initialFormState);
   const [touched, setTouched] = useState(initialTouchedState);
-  const [showPassword, setShowPassword] = useState(false);
+  const [passwordVisibility, setPasswordVisibility] = useState(
+    initialPasswordVisibility
+  );
   const [toast, setToast] = useState(null);
 
   const changePasswordMutation = useMutation({
@@ -150,7 +123,7 @@ const ChangePasswordSettings = () => {
       });
       setFormData(initialFormState);
       setTouched(initialTouchedState);
-      setShowPassword(false);
+      setPasswordVisibility(initialPasswordVisibility);
     },
     onError: (error) => {
       setToast({
@@ -166,14 +139,14 @@ const ChangePasswordSettings = () => {
 
   const isPasswordUpdatePending = changePasswordMutation.isPending;
 
-  const passwordChecks = useMemo(
-    () => getPasswordChecks(formData.newPassword),
+  const strengthMeta = useMemo(
+    () => getPasswordStrength(formData.newPassword),
     [formData.newPassword]
   );
 
-  const strengthMeta = useMemo(
-    () => getStrengthMeta(formData.newPassword, passwordChecks),
-    [formData.newPassword, passwordChecks]
+  const passwordValidationError = useMemo(
+    () => getPasswordValidationError(formData.newPassword),
+    [formData.newPassword]
   );
 
   const validationErrors = useMemo(() => {
@@ -186,10 +159,8 @@ const ChangePasswordSettings = () => {
     if (touched.newPassword) {
       if (!formData.newPassword) {
         errors.newPassword = "New password is required";
-      } else if (!passwordChecks.minLength) {
-        errors.newPassword = "Password must be at least 8 characters";
-      } else if (!passwordChecks.hasLetter || !passwordChecks.hasNumber) {
-        errors.newPassword = "Password must include letters and numbers";
+      } else if (passwordValidationError) {
+        errors.newPassword = passwordValidationError;
       } else if (
         formData.currentPassword &&
         formData.newPassword === formData.currentPassword
@@ -208,15 +179,13 @@ const ChangePasswordSettings = () => {
     }
 
     return errors;
-  }, [formData, passwordChecks, touched]);
+  }, [formData, passwordValidationError, touched]);
 
   const isFormValid =
     Boolean(formData.currentPassword) &&
     Boolean(formData.newPassword) &&
     Boolean(formData.confirmPassword) &&
-    passwordChecks.minLength &&
-    passwordChecks.hasLetter &&
-    passwordChecks.hasNumber &&
+    !passwordValidationError &&
     formData.currentPassword !== formData.newPassword &&
     formData.newPassword === formData.confirmPassword;
 
@@ -259,6 +228,13 @@ const ChangePasswordSettings = () => {
     setTouched((current) => ({
       ...current,
       [name]: true,
+    }));
+  };
+
+  const togglePasswordVisibility = (fieldName) => {
+    setPasswordVisibility((current) => ({
+      ...current,
+      [fieldName]: !current[fieldName],
     }));
   };
 
@@ -316,8 +292,11 @@ const ChangePasswordSettings = () => {
               }
               name="currentPassword"
               placeholder="Enter your current password"
-              showPassword={showPassword}
+              passwordVisible={passwordVisibility.currentPassword}
               value={formData.currentPassword}
+              onToggleVisibility={() =>
+                togglePasswordVisibility("currentPassword")
+              }
               onBlur={handleFieldBlur}
               onChange={handleFieldChange}
             />
@@ -334,43 +313,46 @@ const ChangePasswordSettings = () => {
                 }
                 name="newPassword"
                 placeholder="Create a stronger password"
-                showPassword={showPassword}
+                passwordVisible={passwordVisibility.newPassword}
                 value={formData.newPassword}
+                onToggleVisibility={() => togglePasswordVisibility("newPassword")}
                 onBlur={handleFieldBlur}
                 onChange={handleFieldChange}
               />
 
-              <div className="space-y-2">
-                <p className="text-xs text-slate-500">
-                  Use at least 8 characters and include letters and numbers.
-                </p>
-                <div className="flex items-center gap-3">
-                  <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-slate-100">
-                    <div
+              {passwordValidationError ? (
+                <div className="space-y-2">
+                  <p className="text-xs text-slate-500">
+                    Use at least 8 characters with uppercase and lowercase letters, a number, and a special character.
+                  </p>
+                  <div className="flex items-center gap-3">
+                    <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-slate-100">
+                      <div
+                        className={cn(
+                          "h-full rounded-full transition-all duration-300 ease-out",
+                          strengthMeta.tone === "emerald" && "bg-emerald-500",
+                          strengthMeta.tone === "amber" && "bg-amber-400",
+                          strengthMeta.tone === "rose" && "bg-rose-500",
+                          strengthMeta.tone === "slate" && "bg-slate-300"
+                        )}
+                        style={{ width: `${strengthMeta.width}%` }}
+                      />
+                    </div>
+                    <span
                       className={cn(
-                        "h-full rounded-full transition-all duration-300 ease-out",
-                        strengthMeta.tone === "emerald" && "bg-emerald-500",
-                        strengthMeta.tone === "amber" && "bg-amber-400",
-                        strengthMeta.tone === "rose" && "bg-rose-500",
-                        strengthMeta.tone === "slate" && "bg-slate-300"
+                        "min-w-[56px] text-right text-xs font-semibold transition-colors duration-200",
+                        strengthMeta.tone === "emerald" &&
+                          "text-emerald-600",
+                        strengthMeta.tone === "amber" && "text-amber-600",
+                        strengthMeta.tone === "rose" && "text-rose-600",
+                        strengthMeta.tone === "slate" && "text-slate-500"
                       )}
-                      style={{ width: `${strengthMeta.width}%` }}
-                    />
+                    >
+                      {strengthMeta.label}
+                    </span>
                   </div>
-                  <span
-                    className={cn(
-                      "min-w-[56px] text-right text-xs font-semibold transition-colors duration-200",
-                      strengthMeta.tone === "emerald" &&
-                        "text-emerald-600",
-                      strengthMeta.tone === "amber" && "text-amber-600",
-                      strengthMeta.tone === "rose" && "text-rose-600",
-                      strengthMeta.tone === "slate" && "text-slate-500"
-                    )}
-                  >
-                    {strengthMeta.label}
-                  </span>
                 </div>
-              </div>
+              ) : null}
             </div>
 
             <PasswordField
@@ -386,22 +368,14 @@ const ChangePasswordSettings = () => {
               }
               name="confirmPassword"
               placeholder="Re-enter your new password"
-              showPassword={showPassword}
+              passwordVisible={passwordVisibility.confirmPassword}
               value={formData.confirmPassword}
+              onToggleVisibility={() =>
+                togglePasswordVisibility("confirmPassword")
+              }
               onBlur={handleFieldBlur}
               onChange={handleFieldChange}
             />
-
-            <label className="flex items-center gap-3 text-sm text-slate-600">
-              <input
-                type="checkbox"
-                className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500/30"
-                checked={showPassword}
-                disabled={isPasswordUpdatePending}
-                onChange={(event) => setShowPassword(event.target.checked)}
-              />
-              <span>Show Password</span>
-            </label>
 
             <Button
               className="mt-1 h-12 w-full rounded-2xl bg-gradient-to-r from-blue-600 to-sky-500 text-white shadow-[0_18px_34px_-18px_rgba(37,99,235,0.55)] transition-all duration-200 hover:-translate-y-0.5 hover:from-blue-700 hover:to-sky-600 hover:shadow-[0_22px_42px_-18px_rgba(37,99,235,0.62)]"
