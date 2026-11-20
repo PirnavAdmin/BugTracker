@@ -1,4 +1,5 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import {
   CheckCircle2,
   Database,
@@ -31,8 +32,28 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { WORKSPACE_ROLE_OPTIONS } from "@/lib/roles";
 import { cn, formatDate } from "@/lib/utils";
+import { fetchManagedUsers } from "@/lib/api";
 
 const USER_FILTER_KEY_ALL = "all";
+
+const getPageItems = (currentPage, totalPages) => {
+  if (totalPages <= 7) {
+    return Array.from({ length: totalPages }, (_, index) => index + 1);
+  }
+
+  const items = [1];
+  const start = Math.max(2, currentPage - 1);
+  const end = Math.min(totalPages - 1, currentPage + 1);
+
+  if (start > 2) items.push("start-ellipsis");
+  for (let pageNumber = start; pageNumber <= end; pageNumber += 1) {
+    items.push(pageNumber);
+  }
+  if (end < totalPages - 1) items.push("end-ellipsis");
+  items.push(totalPages);
+
+  return items;
+};
 
 const getRoleBadgeVariant = (role) => {
   if (role === "Admin") {
@@ -129,16 +150,16 @@ const UsersSettings = ({
   activeFilter,
   currentUserId = "",
   deleteMutation,
-  isLoading,
   onActiveFilterChange,
   updateMutation,
   usage,
   storage,
   databaseUsage,
-  users = [],
 }) => {
   const [searchDraft, setSearchDraft] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
   const [selectedSummaryCard, setSelectedSummaryCard] = useState(null);
   const [editingUser, setEditingUser] = useState(null);
   const [deletingUser, setDeletingUser] = useState(null);
@@ -150,24 +171,57 @@ const UsersSettings = ({
     role: "Developer",
   });
 
-  const sortedUsers = useMemo(
-    () => [...users].sort((left, right) => (left.name || "").localeCompare(right.name || "")),
-    [users]
+  const {
+    data: userPageData,
+    isLoading,
+    isFetching,
+    error,
+  } = useQuery({
+    queryKey: [
+      "managed-users",
+      "page",
+      activeFilter || USER_FILTER_KEY_ALL,
+      searchTerm,
+      page,
+      pageSize,
+    ],
+    queryFn: () =>
+      fetchManagedUsers({
+        page,
+        limit: pageSize,
+        role: activeFilter || USER_FILTER_KEY_ALL,
+        search: searchTerm,
+      }),
+  });
+  const users = Array.isArray(userPageData?.users)
+    ? userPageData.users
+    : [];
+  const totalUsers = userPageData?.totalUsers || 0;
+  const totalPages = userPageData?.totalPages || 0;
+  const currentPage = userPageData?.currentPage || page;
+  const roleCounts = userPageData?.roleCounts || {};
+  const pageItems = useMemo(
+    () => getPageItems(currentPage, totalPages),
+    [currentPage, totalPages]
   );
 
-  const stats = useMemo(() => {
-    const countByRole = (role) => users.filter((user) => user.role === role).length;
+  useEffect(() => {
+    if (userPageData && userPageData.currentPage !== page) {
+      setPage(userPageData.currentPage);
+    }
+  }, [page, userPageData]);
 
+  const stats = useMemo(() => {
     return {
-      total: users.length,
-      adminCount: countByRole("Admin"),
-      managerCount: countByRole("Manager"),
-      teamLeadCount: countByRole("Team Lead"),
-      qaLeadCount: countByRole("Q/A Lead"),
-      developerCount: countByRole("Developer"),
-      testerCount: countByRole("Tester"),
+      total: roleCounts.total || 0,
+      adminCount: roleCounts.Admin || 0,
+      managerCount: roleCounts.Manager || 0,
+      teamLeadCount: roleCounts["Team Lead"] || 0,
+      qaLeadCount: roleCounts["Q/A Lead"] || 0,
+      developerCount: roleCounts.Developer || 0,
+      testerCount: roleCounts.Tester || 0,
     };
-  }, [users]);
+  }, [roleCounts]);
 
   const summaryCards = useMemo(
     () => [
@@ -217,30 +271,7 @@ const UsersSettings = ({
     [stats]
   );
 
-  const visibleUsers = useMemo(() => {
-    const roleFilteredUsers =
-      !activeFilter || activeFilter === USER_FILTER_KEY_ALL
-        ? sortedUsers
-        : sortedUsers.filter((user) => user.role === activeFilter);
-
-    const normalizedSearchTerm = searchTerm.trim().toLowerCase();
-
-    if (!normalizedSearchTerm) {
-      return roleFilteredUsers;
-    }
-
-    return roleFilteredUsers.filter((user) =>
-      [
-        user.name,
-        user.email,
-        user.role,
-        user.employeeId,
-        user.designation,
-      ]
-        .filter(Boolean)
-        .some((value) => String(value).toLowerCase().includes(normalizedSearchTerm))
-    );
-  }, [activeFilter, searchTerm, sortedUsers]);
+  const visibleUsers = users;
 
   const activeCard =
     summaryCards.find((card) => card.key === activeFilter) || summaryCards[0];
@@ -255,12 +286,18 @@ const UsersSettings = ({
   const handleSearchSubmit = (event) => {
     event.preventDefault();
     setSearchTerm(searchDraft.trim());
+    setPage(1);
   };
 
   const clearSearch = () => {
     setSearchDraft("");
     setSearchTerm("");
+    setPage(1);
   };
+
+  useEffect(() => {
+    setPage(1);
+  }, [activeFilter]);
 
   const openEditDialog = (user) => {
     setEditingUser(user);
@@ -332,6 +369,7 @@ const UsersSettings = ({
             variant="outline"
             onClick={() => {
               setSelectedSummaryCard(null);
+              setPage(1);
               onActiveFilterChange(USER_FILTER_KEY_ALL);
             }}
           >
@@ -384,6 +422,10 @@ const UsersSettings = ({
           </div>
           <Skeleton className="h-[360px] rounded-[16px]" />
         </div>
+      ) : error ? (
+        <div className="rounded-[16px] border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+          {error.response?.data?.message || "Unable to load workspace users."}
+        </div>
       ) : (
         <div className="space-y-5">
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
@@ -403,6 +445,7 @@ const UsersSettings = ({
                   )}
                   onClick={() => {
                     setSelectedSummaryCard(card.key);
+                    setPage(1);
                     onActiveFilterChange(card.key);
                   }}
                   aria-pressed={isActive}
@@ -437,7 +480,7 @@ const UsersSettings = ({
                   {activeLabel}
                 </h3>
                 <p className="text-sm text-slate-500">
-                  {visibleUsers.length} user{visibleUsers.length === 1 ? "" : "s"} found
+                  {totalUsers} user{totalUsers === 1 ? "" : "s"} found
                 </p>
               </div>
               <div className="flex flex-col gap-3 sm:items-end">
@@ -537,6 +580,84 @@ const UsersSettings = ({
                 />
               </div>
             )}
+            <div className="flex flex-col gap-3 border-t border-slate-100 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500">
+                <span>
+                  Showing{" "}
+                  {totalUsers
+                    ? `${(currentPage - 1) * pageSize + 1}-${Math.min(
+                        currentPage * pageSize,
+                        totalUsers
+                      )} of ${totalUsers}`
+                    : "0 users"}
+                </span>
+                <label className="flex items-center gap-2">
+                  Users per page
+                  <select
+                    aria-label="Users per page"
+                    className="h-8 rounded-md border border-slate-200 bg-white px-2 text-slate-700 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-500/15"
+                    value={pageSize}
+                    onChange={(event) => {
+                      setPageSize(Number(event.target.value));
+                      setPage(1);
+                    }}
+                  >
+                    {[5, 10, 20, 50, 100].map((size) => (
+                      <option key={size} value={size}>
+                        {size}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+              <nav
+                aria-label="Workspace users pagination"
+                className="flex flex-wrap items-center gap-1"
+              >
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={currentPage <= 1 || isFetching}
+                  onClick={() => setPage(currentPage - 1)}
+                >
+                  Previous
+                </Button>
+                {pageItems.map((item) =>
+                  typeof item === "number" ? (
+                    <Button
+                      key={item}
+                      type="button"
+                      variant={item === currentPage ? "default" : "outline"}
+                      size="sm"
+                      aria-current={item === currentPage ? "page" : undefined}
+                      aria-label={`Page ${item}`}
+                      disabled={isFetching}
+                      onClick={() => setPage(item)}
+                    >
+                      {item}
+                    </Button>
+                  ) : (
+                    <span
+                      key={item}
+                      aria-hidden="true"
+                      className="px-1 text-slate-400"
+                    >
+                      …
+                    </span>
+                  )
+                )}
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={currentPage >= totalPages || isFetching}
+                  onClick={() => setPage(currentPage + 1)}
+                >
+                  Next
+                </Button>
+              </nav>
+            </div>
             </div>
           ) : null}
 

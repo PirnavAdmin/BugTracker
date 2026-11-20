@@ -28,6 +28,7 @@ const {
 } = require("../services/subscriptionUsageService");
 
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const MANAGED_USER_PAGE_SIZES = new Set([5, 10, 20, 50, 100]);
 const DEFAULT_IMPORTED_PASSWORD = "Curecode@123";
 const DEFAULT_IMPORTED_ROLE = "Developer";
 const normalizeRole = (value) => normalizeText(value);
@@ -161,15 +162,86 @@ const ensureAdminCanChangeRole = async ({ user, role, workspaceId }) => {
 
 const getManagedUsers = asyncHandler(async (req, res) => {
   const workspaceId = normalizeWorkspaceId(req.user.workspaceId);
+  const workspaceFilter = withTenantFilter({ workspaceId }, req.user);
+  const hasPagination =
+    req.query.page !== undefined || req.query.limit !== undefined;
 
-  const users = await User.find(withTenantFilter({
-    workspaceId,
-  }, req.user))
+  if (!hasPagination) {
+    const users = await User.find(workspaceFilter)
+      .select("name email employeeId designation role avatarUrl createdAt workspaceId tenantId")
+      .sort({ createdAt: -1 })
+      .lean();
+
+    res.status(200).json(users);
+    return;
+  }
+
+  const requestedPage = Number(req.query.page);
+  const requestedLimit = Number(req.query.limit);
+  const page =
+    Number.isSafeInteger(requestedPage) && requestedPage > 0
+      ? requestedPage
+      : 1;
+  const limit = MANAGED_USER_PAGE_SIZES.has(requestedLimit)
+    ? requestedLimit
+    : 10;
+  const search =
+    typeof req.query.search === "string"
+      ? req.query.search.trim().slice(0, 100)
+      : "";
+  const role =
+    typeof req.query.role === "string" && req.query.role !== "all"
+      ? req.query.role
+      : "";
+  const filter = { ...workspaceFilter };
+
+  if (search) {
+    const escapedSearch = search.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const searchRegex = new RegExp(escapedSearch, "i");
+    filter.$or = [
+      { name: searchRegex },
+      { email: searchRegex },
+      { employeeId: searchRegex },
+      { designation: searchRegex },
+    ];
+  }
+
+  if (role) {
+    filter.role = role;
+  }
+
+  const [totalUsers, roleRows] = await Promise.all([
+    User.countDocuments(filter),
+    User.aggregate([
+      { $match: workspaceFilter },
+      { $group: { _id: "$role", count: { $sum: 1 } } },
+    ]),
+  ]);
+  const totalPages = Math.ceil(totalUsers / limit);
+  const currentPage = Math.min(page, Math.max(totalPages, 1));
+  const users = await User.find(filter)
     .select("name email employeeId designation role avatarUrl createdAt workspaceId tenantId")
-    .sort({ createdAt: -1 })
+    .sort({ name: 1, _id: 1 })
+    .skip((currentPage - 1) * limit)
+    .limit(limit)
     .lean();
+  const roleCounts = roleRows.reduce(
+    (counts, row) => ({
+      ...counts,
+      [row._id]: row.count,
+      total: counts.total + row.count,
+    }),
+    { total: 0 }
+  );
 
-  res.status(200).json(users);
+  res.status(200).json({
+    users,
+    totalUsers,
+    totalPages,
+    currentPage,
+    limit,
+    roleCounts,
+  });
 });
 
 const inviteUser = asyncHandler(async (req, res) => {

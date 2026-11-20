@@ -302,12 +302,33 @@ export const fetchWorkspaceUsers = async (
   return [];
 };
 
-export const fetchManagedUsers = async () => {
-  const response = await api.get("/users");
+export const fetchManagedUsers = async (filters = {}) => {
+  const response = await api.get("/users", {
+    params: buildParams(filters),
+  });
   const data = response.data;
+  const isPaginated =
+    filters.page !== undefined || filters.limit !== undefined;
 
   if (Array.isArray(data)) {
+    if (isPaginated) {
+      throw new Error("Managed users response is missing pagination metadata");
+    }
+
     return data;
+  }
+
+  if (isPaginated) {
+    if (
+      Array.isArray(data?.users) &&
+      Number.isFinite(data.totalUsers) &&
+      Number.isFinite(data.totalPages) &&
+      Number.isFinite(data.currentPage)
+    ) {
+      return data;
+    }
+
+    throw new Error("Managed users response is missing pagination metadata");
   }
 
   if (Array.isArray(data?.users)) {
