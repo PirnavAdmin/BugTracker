@@ -245,20 +245,20 @@ const ActiveSprintScreen = ({
   return (
     <div className="space-y-6 pb-12">
       {/* Active Sprint Hero */}
-      <section className="relative overflow-hidden rounded-[24px] border border-emerald-200/80 bg-[linear-gradient(135deg,rgba(255,255,255,0.98),rgba(236,253,245,0.85))] p-6 shadow-[0_24px_54px_-30px_rgba(16,185,129,0.35)] backdrop-blur-xl">
+      <section className="relative overflow-hidden rounded-[24px] border border-emerald-200/80 bg-[linear-gradient(135deg,rgba(255,255,255,0.98),rgba(236,253,245,0.85))] p-6 shadow-[0_24px_54px_-30px_rgba(16,185,129,0.35)] backdrop-blur-xl dark:border-emerald-900/60 dark:bg-slate-900/90 dark:bg-none dark:shadow-black/50">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div className="space-y-2">
             <div className="flex flex-wrap items-center gap-2">
-              <Badge className="h-6 border-emerald-300 bg-emerald-100/80 px-2.5 text-xs font-semibold text-emerald-800">
+              <Badge className="h-6 border-emerald-300 bg-emerald-100/80 px-2.5 text-xs font-semibold text-emerald-800 dark:border-emerald-800/60 dark:bg-emerald-950/40 dark:text-emerald-300">
                 <span className="mr-1.5 h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
                 Active Sprint
               </Badge>
               {activeSprint.teamId?.name ? (
-                <Badge className="h-6 border-violet-200 bg-violet-50 px-2.5 text-xs text-violet-700">
+                <Badge className="h-6 border-violet-200 bg-violet-50 px-2.5 text-xs text-violet-700 dark:border-violet-800/60 dark:bg-violet-950/40 dark:text-violet-300">
                   {activeSprint.teamId.name}
                 </Badge>
               ) : (
-                <Badge className="h-6 border-slate-200 bg-slate-100 px-2.5 text-xs text-slate-700">
+                <Badge className="h-6 border-slate-200 bg-slate-100 px-2.5 text-xs text-slate-700 dark:border-slate-800 dark:bg-slate-800 dark:text-slate-300">
                   Project-wide
                 </Badge>
               )}
@@ -271,10 +271,10 @@ const ActiveSprintScreen = ({
             </div>
 
             <div>
-              <h2 className="text-2xl font-bold tracking-tight text-slate-950 sm:text-3xl">
+              <h2 className="text-2xl font-bold tracking-tight text-slate-950 sm:text-3xl dark:text-slate-100">
                 {activeSprint.name}
               </h2>
-              <div className="mt-1 flex flex-wrap items-center gap-3 text-xs text-slate-600 sm:text-sm">
+              <div className="mt-1 flex flex-wrap items-center gap-3 text-xs text-slate-600 sm:text-sm dark:text-slate-400">
                 <span className="flex items-center gap-1.5 font-medium">
                   <Calendar className="h-4 w-4 text-emerald-600" />
                   {activeSprint.startDate ? formatDate(activeSprint.startDate) : "No start date"}
@@ -283,19 +283,19 @@ const ActiveSprintScreen = ({
                 </span>
                 {project?.name ? (
                   <>
-                    <span className="text-slate-300">•</span>
-                    <span className="text-slate-600">Project: <strong>{project.name}</strong></span>
+                    <span className="text-slate-300 dark:text-slate-600">•</span>
+                    <span className="text-slate-600 dark:text-slate-300">Project: <strong>{project.name}</strong></span>
                   </>
                 ) : null}
               </div>
             </div>
 
             {activeSprint.goal ? (
-              <div className="flex items-start gap-2.5 rounded-[14px] border border-emerald-200/80 bg-emerald-50/70 p-3 text-sm text-slate-800">
-                <Target className="mt-0.5 h-4 w-4 shrink-0 text-emerald-700" />
+              <div className="flex items-start gap-2.5 rounded-[14px] border border-emerald-200/80 bg-emerald-50/70 p-3 text-sm text-slate-800 dark:border-emerald-900/50 dark:bg-emerald-950/30 dark:text-slate-200">
+                <Target className="mt-0.5 h-4 w-4 shrink-0 text-emerald-700 dark:text-emerald-400" />
                 <div>
-                  <span className="font-semibold text-emerald-950">Sprint Goal: </span>
-                  <span className="text-slate-700">{activeSprint.goal}</span>
+                  <span className="font-semibold text-emerald-950 dark:text-emerald-300">Sprint Goal: </span>
+                  <span className="text-slate-700 dark:text-slate-300">{activeSprint.goal}</span>
                 </div>
               </div>
             ) : null}
@@ -338,19 +338,19 @@ const ActiveSprintScreen = ({
 
       {/* Metrics Row */}
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <div className="rounded-[18px] border border-white/70 bg-white/90 p-4 shadow-[0_12px_32px_-24px_rgba(15,23,42,0.25)] backdrop-blur-xl">
-          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+        <div className="rounded-[18px] border border-white/70 bg-white/90 p-4 shadow-[0_12px_32px_-24px_rgba(15,23,42,0.25)] backdrop-blur-xl dark:border-slate-800 dark:bg-slate-900/90 dark:shadow-black/40">
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">
             Sprint Progress
           </p>
           <div className="mt-2 flex items-baseline justify-between">
-            <span className="text-2xl font-bold tracking-tight text-slate-950">
+            <span className="text-2xl font-bold tracking-tight text-slate-950 dark:text-slate-100">
               {activeSprintMetrics.completionPercent || 0}%
             </span>
-            <span className="text-xs font-medium text-slate-500">
+            <span className="text-xs font-medium text-slate-500 dark:text-slate-400">
               {activeSprintMetrics.completedTaskCount || 0}/{activeSprintMetrics.taskCount || 0} tasks
             </span>
           </div>
-          <div className="mt-2.5 h-2 w-full overflow-hidden rounded-full bg-slate-100">
+          <div className="mt-2.5 h-2 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
             <div
               className="h-full rounded-full bg-emerald-500 transition-all duration-500"
               style={{ width: `${activeSprintMetrics.completionPercent || 0}%` }}
@@ -358,20 +358,20 @@ const ActiveSprintScreen = ({
           </div>
         </div>
 
-        <div className="rounded-[18px] border border-white/70 bg-white/90 p-4 shadow-[0_12px_32px_-24px_rgba(15,23,42,0.25)] backdrop-blur-xl">
-          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+        <div className="rounded-[18px] border border-white/70 bg-white/90 p-4 shadow-[0_12px_32px_-24px_rgba(15,23,42,0.25)] backdrop-blur-xl dark:border-slate-800 dark:bg-slate-900/90 dark:shadow-black/40">
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">
             Story Points
           </p>
           <div className="mt-2 flex items-baseline justify-between">
-            <span className="text-2xl font-bold tracking-tight text-slate-950">
+            <span className="text-2xl font-bold tracking-tight text-slate-950 dark:text-slate-100">
               {completedPoints}{" "}
               <span className="text-base font-normal text-slate-400">/ {totalPoints}</span>
             </span>
-            <span className="text-xs font-medium text-blue-600">
+            <span className="text-xs font-medium text-blue-600 dark:text-blue-400">
               {totalPoints ? Math.round((completedPoints / totalPoints) * 100) : 0}% burned
             </span>
           </div>
-          <div className="mt-2.5 h-2 w-full overflow-hidden rounded-full bg-slate-100">
+          <div className="mt-2.5 h-2 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
             <div
               className="h-full rounded-full bg-blue-600 transition-all duration-500"
               style={{
@@ -381,41 +381,41 @@ const ActiveSprintScreen = ({
           </div>
         </div>
 
-        <div className="rounded-[18px] border border-white/70 bg-white/90 p-4 shadow-[0_12px_32px_-24px_rgba(15,23,42,0.25)] backdrop-blur-xl">
-          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+        <div className="rounded-[18px] border border-white/70 bg-white/90 p-4 shadow-[0_12px_32px_-24px_rgba(15,23,42,0.25)] backdrop-blur-xl dark:border-slate-800 dark:bg-slate-900/90 dark:shadow-black/40">
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">
             Active Stories
           </p>
           <div className="mt-2 flex items-baseline justify-between">
-            <span className="text-2xl font-bold tracking-tight text-slate-950">
+            <span className="text-2xl font-bold tracking-tight text-slate-950 dark:text-slate-100">
               {activeStories.length}
             </span>
-            <span className="text-xs font-medium text-slate-500">
+            <span className="text-xs font-medium text-slate-500 dark:text-slate-400">
               {storiesByStage.DONE.length} completed
             </span>
           </div>
-          <p className="mt-2.5 text-xs text-slate-500">
+          <p className="mt-2.5 text-xs text-slate-500 dark:text-slate-400">
             {storiesByStage.IN_PROGRESS.length + storiesByStage.TESTING.length} in progress or review
           </p>
         </div>
 
-        <div className="rounded-[18px] border border-white/70 bg-white/90 p-4 shadow-[0_12px_32px_-24px_rgba(15,23,42,0.25)] backdrop-blur-xl">
-          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+        <div className="rounded-[18px] border border-white/70 bg-white/90 p-4 shadow-[0_12px_32px_-24px_rgba(15,23,42,0.25)] backdrop-blur-xl dark:border-slate-800 dark:bg-slate-900/90 dark:shadow-black/40">
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">
             Sprint Defects
           </p>
           <div className="mt-2 flex items-baseline justify-between">
-            <span className="text-2xl font-bold tracking-tight text-slate-950">
+            <span className="text-2xl font-bold tracking-tight text-slate-950 dark:text-slate-100">
               {activeSprintMetrics.resolvedBugCount || 0}{" "}
               <span className="text-base font-normal text-slate-400">
                 / {activeSprintMetrics.bugCount || 0}
               </span>
             </span>
-            <span className="text-xs font-medium text-emerald-600">
+            <span className="text-xs font-medium text-emerald-600 dark:text-emerald-400">
               {activeSprintMetrics.bugCount
                 ? `${Math.round(((activeSprintMetrics.resolvedBugCount || 0) / activeSprintMetrics.bugCount) * 100)}% resolved`
                 : "No defects"}
             </span>
           </div>
-          <p className="mt-2.5 text-xs text-slate-500">
+          <p className="mt-2.5 text-xs text-slate-500 dark:text-slate-400">
             {(activeSprintMetrics.bugCount || 0) - (activeSprintMetrics.resolvedBugCount || 0)} unresolved bugs
           </p>
         </div>
@@ -478,7 +478,7 @@ const ActiveSprintScreen = ({
           return (
             <div
               key={stage.id}
-              className="flex flex-col rounded-[20px] border border-slate-200/80 bg-slate-50/60 p-3 shadow-sm backdrop-blur-xl"
+              className="flex flex-col rounded-[20px] border border-slate-200/80 bg-slate-50/60 p-3 shadow-sm backdrop-blur-xl dark:border-slate-800 dark:bg-slate-900/40"
             >
               {/* Stage Header */}
               <div
@@ -491,7 +491,7 @@ const ActiveSprintScreen = ({
                   <span className={cn("h-2.5 w-2.5 rounded-full", stage.dotClass)} />
                   <span>{stage.title}</span>
                 </div>
-                <Badge className="h-5 rounded-full border border-current bg-white/70 px-2 text-[11px] font-bold">
+                <Badge className="h-5 rounded-full border border-current bg-white/70 px-2 text-[11px] font-bold dark:bg-slate-900/80">
                   {stories.length}
                 </Badge>
               </div>
@@ -509,15 +509,15 @@ const ActiveSprintScreen = ({
                       <div
                         key={story._id}
                         onClick={() => onSelectIssue?.(story)}
-                        className="group cursor-pointer rounded-[14px] border border-white/80 bg-white p-3.5 shadow-sm transition hover:border-blue-300 hover:shadow-md"
+                        className="group cursor-pointer rounded-[14px] border border-white/80 bg-white p-3.5 shadow-sm transition hover:border-blue-300 hover:shadow-md dark:border-slate-800 dark:bg-slate-900/90 dark:hover:border-slate-700 dark:hover:shadow-black/50"
                       >
                         <div className="flex items-center justify-between gap-2">
-                          <span className="rounded bg-blue-50 px-1.5 py-0.5 font-mono text-[11px] font-bold text-blue-700">
+                          <span className="rounded bg-blue-50 px-1.5 py-0.5 font-mono text-[11px] font-bold text-blue-700 dark:bg-blue-950/60 dark:text-blue-300">
                             {story.key || "STORY"}
                           </span>
                           <div className="flex items-center gap-1.5">
                             {story.storyPoints ? (
-                              <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[11px] font-semibold text-slate-700">
+                              <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[11px] font-semibold text-slate-700 dark:bg-slate-800 dark:text-slate-300">
                                 {story.storyPoints} pts
                               </span>
                             ) : null}
@@ -532,8 +532,8 @@ const ActiveSprintScreen = ({
 
                         <p
                           className={cn(
-                            "mt-2 text-xs font-semibold text-slate-900 group-hover:text-blue-600 line-clamp-2",
-                            isDone && "text-slate-500 line-through"
+                            "mt-2 text-xs font-semibold text-slate-900 group-hover:text-blue-600 line-clamp-2 dark:text-slate-100 dark:group-hover:text-blue-400",
+                            isDone && "text-slate-500 line-through dark:text-slate-500"
                           )}
                         >
                           {story.title}
@@ -541,14 +541,14 @@ const ActiveSprintScreen = ({
 
                         {story.epicId?.name ? (
                           <div className="mt-1.5">
-                            <span className="rounded bg-violet-50 px-1.5 py-0.5 text-[10px] font-medium text-violet-700">
+                            <span className="rounded bg-violet-50 px-1.5 py-0.5 text-[10px] font-medium text-violet-700 dark:bg-violet-950/50 dark:text-violet-300">
                               {story.epicId.name}
                             </span>
                           </div>
                         ) : null}
 
                         {/* Sub items & Assignee */}
-                        <div className="mt-3 flex items-center justify-between border-t border-slate-100 pt-2 text-[11px] text-slate-500">
+                        <div className="mt-3 flex items-center justify-between border-t border-slate-100 pt-2 text-[11px] text-slate-500 dark:border-slate-800 dark:text-slate-400">
                           <div className="flex items-center gap-2">
                             <span>
                               ✓ {progress.completedTaskCount || 0}/{progress.taskCount || 0}
@@ -556,7 +556,7 @@ const ActiveSprintScreen = ({
                             {progress.bugCount ? (
                               <span
                                 className={cn(
-                                  progress.openBlockingBugCount ? "font-bold text-rose-600" : ""
+                                  progress.openBlockingBugCount ? "font-bold text-rose-600 dark:text-rose-400" : ""
                                 )}
                               >
                                 🐛 {progress.resolvedBugCount || 0}/{progress.bugCount || 0}
@@ -565,7 +565,7 @@ const ActiveSprintScreen = ({
                           </div>
 
                           <div className="flex items-center gap-1.5">
-                            <Avatar className="h-5 w-5 border border-slate-200">
+                            <Avatar className="h-5 w-5 border border-slate-200 dark:border-slate-700">
                               <AvatarImage src={assignee?.avatarUrl} alt={assignee?.name || "Unassigned"} />
                               <AvatarFallback className="text-[9px]">
                                 {assignee?.name ? getInitials(assignee.name) : "?"}
@@ -580,7 +580,7 @@ const ActiveSprintScreen = ({
                     );
                   })
                 ) : (
-                  <div className="rounded-[14px] border border-dashed border-slate-200 bg-white/50 p-6 text-center text-xs text-slate-400">
+                  <div className="rounded-[14px] border border-dashed border-slate-200 bg-white/50 p-6 text-center text-xs text-slate-400 dark:border-slate-800 dark:bg-slate-900/40 dark:text-slate-500">
                     No stories in {stage.title}
                   </div>
                 )}

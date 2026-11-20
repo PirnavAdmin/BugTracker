@@ -116,31 +116,31 @@ const MyWorkScreen = ({
   return (
     <div className="space-y-6 pb-12">
       {/* Header Banner */}
-      <section className="rounded-[24px] border border-blue-200/80 bg-[linear-gradient(135deg,rgba(255,255,255,0.98),rgba(239,246,255,0.85))] p-6 shadow-[0_24px_54px_-30px_rgba(37,99,235,0.3)] backdrop-blur-xl">
+      <section className="rounded-[24px] border border-blue-200/80 bg-[linear-gradient(135deg,rgba(255,255,255,0.98),rgba(239,246,255,0.85))] p-6 shadow-[0_24px_54px_-30px_rgba(37,99,235,0.3)] backdrop-blur-xl dark:border-blue-900/60 dark:bg-slate-900/90 dark:bg-none dark:shadow-black/50">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-4">
-            <Avatar className="h-16 w-16 border-2 border-white shadow-md">
+            <Avatar className="h-16 w-16 border-2 border-white shadow-md dark:border-slate-700">
               <AvatarImage src={user?.avatarUrl} alt={user?.name} />
-              <AvatarFallback className="text-lg font-bold text-blue-700">
+              <AvatarFallback className="text-lg font-bold text-blue-700 dark:bg-slate-800 dark:text-blue-300">
                 {getInitials(user?.name)}
               </AvatarFallback>
             </Avatar>
             <div>
               <div className="flex items-center gap-2">
-                <Badge className="h-6 border-blue-300 bg-blue-100/80 px-2.5 text-xs font-semibold text-blue-800">
+                <Badge className="h-6 border-blue-300 bg-blue-100/80 px-2.5 text-xs font-semibold text-blue-800 dark:border-blue-800/60 dark:bg-blue-950/40 dark:text-blue-300">
                   <UserRound className="mr-1.5 h-3.5 w-3.5" />
                   My Personal Workspace
                 </Badge>
                 {project?.name ? (
-                  <Badge className="h-6 border-slate-200 bg-white/80 px-2.5 text-xs text-slate-700">
+                  <Badge className="h-6 border-slate-200 bg-white/80 px-2.5 text-xs text-slate-700 dark:border-slate-800 dark:bg-slate-800 dark:text-slate-300">
                     {project.name}
                   </Badge>
                 ) : null}
               </div>
-              <h2 className="mt-1 text-2xl font-bold tracking-tight text-slate-950 sm:text-3xl">
+              <h2 className="mt-1 text-2xl font-bold tracking-tight text-slate-950 sm:text-3xl dark:text-slate-100">
                 {user?.name || "My Work"}
               </h2>
-              <p className="mt-0.5 text-xs text-slate-600 sm:text-sm">
+              <p className="mt-0.5 text-xs text-slate-600 sm:text-sm dark:text-slate-400">
                 {user?.designation || user?.email || "Team Member"} — Track all stories and tasks assigned to you.
               </p>
             </div>
@@ -149,7 +149,7 @@ const MyWorkScreen = ({
           <Button
             type="button"
             variant="outline"
-            className="h-10 rounded-[10px] border-slate-200 bg-white text-slate-700 shadow-sm hover:bg-slate-50 self-start sm:self-center"
+            className="h-10 rounded-[10px] border-slate-200 bg-white text-slate-700 shadow-sm hover:bg-slate-50 self-start sm:self-center dark:border-slate-800 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
             onClick={onSwitchToPlanning}
           >
             Planning Board
@@ -158,29 +158,29 @@ const MyWorkScreen = ({
         </div>
 
         {/* My KPIs */}
-        <div className="mt-5 grid grid-cols-2 gap-3 border-t border-blue-100 pt-4 sm:grid-cols-4">
+        <div className="mt-5 grid grid-cols-2 gap-3 border-t border-blue-100 pt-4 sm:grid-cols-4 dark:border-slate-800">
           <div>
-            <p className="text-xs font-semibold text-slate-500">In Active Sprint</p>
-            <p className="mt-1 text-2xl font-bold text-blue-700">
+            <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">In Active Sprint</p>
+            <p className="mt-1 text-2xl font-bold text-blue-700 dark:text-blue-400">
               {activeSprintIssues.length}{" "}
-              <span className="text-xs font-normal text-slate-500">Stories</span>
+              <span className="text-xs font-normal text-slate-500 dark:text-slate-400">Stories</span>
             </p>
           </div>
           <div>
-            <p className="text-xs font-semibold text-slate-500">In Upcoming Sprints</p>
-            <p className="mt-1 text-2xl font-bold text-slate-950">
+            <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">In Upcoming Sprints</p>
+            <p className="mt-1 text-2xl font-bold text-slate-950 dark:text-slate-100">
               {upcomingSprintIssues.length}
             </p>
           </div>
           <div>
-            <p className="text-xs font-semibold text-slate-500">In Backlog</p>
-            <p className="mt-1 text-2xl font-bold text-slate-950">
+            <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">In Backlog</p>
+            <p className="mt-1 text-2xl font-bold text-slate-950 dark:text-slate-100">
               {backlogIssues.length}
             </p>
           </div>
           <div>
-            <p className="text-xs font-semibold text-slate-500">My Total Points</p>
-            <p className="mt-1 text-2xl font-bold text-emerald-700">
+            <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">My Total Points</p>
+            <p className="mt-1 text-2xl font-bold text-emerald-700 dark:text-emerald-400">
               {myTotalPoints} pts
             </p>
           </div>
@@ -203,7 +203,7 @@ const MyWorkScreen = ({
               "rounded-full px-4 py-1.5 text-xs font-semibold transition",
               activeTab === id
                 ? "bg-blue-600 text-white shadow-sm"
-                : "border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+                : "border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 hover:text-slate-900 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-slate-100"
             )}
             onClick={() => setActiveTab(id)}
           >
@@ -213,10 +213,10 @@ const MyWorkScreen = ({
       </div>
 
       {/* Stories List */}
-      <Card className="overflow-hidden rounded-[20px] border-white/70 bg-white/90 shadow-[0_18px_48px_-36px_rgba(15,23,42,0.4)] backdrop-blur-xl">
+      <Card className="overflow-hidden rounded-[20px] border-white/70 bg-white/90 shadow-[0_18px_48px_-36px_rgba(15,23,42,0.4)] backdrop-blur-xl dark:border-slate-800 dark:bg-slate-900/90 dark:shadow-black/40">
         <CardContent className="p-0">
           {displayStories.length ? (
-            <div className="divide-y divide-slate-100">
+            <div className="divide-y divide-slate-100 dark:divide-slate-800">
               {displayStories.map((story) => {
                 const priorityVariant = getIssuePriorityVariant(story.priority);
                 const statusVariant = getIssueStatusVariant(story.status);
@@ -229,10 +229,10 @@ const MyWorkScreen = ({
                   <div
                     key={story._id}
                     onClick={() => onSelectIssue?.(story)}
-                    className="group flex cursor-pointer flex-col gap-3 p-4 transition hover:bg-blue-50/50 sm:flex-row sm:items-center sm:justify-between"
+                    className="group flex cursor-pointer flex-col gap-3 p-4 transition hover:bg-blue-50/50 sm:flex-row sm:items-center sm:justify-between dark:hover:bg-slate-800/50"
                   >
                     <div className="flex min-w-0 items-start gap-3 sm:items-center">
-                      <span className="rounded-[6px] bg-blue-100/70 px-2 py-1 font-mono text-xs font-bold text-blue-700">
+                      <span className="rounded-[6px] bg-blue-100/70 px-2 py-1 font-mono text-xs font-bold text-blue-700 dark:bg-blue-950/60 dark:text-blue-300">
                         {story.key || "STORY"}
                       </span>
 
@@ -240,27 +240,27 @@ const MyWorkScreen = ({
                         <div className="flex flex-wrap items-center gap-2">
                           <p
                             className={cn(
-                              "truncate text-sm font-semibold text-slate-900 group-hover:text-blue-600",
-                              isDone && "text-slate-500 line-through"
+                              "truncate text-sm font-semibold text-slate-900 group-hover:text-blue-600 dark:text-slate-100 dark:group-hover:text-blue-400",
+                              isDone && "text-slate-500 line-through dark:text-slate-500"
                             )}
                           >
                             {story.title}
                           </p>
                           {story.epicId?.name ? (
-                            <Badge className="h-5 border-violet-200 bg-violet-50 px-2 text-[10px] text-violet-700">
+                            <Badge className="h-5 border-violet-200 bg-violet-50 px-2 text-[10px] text-violet-700 dark:border-violet-800/60 dark:bg-violet-950/50 dark:text-violet-300">
                               {story.epicId.name}
                             </Badge>
                           ) : null}
                           {story.sprintName ? (
-                            <Badge className="h-5 border-blue-200 bg-blue-50 px-2 text-[10px] text-blue-700">
+                            <Badge className="h-5 border-blue-200 bg-blue-50 px-2 text-[10px] text-blue-700 dark:border-blue-800/60 dark:bg-blue-950/50 dark:text-blue-300">
                               {story.sprintName}
                             </Badge>
                           ) : null}
                         </div>
 
-                        <div className="mt-1 flex flex-wrap items-center gap-3 text-xs text-slate-500">
+                        <div className="mt-1 flex flex-wrap items-center gap-3 text-xs text-slate-500 dark:text-slate-400">
                           {story.storyPoints ? (
-                            <span className="font-semibold text-slate-700">
+                            <span className="font-semibold text-slate-700 dark:text-slate-300">
                               {story.storyPoints} pts
                             </span>
                           ) : null}
@@ -271,8 +271,8 @@ const MyWorkScreen = ({
                             <span
                               className={cn(
                                 progress.openBlockingBugCount
-                                  ? "font-semibold text-rose-600"
-                                  : "text-slate-600"
+                                  ? "font-semibold text-rose-600 dark:text-rose-400"
+                                  : "text-slate-600 dark:text-slate-400"
                               )}
                             >
                               Bugs: {progress.resolvedBugCount || 0}/{progress.bugCount || 0}

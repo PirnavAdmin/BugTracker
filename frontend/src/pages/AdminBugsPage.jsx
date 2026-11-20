@@ -757,41 +757,41 @@ const BugResultRow = ({ bugIssue, projects, onOpen, onActionMenu }) => {
   return (
     <article
       className={cn(
-        "group relative grid gap-3 rounded-xl border border-l-4 border-slate-200 bg-white px-3 py-2.5 shadow-sm transition hover:border-blue-200 hover:bg-blue-50/30 md:grid-cols-[minmax(260px,1.25fr)_minmax(170px,0.7fr)_minmax(150px,0.62fr)_minmax(150px,0.62fr)_minmax(150px,0.7fr)_120px_82px] md:items-center",
+        "group relative grid gap-3 rounded-xl border border-l-4 border-slate-200 bg-white px-3 py-2.5 shadow-sm transition hover:border-blue-200 hover:bg-blue-50/30 dark:border-slate-800 dark:bg-slate-900/90 dark:hover:border-blue-500/40 dark:hover:bg-slate-800/80 md:grid-cols-[minmax(260px,1.25fr)_minmax(170px,0.7fr)_minmax(150px,0.62fr)_minmax(150px,0.62fr)_minmax(150px,0.7fr)_120px_82px] md:items-center",
         severityAccentClassName(severity)
       )}
     >
       <button className="min-w-0 text-left" type="button" onClick={() => onOpen(bugIssue)}>
         <div className="flex flex-wrap items-center gap-2">
-          <span className="rounded-full bg-slate-100 px-2 py-0.5 font-mono text-[11px] font-bold uppercase tracking-[0.08em] text-slate-600">
+          <span className="rounded-full bg-slate-100 px-2 py-0.5 font-mono text-[11px] font-bold uppercase tracking-[0.08em] text-slate-600 dark:bg-slate-800 dark:text-slate-300">
             {getIssueDisplayKey(bugIssue)}
           </span>
           <span className={cn("inline-flex h-5 items-center rounded-full border px-2 text-[10px] font-bold uppercase leading-none", statusBadgeClassName(status))}>
             {status === ISSUE_STATUS.QA ? "Ready for QA" : getIssueStatusLabel(status)}
           </span>
         </div>
-        <h3 className="mt-1 truncate text-sm font-semibold text-slate-950 group-hover:text-blue-700">
+        <h3 className="mt-1 truncate text-sm font-semibold text-slate-950 group-hover:text-blue-700 dark:text-slate-100 dark:group-hover:text-blue-400">
           {bugIssue.title || "Untitled bug"}
         </h3>
-        <p className="mt-0.5 truncate text-[11px] font-medium text-slate-500">
+        <p className="mt-0.5 truncate text-[11px] font-medium text-slate-500 dark:text-slate-400">
           {getProjectName(bugIssue, projects)} / {details.moduleName || "Unmapped module"}
         </p>
       </button>
 
       <div className="min-w-0">
         <div className="flex min-w-0 items-center gap-1.5">
-          <p className="truncate text-xs font-semibold text-slate-800">{details.moduleName || "Unmapped"}</p>
-          <span className="shrink-0 rounded-full border border-slate-200 bg-slate-50 px-1.5 py-0.5 text-[9px] font-bold uppercase text-slate-600">{moduleTag}</span>
+          <p className="truncate text-xs font-semibold text-slate-800 dark:text-slate-200">{details.moduleName || "Unmapped"}</p>
+          <span className="shrink-0 rounded-full border border-slate-200 bg-slate-50 px-1.5 py-0.5 text-[9px] font-bold uppercase text-slate-600 dark:border-slate-800 dark:bg-slate-800 dark:text-slate-300">{moduleTag}</span>
         </div>
-        <p className="mt-0.5 truncate text-[11px] font-medium text-slate-500">{getIssueCategory(bugIssue)}</p>
+        <p className="mt-0.5 truncate text-[11px] font-medium text-slate-500 dark:text-slate-400">{getIssueCategory(bugIssue)}</p>
       </div>
 
-      <span className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50 px-2 py-1 text-[11px] font-semibold text-slate-700">
+      <span className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50 px-2 py-1 text-[11px] font-semibold text-slate-700 dark:border-slate-800 dark:bg-slate-800/80 dark:text-slate-200">
         <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-emerald-600 text-[10px] text-white">{getInitials(reporterName)}</span>
         <span className="truncate">{reporterName}</span>
       </span>
 
-      <span className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50 px-2 py-1 text-[11px] font-semibold text-slate-700">
+      <span className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50 px-2 py-1 text-[11px] font-semibold text-slate-700 dark:border-slate-800 dark:bg-slate-800/80 dark:text-slate-200">
         <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-blue-600 text-[10px] text-white">{getInitials(developerName)}</span>
         <span className="truncate">{developerName}</span>
       </span>
@@ -804,10 +804,10 @@ const BugResultRow = ({ bugIssue, projects, onOpen, onActionMenu }) => {
         ) : null}
       </div>
 
-      <div className="min-w-0 text-[11px] font-medium text-slate-600">
+      <div className="min-w-0 text-[11px] font-medium text-slate-600 dark:text-slate-400">
         <span className="block truncate">{formatDateTime(bugIssue.updatedAt || bugIssue.createdAt)}</span>
         {attachmentCount ? (
-          <span className="mt-1 inline-flex items-center gap-1 text-[10px] font-bold text-slate-500">
+          <span className="mt-1 inline-flex items-center gap-1 text-[10px] font-bold text-slate-500 dark:text-slate-400">
             <Paperclip className="h-3 w-3" />
             {attachmentCount}
           </span>
@@ -2499,7 +2499,7 @@ const AdminBugsPage = () => {
             </div>
           ) : null}
           </div>
-          <div className="min-h-0 flex-1 bg-white">
+          <div className="min-h-0 flex-1 bg-white dark:bg-slate-900">
           {isLoading ? (
             <div className="space-y-3 p-4">
               {Array.from({ length: 8 }).map((_, index) => (
@@ -2508,7 +2508,7 @@ const AdminBugsPage = () => {
             </div>
           ) : visibleBugs.length ? (
             <>
-            <div className="space-y-2 bg-slate-50/80 p-3">
+            <div className="space-y-2 bg-slate-50/80 p-3 dark:bg-slate-950/60">
               {visibleBugs.map((bugIssue) => (
                 <div key={bugIssue._id} className="relative">
                 <BugResultRow
@@ -2521,8 +2521,8 @@ const AdminBugsPage = () => {
                 </div>
               ))}
             </div>
-            <div className="flex flex-col gap-2 border-t border-slate-200 bg-white px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-              <p className="text-xs font-medium text-slate-500">
+            <div className="flex flex-col gap-2 border-t border-slate-200 bg-white px-4 py-3 sm:flex-row sm:items-center sm:justify-between dark:border-slate-800 dark:bg-slate-900/90">
+              <p className="text-xs font-medium text-slate-500 dark:text-slate-400">
                 {activeCard.label} page {pagination.page} of {pagination.totalPages}
               </p>
               <div className="flex items-center gap-2">
@@ -2736,7 +2736,7 @@ const AdminBugsPage = () => {
             </div>
           ) : triageBugs.length ? (
             <>
-            <div className="space-y-2 bg-slate-50/80 p-3">
+            <div className="space-y-2 bg-slate-50/80 p-3 dark:bg-slate-950/60">
               {triagePagination.items.map((bugIssue) => {
                 const status = normalizeBugStatusForIssue(bugIssue);
                 const severity = getSeverity(bugIssue);
@@ -2745,7 +2745,7 @@ const AdminBugsPage = () => {
                   <article
                     key={bugIssue._id}
                     className={cn(
-                      "group grid gap-3 rounded-xl border border-l-4 border-slate-200 bg-white px-3 py-2.5 shadow-sm transition hover:border-blue-200 hover:bg-blue-50/30 md:grid-cols-[28px_minmax(260px,1.2fr)_minmax(170px,0.7fr)_minmax(170px,0.7fr)_120px_82px] md:items-center",
+                      "group grid gap-3 rounded-xl border border-l-4 border-slate-200 bg-white px-3 py-2.5 shadow-sm transition hover:border-blue-200 hover:bg-blue-50/30 dark:border-slate-800 dark:bg-slate-900/90 dark:hover:border-blue-500/40 dark:hover:bg-slate-800/80 md:grid-cols-[28px_minmax(260px,1.2fr)_minmax(170px,0.7fr)_minmax(170px,0.7fr)_120px_82px] md:items-center",
                       severityAccentClassName(severity)
                     )}
                   >
@@ -2763,22 +2763,22 @@ const AdminBugsPage = () => {
                       onClick={() => setSelectedBug(bugIssue)}
                     >
                       <div className="flex flex-wrap items-center gap-2">
-                        <span className="rounded-full bg-slate-100 px-2 py-0.5 font-mono text-[11px] font-bold uppercase tracking-[0.08em] text-slate-600">
+                        <span className="rounded-full bg-slate-100 px-2 py-0.5 font-mono text-[11px] font-bold uppercase tracking-[0.08em] text-slate-600 dark:bg-slate-800 dark:text-slate-300">
                           {getIssueDisplayKey(bugIssue)}
                         </span>
                         <span className={cn("inline-flex h-5 items-center rounded-full border px-2 text-[10px] font-bold", statusBadgeClassName(status))}>
                           {status === ISSUE_STATUS.QA ? "Ready for QA" : getIssueStatusLabel(status)}
                         </span>
                       </div>
-                      <h3 className="mt-1 truncate text-sm font-semibold text-slate-950 group-hover:text-blue-700">
+                      <h3 className="mt-1 truncate text-sm font-semibold text-slate-950 group-hover:text-blue-700 dark:text-slate-100 dark:group-hover:text-blue-400">
                         {bugIssue.title || "Untitled bug"}
                       </h3>
                     </button>
 
-                    <p className="min-w-0 truncate text-xs font-medium text-slate-500">
+                    <p className="min-w-0 truncate text-xs font-medium text-slate-500 dark:text-slate-400">
                       {getProjectName(bugIssue, projects)}
                     </p>
-                    <p className="min-w-0 truncate text-xs font-medium text-slate-500">
+                    <p className="min-w-0 truncate text-xs font-medium text-slate-500 dark:text-slate-400">
                       {resolveBugDetails(bugIssue)?.moduleName || "Unmapped module"}
                     </p>
 
@@ -2815,8 +2815,8 @@ const AdminBugsPage = () => {
                 );
               })}
             </div>
-            <div className="flex flex-col gap-2 border-t border-slate-200 bg-white px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-              <p className="text-xs font-medium text-slate-500">
+            <div className="flex flex-col gap-2 border-t border-slate-200 bg-white px-4 py-3 sm:flex-row sm:items-center sm:justify-between dark:border-slate-800 dark:bg-slate-900/90">
+              <p className="text-xs font-medium text-slate-500 dark:text-slate-400">
                 Triage page {triagePagination.page} of {triagePagination.totalPages}
               </p>
               <div className="flex items-center gap-2">

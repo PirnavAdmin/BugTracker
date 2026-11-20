@@ -636,20 +636,20 @@ export const ProjectOverviewDashboardPanel = ({ issues = [], onViewGitActivity, 
   );
 
   return (
-    <Card className="rounded-[24px] border-white/70 bg-white/86 shadow-[0_20px_56px_-36px_rgba(15,23,42,0.38)]">
+    <Card className="rounded-[24px] border-white/70 bg-white/86 shadow-[0_20px_56px_-36px_rgba(15,23,42,0.38)] dark:border-slate-800 dark:bg-slate-900/90 dark:shadow-black/40">
       <CardContent className="p-5">
         <div className="grid gap-5 xl:grid-cols-2">
-          <section className="rounded-2xl border border-blue-100/80 bg-blue-50/28 p-4">
+          <section className="rounded-2xl border border-blue-100/80 bg-blue-50/28 p-4 dark:border-slate-800 dark:bg-slate-950/40">
             <div className="flex items-start justify-between gap-3">
               <div>
-                <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-blue-600">Git Activity</p>
-                <h2 className="mt-1 text-lg font-semibold text-slate-950">Recent code changes across connected projects.</h2>
+                <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-blue-600 dark:text-blue-400">Git Activity</p>
+                <h2 className="mt-1 text-lg font-semibold text-slate-950 dark:text-slate-100">Recent code changes across connected projects.</h2>
               </div>
               <div className="flex shrink-0 items-center gap-2">
                 {connectedProjectRows.length ? (
                   <select
                     aria-label="Select Git connected project"
-                    className="h-9 max-w-[180px] rounded-xl border border-blue-100 bg-white px-3 text-xs font-semibold text-slate-700 shadow-sm outline-none transition focus:border-blue-300 focus:ring-2 focus:ring-blue-500/20"
+                    className="h-9 max-w-[180px] rounded-xl border border-blue-100 bg-white px-3 text-xs font-semibold text-slate-700 shadow-sm outline-none transition focus:border-blue-300 focus:ring-2 focus:ring-blue-500/20 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
                     value={selectedGitProjectId}
                     onChange={(event) => setSelectedGitProjectId(event.target.value)}
                   >
@@ -660,7 +660,7 @@ export const ProjectOverviewDashboardPanel = ({ issues = [], onViewGitActivity, 
                     ))}
                   </select>
                 ) : null}
-                <GitBranch className="h-5 w-5 text-blue-500" />
+                <GitBranch className="h-5 w-5 text-blue-500 dark:text-blue-400" />
               </div>
             </div>
 
@@ -672,12 +672,12 @@ export const ProjectOverviewDashboardPanel = ({ issues = [], onViewGitActivity, 
             </div>
 
             {latestPush && hasRecordedPush(latestPush.activity) ? (
-              <div className="mt-4 rounded-2xl border border-white/80 bg-white/88 p-3 shadow-sm">
+              <div className="mt-4 rounded-2xl border border-white/80 bg-white/88 p-3 shadow-sm dark:border-slate-800 dark:bg-slate-900/80">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-slate-500">Latest Push</p>
-                    <p className="mt-1 truncate text-sm font-semibold text-slate-950">{latestPush.project.name}</p>
-                    <p className="mt-1 truncate text-xs font-semibold text-slate-600">
+                    <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-slate-500 dark:text-slate-400">Latest Push</p>
+                    <p className="mt-1 truncate text-sm font-semibold text-slate-950 dark:text-slate-100">{latestPush.project.name}</p>
+                    <p className="mt-1 truncate text-xs font-semibold text-slate-600 dark:text-slate-400">
                       {latestPush.activity.pushedByName} · {latestPush.activity.branch}
                     </p>
                   </div>
@@ -685,22 +685,22 @@ export const ProjectOverviewDashboardPanel = ({ issues = [], onViewGitActivity, 
                     {getActivityStatusLabel(latestPush.activity.qaStatus)}
                   </Badge>
                 </div>
-                <p className="mt-2 line-clamp-2 text-sm font-medium text-slate-800">
+                <p className="mt-2 line-clamp-2 text-sm font-medium text-slate-800 dark:text-slate-200">
                   {latestPush.activity.commitMessage}
                 </p>
                 <div className="mt-3 flex flex-wrap gap-1.5 text-xs">
-                  <span className="rounded-full bg-slate-50 px-2 py-1 font-semibold text-slate-600">
+                  <span className="rounded-full bg-slate-50 px-2 py-1 font-semibold text-slate-600 dark:bg-slate-800 dark:text-slate-300">
                     {getCommitShortSha(latestPush.activity.commitSha) || "No SHA"}
                   </span>
-                  <span className="rounded-full bg-slate-50 px-2 py-1 font-semibold text-slate-600">
+                  <span className="rounded-full bg-slate-50 px-2 py-1 font-semibold text-slate-600 dark:bg-slate-800 dark:text-slate-300">
                     {getFilesChangedCount(latestPush.activity)} files changed
                   </span>
                   {(latestPush.modules.length ? latestPush.modules : ["No modules detected"]).slice(0, 3).map((module) => (
-                    <span className="rounded-full bg-cyan-50 px-2 py-1 font-semibold text-cyan-700" key={module}>
+                    <span className="rounded-full bg-cyan-50 px-2 py-1 font-semibold text-cyan-700 dark:bg-cyan-950/60 dark:text-cyan-300" key={module}>
                       {module}
                     </span>
                   ))}
-                  <span className="rounded-full bg-slate-50 px-2 py-1 font-semibold text-slate-600">
+                  <span className="rounded-full bg-slate-50 px-2 py-1 font-semibold text-slate-600 dark:bg-slate-800 dark:text-slate-300">
                     {formatActivityTime(latestPush.activity.pushedAt)}
                   </span>
                 </div>
@@ -711,12 +711,12 @@ export const ProjectOverviewDashboardPanel = ({ issues = [], onViewGitActivity, 
                 />
               </div>
             ) : (
-              <div className="mt-4 rounded-2xl border border-dashed border-blue-200 bg-white/70 p-5 text-center">
+              <div className="mt-4 rounded-2xl border border-dashed border-blue-200 bg-white/70 p-5 text-center dark:border-slate-800 dark:bg-slate-900/40">
                 <GitBranch className="mx-auto h-7 w-7 text-blue-400" />
-                <p className="mt-2 text-sm font-semibold text-slate-900">
+                <p className="mt-2 text-sm font-semibold text-slate-900 dark:text-slate-100">
                   {connectedProjectRows.length ? "No recent Git activity for this project" : "No Git connected projects"}
                 </p>
-                <p className="mt-1 text-xs text-slate-500">
+                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
                   {connectedProjectRows.length
                     ? "The selected project is connected, but no push has been recorded yet."
                     : "Connect a project repository to review its latest push here."}
@@ -724,25 +724,25 @@ export const ProjectOverviewDashboardPanel = ({ issues = [], onViewGitActivity, 
               </div>
             )}
 
-            <Button className="mt-4 h-9 rounded-xl" type="button" variant="outline" onClick={() => onViewGitActivity?.(latestPush?.project)}>
+            <Button className="mt-4 h-9 rounded-xl dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700" type="button" variant="outline" onClick={() => onViewGitActivity?.(latestPush?.project)}>
               View Git Activity
             </Button>
           </section>
 
-          <section className="rounded-2xl border border-slate-200/80 bg-slate-50/50 p-4">
+          <section className="rounded-2xl border border-slate-200/80 bg-slate-50/50 p-4 dark:border-slate-800 dark:bg-slate-950/40">
             <div className="flex items-start justify-between gap-3">
               <div>
-                <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-violet-600">Bug Work Queue</p>
-                <h2 className="mt-1 text-lg font-semibold text-slate-950">Unassigned bugs by project.</h2>
+                <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-violet-600 dark:text-violet-400">Bug Work Queue</p>
+                <h2 className="mt-1 text-lg font-semibold text-slate-950 dark:text-slate-100">Unassigned bugs by project.</h2>
               </div>
-              <Layers3 className="h-5 w-5 text-violet-500" />
+              <Layers3 className="h-5 w-5 text-violet-500 dark:text-violet-400" />
             </div>
             {workQueueProjectRows.length ? (
               <div className="mt-3">
                 <div className="flex h-[320px] justify-center">
                   <div
                     aria-label={`${workQueueTotal} unassigned work queue bugs across ${workQueueProjectRows.length} projects`}
-                    className="aspect-square w-full max-w-[320px] rounded-full border border-white shadow-inner"
+                    className="aspect-square w-full max-w-[320px] rounded-full border border-white shadow-inner dark:border-slate-800"
                     role="img"
                     style={{ backgroundImage: `conic-gradient(${workQueuePieGradient})` }}
                     title={`${workQueueTotal} work queue bugs`}
@@ -750,15 +750,15 @@ export const ProjectOverviewDashboardPanel = ({ issues = [], onViewGitActivity, 
                 </div>
                 <ul className="mt-4 grid gap-2 sm:grid-cols-2">
                   {workQueueProjectRows.map((row, index) => (
-                    <li className="rounded-xl border border-slate-200/80 bg-white/80 px-3 py-2.5" key={row.name}>
+                    <li className="rounded-xl border border-slate-200/80 bg-white/80 px-3 py-2.5 dark:border-slate-800 dark:bg-slate-900/80" key={row.name}>
                       <div className="flex items-center gap-2">
                         <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: WORK_QUEUE_CHART_COLORS[index % WORK_QUEUE_CHART_COLORS.length] }} />
-                        <span className="min-w-0 flex-1 truncate text-sm font-medium text-slate-700" title={row.name}>{row.name}</span>
-                        <span className="shrink-0 text-xs font-semibold tabular-nums text-slate-900">
-                          {row.value} <span className="font-normal text-slate-500">({Math.round((row.value / workQueueTotal) * 100)}%)</span>
+                        <span className="min-w-0 flex-1 truncate text-sm font-medium text-slate-700 dark:text-slate-200" title={row.name}>{row.name}</span>
+                        <span className="shrink-0 text-xs font-semibold tabular-nums text-slate-900 dark:text-slate-100">
+                          {row.value} <span className="font-normal text-slate-500 dark:text-slate-400">({Math.round((row.value / workQueueTotal) * 100)}%)</span>
                         </span>
                       </div>
-                      <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-100">
+                      <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
                         <div
                           className="h-full rounded-full"
                           style={{
@@ -772,7 +772,7 @@ export const ProjectOverviewDashboardPanel = ({ issues = [], onViewGitActivity, 
                 </ul>
               </div>
             ) : (
-              <div className="mt-4 grid h-[260px] place-items-center rounded-xl border border-dashed border-slate-200 bg-white/70 p-5 text-center text-sm text-slate-500">
+              <div className="mt-4 grid h-[260px] place-items-center rounded-xl border border-dashed border-slate-200 bg-white/70 p-5 text-center text-sm text-slate-500 dark:border-slate-800 dark:bg-slate-900/40 dark:text-slate-400">
                 No unassigned work queue bugs.
               </div>
             )}

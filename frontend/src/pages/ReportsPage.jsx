@@ -1568,13 +1568,13 @@ const QaAnalyticsDashboard = ({ user }) => {
 
   return (
     <div className="space-y-5">
-      <Card className="rounded-[18px] border-blue-100 bg-white/92 shadow-[0_20px_50px_-40px_rgba(37,99,235,0.55)]">
+      <Card className="rounded-[18px] border-blue-100 bg-white/92 shadow-[0_20px_50px_-40px_rgba(37,99,235,0.55)] dark:border-slate-800 dark:bg-slate-900/90">
         <CardContent className="p-4">
           <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
             <div>
-              <p className="text-xs font-bold uppercase tracking-[0.22em] text-blue-600">My QA Analytics</p>
-              <h1 className="mt-1 text-2xl font-semibold text-slate-950">MY QA ANALYTICS</h1>
-              <p className="mt-1 text-sm text-slate-500">Monitor testing activity, defect quality, build coverage and QA performance.</p>
+              <p className="text-xs font-bold uppercase tracking-[0.22em] text-blue-600 dark:text-blue-400">My QA Analytics</p>
+              <h1 className="mt-1 text-2xl font-semibold text-slate-950 dark:text-slate-100">MY QA ANALYTICS</h1>
+              <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Monitor testing activity, defect quality, build coverage and QA performance.</p>
             </div>
             <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-[160px_150px_150px_150px_150px_120px_auto]">
               <select className={ANALYTICS_SELECT_CLASS} value={filters.projectId} onChange={(event) => updateFilter("projectId", event.target.value)}>
@@ -5750,15 +5750,19 @@ const JiraReportsDashboard = () => {
   };
 
   return (
+<<<<<<< HEAD
     <div className="min-h-screen bg-slate-50/70 text-slate-950">
       <ToastNotice toast={toast} onDismiss={() => setToast(null)} />
+=======
+    <div className="min-h-screen bg-slate-50/70 text-slate-950 dark:bg-slate-950 dark:text-slate-100">
+>>>>>>> 6d3c6df72f2f735bdd7ebeaf5eede4c93d516c1e
       <div className="space-y-4">
-        <div className="rounded-lg border border-slate-200 bg-white px-4 py-4 shadow-sm">
+        <div className="rounded-lg border border-slate-200 bg-white px-4 py-4 shadow-sm dark:border-slate-800 dark:bg-slate-900/90">
           <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-wide text-blue-600">Reports</p>
+              <p className="text-xs font-semibold uppercase tracking-wide text-blue-600 dark:text-blue-400">Reports</p>
               <h1 className="mt-1 text-2xl font-semibold">Enterprise Reporting</h1>
-              <p className="mt-1 text-sm text-slate-500">Jira-style analytics with dedicated report pages and drill-down data.</p>
+              <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Jira-style analytics with dedicated report pages and drill-down data.</p>
             </div>
             <div className="flex flex-wrap gap-2 print:hidden">
               <EnterpriseActionButton icon={FileText} onClick={() => window.print()}>PDF</EnterpriseActionButton>
@@ -5771,14 +5775,18 @@ const JiraReportsDashboard = () => {
               <Button className="print:hidden" type="button" variant="outline" size="sm" onClick={resetFilters}>Reset</Button>
             </div>
           </div>
+<<<<<<< HEAD
           <nav className="mt-4 flex gap-1 overflow-x-auto border-b border-slate-200 pb-0 dashboard-scrollbar print:hidden">
+=======
+          <nav className="mt-4 flex gap-1 overflow-x-auto border-b border-slate-200 pb-0 dashboard-scrollbar dark:border-slate-800">
+>>>>>>> 6d3c6df72f2f735bdd7ebeaf5eede4c93d516c1e
             {REPORT_PAGES.map((page) => (
               <NavLink
                 className={({ isActive }) => cn(
                   "shrink-0 border-b-2 px-3 py-2 text-sm font-medium transition",
                   isActive || (page.key === "overview" && activePage === "overview")
-                    ? "border-blue-600 text-blue-700"
-                    : "border-transparent text-slate-600 hover:border-slate-300 hover:text-slate-950"
+                    ? "border-blue-600 text-blue-700 dark:border-blue-400 dark:text-blue-400"
+                    : "border-transparent text-slate-600 hover:border-slate-300 hover:text-slate-950 dark:text-slate-400 dark:hover:text-slate-200"
                 )}
                 end={page.key === "overview"}
                 key={page.key}
@@ -5790,7 +5798,7 @@ const JiraReportsDashboard = () => {
           </nav>
         </div>
 
-        <div className="rounded-lg border border-slate-200 bg-white p-3 shadow-sm">
+        <div className="rounded-lg border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-900/90">
           <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-5">
             <select className={ANALYTICS_SELECT_CLASS} value={filters.projectId} onChange={(event) => updateFilter("projectId", event.target.value)}>
               <option value="all">All projects</option>
@@ -5833,7 +5841,7 @@ const JiraReportsDashboard = () => {
               <option value="month">Current vs Previous Month</option>
               <option value="release">Current vs Previous Release</option>
             </select>
-            <div className="grid min-w-0 grid-cols-2 gap-1.5 rounded-2xl border border-slate-200 bg-slate-50/80 p-1 sm:grid-cols-3 md:col-span-2 xl:col-span-3 2xl:grid-cols-5">
+            <div className="grid min-w-0 grid-cols-2 gap-1.5 rounded-2xl border border-slate-200 bg-slate-50/80 p-1 sm:grid-cols-3 md:col-span-2 xl:col-span-3 2xl:grid-cols-5 dark:border-slate-800 dark:bg-slate-950/60">
               {REPORT_DATE_PRESETS.map((preset) => {
                 const PresetIcon = preset.icon;
                 const isActive = datePreset === preset.value;
@@ -5845,8 +5853,8 @@ const JiraReportsDashboard = () => {
                     className={cn(
                       "inline-flex h-10 min-w-[132px] items-center justify-center gap-2 whitespace-nowrap rounded-xl px-3 text-sm font-semibold transition-colors",
                       isActive
-                        ? "bg-white text-blue-700 shadow-sm outline outline-1 outline-blue-200"
-                        : "text-slate-600 hover:bg-white hover:text-slate-950"
+                        ? "bg-white text-blue-700 shadow-sm outline outline-1 outline-blue-200 dark:bg-slate-800 dark:text-blue-400 dark:outline-blue-900/50"
+                        : "text-slate-600 hover:bg-white hover:text-slate-950 dark:text-slate-400 dark:hover:bg-slate-800/60 dark:hover:text-slate-100"
                     )}
                     onClick={() => updateDatePreset(preset.value)}
                     aria-pressed={isActive}

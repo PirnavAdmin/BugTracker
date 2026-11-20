@@ -91,22 +91,22 @@ const CompletedSprintsScreen = ({
   return (
     <div className="space-y-6 pb-12">
       {/* Header Banner */}
-      <section className="rounded-[24px] border border-emerald-200/80 bg-[linear-gradient(135deg,rgba(255,255,255,0.98),rgba(236,253,245,0.85))] p-6 shadow-[0_24px_54px_-30px_rgba(16,185,129,0.3)] backdrop-blur-xl">
+      <section className="rounded-[24px] border border-emerald-200/80 bg-[linear-gradient(135deg,rgba(255,255,255,0.98),rgba(236,253,245,0.85))] p-6 shadow-[0_24px_54px_-30px_rgba(16,185,129,0.3)] backdrop-blur-xl dark:border-emerald-900/60 dark:bg-slate-900/90 dark:bg-none dark:shadow-black/50">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <div className="flex items-center gap-2">
-              <Badge className="h-6 border-emerald-300 bg-emerald-100/80 px-2.5 text-xs font-semibold text-emerald-800">
+              <Badge className="h-6 border-emerald-300 bg-emerald-100/80 px-2.5 text-xs font-semibold text-emerald-800 dark:border-emerald-800/60 dark:bg-emerald-950/40 dark:text-emerald-300">
                 <CheckCircle2 className="mr-1.5 h-3.5 w-3.5" />
                 Completed Sprints Archive
               </Badge>
-              <Badge className="h-6 border-slate-200 bg-white/80 px-2.5 text-xs text-slate-700">
+              <Badge className="h-6 border-slate-200 bg-white/80 px-2.5 text-xs text-slate-700 dark:border-slate-800 dark:bg-slate-800 dark:text-slate-300">
                 {completedSprints.length} Sprints Closed
               </Badge>
             </div>
-            <h2 className="mt-2 text-2xl font-bold tracking-tight text-slate-950 sm:text-3xl">
+            <h2 className="mt-2 text-2xl font-bold tracking-tight text-slate-950 sm:text-3xl dark:text-slate-100">
               Delivery History &amp; Velocity
             </h2>
-            <p className="mt-1 text-sm text-slate-600">
+            <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
               Review completed sprints, retrospective outcomes, and delivered velocity for <strong>{project?.name || "this project"}</strong>.
             </p>
           </div>
@@ -114,7 +114,7 @@ const CompletedSprintsScreen = ({
           <Button
             type="button"
             variant="outline"
-            className="h-10 rounded-[10px] border-slate-200 bg-white text-slate-700 shadow-sm hover:bg-slate-50 self-start sm:self-center"
+            className="h-10 rounded-[10px] border-slate-200 bg-white text-slate-700 shadow-sm hover:bg-slate-50 self-start sm:self-center dark:border-slate-800 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
             onClick={onSwitchToPlanning}
           >
             Planning Board
@@ -123,23 +123,23 @@ const CompletedSprintsScreen = ({
         </div>
 
         {/* Aggregate KPI Cards */}
-        <div className="mt-5 grid grid-cols-2 gap-3 border-t border-emerald-100 pt-4 sm:grid-cols-4">
+        <div className="mt-5 grid grid-cols-2 gap-3 border-t border-emerald-100 pt-4 sm:grid-cols-4 dark:border-slate-800">
           <div>
-            <p className="text-xs font-semibold text-slate-500">Total Sprints Closed</p>
-            <p className="mt-1 text-2xl font-bold text-slate-950">{completedSprints.length}</p>
+            <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">Total Sprints Closed</p>
+            <p className="mt-1 text-2xl font-bold text-slate-950 dark:text-slate-100">{completedSprints.length}</p>
           </div>
           <div>
-            <p className="text-xs font-semibold text-slate-500">Delivered Stories</p>
-            <p className="mt-1 text-2xl font-bold text-slate-950">{totalCompletedStories}</p>
+            <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">Delivered Stories</p>
+            <p className="mt-1 text-2xl font-bold text-slate-950 dark:text-slate-100">{totalCompletedStories}</p>
           </div>
           <div>
-            <p className="text-xs font-semibold text-slate-500">Total Points Shipped</p>
-            <p className="mt-1 text-2xl font-bold text-emerald-700">{totalCompletedPoints} pts</p>
+            <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">Total Points Shipped</p>
+            <p className="mt-1 text-2xl font-bold text-emerald-700 dark:text-emerald-400">{totalCompletedPoints} pts</p>
           </div>
           <div>
-            <p className="text-xs font-semibold text-slate-500">Average Velocity</p>
-            <p className="mt-1 text-2xl font-bold text-blue-700">
-              {averageVelocity} <span className="text-sm font-normal text-slate-500">pts / sprint</span>
+            <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">Average Velocity</p>
+            <p className="mt-1 text-2xl font-bold text-blue-700 dark:text-blue-400">
+              {averageVelocity} <span className="text-sm font-normal text-slate-500 dark:text-slate-400">pts / sprint</span>
             </p>
           </div>
         </div>
@@ -166,28 +166,28 @@ const CompletedSprintsScreen = ({
             return (
               <div
                 key={sprint._id}
-                className="overflow-hidden rounded-[20px] border border-slate-200/80 bg-white/95 shadow-[0_12px_36px_-24px_rgba(15,23,42,0.2)] backdrop-blur-xl"
+                className="overflow-hidden rounded-[20px] border border-slate-200/80 bg-white/95 shadow-[0_12px_36px_-24px_rgba(15,23,42,0.2)] backdrop-blur-xl dark:border-slate-800 dark:bg-slate-900/90 dark:shadow-black/40"
               >
                 {/* Sprint Header */}
-                <div className="border-b border-slate-100 p-5">
+                <div className="border-b border-slate-100 p-5 dark:border-slate-800">
                   <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                     <div className="space-y-1.5">
                       <div className="flex flex-wrap items-center gap-2">
-                        <Badge className="h-5 border-emerald-300 bg-emerald-50 text-[11px] font-bold text-emerald-700">
+                        <Badge className="h-5 border-emerald-300 bg-emerald-50 text-[11px] font-bold text-emerald-700 dark:border-emerald-800/60 dark:bg-emerald-950/40 dark:text-emerald-300">
                           Completed
                         </Badge>
                         {sprint.teamId?.name ? (
-                          <Badge className="h-5 border-violet-200 bg-violet-50 text-[11px] text-violet-700">
+                          <Badge className="h-5 border-violet-200 bg-violet-50 text-[11px] text-violet-700 dark:border-violet-800/60 dark:bg-violet-950/40 dark:text-violet-300">
                             {sprint.teamId.name}
                           </Badge>
                         ) : (
-                          <Badge className="h-5 border-slate-200 bg-slate-100 text-[11px] text-slate-700">
+                          <Badge className="h-5 border-slate-200 bg-slate-100 text-[11px] text-slate-700 dark:border-slate-800 dark:bg-slate-800 dark:text-slate-300">
                             Project-wide
                           </Badge>
                         )}
                       </div>
 
-                      <h3 className="text-xl font-bold text-slate-950">{sprint.name}</h3>
+                      <h3 className="text-xl font-bold text-slate-950 dark:text-slate-100">{sprint.name}</h3>
 
                       <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500">
                         <span className="flex items-center gap-1 font-medium">

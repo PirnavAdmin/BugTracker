@@ -66,15 +66,15 @@ const ChatWindow = memo(
 
     if (!conversation) {
       return (
-        <section className="flex h-full flex-1 flex-col items-center justify-center overflow-hidden bg-[#f0f2f5]">
+        <section className="flex h-full flex-1 flex-col items-center justify-center overflow-hidden bg-[#f0f2f5] dark:bg-slate-950">
           <div className="max-w-sm px-6 text-center">
-            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-[24px] border border-blue-100 bg-blue-50 text-blue-600">
+            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-[24px] border border-blue-100 bg-blue-50 text-blue-600 dark:border-blue-900/50 dark:bg-blue-950/40 dark:text-blue-400">
               <MessageCircle className="h-6 w-6" />
             </div>
-            <h1 className="mt-4 text-xl font-extrabold text-slate-950">
+            <h1 className="mt-4 text-xl font-extrabold text-slate-950 dark:text-slate-100">
               Select a conversation
             </h1>
-            <p className="mt-2 text-sm font-medium leading-6 text-slate-500">
+            <p className="mt-2 text-sm font-medium leading-6 text-slate-500 dark:text-slate-400">
               Search for a teammate or choose a project channel to start messaging.
             </p>
             <Button
@@ -90,7 +90,7 @@ const ChatWindow = memo(
     }
 
     return (
-      <section className="flex h-full flex-1 flex-col overflow-hidden bg-white">
+      <section className="flex h-full flex-1 flex-col overflow-hidden bg-white dark:bg-slate-950">
         <ChatHeader
           canScheduleMeetings={canScheduleMeetings}
           conversation={conversation}
@@ -104,7 +104,7 @@ const ChatWindow = memo(
 
         <div
           ref={scrollRef}
-          className="dashboard-scrollbar min-h-0 flex-1 overflow-y-auto bg-[#e5ddd5] px-3 py-4 sm:px-6 sm:py-5"
+          className="dashboard-scrollbar min-h-0 flex-1 overflow-y-auto bg-[#e5ddd5] dark:bg-[#0b101b] px-3 py-4 sm:px-6 sm:py-5"
         >
           {hasMore ? (
             <div className="mb-4 flex justify-center">
@@ -124,7 +124,7 @@ const ChatWindow = memo(
             {messageRows.map((row) =>
               row.type === "date" ? (
                 <div key={row.id} className="flex items-center justify-center">
-                  <span className="rounded-full border border-emerald-100 bg-white/88 px-3 py-1 text-xs font-bold text-slate-500 shadow-sm">
+                  <span className="rounded-full border border-slate-200/80 bg-white/90 px-3 py-1 text-xs font-bold text-slate-600 shadow-sm dark:border-slate-800 dark:bg-slate-900/90 dark:text-slate-300">
                     {row.label}
                   </span>
                 </div>
@@ -139,7 +139,7 @@ const ChatWindow = memo(
           </div>
 
           {typingUsers.length ? (
-            <div className="mt-4 rounded-full border border-emerald-100 bg-white/88 px-4 py-2 text-xs font-semibold text-slate-500 shadow-sm">
+            <div className="mt-4 rounded-full border border-slate-200/80 bg-white/88 px-4 py-2 text-xs font-semibold text-slate-600 shadow-sm dark:border-slate-800 dark:bg-slate-900/90 dark:text-slate-300">
               {typingUsers.map((user) => user.name).join(", ")} typing...
             </div>
           ) : null}

@@ -43,7 +43,13 @@ const safeRedisSet = async (key, payload) => {
 const safeRedisGet = async (key) => {
   try {
     if (!redisClient?.isOpen) return null;
-    const rawValue = await redisClient.get(key);
+    let timer;
+    const timeoutPromise = new Promise((_, reject) => {
+      timer = setTimeout(() => reject(new Error("Redis get timeout")), 1500);
+      if (timer.unref) timer.unref();
+    });
+    const rawValue = await Promise.race([redisClient.get(key), timeoutPromise]);
+    if (timer) clearTimeout(timer);
     return rawValue ? JSON.parse(rawValue) : null;
   } catch (error) {
     console.error("[presence] redis get failed", error.message);
@@ -173,9 +179,48 @@ const setPresence = async ({
 };
 
 const getPresenceForUsers = async (users = []) => {
+  if (!users.length) return {};
+
+  const userIds = users.map((user) => String(user._id || user.id || user));
+
+  if (redisClient?.isOpen && typeof redisClient.mGet === "function") {
+    try {
+      const keys = userIds.map((id) => presenceKey(id));
+      let timer;
+      const timeoutPromise = new Promise((_, reject) => {
+        timer = setTimeout(() => reject(new Error("Redis mGet timeout")), 2000);
+        if (timer.unref) timer.unref();
+      });
+      const rawValues = await Promise.race([redisClient.mGet(keys), timeoutPromise]);
+      if (timer) clearTimeout(timer);
+
+      if (Array.isArray(rawValues)) {
+        const result = {};
+        userIds.forEach((userId, index) => {
+          const raw = rawValues[index];
+          if (!raw) {
+            result[userId] = { userId, status: "offline", lastSeen: null };
+          } else {
+            try {
+              const parsed = JSON.parse(raw);
+              result[userId] = {
+                ...parsed,
+                status: inferStatus(parsed.lastSeen, parsed.status),
+              };
+            } catch {
+              result[userId] = { userId, status: "offline", lastSeen: null };
+            }
+          }
+        });
+        return result;
+      }
+    } catch (err) {
+      console.warn("[presence] batch mGet failed, falling back:", err.message);
+    }
+  }
+
   const entries = await Promise.all(
-    users.map(async (user) => {
-      const userId = String(user._id || user.id || user);
+    userIds.map(async (userId) => {
       const presence = await safeRedisGet(presenceKey(userId));
 
       if (!presence) {

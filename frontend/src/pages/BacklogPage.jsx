@@ -658,19 +658,19 @@ const PlanningHeader = ({
 };
 
 const SummaryCard = ({ title, value, detail, icon: Icon, accentClass, progress = null }) => (
-  <div className="rounded-[18px] border border-white/70 bg-white/90 p-4 shadow-[0_16px_42px_-34px_rgba(15,23,42,0.34)] backdrop-blur-xl">
+  <div className="rounded-[18px] border border-white/70 bg-white/90 p-4 shadow-[0_16px_42px_-34px_rgba(15,23,42,0.34)] backdrop-blur-xl dark:border-slate-800 dark:bg-slate-900/90 dark:shadow-black/40">
     <div className="flex items-start justify-between gap-3">
       <div>
-        <p className="text-sm font-semibold text-slate-600">{title}</p>
-        <p className="mt-2 text-2xl font-semibold tracking-tight text-slate-950">{value}</p>
-        {detail ? <p className="mt-1 text-xs font-medium text-slate-500">{detail}</p> : null}
+        <p className="text-sm font-semibold text-slate-600 dark:text-slate-400">{title}</p>
+        <p className="mt-2 text-2xl font-semibold tracking-tight text-slate-950 dark:text-slate-100">{value}</p>
+        {detail ? <p className="mt-1 text-xs font-medium text-slate-500 dark:text-slate-400">{detail}</p> : null}
       </div>
       <div className={cn("flex h-11 w-11 items-center justify-center rounded-full", accentClass)}>
         <Icon className="h-5 w-5" />
       </div>
     </div>
     {progress !== null ? (
-      <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-slate-200">
+      <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-800">
         <div className="h-full rounded-full bg-emerald-500" style={{ width: `${progress}%` }} />
       </div>
     ) : null}
@@ -1518,7 +1518,7 @@ const BacklogPage = () => {
             />
 
       <div className="grid items-start gap-4 xl:grid-cols-[minmax(360px,0.95fr)_minmax(420px,1.05fr)]">
-        <Card className="overflow-hidden rounded-[20px] border-white/70 bg-white/90 shadow-[0_18px_48px_-36px_rgba(15,23,42,0.42)] backdrop-blur-xl">
+        <Card className="overflow-hidden rounded-[20px] border-white/70 bg-white/90 shadow-[0_18px_48px_-36px_rgba(15,23,42,0.42)] backdrop-blur-xl dark:border-slate-800 dark:bg-slate-900/90 dark:shadow-black/40">
           <CardContent
             className="flex flex-col p-0"
             onDragOver={(event) => {
@@ -1539,22 +1539,22 @@ const BacklogPage = () => {
               });
             }}
           >
-            <div className="border-b border-white/60 px-4 py-3">
+            <div className="border-b border-white/60 px-4 py-3 dark:border-slate-800">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <div className="flex items-center gap-2">
-                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-700">
+                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-700 dark:text-slate-200">
                       Product Backlog
                     </p>
-                    <Badge className="h-5 border border-slate-200 bg-slate-100 px-2 text-[11px] text-slate-700 hover:bg-slate-100">
+                    <Badge className="h-5 border border-slate-200 bg-slate-100 px-2 text-[11px] text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
                       {boardState.backlogIssues.length}
                     </Badge>
                   </div>
-                  <p className="mt-1 text-xs text-slate-500">
+                  <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
                     Drag into a sprint or use a row picker to schedule work.
                   </p>
                 </div>
-                <Button type="button" variant="outline" size="icon" className="h-8 w-8 rounded-[8px]">
+                <Button type="button" variant="outline" size="icon" className="h-8 w-8 rounded-[8px] dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
                   <MoreVertical className="h-4 w-4" />
                 </Button>
               </div>
@@ -1584,7 +1584,7 @@ const BacklogPage = () => {
                     />
                   ))
                 ) : (
-                  <div className="rounded-[18px] border border-dashed border-slate-200 bg-slate-50/80 px-4 py-8 text-center text-sm leading-6 text-slate-500">
+                  <div className="rounded-[18px] border border-dashed border-slate-200 bg-slate-50/80 px-4 py-8 text-center text-sm leading-6 text-slate-500 dark:border-slate-800 dark:bg-slate-950/40 dark:text-slate-400">
                     No backlog items match the current filter set.
                   </div>
                 )}
@@ -1593,32 +1593,32 @@ const BacklogPage = () => {
           </CardContent>
         </Card>
 
-        <Card className="overflow-hidden rounded-[20px] border-blue-100/90 bg-[linear-gradient(180deg,rgba(255,255,255,0.94),rgba(239,246,255,0.72))] shadow-[0_24px_60px_-40px_rgba(37,99,235,0.42)] backdrop-blur-xl">
+        <Card className="overflow-hidden rounded-[20px] border-blue-100/90 bg-[linear-gradient(180deg,rgba(255,255,255,0.94),rgba(239,246,255,0.72))] shadow-[0_24px_60px_-40px_rgba(37,99,235,0.42)] backdrop-blur-xl dark:border-slate-800 dark:bg-slate-900/90 dark:bg-none dark:shadow-black/40">
           <CardContent className="flex flex-col p-0">
-            <div className="border-b border-white/70 px-4 py-3">
+            <div className="border-b border-white/70 px-4 py-3 dark:border-slate-800">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
                   <div className="flex flex-wrap items-center gap-2">
-                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-700">
+                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-700 dark:text-slate-200">
                       Active Sprint
                     </p>
                     {activeSprintSection ? (
-                      <Badge className="h-5 border border-emerald-200 bg-emerald-50 px-2 text-[11px] text-emerald-700 hover:bg-emerald-50">
+                      <Badge className="h-5 border border-emerald-200 bg-emerald-50 px-2 text-[11px] text-emerald-700 hover:bg-emerald-50 dark:border-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300">
                         In Progress
                       </Badge>
                     ) : null}
                   </div>
-                  <p className="mt-1 text-base font-semibold text-slate-950">
+                  <p className="mt-1 text-base font-semibold text-slate-950 dark:text-slate-100">
                     {activeSprintSection?.sprint?.name || "No active sprint"}
                   </p>
                   {activeSprintSection ? (
-                    <p className="mt-0.5 text-xs text-slate-500">
+                    <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
                       {activeSprintSection.sprint.startDate ? formatDate(activeSprintSection.sprint.startDate) : "No start date"}
                       {" - "}
                       {activeSprintSection.sprint.endDate ? formatDate(activeSprintSection.sprint.endDate) : "No end date"}
                     </p>
                   ) : (
-                    <p className="mt-0.5 text-xs text-slate-500">
+                    <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
                       Start a planned sprint to focus this workspace.
                     </p>
                   )}
@@ -1627,29 +1627,29 @@ const BacklogPage = () => {
               {activeSprintSection ? (
                 <div className="mt-3 grid gap-3 sm:grid-cols-4">
                   <div>
-                    <p className="text-lg font-semibold text-slate-950">{activeSprintMetrics.issueCount}</p>
-                    <p className="text-xs text-slate-500">Issues</p>
+                    <p className="text-lg font-semibold text-slate-950 dark:text-slate-100">{activeSprintMetrics.issueCount}</p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">Issues</p>
                   </div>
                   <div>
-                    <p className="text-lg font-semibold text-slate-950">{activeSprintMetrics.taskCount}</p>
-                    <p className="text-xs text-slate-500">Tasks</p>
+                    <p className="text-lg font-semibold text-slate-950 dark:text-slate-100">{activeSprintMetrics.taskCount}</p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">Tasks</p>
                   </div>
                   <div>
-                    <p className="text-lg font-semibold text-slate-950">{activeSprintMetrics.bugCount}</p>
-                    <p className="text-xs text-slate-500">Bugs</p>
+                    <p className="text-lg font-semibold text-slate-950 dark:text-slate-100">{activeSprintMetrics.bugCount}</p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">Bugs</p>
                   </div>
                   <div>
-                    <p className="text-lg font-semibold text-slate-950">{activeSprintMetrics.completionPercent}%</p>
-                    <p className="text-xs text-slate-500">Completed</p>
-                    <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-slate-200">
+                    <p className="text-lg font-semibold text-slate-950 dark:text-slate-100">{activeSprintMetrics.completionPercent}%</p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">Completed</p>
+                    <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-800">
                       <div className="h-full rounded-full bg-emerald-500" style={{ width: `${activeSprintMetrics.completionPercent}%` }} />
                     </div>
                   </div>
                 </div>
               ) : null}
               {activeSprintSection?.sprint?.goal ? (
-                <div className="mt-3 rounded-[12px] bg-white/70 px-3 py-2 text-xs text-slate-600">
-                  <span className="font-semibold text-slate-700">Sprint Goal </span>
+                <div className="mt-3 rounded-[12px] bg-white/70 px-3 py-2 text-xs text-slate-600 dark:bg-slate-800/80 dark:text-slate-300">
+                  <span className="font-semibold text-slate-700 dark:text-slate-200">Sprint Goal </span>
                   {activeSprintSection.sprint.goal}
                 </div>
               ) : null}

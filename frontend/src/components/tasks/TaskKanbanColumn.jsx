@@ -22,7 +22,7 @@ const TaskKanbanColumn = ({
     <section
       ref={setNodeRef}
       className={cn(
-        "flex h-[500px] flex-col rounded-[16px] border bg-slate-50/80 p-3 transition duration-200 ease-out lg:h-[560px]",
+        "flex h-[500px] flex-col rounded-[16px] border bg-slate-50/80 p-3 transition duration-200 ease-out lg:h-[560px] dark:border-slate-800/80 dark:bg-slate-900/50",
         column.borderClassName,
         column.surfaceClassName,
         isOver && column.activeClassName
@@ -32,9 +32,9 @@ const TaskKanbanColumn = ({
         <div className="min-w-0">
           <div className="flex items-center gap-2">
             <span className={cn("h-2.5 w-2.5 rounded-full", column.accentClassName)} />
-            <h2 className="truncate text-sm font-semibold text-slate-950">{column.label}</h2>
+            <h2 className="truncate text-sm font-semibold text-slate-950 dark:text-slate-100">{column.label}</h2>
           </div>
-          <p className="mt-1 text-xs font-medium text-slate-500">{column.helper}</p>
+          <p className="mt-1 text-xs font-medium text-slate-500 dark:text-slate-400">{column.helper}</p>
         </div>
 
         <Badge className={cn("shrink-0 shadow-sm", column.badgeClassName)}>
@@ -56,8 +56,8 @@ const TaskKanbanColumn = ({
         ) : (
           <div
             className={cn(
-              "flex min-h-[150px] flex-1 items-center justify-center rounded-[16px] border border-dashed border-slate-200 bg-white/72 px-4 py-8 text-center text-sm font-medium text-slate-500 transition",
-              isOver && "border-slate-300 bg-white text-slate-700"
+              "flex min-h-[150px] flex-1 items-center justify-center rounded-[16px] border border-dashed border-slate-200 bg-white/72 px-4 py-8 text-center text-sm font-medium text-slate-500 transition dark:border-slate-800 dark:bg-slate-900/40 dark:text-slate-400",
+              isOver && "border-slate-300 bg-white text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
             )}
           >
             {isOver ? `Move task to ${column.label}` : `No ${column.countLabel} tasks`}
@@ -68,7 +68,7 @@ const TaskKanbanColumn = ({
           <div
             className={cn(
               "min-h-1 rounded-full transition",
-              isOver && "bg-slate-300/80"
+              isOver && "bg-slate-300/80 dark:bg-slate-700/80"
             )}
           />
         )}

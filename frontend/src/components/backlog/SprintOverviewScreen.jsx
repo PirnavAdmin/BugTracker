@@ -239,7 +239,7 @@ const SprintOverviewScreen = ({
     <div className="space-y-6 pb-12">
       {/* Top Banner & Active Sprint Hero */}
       {activeSprint ? (
-        <section className="relative overflow-hidden rounded-[24px] border border-blue-200/70 bg-[linear-gradient(135deg,rgba(255,255,255,0.98),rgba(239,246,255,0.85))] p-6 shadow-[0_24px_54px_-30px_rgba(37,99,235,0.35)] backdrop-blur-xl">
+        <section className="relative overflow-hidden rounded-[24px] border border-blue-200/70 bg-[linear-gradient(135deg,rgba(255,255,255,0.98),rgba(239,246,255,0.85))] p-6 shadow-[0_24px_54px_-30px_rgba(37,99,235,0.35)] backdrop-blur-xl dark:border-slate-800 dark:bg-slate-900/90 dark:bg-none dark:shadow-black/40">
           <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
             <div className="space-y-3">
               <div className="flex flex-wrap items-center gap-2">
@@ -265,10 +265,10 @@ const SprintOverviewScreen = ({
               </div>
 
               <div>
-                <h2 className="text-2xl font-bold tracking-tight text-slate-950 sm:text-3xl">
+                <h2 className="text-2xl font-bold tracking-tight text-slate-950 dark:text-slate-100 sm:text-3xl">
                   {activeSprint.name}
                 </h2>
-                <div className="mt-1 flex flex-wrap items-center gap-3 text-xs text-slate-600 sm:text-sm">
+                <div className="mt-1 flex flex-wrap items-center gap-3 text-xs text-slate-600 dark:text-slate-400 sm:text-sm">
                   <span className="flex items-center gap-1.5 font-medium">
                     <Calendar className="h-4 w-4 text-blue-500" />
                     {activeSprint.startDate ? formatDate(activeSprint.startDate) : "No start date"}
@@ -277,19 +277,19 @@ const SprintOverviewScreen = ({
                   </span>
                   {project?.name ? (
                     <>
-                      <span className="text-slate-300">•</span>
-                      <span className="text-slate-600">Project: <strong>{project.name}</strong></span>
+                      <span className="text-slate-300 dark:text-slate-600">•</span>
+                      <span className="text-slate-600 dark:text-slate-400">Project: <strong className="text-slate-900 dark:text-slate-200">{project.name}</strong></span>
                     </>
                   ) : null}
                 </div>
               </div>
 
               {activeSprint.goal ? (
-                <div className="flex items-start gap-2.5 rounded-[14px] border border-blue-200/80 bg-blue-50/70 p-3.5 text-sm text-slate-800">
-                  <Target className="mt-0.5 h-4 w-4 shrink-0 text-blue-600" />
+                <div className="flex items-start gap-2.5 rounded-[14px] border border-blue-200/80 bg-blue-50/70 p-3.5 text-sm text-slate-800 dark:border-blue-900/50 dark:bg-blue-950/40 dark:text-slate-200">
+                  <Target className="mt-0.5 h-4 w-4 shrink-0 text-blue-600 dark:text-blue-400" />
                   <div>
-                    <span className="font-semibold text-blue-950">Sprint Goal: </span>
-                    <span className="text-slate-700">{activeSprint.goal}</span>
+                    <span className="font-semibold text-blue-950 dark:text-blue-300">Sprint Goal: </span>
+                    <span className="text-slate-700 dark:text-slate-300">{activeSprint.goal}</span>
                   </div>
                 </div>
               ) : null}
@@ -301,10 +301,10 @@ const SprintOverviewScreen = ({
                   <Button
                     type="button"
                     variant="outline"
-                    className="h-10 rounded-[10px] border-slate-200 bg-white shadow-sm hover:bg-slate-50"
+                    className="h-10 rounded-[10px] border-slate-200 bg-white shadow-sm hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
                     onClick={() => onEditSprint?.(activeSprint)}
                   >
-                    <PencilLine className="h-4 w-4 text-slate-600" />
+                    <PencilLine className="h-4 w-4 text-slate-600 dark:text-slate-300" />
                     Edit Sprint
                   </Button>
                   <Button
@@ -320,7 +320,7 @@ const SprintOverviewScreen = ({
               <Button
                 type="button"
                 variant="outline"
-                className="h-10 rounded-[10px] border-blue-200 bg-blue-50/80 text-blue-700 shadow-sm hover:bg-blue-100"
+                className="h-10 rounded-[10px] border-blue-200 bg-blue-50/80 text-blue-700 shadow-sm hover:bg-blue-100 dark:border-blue-800/60 dark:bg-blue-950/50 dark:text-blue-300 dark:hover:bg-blue-900/60"
                 onClick={onSwitchToPlanning}
               >
                 <ClipboardList className="h-4 w-4" />
@@ -331,14 +331,14 @@ const SprintOverviewScreen = ({
           </div>
         </section>
       ) : (
-        <section className="rounded-[24px] border border-slate-200/80 bg-white/95 p-8 text-center shadow-[0_20px_48px_-32px_rgba(15,23,42,0.3)] backdrop-blur-xl">
-          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-50 text-blue-600">
+        <section className="rounded-[24px] border border-slate-200/80 bg-white/95 p-8 text-center shadow-[0_20px_48px_-32px_rgba(15,23,42,0.3)] backdrop-blur-xl dark:border-slate-800 dark:bg-slate-900/90 dark:shadow-black/40">
+          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-50 text-blue-600 dark:bg-blue-950/50 dark:text-blue-400">
             <CalendarClock className="h-7 w-7" />
           </div>
-          <h2 className="mt-4 text-xl font-bold tracking-tight text-slate-950">
+          <h2 className="mt-4 text-xl font-bold tracking-tight text-slate-950 dark:text-slate-100">
             No Active Sprint in this Project
           </h2>
-          <p className="mx-auto mt-2 max-w-lg text-sm text-slate-600">
+          <p className="mx-auto mt-2 max-w-lg text-sm text-slate-600 dark:text-slate-400">
             There is no active sprint running currently. Start one of your planned sprints below or schedule work in the planning board.
           </p>
           <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
@@ -356,7 +356,7 @@ const SprintOverviewScreen = ({
               <Button
                 type="button"
                 variant="outline"
-                className="h-10 rounded-[10px] border-slate-200 bg-white"
+                className="h-10 rounded-[10px] border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
                 onClick={onCreateSprint}
               >
                 <Plus className="h-4 w-4" />
@@ -366,7 +366,7 @@ const SprintOverviewScreen = ({
             <Button
               type="button"
               variant="outline"
-              className="h-10 rounded-[10px] border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100"
+              className="h-10 rounded-[10px] border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 dark:border-blue-800/60 dark:bg-blue-950/50 dark:text-blue-300 dark:hover:bg-blue-900/60"
               onClick={onSwitchToPlanning}
             >
               <ClipboardList className="h-4 w-4" />
@@ -379,82 +379,82 @@ const SprintOverviewScreen = ({
       {/* KPI Cards Grid */}
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {/* Overall Completion */}
-        <div className="rounded-[20px] border border-white/70 bg-white/90 p-5 shadow-[0_16px_40px_-30px_rgba(15,23,42,0.3)] backdrop-blur-xl">
+        <div className="rounded-[20px] border border-white/70 bg-white/90 p-5 shadow-[0_16px_40px_-30px_rgba(15,23,42,0.3)] backdrop-blur-xl dark:border-slate-800 dark:bg-slate-900/90 dark:shadow-black/40">
           <div className="flex items-start justify-between gap-3">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">
                 Sprint Progress
               </p>
-              <p className="mt-2 text-3xl font-bold tracking-tight text-slate-950">
+              <p className="mt-2 text-3xl font-bold tracking-tight text-slate-950 dark:text-slate-100">
                 {activeSprintMetrics.completionPercent || 0}%
               </p>
             </div>
-            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-600">
+            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-600 dark:bg-emerald-950/50 dark:text-emerald-400">
               <CheckCircle2 className="h-6 w-6" />
             </div>
           </div>
           <div className="mt-3">
-            <div className="h-2 w-full overflow-hidden rounded-full bg-slate-100">
+            <div className="h-2 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
               <div
                 className="h-full rounded-full bg-emerald-500 transition-all duration-500"
                 style={{ width: `${activeSprintMetrics.completionPercent || 0}%` }}
               />
             </div>
-            <p className="mt-2 text-xs font-medium text-slate-500">
+            <p className="mt-2 text-xs font-medium text-slate-500 dark:text-slate-400">
               {completedStories} of {totalStories} Stories delivered
             </p>
           </div>
         </div>
 
         {/* Story Points */}
-        <div className="rounded-[20px] border border-white/70 bg-white/90 p-5 shadow-[0_16px_40px_-30px_rgba(15,23,42,0.3)] backdrop-blur-xl">
+        <div className="rounded-[20px] border border-white/70 bg-white/90 p-5 shadow-[0_16px_40px_-30px_rgba(15,23,42,0.3)] backdrop-blur-xl dark:border-slate-800 dark:bg-slate-900/90 dark:shadow-black/40">
           <div className="flex items-start justify-between gap-3">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">
                 Story Points
               </p>
-              <p className="mt-2 text-3xl font-bold tracking-tight text-slate-950">
+              <p className="mt-2 text-3xl font-bold tracking-tight text-slate-950 dark:text-slate-100">
                 {completedPoints}{" "}
-                <span className="text-lg font-normal text-slate-400">/ {totalPoints}</span>
+                <span className="text-lg font-normal text-slate-400 dark:text-slate-500">/ {totalPoints}</span>
               </p>
             </div>
-            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-blue-50 text-blue-600">
+            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-blue-50 text-blue-600 dark:bg-blue-950/50 dark:text-blue-400">
               <Zap className="h-6 w-6" />
             </div>
           </div>
           <div className="mt-3">
-            <div className="h-2 w-full overflow-hidden rounded-full bg-slate-100">
+            <div className="h-2 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
               <div
                 className="h-full rounded-full bg-blue-600 transition-all duration-500"
                 style={{ width: `${pointsPercent}%` }}
               />
             </div>
-            <p className="mt-2 text-xs font-medium text-slate-500">
+            <p className="mt-2 text-xs font-medium text-slate-500 dark:text-slate-400">
               {pointsPercent}% velocity delivered
             </p>
           </div>
         </div>
 
         {/* Tasks Progress */}
-        <div className="rounded-[20px] border border-white/70 bg-white/90 p-5 shadow-[0_16px_40px_-30px_rgba(15,23,42,0.3)] backdrop-blur-xl">
+        <div className="rounded-[20px] border border-white/70 bg-white/90 p-5 shadow-[0_16px_40px_-30px_rgba(15,23,42,0.3)] backdrop-blur-xl dark:border-slate-800 dark:bg-slate-900/90 dark:shadow-black/40">
           <div className="flex items-start justify-between gap-3">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">
                 Tasks &amp; Subtasks
               </p>
-              <p className="mt-2 text-3xl font-bold tracking-tight text-slate-950">
+              <p className="mt-2 text-3xl font-bold tracking-tight text-slate-950 dark:text-slate-100">
                 {activeSprintMetrics.completedTaskCount || 0}{" "}
-                <span className="text-lg font-normal text-slate-400">
+                <span className="text-lg font-normal text-slate-400 dark:text-slate-500">
                   / {activeSprintMetrics.taskCount || 0}
                 </span>
               </p>
             </div>
-            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-indigo-50 text-indigo-600">
+            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-indigo-50 text-indigo-600 dark:bg-indigo-950/50 dark:text-indigo-400">
               <ListTodo className="h-6 w-6" />
             </div>
           </div>
           <div className="mt-3">
-            <div className="h-2 w-full overflow-hidden rounded-full bg-slate-100">
+            <div className="h-2 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
               <div
                 className="h-full rounded-full bg-indigo-500 transition-all duration-500"
                 style={{
@@ -470,7 +470,7 @@ const SprintOverviewScreen = ({
                 }}
               />
             </div>
-            <p className="mt-2 text-xs font-medium text-slate-500">
+            <p className="mt-2 text-xs font-medium text-slate-500 dark:text-slate-400">
               {(activeSprintMetrics.taskCount || 0) - (activeSprintMetrics.completedTaskCount || 0)}{" "}
               tasks remaining
             </p>
@@ -478,15 +478,15 @@ const SprintOverviewScreen = ({
         </div>
 
         {/* Quality & Defects */}
-        <div className="rounded-[20px] border border-white/70 bg-white/90 p-5 shadow-[0_16px_40px_-30px_rgba(15,23,42,0.3)] backdrop-blur-xl">
+        <div className="rounded-[20px] border border-white/70 bg-white/90 p-5 shadow-[0_16px_40px_-30px_rgba(15,23,42,0.3)] backdrop-blur-xl dark:border-slate-800 dark:bg-slate-900/90 dark:shadow-black/40">
           <div className="flex items-start justify-between gap-3">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">
                 Defects &amp; Bugs
               </p>
-              <p className="mt-2 text-3xl font-bold tracking-tight text-slate-950">
+              <p className="mt-2 text-3xl font-bold tracking-tight text-slate-950 dark:text-slate-100">
                 {activeSprintMetrics.resolvedBugCount || 0}{" "}
-                <span className="text-lg font-normal text-slate-400">
+                <span className="text-lg font-normal text-slate-400 dark:text-slate-500">
                   / {activeSprintMetrics.bugCount || 0}
                 </span>
               </p>
@@ -495,15 +495,15 @@ const SprintOverviewScreen = ({
               className={cn(
                 "flex h-11 w-11 items-center justify-center rounded-2xl",
                 blockingBugsCount > 0
-                  ? "bg-rose-50 text-rose-600 animate-pulse"
-                  : "bg-emerald-50 text-emerald-600"
+                  ? "bg-rose-50 text-rose-600 animate-pulse dark:bg-rose-950/50 dark:text-rose-400"
+                  : "bg-emerald-50 text-emerald-600 dark:bg-emerald-950/50 dark:text-emerald-400"
               )}
             >
               <Bug className="h-6 w-6" />
             </div>
           </div>
           <div className="mt-3">
-            <div className="h-2 w-full overflow-hidden rounded-full bg-slate-100">
+            <div className="h-2 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
               <div
                 className="h-full rounded-full bg-emerald-500 transition-all duration-500"
                 style={{
@@ -522,7 +522,7 @@ const SprintOverviewScreen = ({
             <p
               className={cn(
                 "mt-2 text-xs font-medium",
-                blockingBugsCount > 0 ? "font-semibold text-rose-600" : "text-slate-500"
+                blockingBugsCount > 0 ? "font-semibold text-rose-600 dark:text-rose-400" : "text-slate-500 dark:text-slate-400"
               )}
             >
               {blockingBugsCount > 0
@@ -669,11 +669,11 @@ const SprintOverviewScreen = ({
       <section className="space-y-3">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h3 className="flex items-center gap-2 text-base font-bold text-slate-950">
-              <Layers className="h-4 w-4 text-blue-600" />
+            <h3 className="flex items-center gap-2 text-base font-bold text-slate-950 dark:text-slate-100">
+              <Layers className="h-4 w-4 text-blue-600 dark:text-blue-400" />
               Active Sprint Stories ({activeStories.length})
             </h3>
-            <p className="mt-0.5 text-xs text-slate-500">
+            <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
               Select any story to inspect acceptance criteria, subtasks, and defects.
             </p>
           </div>
@@ -694,7 +694,7 @@ const SprintOverviewScreen = ({
                   "rounded-full px-3 py-1 text-xs font-semibold transition",
                   storyFilter === id
                     ? "bg-blue-600 text-white shadow-sm"
-                    : "border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+                    : "border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 hover:text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 dark:hover:text-white"
                 )}
                 onClick={() => setStoryFilter(id)}
               >
@@ -704,10 +704,10 @@ const SprintOverviewScreen = ({
           </div>
         </div>
 
-        <Card className="overflow-hidden rounded-[20px] border-white/70 bg-white/90 shadow-[0_18px_48px_-36px_rgba(15,23,42,0.4)] backdrop-blur-xl">
+        <Card className="overflow-hidden rounded-[20px] border-white/70 bg-white/90 shadow-[0_18px_48px_-36px_rgba(15,23,42,0.4)] backdrop-blur-xl dark:border-slate-800 dark:bg-slate-900/90 dark:shadow-black/40">
           <CardContent className="p-0">
             {filteredStories.length ? (
-              <div className="divide-y divide-slate-100">
+              <div className="divide-y divide-slate-100 dark:divide-slate-800">
                 {filteredStories.map((story) => {
                   const assignee = resolveIssueAssignee(story);
                   const statusVariant = getIssueStatusVariant(story.status);
@@ -721,10 +721,10 @@ const SprintOverviewScreen = ({
                     <div
                       key={story._id}
                       onClick={() => onSelectIssue?.(story)}
-                      className="group flex cursor-pointer flex-col gap-3 p-4 transition hover:bg-blue-50/50 sm:flex-row sm:items-center sm:justify-between"
+                      className="group flex cursor-pointer flex-col gap-3 p-4 transition hover:bg-blue-50/50 dark:hover:bg-slate-800/60 sm:flex-row sm:items-center sm:justify-between"
                     >
                       <div className="flex min-w-0 items-start gap-3 sm:items-center">
-                        <span className="rounded-[6px] bg-blue-100/70 px-2 py-1 font-mono text-xs font-bold text-blue-700">
+                        <span className="rounded-[6px] bg-blue-100/70 px-2 py-1 font-mono text-xs font-bold text-blue-700 dark:bg-blue-950/60 dark:text-blue-300">
                           {story.key || "STORY"}
                         </span>
 
@@ -732,8 +732,8 @@ const SprintOverviewScreen = ({
                           <div className="flex flex-wrap items-center gap-2">
                             <p
                               className={cn(
-                                "truncate text-sm font-semibold text-slate-900 group-hover:text-blue-600",
-                                isDone && "text-slate-500 line-through"
+                                "truncate text-sm font-semibold text-slate-950 dark:text-slate-100 group-hover:text-blue-600 dark:group-hover:text-blue-400",
+                                isDone && "text-slate-500 line-through dark:text-slate-500"
                               )}
                             >
                               {story.title}

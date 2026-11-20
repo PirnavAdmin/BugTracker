@@ -103,7 +103,7 @@ const UserProfileDropdown = () => {
         <span className="relative">
           <UserAvatar
             user={user}
-            className="h-8 w-8 ring-2 ring-white/70 transition-all group-hover:ring-blue-200"
+            className="h-8 w-8 ring-2 ring-white/70 transition-all group-hover:ring-blue-200 dark:ring-slate-700 dark:group-hover:ring-blue-500/50"
             fallbackClassName="text-xs font-bold"
           />
           <StatusIndicator userId={user?._id || user?.id} className="absolute -bottom-0.5 -right-0.5" />
@@ -132,7 +132,7 @@ const UserProfileDropdown = () => {
                 <span className="relative shrink-0">
                   <UserAvatar
                     user={user}
-                    className="h-10 w-10 ring-2 ring-blue-100"
+                    className="h-10 w-10 ring-2 ring-blue-100 dark:ring-slate-700"
                     fallbackClassName="text-sm font-bold"
                   />
                   <StatusIndicator userId={user?._id || user?.id} className="absolute -bottom-0.5 -right-0.5" />

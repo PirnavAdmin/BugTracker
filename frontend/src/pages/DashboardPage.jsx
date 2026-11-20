@@ -1230,9 +1230,9 @@ const BugStatusMetricCard = ({ row, onOpen }) => (
   <button
     type="button"
     onClick={() => onOpen(row.routeParams)}
-    className="group relative min-h-[118px] w-full overflow-hidden rounded-[24px] border border-white/80 bg-white/84 px-4 py-3 text-left shadow-[0_18px_42px_-34px_rgba(15,23,42,0.34)] transition duration-300 hover:-translate-y-0.5 hover:border-blue-200/80 hover:bg-white"
+    className="group relative min-h-[118px] w-full overflow-hidden rounded-[24px] border border-white/80 bg-white/84 px-4 py-3 text-left shadow-[0_18px_42px_-34px_rgba(15,23,42,0.34)] transition duration-300 hover:-translate-y-0.5 hover:border-blue-200/80 hover:bg-white dark:border-slate-800/80 dark:bg-slate-900/90 dark:hover:border-slate-700 dark:hover:bg-slate-900 dark:shadow-[0_18px_42px_-34px_rgba(0,0,0,0.7)]"
   >
-    <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_14%_0%,rgba(255,255,255,0.96),transparent_32%),radial-gradient(circle_at_88%_18%,rgba(96,165,250,0.12),transparent_34%),linear-gradient(180deg,rgba(255,255,255,0.65),rgba(248,250,252,0.88))]" />
+    <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_14%_0%,rgba(255,255,255,0.96),transparent_32%),radial-gradient(circle_at_88%_18%,rgba(96,165,250,0.12),transparent_34%),linear-gradient(180deg,rgba(255,255,255,0.65),rgba(248,250,252,0.88))] dark:hidden" />
     <div
       className="pointer-events-none absolute inset-x-0 bottom-0 h-2.5 opacity-90"
       style={{
@@ -1252,16 +1252,16 @@ const BugStatusMetricCard = ({ row, onOpen }) => (
       <div className="min-w-0">
         <div className="flex items-center gap-2">
           <span className={cn("h-3 w-3 shrink-0 rounded-full", row.className)} />
-          <p className="truncate text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
+          <p className="truncate text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">
             {row.label}
           </p>
         </div>
-        <p className="mt-2 text-3xl font-semibold leading-none text-slate-900">
+        <p className="mt-2 text-3xl font-semibold leading-none text-slate-900 dark:text-white">
           {row.count}
         </p>
-        <p className="mt-2 text-sm text-slate-500">{row.helper}</p>
+        <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">{row.helper}</p>
       </div>
-      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-white/80 bg-white/72 text-slate-600 shadow-sm">
+      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-white/80 bg-white/72 text-slate-600 shadow-sm dark:border-slate-700/60 dark:bg-slate-800/80 dark:text-slate-300">
         <row.icon className="h-4.5 w-4.5" />
       </div>
     </div>
@@ -1515,34 +1515,34 @@ const AdminQuickActionsCard = ({
   };
 
   return (
-    <Card className="overflow-hidden rounded-[20px] border border-violet-200/80 bg-gradient-to-br from-violet-50 via-white to-purple-100/80 shadow-[0_18px_44px_-36px_rgba(124,58,237,0.48)]">
-      <div className="flex flex-col gap-3 border-b border-violet-200/70 px-3 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-4">
+    <Card className="overflow-hidden rounded-[20px] border border-violet-200/80 bg-gradient-to-br from-violet-50 via-white to-purple-100/80 shadow-[0_18px_44px_-36px_rgba(124,58,237,0.48)] dark:border-slate-800 dark:bg-slate-900/90 dark:from-slate-900 dark:via-slate-900 dark:to-indigo-950/30 dark:shadow-black/40">
+      <div className="flex flex-col gap-3 border-b border-violet-200/70 px-3 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-4 dark:border-slate-800">
         <div className="flex min-w-0 items-center gap-3">
           <UserAvatar
             user={user}
             name={user?.name || roleLabel}
-            className="h-10 w-10 shrink-0 rounded-xl border-2 border-white shadow-sm"
+            className="h-10 w-10 shrink-0 rounded-xl border-2 border-white shadow-sm dark:border-slate-700"
             imageClassName="object-cover"
             fallbackClassName="text-xs font-black"
           />
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
-              <p className="truncate text-base font-bold tracking-tight text-slate-950">
-                {greeting}, <span className="text-violet-700">{firstName || roleLabel}</span>
+              <p className="truncate text-base font-bold tracking-tight text-slate-950 dark:text-slate-100">
+                {greeting}, <span className="text-violet-700 dark:text-violet-400">{firstName || roleLabel}</span>
               </p>
-              <span className="rounded-full border border-violet-200 bg-white/75 px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.14em] text-violet-700">
+              <span className="rounded-full border border-violet-200 bg-white/75 px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.14em] text-violet-700 dark:border-violet-800/60 dark:bg-violet-950/50 dark:text-violet-300">
                 {roleLabel}
               </span>
             </div>
-            <p className="truncate text-xs font-medium text-slate-600">Manage your projects, teams and workspace from one place.</p>
+            <p className="truncate text-xs font-medium text-slate-600 dark:text-slate-400">Manage your projects, teams and workspace from one place.</p>
           </div>
         </div>
         <div className="flex shrink-0 items-center justify-between gap-3 sm:justify-end">
-          <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-violet-700">
+          <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-violet-700 dark:text-violet-400">
             <Zap className="h-3.5 w-3.5" /> Quick Actions
           </span>
           <Button
-            className="h-8 rounded-lg border-violet-200 bg-white/75 px-3 text-xs font-bold text-slate-800 hover:bg-white"
+            className="h-8 rounded-lg border-violet-200 bg-white/75 px-3 text-xs font-bold text-slate-800 hover:bg-white dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
             onClick={onManageUsers}
             type="button"
             variant="outline"
@@ -1613,8 +1613,8 @@ const AdminQuickActionsCard = ({
               <h3 className="text-sm font-semibold text-slate-950 dark:text-slate-100">
                 Quick Chat
               </h3>
-              <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-100 bg-emerald-50 px-2 py-0.5 text-[10px] font-medium text-emerald-700">
-                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-100 bg-emerald-50 px-2 py-0.5 text-[10px] font-medium text-emerald-700 dark:border-emerald-900/60 dark:bg-emerald-950/40 dark:text-emerald-300">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.7)]" />
                 Online
               </span>
             </div>

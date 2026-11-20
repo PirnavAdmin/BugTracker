@@ -50,19 +50,19 @@ const TeamsPage = () => {
 
   return (
     <div className="space-y-6">
-      <Card className="overflow-hidden border-white/60 bg-[linear-gradient(135deg,rgba(255,255,255,0.94),rgba(236,253,245,0.92),rgba(236,254,255,0.9))] shadow-[0_24px_70px_-36px_rgba(15,23,42,0.42)] backdrop-blur-xl">
+      <Card className="overflow-hidden border-white/60 bg-[linear-gradient(135deg,rgba(255,255,255,0.94),rgba(236,253,245,0.92),rgba(236,254,255,0.9))] shadow-[0_24px_70px_-36px_rgba(15,23,42,0.42)] backdrop-blur-xl dark:border-slate-800 dark:bg-slate-900/90 dark:bg-none dark:shadow-black/50">
         <CardContent className="relative p-5">
-          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,_rgba(16,185,129,0.18),transparent_32%),radial-gradient(circle_at_bottom_right,_rgba(14,165,233,0.16),transparent_30%)]" />
+          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,_rgba(16,185,129,0.18),transparent_32%),radial-gradient(circle_at_bottom_right,_rgba(14,165,233,0.16),transparent_30%)] dark:hidden" />
           <div className="relative flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
             <div className="max-w-3xl">
-              <div className="inline-flex items-center gap-2 rounded-full border border-emerald-200/80 bg-white/80 px-3 py-1 text-[11px] uppercase tracking-[0.28em] text-emerald-700 shadow-sm">
+              <div className="inline-flex items-center gap-2 rounded-full border border-emerald-200/80 bg-white/80 px-3 py-1 text-[11px] uppercase tracking-[0.28em] text-emerald-700 shadow-sm dark:border-emerald-800/60 dark:bg-emerald-950/40 dark:text-emerald-300">
                 <Users2 className="h-3.5 w-3.5" />
                 Workspace Teams
               </div>
-              <h1 className="mt-4 text-3xl font-semibold tracking-tight text-slate-950">
+              <h1 className="mt-4 text-3xl font-semibold tracking-tight text-slate-950 dark:text-slate-100">
                 Keep workspace teams organized
               </h1>
-              <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-600">
+              <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-600 dark:text-slate-400">
                 Create delivery squads, QA groups, or cross-functional pods using
                 members from the current workspace only.
               </p>

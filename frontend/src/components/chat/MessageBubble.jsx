@@ -50,33 +50,35 @@ const MeetingCard = ({ metadata = {}, isOwn }) => {
     <div
       className={cn(
         "overflow-hidden rounded-[18px] border shadow-sm",
-        isOwn ? "border-white/20 bg-white/10 text-white" : "border-slate-200 bg-slate-50 text-slate-800"
+        isOwn
+          ? "border-white/20 bg-white/10 text-white"
+          : "border-slate-200 bg-slate-50 text-slate-800 dark:border-slate-800 dark:bg-slate-900/60 dark:text-slate-100"
       )}
     >
-      <div className={cn("flex items-start gap-3 px-4 py-3", isOwn ? "bg-white/8" : "bg-white")}>
+      <div className={cn("flex items-start gap-3 px-4 py-3", isOwn ? "bg-white/8" : "bg-white dark:bg-slate-900/90")}>
         <span
           className={cn(
             "flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl",
-            isOwn ? "bg-white/14" : "bg-slate-200 text-slate-800"
+            isOwn ? "bg-white/14" : "bg-slate-200 text-slate-800 dark:bg-slate-800 dark:text-slate-100"
           )}
         >
           <CalendarDays className="h-5 w-5" />
         </span>
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-extrabold">{subject}</p>
-          <p className={cn("mt-1 text-xs font-medium", isOwn ? "text-white/84" : "text-slate-500")}>
+          <p className={cn("mt-1 text-xs font-medium", isOwn ? "text-white/84" : "text-slate-500 dark:text-slate-400")}>
             In-app chat meeting
           </p>
         </div>
       </div>
       <div className="space-y-2 px-4 py-3">
-        <div className={cn("text-xs font-semibold", isOwn ? "text-white/84" : "text-slate-600")}>
+        <div className={cn("text-xs font-semibold", isOwn ? "text-white/84" : "text-slate-600 dark:text-slate-300")}>
           {formatDateTime(metadata.startTime)}
         </div>
         <div
           className={cn(
             "flex flex-wrap items-center gap-3 text-xs font-semibold",
-            isOwn ? "text-white/84" : "text-slate-600"
+            isOwn ? "text-white/84" : "text-slate-600 dark:text-slate-300"
           )}
         >
           <span className="inline-flex items-center gap-1.5">
@@ -97,7 +99,7 @@ const MeetingCard = ({ metadata = {}, isOwn }) => {
               "inline-flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-bold transition",
               isOwn
                 ? "bg-white text-slate-950 hover:bg-slate-100"
-                : "bg-slate-950 text-white hover:bg-slate-800"
+                : "bg-slate-950 text-white hover:bg-slate-800 dark:bg-blue-600 dark:hover:bg-blue-500"
             )}
           >
             Join meeting
@@ -207,20 +209,20 @@ const AttachmentCard = ({ attachment, attachmentIndex, conversationId, isOwn, me
         "flex min-w-0 items-center gap-3 rounded-[18px] border px-3 py-3 text-left shadow-sm",
         isOwn
           ? "border-white/25 bg-white/14 text-white"
-          : "border-emerald-100 bg-[#f1faf2] text-slate-700"
+          : "border-emerald-100 bg-[#f1faf2] text-slate-700 dark:border-slate-800 dark:bg-slate-800/80 dark:text-slate-200"
       )}
     >
       <span
         className={cn(
           "flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl",
-          isOwn ? "bg-white/18" : "bg-white text-emerald-700"
+          isOwn ? "bg-white/18" : "bg-white text-emerald-700 dark:bg-slate-700 dark:text-emerald-400"
         )}
       >
         <FileText className="h-4 w-4" />
       </span>
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-bold">{fileName}</p>
-        <p className={cn("mt-0.5 truncate text-xs", isOwn ? "text-white/74" : "text-slate-500")}>
+        <p className={cn("mt-0.5 truncate text-xs", isOwn ? "text-white/74" : "text-slate-500 dark:text-slate-400")}>
           {imageLoadFailed ? "Preview unavailable" : fileType || "Document"}{" "}
           {formatFileSize(attachment.size)}
         </p>
@@ -234,7 +236,7 @@ const AttachmentCard = ({ attachment, attachmentIndex, conversationId, isOwn, me
             "inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl transition",
             isOwn
               ? "bg-white/15 text-white hover:bg-white/25"
-              : "bg-white text-emerald-700 hover:bg-emerald-50"
+              : "bg-white text-emerald-700 hover:bg-emerald-50 dark:bg-slate-700 dark:text-emerald-400 dark:hover:bg-slate-600"
           )}
           aria-label={`Download ${fileName}`}
           title={isDownloading ? "Downloading" : "Download"}
@@ -263,7 +265,7 @@ const MessageBubble = memo(({ message, currentUserId }) => {
         {!isOwn ? (
           <UserAvatar
             user={sender}
-            className="mt-1 h-9 w-9 rounded-2xl border-emerald-100"
+            className="mt-1 h-9 w-9 rounded-2xl border-emerald-100 dark:border-slate-700"
             fallbackClassName="text-xs"
           />
         ) : null}
@@ -276,8 +278,8 @@ const MessageBubble = memo(({ message, currentUserId }) => {
         >
           {!isOwn ? (
             <div className="flex flex-wrap items-center gap-2 px-1 text-xs">
-              <span className="font-semibold text-slate-800">{sender?.name}</span>
-              <span className="rounded-full border border-emerald-100 bg-white/82 px-2 py-0.5 font-medium text-slate-500">
+              <span className="font-semibold text-slate-900 dark:text-slate-100">{sender?.name}</span>
+              <span className="rounded-full border border-slate-200 bg-white/90 px-2 py-0.5 font-medium text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
                 {sender?.role || "Member"}
               </span>
             </div>
@@ -287,8 +289,8 @@ const MessageBubble = memo(({ message, currentUserId }) => {
             className={cn(
               "rounded-[20px] border px-3 py-2.5 shadow-[0_18px_40px_-28px_rgba(15,23,42,0.36)] backdrop-blur-sm sm:rounded-[22px] sm:px-4 sm:py-3",
               isOwn
-                ? "border-slate-900 bg-slate-950 text-white"
-                : "border-slate-200 bg-white text-slate-800"
+                ? "border-slate-900 bg-slate-950 text-white dark:border-blue-700 dark:bg-blue-600 dark:text-white"
+                : "border-slate-200 bg-white text-slate-800 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100"
             )}
           >
             {message?.message ? (
@@ -322,14 +324,14 @@ const MessageBubble = memo(({ message, currentUserId }) => {
 
           <div
             className={cn(
-              "flex items-center gap-1.5 px-1 text-[11px] font-semibold text-slate-500",
+              "flex items-center gap-1.5 px-1 text-[11px] font-semibold text-slate-500 dark:text-slate-400",
               isOwn ? "justify-end" : "justify-start"
             )}
           >
             <span>{formatTime(message?.createdAt)}</span>
             {isOwn && message?.pending ? <Clock3 className="h-3 w-3" /> : null}
             {isOwn && !message?.pending ? (
-              <CheckCheck className={cn("h-3.5 w-3.5", seenCount > 1 && "text-slate-900")} />
+              <CheckCheck className={cn("h-3.5 w-3.5", seenCount > 1 ? "text-blue-500 dark:text-blue-400" : "text-slate-400 dark:text-slate-500")} />
             ) : null}
             {message?.failed ? (
               <span

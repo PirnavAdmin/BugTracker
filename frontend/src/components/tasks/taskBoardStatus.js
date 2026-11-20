@@ -15,11 +15,11 @@ export const TASK_BOARD_COLUMNS = [
     helper: "Ready to start",
     countLabel: "open",
     accentClassName: "bg-orange-500",
-    borderClassName: "border-orange-200",
-    surfaceClassName: "bg-orange-50/70",
+    borderClassName: "border-orange-200 dark:border-orange-900/40",
+    surfaceClassName: "bg-orange-50/70 dark:bg-slate-900/50",
     activeClassName:
-      "border-orange-300 bg-orange-50 shadow-[0_22px_48px_-32px_rgba(249,115,22,0.42)]",
-    badgeClassName: "border-orange-200 bg-orange-50 text-orange-700",
+      "border-orange-300 bg-orange-50 shadow-[0_22px_48px_-32px_rgba(249,115,22,0.42)] dark:border-orange-700 dark:bg-orange-950/30",
+    badgeClassName: "border-orange-200 bg-orange-50 text-orange-700 dark:border-orange-800/60 dark:bg-orange-950/40 dark:text-orange-300",
   },
   {
     key: TASK_BOARD_STATUS.IN_PROGRESS,
@@ -27,11 +27,11 @@ export const TASK_BOARD_COLUMNS = [
     helper: "Moving now",
     countLabel: "active",
     accentClassName: "bg-violet-500",
-    borderClassName: "border-violet-200",
-    surfaceClassName: "bg-violet-50/70",
+    borderClassName: "border-violet-200 dark:border-violet-900/40",
+    surfaceClassName: "bg-violet-50/70 dark:bg-slate-900/50",
     activeClassName:
-      "border-violet-300 bg-violet-50 shadow-[0_22px_48px_-32px_rgba(124,58,237,0.4)]",
-    badgeClassName: "border-violet-200 bg-violet-50 text-violet-700",
+      "border-violet-300 bg-violet-50 shadow-[0_22px_48px_-32px_rgba(124,58,237,0.4)] dark:border-violet-700 dark:bg-violet-950/30",
+    badgeClassName: "border-violet-200 bg-violet-50 text-violet-700 dark:border-violet-800/60 dark:bg-violet-950/40 dark:text-violet-300",
   },
   {
     key: TASK_BOARD_STATUS.DONE,
@@ -39,11 +39,11 @@ export const TASK_BOARD_COLUMNS = [
     helper: "Closed work",
     countLabel: "closed",
     accentClassName: "bg-emerald-500",
-    borderClassName: "border-emerald-200",
-    surfaceClassName: "bg-emerald-50/70",
+    borderClassName: "border-emerald-200 dark:border-emerald-900/40",
+    surfaceClassName: "bg-emerald-50/70 dark:bg-slate-900/50",
     activeClassName:
-      "border-emerald-300 bg-emerald-50 shadow-[0_22px_48px_-32px_rgba(16,185,129,0.4)]",
-    badgeClassName: "border-emerald-200 bg-emerald-50 text-emerald-700",
+      "border-emerald-300 bg-emerald-50 shadow-[0_22px_48px_-32px_rgba(16,185,129,0.4)] dark:border-emerald-700 dark:bg-emerald-950/30",
+    badgeClassName: "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-800/60 dark:bg-emerald-950/40 dark:text-emerald-300",
   },
 ];
 

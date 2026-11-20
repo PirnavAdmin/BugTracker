@@ -350,8 +350,8 @@ const TasksPage = () => {
           </div>
         </div>
       ) : (
-        <Card className="overflow-hidden border-white/70 bg-white/92 shadow-[0_18px_50px_-34px_rgba(15,23,42,0.45)] backdrop-blur">
-          <CardHeader className="border-b border-slate-200/80 bg-[linear-gradient(135deg,rgba(255,255,255,0.94),rgba(239,246,255,0.92),rgba(238,242,255,0.88))]">
+        <Card className="overflow-hidden border-white/70 bg-white/92 shadow-[0_18px_50px_-34px_rgba(15,23,42,0.45)] backdrop-blur dark:border-slate-800 dark:bg-slate-900/95 dark:shadow-black/50">
+          <CardHeader className="border-b border-slate-200/80 bg-[linear-gradient(135deg,rgba(255,255,255,0.94),rgba(239,246,255,0.92),rgba(238,242,255,0.88))] dark:border-slate-800 dark:bg-slate-900 dark:bg-none">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
               <div>
                 <CardTitle>
@@ -365,10 +365,10 @@ const TasksPage = () => {
               </div>
 
               {isSprintTaskView ? (
-                <Link className="rounded text-sm font-semibold text-blue-700 underline focus-visible:ring-2 focus-visible:ring-blue-600" to="/tasks">View My Tasks</Link>
+                <Link className="rounded text-sm font-semibold text-blue-700 underline focus-visible:ring-2 focus-visible:ring-blue-600 dark:text-blue-400" to="/tasks">View My Tasks</Link>
               ) : canCoordinateTasks ? (
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                  <div className="inline-flex rounded-2xl border border-slate-200 bg-white/80 p-1 shadow-sm">
+                  <div className="inline-flex rounded-2xl border border-slate-200 bg-white/80 p-1 shadow-sm dark:border-slate-800 dark:bg-slate-900/80">
                     {!isAdminRole ? (
                       <Button
                         className="h-9 rounded-xl px-3"
@@ -404,11 +404,11 @@ const TasksPage = () => {
           </CardHeader>
           <CardContent className="p-4 sm:p-5">
             {isTeamProgressView ? (
-              <div className="mb-5 space-y-4 rounded-[20px] border border-slate-200 bg-slate-50/75 p-4">
+              <div className="mb-5 space-y-4 rounded-[20px] border border-slate-200 bg-slate-50/75 p-4 dark:border-slate-800 dark:bg-slate-900/60">
                 <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
                   <div className="grid gap-3 sm:grid-cols-2">
                     <label className="space-y-1.5">
-                      <span className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                      <span className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">
                         Project
                       </span>
                       <select
@@ -425,7 +425,7 @@ const TasksPage = () => {
                       </select>
                     </label>
                     <label className="space-y-1.5">
-                      <span className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                      <span className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">
                         Individual
                       </span>
                       <select
@@ -455,9 +455,9 @@ const TasksPage = () => {
 
                 <div className="grid gap-3 sm:grid-cols-3">
                   {[
-                    { key: TASK_BOARD_STATUS.OPEN, label: "To do", className: "border-orange-200 bg-orange-50 text-orange-800" },
-                    { key: TASK_BOARD_STATUS.IN_PROGRESS, label: "In progress", className: "border-violet-200 bg-violet-50 text-violet-800" },
-                    { key: TASK_BOARD_STATUS.DONE, label: "Done", className: "border-emerald-200 bg-emerald-50 text-emerald-800" },
+                    { key: TASK_BOARD_STATUS.OPEN, label: "To do", className: "border-orange-200 bg-orange-50 text-orange-800 dark:border-orange-900/40 dark:bg-orange-950/30 dark:text-orange-300" },
+                    { key: TASK_BOARD_STATUS.IN_PROGRESS, label: "In progress", className: "border-violet-200 bg-violet-50 text-violet-800 dark:border-violet-900/40 dark:bg-violet-950/30 dark:text-violet-300" },
+                    { key: TASK_BOARD_STATUS.DONE, label: "Done", className: "border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-900/40 dark:bg-emerald-950/30 dark:text-emerald-300" },
                   ].map((status) => (
                     <button
                       key={status.key}

@@ -144,34 +144,34 @@ const TeamDetailsPage = () => {
         </Badge>
       </div>
 
-      <Card className="overflow-hidden border-white/60 bg-[linear-gradient(135deg,rgba(255,255,255,0.94),rgba(236,253,245,0.92),rgba(236,254,255,0.9))] shadow-[0_24px_70px_-36px_rgba(15,23,42,0.4)] backdrop-blur-xl">
+      <Card className="overflow-hidden border-white/60 bg-[linear-gradient(135deg,rgba(255,255,255,0.94),rgba(236,253,245,0.92),rgba(236,254,255,0.9))] shadow-[0_24px_70px_-36px_rgba(15,23,42,0.4)] backdrop-blur-xl dark:border-slate-800 dark:bg-slate-900/90 dark:bg-none dark:shadow-black/50">
         <CardContent className="relative p-6">
-          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,_rgba(16,185,129,0.18),transparent_32%),radial-gradient(circle_at_bottom_right,_rgba(14,165,233,0.16),transparent_28%)]" />
+          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,_rgba(16,185,129,0.18),transparent_32%),radial-gradient(circle_at_bottom_right,_rgba(14,165,233,0.16),transparent_28%)] dark:hidden" />
           <div className="relative space-y-5">
             <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
               <div className="max-w-3xl">
-                <h1 className="text-3xl font-semibold tracking-tight text-slate-950">
+                <h1 className="text-3xl font-semibold tracking-tight text-slate-950 dark:text-slate-100">
                   {team.name}
                 </h1>
-                <p className="mt-3 text-sm leading-6 text-slate-600">
+                <p className="mt-3 text-sm leading-6 text-slate-600 dark:text-slate-400">
                   {team.description || "No description has been added for this team yet."}
                 </p>
               </div>
 
               <div className="grid gap-3 sm:grid-cols-2">
-                <div className="rounded-[24px] border border-white/70 bg-white/70 px-4 py-3 shadow-sm">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">
+                <div className="rounded-[24px] border border-white/70 bg-white/70 px-4 py-3 shadow-sm dark:border-slate-800 dark:bg-slate-900/80">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500 dark:text-slate-400">
                     Members
                   </p>
-                  <p className="mt-2 text-2xl font-semibold text-slate-950">
+                  <p className="mt-2 text-2xl font-semibold text-slate-950 dark:text-slate-100">
                     {team.memberCount || team.members?.length || 0}
                   </p>
                 </div>
-                <div className="rounded-[24px] border border-white/70 bg-white/70 px-4 py-3 shadow-sm">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">
+                <div className="rounded-[24px] border border-white/70 bg-white/70 px-4 py-3 shadow-sm dark:border-slate-800 dark:bg-slate-900/80">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500 dark:text-slate-400">
                     Created
                   </p>
-                  <p className="mt-2 text-sm font-semibold text-slate-950">
+                  <p className="mt-2 text-sm font-semibold text-slate-950 dark:text-slate-100">
                     {formatDate(team.createdAt)}
                   </p>
                 </div>
