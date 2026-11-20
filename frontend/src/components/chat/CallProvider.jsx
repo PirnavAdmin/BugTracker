@@ -1866,6 +1866,7 @@ export const CallProvider = ({ children }) => {
     };
     const handleSocketReconnect = async () => {
       const currentCall = activeCallRef.current;
+      socket.emit("call:presence:sync", { callId: currentCall?.callId });
 
       if (!currentCall?.callId) {
         return;
@@ -1909,6 +1910,8 @@ export const CallProvider = ({ children }) => {
       });
     };
 
+    const handleSocketDisconnect = () => setCallPresence({});
+    socket.on("disconnect", handleSocketDisconnect);
     socket.on("connect", handleSocketReconnect);
     socket.on("call:incoming", handleIncomingCall);
     socket.on("call:outgoing", handleOutgoingCall);
@@ -1929,6 +1932,7 @@ export const CallProvider = ({ children }) => {
     socket.on("call:rejected", handleEnded);
     socket.on("call:missed", handleMissed);
     socket.on("call:left", handleEnded);
+    socket.emit("call:presence:sync", { callId: activeCallRef.current?.callId });
 
     return () => {
       socket.off("call:incoming", handleIncomingCall);
@@ -1951,6 +1955,8 @@ export const CallProvider = ({ children }) => {
       socket.off("call:missed", handleMissed);
       socket.off("call:left", handleEnded);
       socket.off("connect", handleSocketReconnect);
+      socket.off("disconnect", handleSocketDisconnect);
+      setCallPresence({});
     };
   }, [
     applyQueuedCandidates,
