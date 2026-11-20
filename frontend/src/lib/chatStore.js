@@ -1,5 +1,7 @@
+import { latestClear, isVisibleMessage, applyHistoryBoundary } from "@/lib/chat-history";
 import { create } from "zustand";
 import {
+  clearChatConversationHistory,
   addChatConversationParticipants,
   createChatConversation,
   deleteChatConversation,
@@ -95,6 +97,8 @@ export const useChatStore = create((set, get) => ({
   activeConversationId: null,
   currentUserId: "",
   conversations: [],
+  clearedAtByConversation: {},
+  clearingByConversation: {},
   hasLoadedConversations: false,
   messagesByConversation: {},
   nextCursorByConversation: {},
@@ -104,6 +108,7 @@ export const useChatStore = create((set, get) => ({
   searchResults: [],
   isSearching: false,
   isLoadingConversations: false,
+  conversationReloadRequested: false,
   isLoadingMessages: false,
   error: "",
 
@@ -114,7 +119,55 @@ export const useChatStore = create((set, get) => ({
     ),
 
   setCurrentUserId: (userId) => {
-    set({ currentUserId: String(userId || "") });
+    const nextId = String(userId || "");
+    if (nextId !== get().currentUserId) {
+      set({ conversations: [], messagesByConversation: {}, clearedAtByConversation: {},
+        nextCursorByConversation: {}, hasMoreByConversation: {}, activeConversationId: null,
+        isLoadingConversations: false, isLoadingMessages: false, clearingByConversation: {},
+        conversationReloadRequested: false,
+        hasLoadedConversations: false });
+    }
+    set({ currentUserId: nextId });
+  },
+
+  applyConversationCleared: ({ conversationId, clearedAt }) => {
+    if (!conversationId || !clearedAt) return;
+    set((state) => {
+      const previousBoundary = state.clearedAtByConversation[conversationId];
+      if (previousBoundary && new Date(clearedAt) <= new Date(previousBoundary)) return {};
+      const boundary = latestClear(clearedAt, state.clearedAtByConversation[conversationId]);
+      const retained = (state.messagesByConversation[conversationId] || [])
+        .filter((message) => isVisibleMessage(message, boundary));
+      const unreadCount = state.activeConversationId === conversationId ? 0 : retained.filter((message) =>
+        !message.pending && getId(message.senderId) !== state.currentUserId &&
+        !(message.seenBy || []).some((receipt) => getId(receipt.userId) === state.currentUserId)).length;
+      return {
+        clearedAtByConversation: { ...state.clearedAtByConversation, [conversationId]: boundary },
+        messagesByConversation: { ...state.messagesByConversation,
+          [conversationId]: retained },
+        nextCursorByConversation: { ...state.nextCursorByConversation, [conversationId]: null },
+        hasMoreByConversation: { ...state.hasMoreByConversation, [conversationId]: false },
+        conversations: state.conversations.map((conversation) => getId(conversation) === conversationId
+          ? { ...applyHistoryBoundary(conversation, boundary), unreadCount } : conversation),
+      };
+    });
+  },
+  clearConversationHistory: async (conversationId) => {
+    if (get().clearingByConversation[conversationId]) return false;
+    set((state) => ({ clearingByConversation: { ...state.clearingByConversation, [conversationId]: true } }));
+    const requestingUserId = get().currentUserId;
+    try {
+      const result = await clearChatConversationHistory(conversationId);
+      if (get().currentUserId !== requestingUserId) return false;
+      if (String(result?.conversationId) !== String(conversationId) || !result?.clearedAt ||
+          Number.isNaN(new Date(result.clearedAt).getTime())) {
+        throw new Error("Unable to confirm that conversation history was cleared. Please try again.");
+      }
+      get().applyConversationCleared(result);
+      return true;
+    } finally {
+      set((state) => ({ clearingByConversation: { ...state.clearingByConversation, [conversationId]: false } }));
+    }
   },
 
   toggleConversationPreference: (conversationId, field) => {
@@ -168,19 +221,28 @@ export const useChatStore = create((set, get) => ({
   },
 
   loadConversations: async ({ force = false, activateFirst = false } = {}) => {
-    if (get().isLoadingConversations || (get().hasLoadedConversations && !force)) {
+    if (get().isLoadingConversations) {
+      if (force) set({ conversationReloadRequested: true });
       return;
     }
+    if (get().hasLoadedConversations && !force) return;
 
+    const requestingUserId = get().currentUserId;
     set({ isLoadingConversations: true, error: "" });
 
     try {
       const preferences = readConversationPreferences();
       const conversations = (await fetchChatConversations()).map((conversation) =>
-        normalizeConversation(applyConversationPreferences(conversation, preferences))
+        normalizeConversation(applyHistoryBoundary(applyConversationPreferences(conversation, preferences),
+          latestClear(conversation.clearedAt, get().clearedAtByConversation[getId(conversation)])))
       );
+      if (get().currentUserId !== requestingUserId) return;
+      for (const conversation of conversations) {
+        if (conversation.clearedAt) get().applyConversationCleared({ conversationId: getId(conversation), clearedAt: conversation.clearedAt });
+      }
       set({
-        conversations: sortConversations(conversations),
+        conversations: sortConversations(conversations.map((conversation) => applyHistoryBoundary(conversation,
+          latestClear(conversation.clearedAt, get().clearedAtByConversation[getId(conversation)])))),
         hasLoadedConversations: true,
         isLoadingConversations: false,
       });
@@ -189,10 +251,16 @@ export const useChatStore = create((set, get) => ({
         await get().setActiveConversation(getId(conversations[0]));
       }
     } catch (error) {
+      if (get().currentUserId !== requestingUserId) return;
       set({
         error: error?.response?.data?.message || error?.message || "Unable to load chat",
         isLoadingConversations: false,
       });
+    } finally {
+      if (get().currentUserId === requestingUserId && get().conversationReloadRequested) {
+        set({ conversationReloadRequested: false });
+        await get().loadConversations({ force: true, activateFirst });
+      }
     }
   },
 
@@ -211,6 +279,8 @@ export const useChatStore = create((set, get) => ({
       return;
     }
 
+    const requestingUserId = get().currentUserId;
+    const requestBoundary = get().clearedAtByConversation[conversationId];
     set({ isLoadingMessages: true, error: "" });
 
     try {
@@ -218,22 +288,27 @@ export const useChatStore = create((set, get) => ({
         conversationId,
         before,
       });
+      if (get().currentUserId !== requestingUserId) return;
+      if (data?.clearedAt) get().applyConversationCleared({ conversationId, clearedAt: data.clearedAt });
       const incomingMessages = Array.isArray(data?.messages) ? data.messages : [];
 
       set((state) => ({
         messagesByConversation: {
           ...state.messagesByConversation,
-          [conversationId]: older
+          [conversationId]: (older
             ? [...incomingMessages, ...(state.messagesByConversation[conversationId] || [])]
-            : incomingMessages,
+            : [...incomingMessages, ...(state.messagesByConversation[conversationId] || []).filter((message) => message.pending || new Date(message.createdAt) > new Date(incomingMessages.at(-1)?.createdAt || 0))])
+              .filter((message) => isVisibleMessage(message, state.clearedAtByConversation[conversationId])),
         },
         nextCursorByConversation: {
           ...state.nextCursorByConversation,
-          [conversationId]: data?.pagination?.nextCursor || null,
+          [conversationId]: latestClear(requestBoundary, data?.clearedAt) === (state.clearedAtByConversation[conversationId] || null)
+            ? data?.pagination?.nextCursor || null : null,
         },
         hasMoreByConversation: {
           ...state.hasMoreByConversation,
-          [conversationId]: Boolean(data?.pagination?.hasMore),
+          [conversationId]: latestClear(requestBoundary, data?.clearedAt) === (state.clearedAtByConversation[conversationId] || null)
+            && Boolean(data?.pagination?.hasMore),
         },
         isLoadingMessages: false,
       }));
@@ -563,6 +638,7 @@ export const useChatStore = create((set, get) => ({
       return;
     }
 
+    if (!isVisibleMessage(message, get().clearedAtByConversation[normalizedConversationId])) return;
     set((state) => {
       const activeConversationId = state.activeConversationId;
       const isActive =

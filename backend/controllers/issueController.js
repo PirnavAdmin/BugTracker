@@ -7208,6 +7208,31 @@ const markAllNotificationsRead = asyncHandler(async (req, res) => {
   }
 });
 
+const clearNotifications = asyncHandler(async (req, res) => {
+  const userId = req.user?._id || req.user?.id;
+
+  if (!userId) {
+    res.status(401);
+    throw new Error("User not authenticated or ID missing");
+  }
+
+  try {
+    const result = await Notification.deleteMany({ recipientId: userId });
+    res.status(200).json({
+      message: "Notifications cleared",
+      deletedCount: result.deletedCount,
+    });
+  } catch (error) {
+    console.error("[clearNotifications] Error:", {
+      message: error.message,
+      stack: error.stack,
+      userId,
+    });
+    res.status(500);
+    throw new Error("Failed to clear notifications");
+  }
+});
+
 module.exports = {
   buildTaskImportSampleRows,
   getIssues,
@@ -7226,6 +7251,7 @@ module.exports = {
   getUnreadNotificationCount,
   markNotificationRead,
   markAllNotificationsRead,
+  clearNotifications,
   getReports,
   getProjectReports,
   getUserReports,

@@ -55,6 +55,8 @@ const conversationSchema = new Schema(
       index: true,
       default: normalizeWorkspaceId(),
     },
+    // Per-user visibility boundary; shared messages and membership stay intact.
+    historyClearedAt: { type: Map, of: Date, default: {} },
     lastMessage: {
       type: String,
       trim: true,

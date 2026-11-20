@@ -1,5 +1,6 @@
 const express = require("express");
 const {
+  clearConversationHistory,
   addConversationParticipants,
   createConversation,
   deleteConversation,
@@ -31,6 +32,7 @@ router.post("/quick-chat/handle", protect, handleQuickChatMessage);
 router.post("/conversations", protect, createConversation);
 router.post("/conversations/:id/participants", protect, addConversationParticipants);
 router.delete("/conversations/:id/participants/:userId", protect, removeConversationParticipant);
+router.post("/conversations/:id/clear-history", protect, clearConversationHistory);
 router.delete("/conversations/:id", protect, deleteConversation);
 router.get("/conversation/:id", protect, getConversationById);
 router.get("/messages/:conversationId", protect, getMessages);

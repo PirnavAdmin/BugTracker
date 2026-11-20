@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Bell, CheckCheck, Loader2 } from "lucide-react";
+import { Bell, CheckCheck, Loader2, Trash2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import {
   fetchNotifications,
   fetchUnreadNotificationCount,
+  clearNotifications,
   markAllNotificationsAsRead,
   markNotificationAsRead,
 } from "@/lib/api";
@@ -93,6 +94,8 @@ const NotificationButton = ({ user }) => {
   const containerRef = useRef(null);
   const [isOpen, setIsOpen] = useState(false);
   const [isMarkingAll, setIsMarkingAll] = useState(false);
+  const [isClearing, setIsClearing] = useState(false);
+  const [clearError, setClearError] = useState("");
 
   const notificationsQueryKey = useMemo(
     () => ["issues", "notifications", user?._id],
@@ -208,6 +211,31 @@ const NotificationButton = ({ user }) => {
     }
   };
 
+  const handleClearNotifications = async () => {
+    if (!notifications.length || isClearing) {
+      return;
+    }
+
+    setIsClearing(true);
+    setClearError("");
+
+    try {
+      await clearNotifications();
+      queryClient.setQueryData(notificationsQueryKey, []);
+      queryClient.setQueryData(unreadQueryKey, 0);
+      queryClient.invalidateQueries({ queryKey: notificationsQueryKey });
+      queryClient.invalidateQueries({ queryKey: unreadQueryKey });
+    } catch (error) {
+      setClearError(
+        error?.response?.data?.message ||
+          error?.message ||
+          "Unable to clear notifications. Please try again."
+      );
+    } finally {
+      setIsClearing(false);
+    }
+  };
+
   return (
     <div ref={containerRef} className="relative">
       <button
@@ -293,6 +321,28 @@ const NotificationButton = ({ user }) => {
                 </p>
               </div>
             )}
+          </div>
+          <div className="flex items-center justify-between gap-3 border-t border-slate-100 px-4 py-2.5 dark:border-slate-800">
+            {clearError ? (
+              <p className="min-w-0 flex-1 text-xs text-rose-600" role="alert">
+                {clearError}
+              </p>
+            ) : (
+              <span />
+            )}
+            <button
+              type="button"
+              className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full px-3 text-xs font-semibold text-rose-600 transition hover:bg-rose-50 disabled:cursor-not-allowed disabled:text-slate-400 dark:hover:bg-rose-950/40"
+              disabled={isLoading || !notifications.length || isClearing}
+              onClick={handleClearNotifications}
+            >
+              {isClearing ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Trash2 className="h-3.5 w-3.5" />
+              )}
+              Clear
+            </button>
           </div>
         </div>
       ) : null}

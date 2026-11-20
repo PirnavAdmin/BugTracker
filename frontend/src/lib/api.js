@@ -665,6 +665,11 @@ export const markAllNotificationsAsRead = async () => {
   return response.data;
 };
 
+export const clearNotifications = async () => {
+  const response = await api.delete("/issues/notifications");
+  return response.data;
+};
+
 export const createIssue = async (payload) => {
   const normalizedPayload = normalizeIssuePayload(payload);
   logIssuePayload("Create issue", normalizedPayload);
@@ -1294,6 +1299,11 @@ export const addChatConversationParticipants = async (conversationId, participan
 export const removeChatConversationParticipant = async (conversationId, userId) => {
   const response = await api.delete(`/chat/conversations/${conversationId}/participants/${userId}`);
   return response.data?.conversation || response.data;
+};
+
+export const clearChatConversationHistory = async (conversationId) => {
+  const response = await api.post(`/chat/conversations/${conversationId}/clear-history`);
+  return response.data;
 };
 
 export const deleteChatConversation = async (conversationId) => {

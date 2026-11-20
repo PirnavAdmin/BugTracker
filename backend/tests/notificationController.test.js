@@ -2,12 +2,17 @@
 const { test } = require('node:test');
 const assert = require('node:assert');
 const mongoose = require('mongoose');
-const { getNotifications, getUnreadNotificationCount } = require('../controllers/issueController');
+const {
+  clearNotifications,
+  getNotifications,
+  getUnreadNotificationCount,
+} = require('../controllers/issueController');
 
 // Mock Notification model
 const Notification = require('../models/Notification');
 const originalFind = Notification.find;
 const originalCountDocuments = Notification.countDocuments;
+const originalDeleteMany = Notification.deleteMany;
 
 test('getNotifications should return notifications for a user', async (t) => {
   const userId = new mongoose.Types.ObjectId();
@@ -74,6 +79,31 @@ test('getUnreadNotificationCount should return count for a user', async (t) => {
 
   // Restore
   Notification.countDocuments = originalCountDocuments;
+});
+
+test('clearNotifications should delete only the current user notifications', async () => {
+  const userId = new mongoose.Types.ObjectId();
+  let deleteFilter;
+  Notification.deleteMany = (filter) => {
+    deleteFilter = filter;
+    return Promise.resolve({ deletedCount: 2 });
+  };
+
+  const req = { user: { _id: userId } };
+  let responseData;
+  const res = {
+    status: function(s) { this.statusCode = s; return this; },
+    json: function(j) { responseData = j; return this; }
+  };
+
+  try {
+    await clearNotifications(req, res);
+    assert.strictEqual(res.statusCode, 200);
+    assert.deepStrictEqual(deleteFilter, { recipientId: userId });
+    assert.strictEqual(responseData.deletedCount, 2);
+  } finally {
+    Notification.deleteMany = originalDeleteMany;
+  }
 });
 
 test('getNotifications should return 401 if user is missing', async (t) => {

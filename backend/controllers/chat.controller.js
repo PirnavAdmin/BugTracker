@@ -260,6 +260,7 @@ const serializeConversation = (conversation, { unreadCount = 0 } = {}) => {
 
   return {
     ...item,
+    historyClearedAt: undefined,
     workspaceId: normalizeWorkspaceId(item.workspaceId),
     participants: (item.participants || []).map(serializeUser).filter(Boolean),
     createdBy: serializeUser(item.createdBy) || item.createdBy,
@@ -285,14 +286,65 @@ const loadConversationForUser = async (conversationId, user, options = {}) => {
     : populateConversation(query);
 };
 
+const clearedAtFor = (conversation, userId) => {
+  const state = conversation?.historyClearedAt;
+  return state?.get?.(objectIdString(userId)) || state?.[objectIdString(userId)] || null;
+};
+const visibleHistory = (conversation, userId) => {
+  const clearedAt = clearedAtFor(conversation, userId);
+  return { conversationId: conversation._id, deleted: false,
+    ...(clearedAt ? { createdAt: { $gt: new Date(clearedAt) } } : {}) };
+};
+const serializeConversationForUser = async (conversation, userId, unreadCount = 0) => {
+  const result = serializeConversation(conversation, { unreadCount });
+  result.clearedAt = clearedAtFor(conversation, userId);
+  if (result.clearedAt) {
+    const latest = await Message.findOne(visibleHistory(conversation, userId))
+      .sort({ createdAt: -1 }).lean();
+    result.lastMessage = latest ? latest.message || "Attachment" : "";
+    result.lastMessageAt = latest?.createdAt || null;
+  }
+  return result;
+};
+
+const clearConversationHistory = asyncHandler(async (req, res) => {
+  ensureChatAccess(req, res);
+  if (!isValidObjectId(req.params.id)) {
+    res.status(400);
+    throw new Error("Invalid conversation id");
+  }
+  const visibilityKey = `historyClearedAt.${objectIdString(req.user._id)}`;
+  const conversation = await Conversation.findOneAndUpdate({
+    _id: req.params.id,
+    workspaceId: normalizeWorkspaceId(req.user.workspaceId),
+    participants: req.user._id,
+  }, [{ $set: {
+    // Database time and the latest persisted message cover equal-millisecond sends.
+    // Keep the boundary monotonic when concurrent clears complete out of order.
+    [visibilityKey]: { $max: ["$$NOW", "$lastMessageAt", `$${visibilityKey}`] },
+  } }], { new: true, timestamps: false });
+  if (!conversation) {
+    res.status(404);
+    throw new Error("Conversation not found or inaccessible");
+  }
+  const payload = { conversationId: objectIdString(conversation._id),
+    clearedAt: clearedAtFor(conversation, req.user._id) };
+  // Lazy import avoids the socket/controller dependency cycle.
+  require("../socket").emitToUser(req.user._id, "conversation_cleared", payload);
+  res.status(200).json(payload);
+});
+
 const countUnreadByConversation = async (conversationIds = [], userId) => {
   if (!conversationIds.length) {
     return new Map();
   }
 
+  const conversations = await Conversation.find({ _id: { $in: conversationIds }, participants: userId }).lean();
+  if (!conversations.length) return new Map();
   const counts = await Message.aggregate([
     {
       $match: {
+        $or: conversations.map((conversation) => visibleHistory(conversation, userId)),
         conversationId: {
           $in: conversationIds,
         },
@@ -543,7 +595,7 @@ const createMessageDocument = async ({
     _id: conversationId,
     workspaceId: normalizeWorkspaceId(sender.workspaceId),
     participants: sender._id,
-  }).select("_id participants workspaceId");
+  }).select("_id participants workspaceId historyClearedAt");
 
   if (!conversation) {
     const error = new Error("Conversation not found or inaccessible");
@@ -565,7 +617,12 @@ const createMessageDocument = async ({
     }
   }
 
+  // Keep sends after a clear visible even when both requests share a millisecond.
+  const boundaries = conversation.historyClearedAt instanceof Map
+    ? [...conversation.historyClearedAt.values()] : Object.values(conversation.historyClearedAt || {});
+  const createdAt = new Date(Math.max(Date.now(), ...boundaries.map((date) => new Date(date).getTime() + 1)));
   const createdMessage = await Message.create({
+    createdAt,
     conversationId: conversation._id,
     senderId: sender._id,
     clientMessageId: sanitizedClientMessageId || undefined,
@@ -734,13 +791,9 @@ const getConversations = asyncHandler(async (req, res) => {
   );
 
   res.status(200).json({
-    conversations: conversations
-      .map((conversation) =>
-        serializeConversation(conversation, {
-          unreadCount: unreadCounts.get(String(conversation._id)) || 0,
-        })
-      )
-      .filter(Boolean),
+    conversations: await Promise.all(conversations.map((conversation) =>
+      serializeConversationForUser(conversation, req.user._id,
+        unreadCounts.get(String(conversation._id)) || 0))),
   });
 });
 
@@ -779,6 +832,7 @@ const getActiveQuickChatMessages = asyncHandler(async (req, res) => {
     handledRows.map((row) => objectIdString(row.messageId))
   );
   const candidateMessages = await Message.find({
+    $or: conversations.map((conversation) => visibleHistory(conversation, req.user._id)),
     conversationId: {
       $in: conversationIds,
     },
@@ -966,7 +1020,7 @@ const createConversation = asyncHandler(async (req, res) => {
     });
 
     res.status(201).json({
-      conversation: serializeConversation(conversation),
+      conversation: await serializeConversationForUser(conversation, req.user._id),
     });
     return;
   }
@@ -996,7 +1050,7 @@ const createConversation = asyncHandler(async (req, res) => {
     ).lean();
 
     res.status(201).json({
-      conversation: serializeConversation(populated),
+      conversation: await serializeConversationForUser(populated, req.user._id),
     });
     return;
   }
@@ -1026,7 +1080,7 @@ const createConversation = asyncHandler(async (req, res) => {
     ).lean();
 
     res.status(201).json({
-      conversation: serializeConversation(populated),
+      conversation: await serializeConversationForUser(populated, req.user._id),
     });
     return;
   }
@@ -1066,7 +1120,7 @@ const createConversation = asyncHandler(async (req, res) => {
   ).lean();
 
   res.status(201).json({
-    conversation: serializeConversation(populated),
+    conversation: await serializeConversationForUser(populated, req.user._id),
   });
 });
 
@@ -1156,7 +1210,7 @@ const addConversationParticipants = asyncHandler(async (req, res) => {
     ).lean();
 
     res.status(200).json({
-      conversation: serializeConversation(populatedConversation),
+      conversation: await serializeConversationForUser(populatedConversation, req.user._id),
     });
     return;
   }
@@ -1183,7 +1237,7 @@ const addConversationParticipants = asyncHandler(async (req, res) => {
   ).lean();
 
   res.status(200).json({
-    conversation: serializeConversation(populatedConversation),
+    conversation: await serializeConversationForUser(populatedConversation, req.user._id),
   });
 });
 
@@ -1240,7 +1294,7 @@ const removeConversationParticipant = asyncHandler(async (req, res) => {
   ).lean();
 
   res.status(200).json({
-    conversation: serializeConversation(populatedConversation),
+    conversation: await serializeConversationForUser(populatedConversation, req.user._id),
   });
 });
 
@@ -1262,9 +1316,8 @@ const getConversationById = asyncHandler(async (req, res) => {
   );
 
   res.status(200).json({
-    conversation: serializeConversation(conversation, {
-      unreadCount: unreadCounts.get(String(conversation._id)) || 0,
-    }),
+    conversation: await serializeConversationForUser(conversation, req.user._id,
+      unreadCounts.get(String(conversation._id)) || 0),
   });
 });
 
@@ -1281,7 +1334,7 @@ const getMessages = asyncHandler(async (req, res) => {
     workspaceId: normalizeWorkspaceId(req.user.workspaceId),
     participants: req.user._id,
   })
-    .select("_id")
+    .select("_id historyClearedAt")
     .lean();
 
   if (!conversation) {
@@ -1295,8 +1348,7 @@ const getMessages = asyncHandler(async (req, res) => {
   );
   const before = req.query.before;
   const query = {
-    conversationId: conversation._id,
-    deleted: false,
+    ...visibleHistory(conversation, req.user._id),
   };
 
   if (before) {
@@ -1304,6 +1356,7 @@ const getMessages = asyncHandler(async (req, res) => {
 
     if (!Number.isNaN(beforeDate.getTime())) {
       query.createdAt = {
+        ...query.createdAt,
         $lt: beforeDate,
       };
     }
@@ -1319,6 +1372,7 @@ const getMessages = asyncHandler(async (req, res) => {
 
   res.status(200).json({
     messages,
+    clearedAt: clearedAtFor(conversation, req.user._id),
     pagination: {
       hasMore,
       nextCursor: hasMore ? messages[0]?.createdAt || null : null,
@@ -1345,7 +1399,7 @@ const downloadChatAttachment = asyncHandler(async (req, res) => {
     workspaceId: normalizeWorkspaceId(req.user.workspaceId),
     participants: req.user._id,
   })
-    .select("_id")
+    .select("_id historyClearedAt")
     .lean();
 
   if (!conversation) {
@@ -1355,8 +1409,7 @@ const downloadChatAttachment = asyncHandler(async (req, res) => {
 
   const message = await Message.findOne({
     _id: req.params.messageId,
-    conversationId: conversation._id,
-    deleted: false,
+    ...visibleHistory(conversation, req.user._id),
   })
     .select("attachments")
     .lean();
@@ -1993,7 +2046,7 @@ const markConversationSeen = async ({ conversationId, user }) => {
     workspaceId: normalizeWorkspaceId(user.workspaceId),
     participants: user._id,
   })
-    .select("_id")
+    .select("_id historyClearedAt")
     .lean();
 
   if (!conversation) {
@@ -2005,7 +2058,7 @@ const markConversationSeen = async ({ conversationId, user }) => {
 
   const result = await Message.updateMany(
     {
-      conversationId: conversation._id,
+      ...visibleHistory(conversation, user._id),
       senderId: {
         $ne: user._id,
       },
@@ -2035,6 +2088,7 @@ const markConversationSeen = async ({ conversationId, user }) => {
 
 module.exports = {
   CHAT_ACCESS_ROLES,
+  clearConversationHistory,
   addConversationParticipants,
   removeConversationParticipant,
   createConversation,
