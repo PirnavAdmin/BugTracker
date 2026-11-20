@@ -315,6 +315,7 @@ const AuthPage = () => {
   const [successMessage, setSuccessMessage] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [showResetPassword, setShowResetPassword] = useState(false);
+  const [showResetConfirmPassword, setShowResetConfirmPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
   const [rememberedLogin, setRememberedLogin] = useState(() => readRememberedLogin());
   const [activeSection, setActiveSection] = useState("features");
@@ -457,6 +458,7 @@ const AuthPage = () => {
       setMode("login");
       setResetStep("request");
       setShowResetPassword(false);
+      setShowResetConfirmPassword(false);
       setResetErrors({});
       setFormData((current) => ({
         ...current,
@@ -548,6 +550,7 @@ const AuthPage = () => {
     setSuccessMessage("");
     setShowPassword(false);
     setShowResetPassword(false);
+    setShowResetConfirmPassword(false);
     setResetForm({
       ...initialResetForm,
       email: formData.email.trim().toLowerCase(),
@@ -564,6 +567,7 @@ const AuthPage = () => {
     setResetErrors({});
     setSuccessMessage("");
     setShowResetPassword(false);
+    setShowResetConfirmPassword(false);
   };
 
   const handleUseDefaultPassword = async () => {
@@ -1227,10 +1231,29 @@ const AuthPage = () => {
                           id="confirmPassword"
                           name="confirmPassword"
                           placeholder="Confirm new password"
-                          type={showResetPassword ? "text" : "password"}
+                          type={showResetConfirmPassword ? "text" : "password"}
                           value={resetForm.confirmPassword}
                           onChange={handleResetChange}
                         />
+                        <button
+                          aria-label={
+                            showResetConfirmPassword
+                              ? "Hide confirm password"
+                              : "Show confirm password"
+                          }
+                          className="absolute right-3 top-1/2 grid h-9 w-9 -translate-y-1/2 place-items-center rounded-full text-[#667196] transition hover:bg-[#F4F6FC] hover:text-[#080B2F]"
+                          disabled={isResetPending}
+                          type="button"
+                          onClick={() =>
+                            setShowResetConfirmPassword((current) => !current)
+                          }
+                        >
+                          {showResetConfirmPassword ? (
+                            <Eye className="h-5 w-5" />
+                          ) : (
+                            <EyeOff className="h-5 w-5" />
+                          )}
+                        </button>
                       </div>
                       {resetConfirmPasswordError ? <p className="text-sm font-semibold text-rose-500">{resetConfirmPasswordError}</p> : null}
                     </div>
