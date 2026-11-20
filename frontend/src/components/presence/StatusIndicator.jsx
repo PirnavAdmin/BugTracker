@@ -28,11 +28,15 @@ const StatusIndicator = ({
   const { getPresence } = usePresence();
   const presence = userId ? getPresence(userId) : null;
   const status = statusOverride || presence?.status || "offline";
+  // Keep semantic call color independent of broad theme surface selectors
+  // such as [class*="bg-red-50"], which also match bg-red-500.
+  const isActiveCall = ["in-call", "in-group-call"].includes(status);
 
   return (
     <span className={cn("inline-flex items-center gap-1.5", className)} role="img" aria-label={statusLabel[status] || "Offline"} title={statusLabel[status] || "Offline"}>
       <span
         aria-hidden="true"
+        style={isActiveCall ? { backgroundColor: "#EF4444" } : undefined}
         className={cn(
           "inline-flex h-2.5 w-2.5 shrink-0 rounded-full ring-2 ring-white dark:ring-slate-900",
           statusClassName[status] || statusClassName.offline

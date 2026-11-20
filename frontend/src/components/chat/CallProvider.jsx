@@ -422,6 +422,7 @@ export const CallProvider = ({ children }) => {
   const [activeCall, setActiveCall] = useState(null);
   const [channelCalls, setChannelCalls] = useState({});
   const [callPresence, setCallPresence] = useState({});
+  const [presentingUsers, setPresentingUsers] = useState({});
   const [participants, setParticipants] = useState([]);
   const [raisedHands, setRaisedHands] = useState({});
   const [error, setError] = useState("");
@@ -1503,6 +1504,7 @@ export const CallProvider = ({ children }) => {
     };
     const handlePresence = (payload = {}) => {
       setCallPresence(payload.presence || {});
+      setPresentingUsers(payload.presenting || {});
     };
     const handleParticipants = (payload = {}) => {
       if (payload.call?.conversationId) {
@@ -1866,7 +1868,10 @@ export const CallProvider = ({ children }) => {
     };
     const handleSocketReconnect = async () => {
       const currentCall = activeCallRef.current;
-      socket.emit("call:presence:sync", { callId: currentCall?.callId });
+      socket.emit("call:presence:sync", {
+        callId: currentCall?.callId,
+        presenting: Boolean(screenRef.current?.getVideoTracks().some(isLiveTrack)),
+      });
 
       if (!currentCall?.callId) {
         return;
@@ -1879,7 +1884,10 @@ export const CallProvider = ({ children }) => {
       });
 
       if (currentCall.scope === "group") {
-        socket.emit("call:join", { callId: currentCall.callId });
+        socket.emit("call:join", {
+          callId: currentCall.callId,
+          presenting: Boolean(screenRef.current?.getVideoTracks().some(isLiveTrack)),
+        });
       }
 
       const stream = await getMedia(currentCall.callType || "audio").catch(() => null);
@@ -1910,7 +1918,10 @@ export const CallProvider = ({ children }) => {
       });
     };
 
-    const handleSocketDisconnect = () => setCallPresence({});
+    const handleSocketDisconnect = () => {
+      setCallPresence({});
+      setPresentingUsers({});
+    };
     socket.on("disconnect", handleSocketDisconnect);
     socket.on("connect", handleSocketReconnect);
     socket.on("call:incoming", handleIncomingCall);
@@ -1932,7 +1943,10 @@ export const CallProvider = ({ children }) => {
     socket.on("call:rejected", handleEnded);
     socket.on("call:missed", handleMissed);
     socket.on("call:left", handleEnded);
-    socket.emit("call:presence:sync", { callId: activeCallRef.current?.callId });
+    socket.emit("call:presence:sync", {
+      callId: activeCallRef.current?.callId,
+      presenting: Boolean(screenRef.current?.getVideoTracks().some(isLiveTrack)),
+    });
 
     return () => {
       socket.off("call:incoming", handleIncomingCall);
@@ -1957,6 +1971,7 @@ export const CallProvider = ({ children }) => {
       socket.off("connect", handleSocketReconnect);
       socket.off("disconnect", handleSocketDisconnect);
       setCallPresence({});
+      setPresentingUsers({});
     };
   }, [
     applyQueuedCandidates,
@@ -1996,12 +2011,13 @@ export const CallProvider = ({ children }) => {
     () => ({
       activeCall,
       callPresence,
+      presentingUsers,
       channelCalls,
       error,
       startCall,
       joinCall,
     }),
-    [activeCall, callPresence, channelCalls, error, joinCall, startCall]
+    [activeCall, callPresence, presentingUsers, channelCalls, error, joinCall, startCall]
   );
 
   const participantById = useMemo(

@@ -12,7 +12,7 @@ const MODULES = [
 ];
 
 const ChatModuleNav = ({ activeModule, onSelect }) => (
-  <aside className="hidden h-full w-[92px] shrink-0 border-r border-slate-200 bg-slate-50 px-3 py-5 lg:flex lg:flex-col lg:gap-2">
+  <aside className="hidden h-full w-[92px] shrink-0 border-r border-slate-200 bg-slate-50 px-3 py-5 lg:flex lg:flex-col lg:gap-2 dark:border-slate-800 dark:bg-slate-950">
     {MODULES.map((module) => {
       const Icon = module.icon;
       const isActive = activeModule === module.id;
@@ -23,20 +23,23 @@ const ChatModuleNav = ({ activeModule, onSelect }) => (
           type="button"
           variant="ghost"
           className={cn(
-            "flex h-auto flex-col gap-2 rounded-[22px] px-2 py-3 text-center text-[11px] font-bold",
+            "flex h-auto flex-col items-center gap-2 rounded-[22px] px-2 py-3 text-center text-[11px] font-bold transition-all",
             isActive
-              ? "bg-slate-950 text-white shadow-[0_16px_36px_-24px_rgba(15,23,42,0.4)]"
-              : "text-slate-500 hover:bg-white/80 hover:text-slate-900"
+              ? "bg-slate-950 text-white shadow-[0_16px_36px_-24px_rgba(15,23,42,0.4)] hover:bg-slate-900 hover:text-white dark:bg-blue-600 dark:text-white dark:hover:bg-blue-500"
+              : "text-slate-500 hover:bg-white/80 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-900 dark:hover:text-slate-200"
           )}
           onClick={() => onSelect(module.id)}
         >
           <span
             className={cn(
-              "flex h-10 w-10 items-center justify-center rounded-2xl",
-              isActive ? "bg-white/10 text-white" : "bg-white text-slate-500"
+              "flex h-10 w-10 items-center justify-center rounded-2xl transition-colors",
+              isActive
+                ? "text-white shadow-xs"
+                : "border border-slate-200/70 bg-white text-slate-600 shadow-xs dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300"
             )}
+            style={isActive ? { backgroundColor: "rgba(255, 255, 255, 0.22)" } : undefined}
           >
-            <Icon className="h-4 w-4" />
+            <Icon className="h-5 w-5 stroke-[2.2]" />
           </span>
           <span className="leading-4">{module.label}</span>
         </Button>

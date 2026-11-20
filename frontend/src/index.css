@@ -1519,7 +1519,7 @@ html.dark:not([data-theme="light"]) body {
 }
 
 /* Explicit Light Theme Lock for Landing and Login/Auth Pages */
-:is([data-theme="light"], [data-theme-lock="light"], .public-theme-lock, .auth-theme-lock) {
+:is([data-theme-lock="light"], .public-theme-lock, .auth-theme-lock) {
   --app-page-background: #f8fafc !important;
   --app-surface: #ffffff !important;
   --app-surface-raised: #f1f5f9 !important;
@@ -1532,14 +1532,14 @@ html.dark:not([data-theme="light"]) body {
   color-scheme: light !important;
 }
 
-:is([data-theme="light"], [data-theme-lock="light"], .public-theme-lock, .auth-theme-lock) :is(
+:is([data-theme-lock="light"], .public-theme-lock, .auth-theme-lock) :is(
   .bg-white,
   [class*="bg-white/"]
 ) {
   background-color: #ffffff !important;
 }
 
-:is([data-theme="light"], [data-theme-lock="light"], .public-theme-lock, .auth-theme-lock) :is(
+:is([data-theme-lock="light"], .public-theme-lock, .auth-theme-lock) :is(
   h1, h2, h3, h4, h5, h6,
   [class*="text-slate-950"],
   [class*="text-slate-900"]
@@ -1547,7 +1547,7 @@ html.dark:not([data-theme="light"]) body {
   color: #020617 !important;
 }
 
-:is([data-theme="light"], [data-theme-lock="light"], .public-theme-lock, .auth-theme-lock) [class*="text-slate-600"] {
+:is([data-theme-lock="light"], .public-theme-lock, .auth-theme-lock) [class*="text-slate-600"] {
   color: #475569 !important;
 }
 

@@ -16,6 +16,7 @@ const { normalizeWorkspaceId } = require("./utils/workspace");
 
 const onlineUsersByWorkspace = new Map();
 const callPresenceByWorkspace = new Map();
+const presentingUsersByWorkspace = new Map();
 const activeCalls = new Map();
 const socketUsers = new Map();
 const activeCallSockets = new Map();
@@ -128,6 +129,23 @@ const isUserOnline = (workspaceId, userId) =>
 const getCallPresence = (workspaceId) =>
   Object.fromEntries(callPresenceByWorkspace.get(normalizeWorkspaceId(workspaceId)) || []);
 
+const setPresenting = (workspaceId, userId, callId) => {
+  const key = normalizeWorkspaceId(workspaceId);
+  const users = presentingUsersByWorkspace.get(key) || new Map();
+  if (callId) users.set(objectIdString(userId), objectIdString(callId));
+  else users.delete(objectIdString(userId));
+  if (users.size) presentingUsersByWorkspace.set(key, users);
+  else presentingUsersByWorkspace.delete(key);
+};
+
+const getCallPresencePayload = (workspaceId) => ({
+  presence: getCallPresence(workspaceId),
+  presenting: Object.fromEntries(
+    Array.from(presentingUsersByWorkspace.get(normalizeWorkspaceId(workspaceId))?.keys() || [])
+      .map((userId) => [userId, true])
+  ),
+});
+
 const emitOnlineUsers = (io, workspaceId) => {
   const normalizedWorkspaceId = normalizeWorkspaceId(workspaceId);
   const onlineUsers = getOnlineUsers(normalizedWorkspaceId);
@@ -169,6 +187,7 @@ const setCallPresence = (io, workspaceId, userIds = [], status = "online") => {
 
     if (status === "online") {
       workspacePresence.delete(normalizedUserId);
+      setPresenting(normalizedWorkspaceId, normalizedUserId, null);
     } else {
       workspacePresence.set(normalizedUserId, status);
     }
@@ -180,9 +199,7 @@ const setCallPresence = (io, workspaceId, userIds = [], status = "online") => {
     callPresenceByWorkspace.delete(normalizedWorkspaceId);
   }
 
-  io.to(workspaceRoomName(normalizedWorkspaceId)).emit("call:presence", {
-    presence: getCallPresence(normalizedWorkspaceId),
-  });
+  io.to(workspaceRoomName(normalizedWorkspaceId)).emit("call:presence", getCallPresencePayload(normalizedWorkspaceId));
 };
 
 const emitCallMessage = async ({ io, call, actor, message }) => {
@@ -363,10 +380,11 @@ const setupChatSocket = (server) => {
           }).select("_id").lean();
           if (call) {
             registerCallSocket(call._id, socket.user._id, socket.id);
+            setPresenting(socket.user.workspaceId, socket.user._id, payload.presenting === true ? call._id : null);
             setCallPresence(io, socket.user.workspaceId, [socket.user._id], "in-call");
           }
         }
-        socket.emit("call:presence", { presence: getCallPresence(socket.user.workspaceId) });
+        socket.emit("call:presence", getCallPresencePayload(socket.user.workspaceId));
         callback?.({ ok: true });
       } catch (error) {
         callback?.({ ok: false, error: "Unable to synchronize call presence" });
@@ -833,6 +851,7 @@ const setupChatSocket = (server) => {
           userId,
         ]);
         activeCalls.set(objectIdString(call._id), activeCall);
+        setPresenting(call.workspaceId, socket.user._id, payload.presenting === true ? call._id : null);
         setCallPresence(io, call.workspaceId, [socket.user._id], "in-group-call");
 
         socket.to(callRoomName(call._id)).emit("call:participant-joined", {
@@ -1223,6 +1242,11 @@ const setupChatSocket = (server) => {
         if (call.scope === "group" && !activeParticipantIds.includes(userId)) {
           return;
         }
+
+        // Reuse the validated screen-share events, but publish status to all
+        // workspace observers, not only users receiving the media stream.
+        setPresenting(socket.user.workspaceId, userId, eventName === "screen-share-started" ? call._id : null);
+        setCallPresence(io, socket.user.workspaceId, [userId], call.scope === "group" ? "in-group-call" : "in-call");
 
         console.log(`[Socket][Call] ${eventName}`, {
           callId: objectIdString(call._id),

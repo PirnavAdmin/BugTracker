@@ -85,13 +85,14 @@ const fixture = () => {
     };
     return call;
   };
-  const snapshot = (socket) => socket.received.filter((row) => row.event === "call:presence").at(-1)?.payload.presence;
+  const presencePayload = (socket) => socket.received.filter((row) => row.event === "call:presence").at(-1)?.payload;
+  const snapshot = (socket) => presencePayload(socket)?.presence;
   const invoke = async (socket, event, payload) => {
     let response;
     await socket.handlers[event](payload, (result) => { response = result; });
     assert.equal(response?.ok, true, response?.error);
   };
-  return { connect, setCall, snapshot, invoke, queries };
+  return { connect, setCall, snapshot, presencePayload, invoke, queries };
 };
 
 test("accepted audio/video calls broadcast per-user state to remote observers and clear on hangup", async () => {
@@ -159,4 +160,53 @@ test("group participation clears on disconnect/leave and restores through the ex
   assert.equal(f.snapshot(observer).receiver, "in-group-call");
   await f.invoke(resumed, "call:leave", { callId: call._id });
   assert.equal(f.snapshot(observer).receiver, undefined);
+});
+
+test("presentation status reaches non-call observers, snapshots, and stops without clearing the call", async () => {
+  const f = fixture();
+  const receiver = await f.connect("receiver", "receiver");
+  const observer = await f.connect("observer", "observer");
+  const isolated = await f.connect("isolated", "isolated", "two");
+  const call = f.setCall();
+  await f.invoke(receiver, "call:accept", { callId: call._id });
+  await receiver.handlers["call:screen-share-started"]({ callId: call._id });
+  assert.deepEqual(f.presencePayload(observer).presenting, { receiver: true });
+  assert.equal(f.snapshot(observer).receiver, "in-call");
+  assert.equal(f.presencePayload(isolated), undefined);
+  const late = await f.connect("late", "late");
+  await f.invoke(late, "call:presence:sync", {});
+  assert.deepEqual(f.presencePayload(late).presenting, { receiver: true });
+  await receiver.handlers["call:screen-share-stopped"]({ callId: call._id });
+  assert.deepEqual(f.presencePayload(observer).presenting, {});
+  assert.equal(f.snapshot(observer).receiver, "in-call");
+  await observer.handlers["call:screen-share-started"]({ callId: call._id });
+  assert.deepEqual(f.presencePayload(observer).presenting, {}); // Not a participant.
+  await receiver.handlers["call:screen-share-started"]({ callId: call._id });
+  await f.invoke(receiver, "call:end", { callId: call._id });
+  assert.deepEqual(f.presencePayload(observer).presenting, {});
+  await receiver.handlers["call:screen-share-started"]({ callId: call._id });
+  assert.deepEqual(f.presencePayload(observer).presenting, {}); // An ended call cannot present.
+});
+
+test("disconnect clears presentation; live direct/group reconnect restores it only for joined participants", async () => {
+  const f = fixture();
+  const member = await f.connect("member", "receiver");
+  const observer = await f.connect("observer", "observer");
+  const call = f.setCall();
+  await f.invoke(member, "call:accept", { callId: call._id });
+  await member.handlers["call:screen-share-started"]({ callId: call._id });
+  member.handlers.disconnect("transport close");
+  assert.deepEqual(f.presencePayload(observer).presenting, {});
+  const resumed = await f.connect("resumed", "receiver");
+  await f.invoke(resumed, "call:presence:sync", { callId: call._id, presenting: true });
+  assert.deepEqual(f.presencePayload(observer).presenting, { receiver: true });
+  await f.invoke(resumed, "call:presence:sync", { callId: call._id, presenting: false });
+  assert.deepEqual(f.presencePayload(observer).presenting, {});
+  const group = f.setCall("group", "Active");
+  await observer.handlers["call:screen-share-started"]({ callId: group._id });
+  assert.deepEqual(f.presencePayload(observer).presenting, {});
+  await f.invoke(resumed, "call:join", { callId: group._id, presenting: true });
+  assert.deepEqual(f.presencePayload(observer).presenting, { receiver: true });
+  await f.invoke(resumed, "call:leave", { callId: group._id });
+  assert.deepEqual(f.presencePayload(observer).presenting, {});
 });
