@@ -22,11 +22,11 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 
 const metricTone = {
-  blue: "bg-blue-50 text-blue-700",
-  emerald: "bg-emerald-50 text-emerald-700",
-  rose: "bg-rose-50 text-rose-700",
-  amber: "bg-amber-50 text-amber-700",
-  slate: "bg-slate-100 text-slate-700",
+  blue: "border border-blue-100/80 bg-blue-50 text-blue-700 dark:border-blue-800/60 dark:bg-blue-950/40 dark:text-blue-300",
+  emerald: "border border-emerald-100/80 bg-emerald-50 text-emerald-700 dark:border-emerald-800/60 dark:bg-emerald-950/40 dark:text-emerald-300",
+  rose: "border border-rose-100/80 bg-rose-50 text-rose-700 dark:border-rose-800/60 dark:bg-rose-950/40 dark:text-rose-300",
+  amber: "border border-amber-100/80 bg-amber-50 text-amber-700 dark:border-amber-800/60 dark:bg-amber-950/40 dark:text-amber-300",
+  slate: "border border-slate-200/80 bg-slate-100 text-slate-700 dark:border-slate-800 dark:bg-slate-900/60 dark:text-slate-300",
 };
 const WORK_QUEUE_CHART_COLORS = [
   "#60a5fa", // Light Sky Blue
@@ -44,7 +44,7 @@ const WORK_QUEUE_CHART_COLORS = [
 const MetricPill = ({ label, value, tone = "blue" }) => (
   <div className={cn("rounded-xl px-3 py-2", metricTone[tone] || metricTone.blue)}>
     <p className="text-[10px] font-bold uppercase tracking-[0.1em]">{label}</p>
-    <p className="mt-1 text-xl font-semibold text-slate-950">{value}</p>
+    <p className="mt-1 text-xl font-semibold text-slate-950 dark:text-white">{value}</p>
   </div>
 );
 

@@ -658,9 +658,9 @@ const TesterBugsPage = () => {
               ["Rejected", reviewStats.rejected],
               ["Closed", reviewStats.closed],
             ].map(([label, value]) => (
-              <div key={label} className="rounded-lg border border-slate-200 bg-slate-50/80 px-4 py-3">
-                <p className="text-[11px] font-semibold uppercase text-slate-500">{label}</p>
-                <p className="mt-1 text-2xl font-semibold text-slate-950">{value}</p>
+              <div key={label} className="rounded-lg border border-slate-200 bg-slate-50/80 px-4 py-3 dark:border-slate-800 dark:bg-slate-900/60">
+                <p className="text-[11px] font-semibold uppercase text-slate-500 dark:text-slate-400">{label}</p>
+                <p className="mt-1 text-2xl font-semibold text-slate-950 dark:text-slate-100">{value}</p>
               </div>
             ))}
           </div>
@@ -669,7 +669,7 @@ const TesterBugsPage = () => {
             <label className="relative">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
               <input
-                className="h-10 w-full rounded-lg border border-slate-200 bg-white pl-9 pr-3 text-sm outline-none transition focus:border-blue-300 focus:ring-2 focus:ring-blue-500/20"
+                className="h-10 w-full rounded-lg border border-slate-200 bg-white pl-9 pr-3 text-sm outline-none transition focus:border-blue-300 focus:ring-2 focus:ring-blue-500/20 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100"
                 placeholder="Search by bug ID or title"
                 value={filters.search}
                 onChange={(event) => setFilters((current) => ({ ...current, search: event.target.value }))}

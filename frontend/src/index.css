@@ -1676,43 +1676,224 @@ html.dark:not([data-theme="light"]) body {
   border-color: var(--app-border-color);
 }
 
-:is(.dark, [data-theme="dark"], .app-theme-root[data-theme="dark"]) :is(
-  .text-slate-950,
-  .text-slate-900,
-  .text-gray-950,
-  .text-gray-900
+:is(.dark, [data-theme="dark"], .app-theme-root[data-theme="dark"]):not([data-theme-lock="light"]):not(.public-theme-lock):not(.auth-theme-lock) :is(
+  .text-slate-950, [class~="text-slate-950"], [class*="text-slate-950/"],
+  .text-slate-900, [class~="text-slate-900"], [class*="text-slate-900/"],
+  .text-gray-950, [class~="text-gray-950"], [class*="text-gray-950/"],
+  .text-gray-900, [class~="text-gray-900"], [class*="text-gray-900/"],
+  .text-zinc-950, [class~="text-zinc-950"], [class*="text-zinc-950/"],
+  .text-zinc-900, [class~="text-zinc-900"], [class*="text-zinc-900/"],
+  .text-neutral-950, [class~="text-neutral-950"], [class*="text-neutral-950/"],
+  .text-neutral-900, [class~="text-neutral-900"], [class*="text-neutral-900/"]
 ) {
-  color: var(--app-text-primary);
+  color: var(--app-text-primary) !important;
 }
 
-:is(.dark, [data-theme="dark"], .app-theme-root[data-theme="dark"]) :is(
-  .text-slate-800,
-  .text-slate-700,
-  .text-gray-800,
-  .text-gray-700
+:is(.dark, [data-theme="dark"], .app-theme-root[data-theme="dark"]):not([data-theme-lock="light"]):not(.public-theme-lock):not(.auth-theme-lock) :is(
+  .text-slate-800, [class~="text-slate-800"], [class*="text-slate-800/"],
+  .text-slate-700, [class~="text-slate-700"], [class*="text-slate-700/"],
+  .text-gray-800, [class~="text-gray-800"], [class*="text-gray-800/"],
+  .text-gray-700, [class~="text-gray-700"], [class*="text-gray-700/"],
+  .text-zinc-800, [class~="text-zinc-800"], [class*="text-zinc-800/"],
+  .text-zinc-700, [class~="text-zinc-700"], [class*="text-zinc-700/"],
+  .text-neutral-800, [class~="text-neutral-800"], [class*="text-neutral-800/"],
+  .text-neutral-700, [class~="text-neutral-700"], [class*="text-neutral-700/"]
 ) {
-  color: var(--app-text-secondary);
+  color: #e2e8f0 !important;
 }
 
-:is(.dark, [data-theme="dark"], .app-theme-root[data-theme="dark"]) :is(
-  .text-slate-600,
-  .text-slate-500,
-  .text-gray-600,
-  .text-gray-500
+:is(.dark, [data-theme="dark"], .app-theme-root[data-theme="dark"]):not([data-theme-lock="light"]):not(.public-theme-lock):not(.auth-theme-lock) :is(
+  .text-slate-600, [class~="text-slate-600"], [class*="text-slate-600/"],
+  .text-slate-500, [class~="text-slate-500"], [class*="text-slate-500/"],
+  .text-gray-600, [class~="text-gray-600"], [class*="text-gray-600/"],
+  .text-gray-500, [class~="text-gray-500"], [class*="text-gray-500/"],
+  .text-zinc-600, [class~="text-zinc-600"], [class*="text-zinc-600/"],
+  .text-zinc-500, [class~="text-zinc-500"], [class*="text-zinc-500/"],
+  .text-neutral-600, [class~="text-neutral-600"], [class*="text-neutral-600/"],
+  .text-neutral-500, [class~="text-neutral-500"], [class*="text-neutral-500/"]
 ) {
-  color: #94a3b8;
+  color: #94a3b8 !important;
 }
 
-:is(.dark, [data-theme="dark"], .app-theme-root[data-theme="dark"]) :is(.text-rose-700, .text-red-700) {
-  color: #fda4af;
+/* Blue & Sky & Cyan text in dark mode */
+:is(.dark, [data-theme="dark"], .app-theme-root[data-theme="dark"]):not([data-theme-lock="light"]):not(.public-theme-lock):not(.auth-theme-lock) :is(
+  .text-blue-950, [class~="text-blue-950"], [class*="text-blue-950/"],
+  .text-blue-900, [class~="text-blue-900"], [class*="text-blue-900/"],
+  .text-blue-800, [class~="text-blue-800"], [class*="text-blue-800/"],
+  .text-sky-950, [class~="text-sky-950"], [class*="text-sky-950/"],
+  .text-sky-900, [class~="text-sky-900"], [class*="text-sky-900/"],
+  .text-sky-800, [class~="text-sky-800"], [class*="text-sky-800/"],
+  .text-cyan-950, [class~="text-cyan-950"], [class*="text-cyan-950/"],
+  .text-cyan-900, [class~="text-cyan-900"], [class*="text-cyan-900/"],
+  .text-cyan-800, [class~="text-cyan-800"], [class*="text-cyan-800/"]
+) {
+  color: #93c5fd !important;
 }
 
-:is(.dark, [data-theme="dark"], .app-theme-root[data-theme="dark"]) :is(.text-amber-700, .text-yellow-700) {
-  color: #fcd34d;
+:is(.dark, [data-theme="dark"], .app-theme-root[data-theme="dark"]):not([data-theme-lock="light"]):not(.public-theme-lock):not(.auth-theme-lock) :is(
+  .text-blue-700, [class~="text-blue-700"], [class*="text-blue-700/"],
+  .text-blue-600, [class~="text-blue-600"], [class*="text-blue-600/"],
+  .text-sky-700, [class~="text-sky-700"], [class*="text-sky-700/"],
+  .text-sky-600, [class~="text-sky-600"], [class*="text-sky-600/"],
+  .text-cyan-700, [class~="text-cyan-700"], [class*="text-cyan-700/"],
+  .text-cyan-600, [class~="text-cyan-600"], [class*="text-cyan-600/"]
+) {
+  color: #60a5fa !important;
 }
 
-:is(.dark, [data-theme="dark"], .app-theme-root[data-theme="dark"]) :is(.text-emerald-700, .text-green-700) {
-  color: #6ee7b7;
+/* Amber, Yellow & Orange text in dark mode */
+:is(.dark, [data-theme="dark"], .app-theme-root[data-theme="dark"]):not([data-theme-lock="light"]):not(.public-theme-lock):not(.auth-theme-lock) :is(
+  .text-amber-950, [class~="text-amber-950"], [class*="text-amber-950/"],
+  .text-amber-900, [class~="text-amber-900"], [class*="text-amber-900/"],
+  .text-amber-800, [class~="text-amber-800"], [class*="text-amber-800/"],
+  .text-yellow-950, [class~="text-yellow-950"], [class*="text-yellow-950/"],
+  .text-yellow-900, [class~="text-yellow-900"], [class*="text-yellow-900/"],
+  .text-yellow-800, [class~="text-yellow-800"], [class*="text-yellow-800/"],
+  .text-orange-950, [class~="text-orange-950"], [class*="text-orange-950/"],
+  .text-orange-900, [class~="text-orange-900"], [class*="text-orange-900/"],
+  .text-orange-800, [class~="text-orange-800"], [class*="text-orange-800/"]
+) {
+  color: #fcd34d !important;
+}
+
+:is(.dark, [data-theme="dark"], .app-theme-root[data-theme="dark"]):not([data-theme-lock="light"]):not(.public-theme-lock):not(.auth-theme-lock) :is(
+  .text-amber-700, [class~="text-amber-700"], [class*="text-amber-700/"],
+  .text-amber-600, [class~="text-amber-600"], [class*="text-amber-600/"],
+  .text-yellow-700, [class~="text-yellow-700"], [class*="text-yellow-700/"],
+  .text-yellow-600, [class~="text-yellow-600"], [class*="text-yellow-600/"],
+  .text-orange-700, [class~="text-orange-700"], [class*="text-orange-700/"],
+  .text-orange-600, [class~="text-orange-600"], [class*="text-orange-600/"]
+) {
+  color: #fbbf24 !important;
+}
+
+/* Violet, Purple & Indigo text in dark mode */
+:is(.dark, [data-theme="dark"], .app-theme-root[data-theme="dark"]):not([data-theme-lock="light"]):not(.public-theme-lock):not(.auth-theme-lock) :is(
+  .text-violet-950, [class~="text-violet-950"], [class*="text-violet-950/"],
+  .text-violet-900, [class~="text-violet-900"], [class*="text-violet-900/"],
+  .text-violet-800, [class~="text-violet-800"], [class*="text-violet-800/"],
+  .text-purple-950, [class~="text-purple-950"], [class*="text-purple-950/"],
+  .text-purple-900, [class~="text-purple-900"], [class*="text-purple-900/"],
+  .text-purple-800, [class~="text-purple-800"], [class*="text-purple-800/"],
+  .text-indigo-950, [class~="text-indigo-950"], [class*="text-indigo-950/"],
+  .text-indigo-900, [class~="text-indigo-900"], [class*="text-indigo-900/"],
+  .text-indigo-800, [class~="text-indigo-800"], [class*="text-indigo-800/"]
+) {
+  color: #c4b5fd !important;
+}
+
+:is(.dark, [data-theme="dark"], .app-theme-root[data-theme="dark"]):not([data-theme-lock="light"]):not(.public-theme-lock):not(.auth-theme-lock) :is(
+  .text-violet-700, [class~="text-violet-700"], [class*="text-violet-700/"],
+  .text-violet-600, [class~="text-violet-600"], [class*="text-violet-600/"],
+  .text-purple-700, [class~="text-purple-700"], [class*="text-purple-700/"],
+  .text-purple-600, [class~="text-purple-600"], [class*="text-purple-600/"],
+  .text-indigo-700, [class~="text-indigo-700"], [class*="text-indigo-700/"],
+  .text-indigo-600, [class~="text-indigo-600"], [class*="text-indigo-600/"]
+) {
+  color: #a78bfa !important;
+}
+
+/* Emerald & Green text in dark mode */
+:is(.dark, [data-theme="dark"], .app-theme-root[data-theme="dark"]):not([data-theme-lock="light"]):not(.public-theme-lock):not(.auth-theme-lock) :is(
+  .text-emerald-950, [class~="text-emerald-950"], [class*="text-emerald-950/"],
+  .text-emerald-900, [class~="text-emerald-900"], [class*="text-emerald-900/"],
+  .text-emerald-800, [class~="text-emerald-800"], [class*="text-emerald-800/"],
+  .text-green-950, [class~="text-green-950"], [class*="text-green-950/"],
+  .text-green-900, [class~="text-green-900"], [class*="text-green-900/"],
+  .text-green-800, [class~="text-green-800"], [class*="text-green-800/"]
+) {
+  color: #6ee7b7 !important;
+}
+
+:is(.dark, [data-theme="dark"], .app-theme-root[data-theme="dark"]):not([data-theme-lock="light"]):not(.public-theme-lock):not(.auth-theme-lock) :is(
+  .text-emerald-700, [class~="text-emerald-700"], [class*="text-emerald-700/"],
+  .text-emerald-600, [class~="text-emerald-600"], [class*="text-emerald-600/"],
+  .text-green-700, [class~="text-green-700"], [class*="text-green-700/"],
+  .text-green-600, [class~="text-green-600"], [class*="text-green-600/"]
+) {
+  color: #34d399 !important;
+}
+
+/* Rose & Red text in dark mode */
+:is(.dark, [data-theme="dark"], .app-theme-root[data-theme="dark"]):not([data-theme-lock="light"]):not(.public-theme-lock):not(.auth-theme-lock) :is(
+  .text-rose-950, [class~="text-rose-950"], [class*="text-rose-950/"],
+  .text-rose-900, [class~="text-rose-900"], [class*="text-rose-900/"],
+  .text-rose-800, [class~="text-rose-800"], [class*="text-rose-800/"],
+  .text-red-950, [class~="text-red-950"], [class*="text-red-950/"],
+  .text-red-900, [class~="text-red-900"], [class*="text-red-900/"],
+  .text-red-800, [class~="text-red-800"], [class*="text-red-800/"]
+) {
+  color: #fda4af !important;
+}
+
+:is(.dark, [data-theme="dark"], .app-theme-root[data-theme="dark"]):not([data-theme-lock="light"]):not(.public-theme-lock):not(.auth-theme-lock) :is(
+  .text-rose-700, [class~="text-rose-700"], [class*="text-rose-700/"],
+  .text-rose-600, [class~="text-rose-600"], [class*="text-rose-600/"],
+  .text-red-700, [class~="text-red-700"], [class*="text-red-700/"],
+  .text-red-600, [class~="text-red-600"], [class*="text-red-600/"]
+) {
+  color: #fb7185 !important;
+}
+
+/* Bright Badges & Status indicators preserve high contrast dark text */
+:is(.dark, [data-theme="dark"], .app-theme-root[data-theme="dark"]) :is(
+  .bg-amber-400, [class~="bg-amber-400"],
+  .bg-emerald-400, [class~="bg-emerald-400"],
+  .bg-yellow-400, [class~="bg-yellow-400"],
+  .bg-lime-400, [class~="bg-lime-400"]
+) {
+  color: #020617 !important;
+}
+
+/* High-contrast brand logo tagline in dark mode */
+:is(.dark, [data-theme="dark"], .app-theme-root[data-theme="dark"]):not([data-theme-lock="light"]):not(.public-theme-lock):not(.auth-theme-lock) img[alt*="CureCode"] {
+  filter: brightness(1.75) contrast(1.15) drop-shadow(0 0 1px rgba(255, 255, 255, 0.45));
+}
+
+/* Neutralize arbitrary pastel and light backgrounds in dark mode */
+:is(.dark, [data-theme="dark"], .app-theme-root[data-theme="dark"]):not([data-theme-lock="light"]):not(.public-theme-lock):not(.auth-theme-lock) :is(
+  [class*="bg-[#EFF6FF]"], [class*="bg-[#eff6ff]"],
+  [class*="bg-[#E9F2FF]"], [class*="bg-[#e9f2ff]"],
+  [class*="bg-[#F3F8FF]"], [class*="bg-[#f3f8ff]"],
+  [class*="bg-[#F4F8FF]"], [class*="bg-[#f4f8ff]"],
+  [class*="bg-[#F5F3FF]"], [class*="bg-[#f5f3ff]"],
+  [class*="bg-[#ECFDF5]"], [class*="bg-[#ecfdf5]"],
+  [class*="bg-[#FFF7ED]"], [class*="bg-[#fff7ed]"],
+  [class*="bg-[#FEF2F2]"], [class*="bg-[#fef2f2]"],
+  [class*="bg-[#FAFBFF]"], [class*="bg-[#fafbff]"],
+  [class*="bg-[#F7F8FE]"], [class*="bg-[#f7f8fe]"],
+  [class*="bg-[#EEF2F7]"], [class*="bg-[#eef2f7]"]
+) {
+  background-color: var(--app-surface-raised) !important;
+}
+
+/* Neutralize borders for arbitrary light colors in dark mode */
+:is(.dark, [data-theme="dark"], .app-theme-root[data-theme="dark"]):not([data-theme-lock="light"]):not(.public-theme-lock):not(.auth-theme-lock) :is(
+  [class*="border-[#B6D4FE]"], [class*="border-[#b6d4fe]"],
+  [class*="border-[#EEF2F7]"], [class*="border-[#eef2f7]"],
+  [class*="border-[#E7EBF7]"], [class*="border-[#e7ebf7]"]
+) {
+  border-color: var(--app-border-color) !important;
+}
+
+/* Arbitrary text colors in dark mode */
+:is(.dark, [data-theme="dark"], .app-theme-root[data-theme="dark"]):not([data-theme-lock="light"]):not(.public-theme-lock):not(.auth-theme-lock) :is(
+  [class*="text-[#0C66E4]"], [class*="text-[#0c66e4]"]
+) {
+  color: #60a5fa !important;
+}
+
+:is(.dark, [data-theme="dark"], .app-theme-root[data-theme="dark"]):not([data-theme-lock="light"]):not(.public-theme-lock):not(.auth-theme-lock) :is(
+  [class*="text-[#080B2F]"], [class*="text-[#080b2f]"],
+  [class*="text-[#020617]"]
+) {
+  color: #f8fafc !important;
+}
+
+/* Search highlight in dark mode */
+:is(.dark, [data-theme="dark"], .app-theme-root[data-theme="dark"]) mark {
+  background-color: rgba(245, 158, 11, 0.3) !important;
+  color: #fde68a !important;
 }
 
 :is(.dark, [data-theme="dark"], .app-theme-root[data-theme="dark"]) .app-panel,
