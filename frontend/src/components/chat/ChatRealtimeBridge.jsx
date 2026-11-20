@@ -1,10 +1,25 @@
 import { useEffect, useRef, useState } from "react";
 import { MessageCircle } from "lucide-react";
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import ToastNotice from "@/components/shared/ToastNotice";
 import { useAuth } from "@/hooks/use-auth";
 import { useChatStore } from "@/lib/chatStore";
 import { getChatSocket } from "@/lib/socket";
+
+const NOTIFICATION_SOUND_URL = `${import.meta.env.BASE_URL}audio/notification.mp3`;
+const NOTIFICATION_ICON_URL = `${import.meta.env.BASE_URL}icons/icon-192x192.png`;
+
+const playNotificationSound = () => {
+  try {
+    const audio = new Audio(NOTIFICATION_SOUND_URL);
+    audio.preload = "auto";
+    audio.play().catch((playError) => {
+      console.debug("Notification sound playback delayed:", playError?.message || playError);
+    });
+  } catch (err) {
+    console.debug("Notification audio error:", err?.message || err);
+  }
+};
 
 const getId = (value) => String(value?._id || value?.id || value || "");
 
@@ -25,6 +40,7 @@ const getMessagePreview = (message) => {
 
 const ChatRealtimeBridge = () => {
   const location = useLocation();
+  const navigate = useNavigate();
   const { token, user } = useAuth();
   const [toast, setToast] = useState(null);
   const activeConversationId = useChatStore((state) => state.activeConversationId);
@@ -38,6 +54,8 @@ const ChatRealtimeBridge = () => {
   const activeConversationRef = useRef("");
   const currentUserIdRef = useRef("");
   const pathnameRef = useRef(location.pathname);
+  const unreadBackgroundCountRef = useRef(0);
+  const originalTitleRef = useRef(document.title || "CureCode");
 
   useEffect(() => {
     activeConversationRef.current = String(activeConversationId || "");
@@ -54,6 +72,44 @@ const ChatRealtimeBridge = () => {
   useEffect(() => {
     setCurrentUserId(currentUserId);
   }, [currentUserId, setCurrentUserId]);
+
+  // Request browser notification permission once user is authenticated
+  useEffect(() => {
+    if (token && "Notification" in window && Notification.permission === "default") {
+      Notification.requestPermission().catch(() => {});
+    }
+  }, [token]);
+
+  // Restore document title when user focuses back to the tab
+  useEffect(() => {
+    if (!document.title.startsWith("(")) {
+      originalTitleRef.current = document.title || "CureCode";
+    }
+
+    const resetTitleAndCount = () => {
+      unreadBackgroundCountRef.current = 0;
+      if (document.title !== originalTitleRef.current) {
+        document.title = originalTitleRef.current;
+      }
+    };
+
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        resetTitleAndCount();
+      }
+    };
+
+    window.addEventListener("focus", resetTitleAndCount);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      window.removeEventListener("focus", resetTitleAndCount);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      if (document.title !== originalTitleRef.current) {
+        document.title = originalTitleRef.current;
+      }
+    };
+  }, []);
 
   useEffect(() => {
     if (!token) {
@@ -73,18 +129,74 @@ const ChatRealtimeBridge = () => {
       const conversationId = String(payload?.conversationId || message?.conversationId || "");
       const senderId = getId(message?.senderId);
       const isOwnMessage = senderId === currentUserIdRef.current;
+
+      const isTabHidden = document.hidden || !document.hasFocus();
       const isOpenConversation =
         pathnameRef.current === "/chat" && conversationId === activeConversationRef.current;
+      const isActivelyViewing = isOpenConversation && !isTabHidden;
 
       receiveMessage(payload);
 
-      if (!isOwnMessage && !isOpenConversation) {
-        setToast({
-          id: `${conversationId}-${getId(message)}-${Date.now()}`,
-          type: "chat",
-          title: getSenderName(message),
-          message: getMessagePreview(message),
-        });
+      if (!isOwnMessage && !isActivelyViewing) {
+        const senderName = getSenderName(message);
+        const messagePreview = getMessagePreview(message);
+
+        // 1. Play custom notification sound
+        playNotificationSound();
+
+        const openTargetConversation = () => {
+          window.focus();
+          if (conversationId) {
+            useChatStore.getState().setActiveConversation(conversationId);
+          }
+          navigate("/chat");
+        };
+
+        // 2. If tab is in background (other tab or minimized), show native OS notification & update tab title
+        if (isTabHidden) {
+          unreadBackgroundCountRef.current += 1;
+          document.title = `(${unreadBackgroundCountRef.current}) 💬 ${senderName}: ${messagePreview}`;
+
+          if ("Notification" in window) {
+            const showNotification = () => {
+              try {
+                const desktopNotification = new Notification(senderName, {
+                  body: messagePreview,
+                  icon: NOTIFICATION_ICON_URL,
+                  badge: NOTIFICATION_ICON_URL,
+                  tag: `chat-${conversationId}`,
+                  renotify: true,
+                });
+
+                desktopNotification.onclick = () => {
+                  desktopNotification.close();
+                  openTargetConversation();
+                };
+              } catch (err) {
+                console.debug("Desktop notification error:", err?.message || err);
+              }
+            };
+
+            if (Notification.permission === "granted") {
+              showNotification();
+            } else if (Notification.permission === "default") {
+              Notification.requestPermission().then((perm) => {
+                if (perm === "granted") {
+                  showNotification();
+                }
+              });
+            }
+          }
+        } else {
+          // If in website on another page (e.g. /projects or different conversation)
+          setToast({
+            id: `${conversationId}-${getId(message)}-${Date.now()}`,
+            type: "chat",
+            title: senderName,
+            message: messagePreview,
+            onClick: openTargetConversation,
+          });
+        }
       }
     };
 
@@ -122,6 +234,7 @@ const ChatRealtimeBridge = () => {
   }, [
     loadConversations,
     markSeenLocal,
+    navigate,
     receiveMessage,
     setOnlineUsers,
     setTyping,

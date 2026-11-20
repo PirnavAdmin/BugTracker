@@ -348,6 +348,30 @@ const setupChatSocket = (server) => {
     addOnlineUser(socket.user, socket.id);
     socket.join(userRoomName(socket.user._id));
     socket.join(workspaceRoomName(socket.user.workspaceId));
+    // Register before the first await so mount/reconnect requests cannot be lost.
+    socket.on("call:presence:sync", async (payload = {}, callback) => {
+      try {
+        // A surviving direct-call client can restore its overlay after reconnect.
+        // Group clients already rejoin through the existing call:join handler.
+        if (/^[a-f\d]{24}$/i.test(String(payload.callId || ""))) {
+          const call = await CallLog.findOne({
+            _id: payload.callId,
+            workspaceId: socket.user.workspaceId,
+            scope: "direct",
+            status: "Answered",
+            $or: [{ callerId: socket.user._id }, { receiverId: socket.user._id }],
+          }).select("_id").lean();
+          if (call) {
+            registerCallSocket(call._id, socket.user._id, socket.id);
+            setCallPresence(io, socket.user.workspaceId, [socket.user._id], "in-call");
+          }
+        }
+        socket.emit("call:presence", { presence: getCallPresence(socket.user.workspaceId) });
+        callback?.({ ok: true });
+      } catch (error) {
+        callback?.({ ok: false, error: "Unable to synchronize call presence" });
+      }
+    });
     await updateSocketPresence(io, socket, "active", "connect");
     emitOnlineUsers(io, socket.user.workspaceId);
 
@@ -1254,8 +1278,15 @@ const setupChatSocket = (server) => {
     socket.on("disconnect", (reason) => {
       console.log(`[Socket] Client disconnected: ${socket.id} (Reason: ${reason})`);
       const disconnectedUser = socket.user;
+      const wasCallSocket = Array.from(activeCallSockets.values()).includes(socket.id);
       unregisterSocketFromCalls(socket.id);
       removeOnlineUser(socket.id);
+      const hasAnotherCallSocket = Array.from(activeCallSockets.keys()).some((key) =>
+        key.endsWith(`:${objectIdString(disconnectedUser._id)}`)
+      );
+      if ((wasCallSocket && !hasAnotherCallSocket) || !isUserOnline(disconnectedUser.workspaceId, disconnectedUser._id)) {
+        setCallPresence(io, disconnectedUser.workspaceId, [disconnectedUser._id], "online");
+      }
       if (!isUserOnline(disconnectedUser.workspaceId, disconnectedUser._id)) {
         updateSocketPresence(io, socket, "offline", "disconnect").catch((error) => {
           console.error("[presence] disconnect update failed", error.message);

@@ -5,8 +5,8 @@ const statusClassName = {
   active: "bg-emerald-500",
   idle: "bg-yellow-400",
   offline: "bg-slate-400",
-  "in-call": "bg-amber-500",
-  "in-group-call": "bg-violet-500",
+  "in-call": "bg-red-500",
+  "in-group-call": "bg-red-500",
   ringing: "bg-sky-500",
 };
 
@@ -30,8 +30,9 @@ const StatusIndicator = ({
   const status = statusOverride || presence?.status || "offline";
 
   return (
-    <span className={cn("inline-flex items-center gap-1.5", className)} title={statusLabel[status] || "Offline"}>
+    <span className={cn("inline-flex items-center gap-1.5", className)} role="img" aria-label={statusLabel[status] || "Offline"} title={statusLabel[status] || "Offline"}>
       <span
+        aria-hidden="true"
         className={cn(
           "inline-flex h-2.5 w-2.5 shrink-0 rounded-full ring-2 ring-white",
           statusClassName[status] || statusClassName.offline

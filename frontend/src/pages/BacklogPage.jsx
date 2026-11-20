@@ -22,6 +22,7 @@ import {
   TimerReset,
   Trash2,
   UserRound,
+  X,
   Zap,
 } from "lucide-react";
 import {
@@ -293,7 +294,7 @@ const PlanningFilterSelect = ({ label, value, onChange, children, disabled = fal
   <label className="flex min-w-0 flex-col gap-1">
     <span className="text-[11px] font-medium text-slate-500">{label}</span>
     <select
-      className="field-select h-9 min-w-0 w-full rounded-[8px] border-slate-200 bg-white px-2.5 py-1.5 text-xs shadow-sm disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400"
+      className="field-select h-11 min-w-0 w-full rounded-[8px] border-slate-200 bg-white px-2.5 py-1.5 text-xs shadow-sm disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400"
       value={value}
       onChange={(event) => onChange(event.target.value)}
       disabled={disabled}
@@ -312,111 +313,166 @@ const PlanningFilters = ({
   sprints = [],
   onChange,
   onResetFilters,
-}) => (
-  <section aria-labelledby="planning-filters-heading" className="min-w-0 rounded-[20px] border border-white/70 bg-white/92 p-4 shadow-[0_18px_48px_-38px_rgba(15,23,42,0.36)]">
-    <div className="mb-3 flex items-center justify-between">
-      <h2 id="planning-filters-heading" className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-slate-700">
-        <Filter className="h-3.5 w-3.5 text-blue-500" />
-        Filters
-      </h2>
-      <Button type="button" variant="ghost" size="icon" className="h-7 w-7" aria-label="Reset filters" title="Reset filters" onClick={onResetFilters}>
-        <TimerReset className="h-3.5 w-3.5" />
-      </Button>
-    </div>
+  isAdvancedOpen,
+  onToggleAdvanced,
+}) => {
+  const appliedFilters = [];
+  const addAppliedFilter = (field, label, defaultValue, displayValue, advanced = false) => {
+    const value = filters[field];
+    if (value && value !== defaultValue) {
+      appliedFilters.push({ field, label, defaultValue, displayValue: displayValue || value, advanced });
+    }
+  };
+  const optionName = (options, value) => options.find((option) => String(option._id) === String(value))?.name;
+  addAppliedFilter("projectId", "Project", "", optionName(projects, filters.projectId));
+  addAppliedFilter("sprintId", "Sprint", "all", filters.sprintId === "backlog" ? "Backlog only" : optionName(sprints, filters.sprintId));
+  addAppliedFilter("teamId", "Team", "all", optionName(teams, filters.teamId));
+  addAppliedFilter("assigneeId", "Assignee", "all", optionName(members, filters.assigneeId));
+  addAppliedFilter("includeCompletedSprints", "Sprint Scope", false, "Include completed", true);
+  addAppliedFilter("epicId", "Epic", "all", filters.epicId === "unassigned" ? "Unassigned epic" : optionName(epics, filters.epicId), true);
+  addAppliedFilter("priority", "Priority", "all", filters.priority, true);
+  addAppliedFilter("status", "Status", "all", {
+    DRAFT: "Draft", READY: "Ready", SPRINT_BACKLOG: "Sprint Backlog", IN_PROGRESS: "In Progress",
+    TESTING: "Testing", READY_FOR_UAT: "Ready for UAT", DONE: "Done", CLOSED: "Closed",
+  }[filters.status], true);
+  addAppliedFilter("dateFrom", "Created From", "", filters.dateFrom, true);
+  addAppliedFilter("dateTo", "Created To", "", filters.dateTo, true);
+  const advancedCount = appliedFilters.filter((filter) => filter.advanced).length;
 
-    <div className="grid min-w-0 grid-cols-1 gap-x-4 gap-y-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
-      <PlanningFilterSelect label="Project" value={filters.projectId} onChange={(value) => onChange("projectId", value)}>
-        <option value="">Choose project</option>
-        {projects.map((project) => (
-          <option key={project._id} value={project._id}>
-            {project.name}
-          </option>
-        ))}
-      </PlanningFilterSelect>
-      <PlanningFilterSelect label="Team" value={filters.teamId} onChange={(value) => onChange("teamId", value)}>
-        <option value="all">All teams</option>
-        {teams.map((team) => (
-          <option key={team._id} value={team._id}>
-            {team.name}
-          </option>
-        ))}
-      </PlanningFilterSelect>
-      <PlanningFilterSelect label="Assignee" value={filters.assigneeId} onChange={(value) => onChange("assigneeId", value)}>
-        <option value="all">All members</option>
-        {members.map((member) => (
-          <option key={member._id} value={member._id}>
-            {member.name}
-          </option>
-        ))}
-      </PlanningFilterSelect>
-      <PlanningFilterSelect
-        label="Sprint Scope"
-        value={filters.includeCompletedSprints ? "all" : "active"}
-        onChange={(value) => onChange("includeCompletedSprints", value === "all")}
-      >
-        <option value="active">Planned + active</option>
-        <option value="all">Include completed</option>
-      </PlanningFilterSelect>
-      <PlanningFilterSelect label="Sprint" value={filters.sprintId} onChange={(value) => onChange("sprintId", value)}>
-        <option value="all">All sprints</option>
-        <option value="backlog">Backlog only</option>
-        {sprints.map((sprint) => (
-          <option key={sprint._id} value={sprint._id}>
-            {sprint.name}
-          </option>
-        ))}
-      </PlanningFilterSelect>
-      <PlanningFilterSelect label="Epic" value={filters.epicId} onChange={(value) => onChange("epicId", value)}>
-        <option value="all">All epics</option>
-        <option value="unassigned">Unassigned epic</option>
-        {epics.map((epic) => (
-          <option key={epic._id} value={epic._id}>
-            {epic.name}
-          </option>
-        ))}
-      </PlanningFilterSelect>
-      <PlanningFilterSelect label="Priority" value={filters.priority} onChange={(value) => onChange("priority", value)}>
-        <option value="all">All priorities</option>
-        <option value="Critical">Critical</option>
-        <option value="High">High</option>
-        <option value="Medium">Medium</option>
-        <option value="Low">Low</option>
-      </PlanningFilterSelect>
-      <PlanningFilterSelect label="Status" value={filters.status} onChange={(value) => onChange("status", value)}>
-        <option value="all">All statuses</option>
-        <option value="DRAFT">Draft</option>
-        <option value="READY">Ready</option>
-        <option value="SPRINT_BACKLOG">Sprint Backlog</option>
-        <option value="IN_PROGRESS">In Progress</option>
-        <option value="TESTING">Testing</option>
-        <option value="READY_FOR_UAT">Ready for UAT</option>
-        <option value="DONE">Done</option>
-        <option value="CLOSED">Closed</option>
-      </PlanningFilterSelect>
-      <PlanningFilterSelect label="Issue Type" value="STORY" disabled onChange={() => {}}>
-        <option value="STORY">Story items</option>
-      </PlanningFilterSelect>
-      <label className="flex min-w-0 flex-col gap-1">
-        <span className="text-[11px] font-medium text-slate-500">Created From</span>
-        <Input
-          type="date"
-          className="h-9 min-w-0 w-full rounded-[8px] border-slate-200 bg-white px-2.5 text-xs shadow-sm"
-          value={filters.dateFrom}
-          onChange={(event) => onChange("dateFrom", event.target.value)}
-        />
-      </label>
-      <label className="flex min-w-0 flex-col gap-1">
-        <span className="text-[11px] font-medium text-slate-500">Created To</span>
-        <Input
-          type="date"
-          className="h-9 min-w-0 w-full rounded-[8px] border-slate-200 bg-white px-2.5 text-xs shadow-sm"
-          value={filters.dateTo}
-          onChange={(event) => onChange("dateTo", event.target.value)}
-        />
-      </label>
-    </div>
-  </section>
-);
+  return (
+    <section aria-labelledby="planning-filters-heading" className="min-w-0 rounded-xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4">
+      <h2 id="planning-filters-heading" className="sr-only">Planning filters</h2>
+      <div className="grid min-w-0 grid-cols-1 items-end gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-[minmax(180px,1.5fr)_repeat(3,minmax(120px,1fr))_auto_auto]">
+        <PlanningFilterSelect label="Project" value={filters.projectId} onChange={(value) => onChange("projectId", value)}>
+          <option value="">Choose project</option>
+          {projects.map((project) => (
+            <option key={project._id} value={project._id}>
+              {project.name}
+            </option>
+          ))}
+        </PlanningFilterSelect>
+        <PlanningFilterSelect label="Sprint" value={filters.sprintId} onChange={(value) => onChange("sprintId", value)}>
+          <option value="all">All sprints</option>
+          <option value="backlog">Backlog only</option>
+          {sprints.map((sprint) => (
+            <option key={sprint._id} value={sprint._id}>
+              {sprint.name}
+            </option>
+          ))}
+        </PlanningFilterSelect>
+        <PlanningFilterSelect label="Team" value={filters.teamId} onChange={(value) => onChange("teamId", value)}>
+          <option value="all">All teams</option>
+          {teams.map((team) => (
+            <option key={team._id} value={team._id}>
+              {team.name}
+            </option>
+          ))}
+        </PlanningFilterSelect>
+        <PlanningFilterSelect label="Assignee" value={filters.assigneeId} onChange={(value) => onChange("assigneeId", value)}>
+          <option value="all">All members</option>
+          {members.map((member) => (
+            <option key={member._id} value={member._id}>
+              {member.name}
+            </option>
+          ))}
+        </PlanningFilterSelect>
+        <Button
+          type="button"
+          variant="outline"
+          className="h-11 w-full rounded-lg border-blue-200 px-3 text-blue-700 hover:bg-blue-50"
+          aria-expanded={isAdvancedOpen}
+          aria-controls="planning-advanced-filters"
+          onClick={onToggleAdvanced}
+        >
+          <Filter className="h-4 w-4" />
+          <span>More Filters{advancedCount ? ` (${advancedCount})` : ""}</span>
+          <ChevronDown className={cn("h-4 w-4 transition-transform", isAdvancedOpen && "rotate-180")} />
+        </Button>
+        <Button type="button" variant="ghost" className="h-11 w-full rounded-lg px-3" onClick={onResetFilters}>
+          <TimerReset className="h-4 w-4" />
+          Reset
+        </Button>
+      </div>
+      <div id="planning-advanced-filters" hidden={!isAdvancedOpen}>
+        <div className="mt-3 grid min-w-0 grid-cols-1 gap-3 border-t border-slate-100 pt-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+          <PlanningFilterSelect
+            label="Sprint Scope"
+            value={filters.includeCompletedSprints ? "all" : "active"}
+            onChange={(value) => onChange("includeCompletedSprints", value === "all")}
+          >
+            <option value="active">Planned + active</option>
+            <option value="all">Include completed</option>
+          </PlanningFilterSelect>
+          <PlanningFilterSelect label="Epic" value={filters.epicId} onChange={(value) => onChange("epicId", value)}>
+            <option value="all">All epics</option>
+            <option value="unassigned">Unassigned epic</option>
+            {epics.map((epic) => (
+              <option key={epic._id} value={epic._id}>
+                {epic.name}
+              </option>
+            ))}
+          </PlanningFilterSelect>
+          <PlanningFilterSelect label="Priority" value={filters.priority} onChange={(value) => onChange("priority", value)}>
+            <option value="all">All priorities</option>
+            <option value="Critical">Critical</option>
+            <option value="High">High</option>
+            <option value="Medium">Medium</option>
+            <option value="Low">Low</option>
+          </PlanningFilterSelect>
+          <PlanningFilterSelect label="Status" value={filters.status} onChange={(value) => onChange("status", value)}>
+            <option value="all">All statuses</option>
+            <option value="DRAFT">Draft</option>
+            <option value="READY">Ready</option>
+            <option value="SPRINT_BACKLOG">Sprint Backlog</option>
+            <option value="IN_PROGRESS">In Progress</option>
+            <option value="TESTING">Testing</option>
+            <option value="READY_FOR_UAT">Ready for UAT</option>
+            <option value="DONE">Done</option>
+            <option value="CLOSED">Closed</option>
+          </PlanningFilterSelect>
+          <PlanningFilterSelect label="Issue Type" value="STORY" disabled onChange={() => {}}>
+            <option value="STORY">Story items</option>
+          </PlanningFilterSelect>
+          <label className="flex min-w-0 flex-col gap-1">
+            <span className="text-[11px] font-medium text-slate-500">Created From</span>
+            <Input
+              type="date"
+              className="h-11 min-w-0 w-full rounded-[8px] border-slate-200 bg-white px-2.5 text-xs shadow-sm"
+              value={filters.dateFrom}
+              onChange={(event) => onChange("dateFrom", event.target.value)}
+            />
+          </label>
+          <label className="flex min-w-0 flex-col gap-1">
+            <span className="text-[11px] font-medium text-slate-500">Created To</span>
+            <Input
+              type="date"
+              className="h-11 min-w-0 w-full rounded-[8px] border-slate-200 bg-white px-2.5 text-xs shadow-sm"
+              value={filters.dateTo}
+              onChange={(event) => onChange("dateTo", event.target.value)}
+            />
+          </label>
+        </div>
+      </div>
+      {appliedFilters.length > 0 && (
+        <div className="mt-3 flex min-w-0 flex-wrap gap-2 border-t border-slate-100 pt-3" aria-label="Applied filters">
+          {appliedFilters.map(({ field, label, defaultValue, displayValue }) => (
+            <button
+              key={field}
+              type="button"
+              className="inline-flex min-w-0 max-w-full items-center gap-1.5 rounded-full border border-blue-100 bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-800 hover:bg-blue-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+              aria-label={`Remove ${label} filter: ${displayValue}`}
+              title={`Remove ${label} filter: ${displayValue}`}
+              onClick={() => onChange(field, defaultValue)}
+            >
+              <span className="min-w-0 truncate">{label}: {displayValue}</span>
+              <X className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+            </button>
+          ))}
+        </div>
+      )}
+    </section>
+  );
+};
 
 const PlanningSidebar = ({
   activeView = "overview",
@@ -763,6 +819,7 @@ const BacklogPage = () => {
   );
   const queryClient = useQueryClient();
   const [filters, setFilters] = useState(createDefaultFilters);
+  const [isAdvancedFiltersOpen, setIsAdvancedFiltersOpen] = useState(false);
   const [boardState, setBoardState] = useState(createBoardState(null));
   const [selectedIssueId, setSelectedIssueId] = useState("");
   const [draggedIssueId, setDraggedIssueId] = useState("");
@@ -1268,6 +1325,8 @@ const BacklogPage = () => {
 
         <main className="min-w-0 space-y-4 pr-1">
           <PlanningFilters
+            isAdvancedOpen={isAdvancedFiltersOpen}
+            onToggleAdvanced={() => setIsAdvancedFiltersOpen((open) => !open)}
             filters={filters}
             projects={projects}
             teams={availableTeams}
@@ -1319,6 +1378,8 @@ const BacklogPage = () => {
 
       <main className="min-w-0 space-y-4 pr-1">
         <PlanningFilters
+          isAdvancedOpen={isAdvancedFiltersOpen}
+          onToggleAdvanced={() => setIsAdvancedFiltersOpen((open) => !open)}
           filters={filters}
           projects={projects}
           teams={availableTeams}
