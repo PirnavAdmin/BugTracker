@@ -17,7 +17,7 @@ const ACTIVITY_THROTTLE_MS = 15 * 1000;
 const INACTIVITY_CHECK_INTERVAL_MS = 15 * 1000;
 
 const ActivityTracker = () => {
-  const { token, logout } = useAuth();
+  const { token, logout, rememberMe } = useAuth();
   const { markActive, markIdle, markOffline } = usePresence();
   const navigate = useNavigate();
   const location = useLocation();
@@ -60,7 +60,7 @@ const ActivityTracker = () => {
     };
 
     const checkInactivity = () => {
-      if (!token || isLoggingOutRef.current) {
+      if (!token || isLoggingOutRef.current || rememberMe) {
         return;
       }
       if (isSessionInactive(getInactivityTimeoutMs())) {
@@ -68,8 +68,8 @@ const ActivityTracker = () => {
       }
     };
 
-    // If session is already inactive before this component mounted, logout immediately.
-    if (isSessionInactive(getInactivityTimeoutMs())) {
+    // If session is already inactive before this component mounted, logout immediately (unless rememberMe is active).
+    if (!rememberMe && isSessionInactive(getInactivityTimeoutMs())) {
       performAutoLogout();
       return undefined;
     }

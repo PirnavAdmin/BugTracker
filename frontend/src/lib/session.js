@@ -142,3 +142,77 @@ export const clearLastActivity = () => {
     // Ignore storage failures
   }
 };
+
+export const REMEMBERED_LOGIN_KEY = "curecode_remembered_login";
+
+export const readRememberedLogin = () => {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  try {
+    const rawValue = window.localStorage.getItem(REMEMBERED_LOGIN_KEY);
+    const rememberedLogin = rawValue ? JSON.parse(rawValue) : null;
+
+    if (!rememberedLogin?.email) {
+      return null;
+    }
+
+    return {
+      email: String(rememberedLogin.email).trim().toLowerCase(),
+      password: typeof rememberedLogin.password === "string" ? rememberedLogin.password : "",
+      user: rememberedLogin.user || null,
+      savedAt: rememberedLogin.savedAt || "",
+    };
+  } catch {
+    try {
+      window.localStorage.removeItem(REMEMBERED_LOGIN_KEY);
+    } catch {
+      // Ignore storage failures
+    }
+    return null;
+  }
+};
+
+export const writeRememberedLogin = ({ email, password = "", user = null } = {}) => {
+  if (typeof window === "undefined" || !email) {
+    return;
+  }
+
+  try {
+    window.localStorage.setItem(
+      REMEMBERED_LOGIN_KEY,
+      JSON.stringify({
+        email: String(email).trim().toLowerCase(),
+        password: typeof password === "string" ? password : "",
+        user: user
+          ? {
+              _id: user._id,
+              name: user.name,
+              email: user.email || email,
+              role: user.role,
+              avatarUrl: user.avatarUrl,
+              profileUrl: user.profileUrl,
+              profileImageUrl: user.profileImageUrl,
+            }
+          : null,
+        savedAt: new Date().toISOString(),
+      })
+    );
+  } catch {
+    // Ignore storage failures
+  }
+};
+
+export const clearRememberedLogin = () => {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  try {
+    window.localStorage.removeItem(REMEMBERED_LOGIN_KEY);
+  } catch {
+    // Ignore storage failures
+  }
+};
+
