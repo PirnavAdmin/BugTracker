@@ -1480,9 +1480,8 @@ main > header > a > img[alt="CureCode"] {
   transition: background-color 200ms ease, color 200ms ease;
 }
 
-:root[data-theme="dark"],
-html.dark,
-.dark,
+:root[data-theme="dark"]:not([data-theme="light"]),
+html.dark:not([data-theme="light"]),
 .app-theme-root[data-theme="dark"] {
   --app-page-background: #090d16;
   --app-surface: #0f172a;
@@ -1510,13 +1509,46 @@ html.dark,
   color-scheme: dark;
 }
 
-html.dark {
+html.dark:not([data-theme="light"]) {
   background-color: #090d16;
 }
 
-html.dark body {
+html.dark:not([data-theme="light"]) body {
   background-color: #090d16;
   color: #f8fafc;
+}
+
+/* Explicit Light Theme Lock for Landing and Login/Auth Pages */
+:is([data-theme="light"], [data-theme-lock="light"], .public-theme-lock, .auth-theme-lock) {
+  --app-page-background: #f8fafc !important;
+  --app-surface: #ffffff !important;
+  --app-surface-raised: #f1f5f9 !important;
+  --app-text-primary: #0f172a !important;
+  --app-text-secondary: #475569 !important;
+  --background: 210 40% 98% !important;
+  --foreground: 222 47% 11% !important;
+  --card: 0 0% 100% !important;
+  --card-foreground: 222 47% 11% !important;
+  color-scheme: light !important;
+}
+
+:is([data-theme="light"], [data-theme-lock="light"], .public-theme-lock, .auth-theme-lock) :is(
+  .bg-white,
+  [class*="bg-white/"]
+) {
+  background-color: #ffffff !important;
+}
+
+:is([data-theme="light"], [data-theme-lock="light"], .public-theme-lock, .auth-theme-lock) :is(
+  h1, h2, h3, h4, h5, h6,
+  [class*="text-slate-950"],
+  [class*="text-slate-900"]
+) {
+  color: #020617 !important;
+}
+
+:is([data-theme="light"], [data-theme-lock="light"], .public-theme-lock, .auth-theme-lock) [class*="text-slate-600"] {
+  color: #475569 !important;
 }
 
 :is(.dark, [data-theme="dark"], .app-theme-root[data-theme="dark"]) :is(

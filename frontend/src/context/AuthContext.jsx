@@ -15,11 +15,22 @@ export const AuthProvider = ({ children }) => {
   const [session, setSession] = useState(() => readStoredSession());
 
   const setAuthSession = (value, options = {}) => {
+    try {
+      localStorage.setItem("curecode-theme", "light");
+      window.dispatchEvent(new Event("curecode_auth_login"));
+    } catch {
+      // ignore
+    }
     setSession(value);
     writeStoredSession(value, options);
   };
 
   const logout = () => {
+    try {
+      localStorage.setItem("curecode-theme", "light");
+    } catch {
+      // ignore
+    }
     disconnectChatSocket();
     setSession(null);
     clearStoredSession();

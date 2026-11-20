@@ -45,7 +45,7 @@ const PlatformLoginPage = () => {
   };
 
   return (
-    <main className="min-h-screen bg-[linear-gradient(135deg,#f8fafc_0%,#e0f2fe_48%,#eef2ff_100%)] px-4 py-8 text-slate-950">
+    <main data-theme="light" data-theme-lock="light" className="auth-theme-lock min-h-screen bg-[linear-gradient(135deg,#f8fafc_0%,#e0f2fe_48%,#eef2ff_100%)] px-4 py-8 text-slate-950">
       <div className="mx-auto grid min-h-[calc(100vh-4rem)] max-w-6xl items-center gap-8 lg:grid-cols-[1fr_420px]">
         <section className="hidden lg:block">
           <div className="max-w-xl">
