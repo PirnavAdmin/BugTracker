@@ -48,7 +48,15 @@ const ToastNotice = ({ toast, icon, onDismiss }) => {
               <AlertCircle className="h-5 w-5" />
             )}
           </div>
-          <div className="min-w-0 flex-1">
+          <div
+            className={`min-w-0 flex-1 ${toast.onClick ? "cursor-pointer" : ""}`}
+            onClick={() => {
+              if (toast.onClick) {
+                toast.onClick();
+                if (onDismiss) onDismiss();
+              }
+            }}
+          >
             <p className="text-sm font-semibold">{title}</p>
             <p className="mt-1 text-sm leading-6">{toast.message}</p>
           </div>
