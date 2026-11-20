@@ -15,6 +15,7 @@ const {
 const { normalizeTenantId, withTenantFilter } = require("../utils/tenant");
 const { deleteS3Object, uploadToS3 } = require("../utils/s3");
 const { confirmStorage, releaseStorage, reserveStorage } = require("../services/storageUsageService");
+const { getEmailValidationError } = require("../utils/emailValidation");
 
 const passwordHasLetter = /[A-Za-z]/;
 const passwordHasNumber = /\d/;
@@ -191,6 +192,7 @@ const syncUserForAuth = async (user, password) => {
 const register = asyncHandler(async (req, res) => {
   const { name, email, password, role } = req.body;
   const normalizedName = typeof name === "string" ? name.trim() : "";
+  const emailValidationError = getEmailValidationError(email);
   const normalizedEmail = typeof email === "string" ? email.toLowerCase().trim() : "";
   const normalizedRole = typeof role === "string" ? role.trim() : "";
 
@@ -202,9 +204,14 @@ const register = asyncHandler(async (req, res) => {
     password: password ? "[redacted]" : null,
   });
 
-  if (!normalizedName || !normalizedEmail || !password || !normalizedRole) {
+  if (emailValidationError) {
     res.status(400);
-    throw new Error("Name, email, password, and role are required");
+    throw new Error(emailValidationError);
+  }
+
+  if (!normalizedName || !password || !normalizedRole) {
+    res.status(400);
+    throw new Error("Name, password, and role are required");
   }
 
   const passwordValidationMessage = getPasswordValidationMessage(password);
@@ -228,13 +235,22 @@ const register = asyncHandler(async (req, res) => {
 
   const workspaceId = createWorkspaceId();
 
-  const user = await User.create({
-    name: normalizedName,
-    email: normalizedEmail,
-    password,
-    role: normalizedRole,
-    workspaceId,
-  });
+  let user;
+  try {
+    user = await User.create({
+      name: normalizedName,
+      email: normalizedEmail,
+      password,
+      role: normalizedRole,
+      workspaceId,
+    });
+  } catch (error) {
+    if (error?.code === 11000 && (error.keyPattern?.email || error.keyValue?.email)) {
+      res.status(409);
+      throw new Error("An account with that email already exists");
+    }
+    throw error;
+  }
 
   res.status(201).json({
     message: "Account created successfully. Please sign in.",

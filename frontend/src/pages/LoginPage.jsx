@@ -6,6 +6,7 @@ import pirnavLogo from "@/assets/pirnav-logo.png";
 import { loginRequest, registerRequest, requestPasswordReset, resetPassword } from "@/lib/api";
 import { useAuth } from "@/hooks/use-auth";
 import { getDashboardPathByRole } from "@/lib/roles";
+import { getEmailValidationError } from "@/lib/emailValidation";
 
 const emailValid = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 const safeRedirect = (search) => {
@@ -51,6 +52,7 @@ export default function LoginPage({ signup = false }) {
   const [otp, setOtp] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [sent, setSent] = useState(false);
+  const [emailError, setEmailError] = useState("");
 
   const auth = useMutation({
     mutationFn: () =>
@@ -92,9 +94,17 @@ export default function LoginPage({ signup = false }) {
   });
   const submit = (event) => {
     event.preventDefault();
-    if (emailValid(form.email) && form.password && (mode !== "signup" || form.name.trim().length >= 2)) {
-      auth.mutate();
+    if (mode === "signup") {
+      const validationError = getEmailValidationError(form.email);
+      if (validationError) {
+        setEmailError(validationError);
+        return;
+      }
+    } else if (!emailValid(form.email)) {
+      return;
     }
+    setEmailError("");
+    if (form.password && (mode !== "signup" || form.name.trim().length >= 2)) auth.mutate();
   };
   const field =
     "h-12 w-full rounded-lg border border-slate-300 bg-white px-4 text-slate-950 outline-none transition placeholder:text-slate-400 focus:border-violet-600 focus:ring-4 focus:ring-violet-100";
@@ -212,11 +222,27 @@ export default function LoginPage({ signup = false }) {
                 Email
                 <input
                   className={field + " mt-1.5"}
+                  aria-invalid={Boolean(emailError)}
+                  aria-describedby={emailError ? "registration-email-error" : undefined}
                   type="email"
                   value={form.email}
-                  onChange={(event) => setForm({ ...form, email: event.target.value })}
+                  onInvalid={(event) => {
+                    if (mode !== "signup") return;
+                    event.preventDefault();
+                    setEmailError(getEmailValidationError(event.currentTarget.value));
+                  }}
+                  onChange={(event) => {
+                    auth.reset();
+                    setEmailError("");
+                    setForm({ ...form, email: event.target.value });
+                  }}
                   required
                 />
+                {emailError && (
+                  <span id="registration-email-error" role="alert" className="mt-1 block text-sm font-semibold text-rose-600">
+                    {emailError}
+                  </span>
+                )}
               </label>
               <label className="block text-sm font-bold">
                 Password
@@ -273,7 +299,11 @@ export default function LoginPage({ signup = false }) {
               : "Already have a workspace? "}
             <button
               className="font-bold text-violet-700"
-              onClick={() => setMode(mode === "login" ? "signup" : "login")}
+              onClick={() => {
+                auth.reset();
+                setEmailError("");
+                setMode(mode === "login" ? "signup" : "login");
+              }}
             >
               {mode === "login" ? "Create account" : "Sign in"}
             </button>

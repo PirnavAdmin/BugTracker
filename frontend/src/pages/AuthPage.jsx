@@ -37,6 +37,7 @@ import {
 } from "@/lib/api";
 import { getDashboardPathByRole } from "@/lib/roles";
 import { cn } from "@/lib/utils";
+import { getEmailValidationError } from "@/lib/emailValidation";
 
 const initialForm = {
   fullName: "",
@@ -263,7 +264,10 @@ const validateForm = ({ mode, formData }) => {
     }
   }
 
-  if (!formData.email.trim()) {
+  if (mode === "register") {
+    const emailValidationError = getEmailValidationError(formData.email);
+    if (emailValidationError) errors.email = emailValidationError;
+  } else if (!formData.email.trim()) {
     errors.email = "Email is required";
   } else if (!emailRegex.test(formData.email.trim())) {
     errors.email = "Please enter a valid email address";
@@ -618,11 +622,8 @@ const AuthPage = () => {
       errors.fullName = "Full name must be at least 2 characters long";
     }
 
-    if (!formData.email.trim()) {
-      errors.email = "Email is required";
-    } else if (!emailRegex.test(formData.email.trim())) {
-      errors.email = "Please enter a valid email address";
-    }
+    const emailValidationError = getEmailValidationError(formData.email);
+    if (emailValidationError) errors.email = emailValidationError;
 
     if (Object.keys(errors).length) {
       setFieldErrors(errors);
@@ -1272,7 +1273,7 @@ const AuthPage = () => {
                       <label className="text-sm font-extrabold text-[#080B2F]" htmlFor="email">Email</label>
                       <div className="relative">
                         <Mail className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-[#8B94B8]" />
-                        <Input aria-invalid={Boolean(fieldErrors.email)} autoComplete="email" className={cn(fieldClassName, fieldErrors.email && "border-rose-300 focus-visible:border-rose-400")} disabled={authMutation.isPending} id="email" name="email" placeholder="name@company.com" type="email" value={formData.email} onChange={handleChange} />
+                        <Input aria-invalid={Boolean(fieldErrors.email)} autoComplete="email" className={cn(fieldClassName, fieldErrors.email && "border-rose-300 focus-visible:border-rose-400")} disabled={authMutation.isPending} id="email" name="email" placeholder="name@company.com" required type="email" value={formData.email} onChange={handleChange} />
                       </div>
                       {fieldErrors.email ? <p className="text-sm font-semibold text-rose-500">{fieldErrors.email}</p> : null}
                     </div>
