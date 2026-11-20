@@ -551,23 +551,62 @@ const IssuesPage = () => {
   const pagination = {
     total: lanePagination.reduce((total, lane) => total + lane.total, 0),
   };
-  const workflowCounts = {
-    [ISSUE_STATUS.TODO]: lanePagination[0].total,
-    [ISSUE_STATUS.IN_PROGRESS]: lanePagination[1].total,
-    [ISSUE_STATUS.DONE]: lanePagination[2].total,
-  };
   const lanePaginationByStatus = {
     [ISSUE_STATUS.TODO]: lanePagination[0],
     [ISSUE_STATUS.IN_PROGRESS]: lanePagination[1],
     [ISSUE_STATUS.DONE]: lanePagination[2],
   };
-  const issues = useMemo(
-    () => [issuePageData, inProgressPageData, donePageData]
-      .flatMap((data) => (Array.isArray(data?.issues) ? data.issues : [])),
-    [donePageData, inProgressPageData, issuePageData]
-  );
+  const issues = useMemo(() => {
+    const rawIssues = [issuePageData, inProgressPageData, donePageData]
+      .flatMap((data) => (Array.isArray(data?.issues) ? data.issues : []));
+    const seen = new Set();
+    const uniqueIssues = [];
+
+    for (const issue of rawIssues) {
+      const idKey = String(issue?._id || "");
+      const displayKey = issue?.displayBugId
+        ? `${issue.projectId?._id || issue.projectId || ""}-${issue.displayBugId}`
+        : "";
+      const primaryKey = displayKey || idKey;
+
+      if (!primaryKey || seen.has(primaryKey)) {
+        continue;
+      }
+
+      seen.add(primaryKey);
+      if (idKey) seen.add(idKey);
+      uniqueIssues.push(issue);
+    }
+
+    return uniqueIssues;
+  }, [donePageData, inProgressPageData, issuePageData]);
 
   const filteredIssues = useMemo(() => sortIssues(issues, "newest"), [issues]);
+
+  const workflowCounts = useMemo(() => {
+    const counts = {
+      [ISSUE_STATUS.TODO]: lanePagination[0].total,
+      [ISSUE_STATUS.IN_PROGRESS]: lanePagination[1].total,
+      [ISSUE_STATUS.DONE]: lanePagination[2].total,
+    };
+
+    for (const lane of [ISSUE_STATUS.TODO, ISSUE_STATUS.IN_PROGRESS, ISSUE_STATUS.DONE]) {
+      const laneUniqueCount = issues.filter(
+        (issue) => getIssueWorkflowLane(issue.status) === lane
+      ).length;
+      if (
+        counts[lane] > 0 &&
+        laneUniqueCount > 0 &&
+        counts[lane] > laneUniqueCount &&
+        lanePaginationByStatus[lane]?.page === 1 &&
+        !lanePaginationByStatus[lane]?.hasNextPage
+      ) {
+        counts[lane] = laneUniqueCount;
+      }
+    }
+
+    return counts;
+  }, [issues, lanePagination, lanePaginationByStatus]);
 
   const visibleBoardColumnKeys = useMemo(() => {
     if (filters.status && filters.status !== "all") {

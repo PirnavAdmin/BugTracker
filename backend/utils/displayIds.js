@@ -111,10 +111,6 @@ const getMaxDisplaySequenceForProject = async ({ Issue, projectId, shortCode }) 
 const initializeProjectSequence = async ({ Project, Issue, project, shortCode }) => {
   const currentSequence = Number(project?.issueSequence || 0);
 
-  if (currentSequence > 0) {
-    return currentSequence;
-  }
-
   const [maxDisplaySequence, issueCount] = await Promise.all([
     getMaxDisplaySequenceForProject({
       Issue,
@@ -123,24 +119,27 @@ const initializeProjectSequence = async ({ Project, Issue, project, shortCode })
     }),
     Issue.countDocuments({
       projectId: project._id,
+      isDeleted: { $ne: true },
     }),
   ]);
-  const baselineSequence = Math.max(maxDisplaySequence, issueCount);
+  const baselineSequence = Math.max(currentSequence, maxDisplaySequence, issueCount);
 
-  if (!baselineSequence) {
-    return 0;
-  }
-
-  await Project.updateOne(
-    {
-      _id: project._id,
-    },
-    {
-      $max: {
-        issueSequence: baselineSequence,
+  if (baselineSequence > currentSequence) {
+    await Project.updateOne(
+      {
+        _id: project._id,
       },
+      {
+        $max: {
+          issueSequence: baselineSequence,
+        },
+      }
+    );
+
+    if (project) {
+      project.issueSequence = baselineSequence;
     }
-  );
+  }
 
   return baselineSequence;
 };
