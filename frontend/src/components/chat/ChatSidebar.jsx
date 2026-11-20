@@ -4,7 +4,7 @@ import { Check, Hash, MessageCircle, Plus, Search, Trash2, UsersRound, X } from 
 import UserAvatar from "@/components/shared/UserAvatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import ChatPresenceIndicator from "@/components/chat/ChatPresenceIndicator";
+import ChatPresenceIndicator, { PresentationIndicator } from "@/components/chat/ChatPresenceIndicator";
 import StatusIndicator from "@/components/presence/StatusIndicator";
 import { cn } from "@/lib/utils";
 
@@ -111,7 +111,10 @@ const ConversationButton = memo(
 
           <div className="min-w-0 flex-1">
             <div className="flex items-center justify-between gap-2">
-              <p className="truncate text-sm font-extrabold">{title}</p>
+              <div className="flex min-w-0 items-center gap-2">
+                <p className="truncate text-sm font-extrabold">{title}</p>
+                {conversation.type === "direct" ? <PresentationIndicator userId={getId(directUser)} /> : null}
+              </div>
               {conversation.unreadCount ? (
                 <span
                   className={cn(
