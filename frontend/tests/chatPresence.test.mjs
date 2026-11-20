@@ -208,7 +208,8 @@ test("remote call presence updates header and selected/unselected DM avatars wit
   const emit=async(event,payload)=>evaluate('window.fakeChatSocket.server('+JSON.stringify(event)+','+JSON.stringify(payload)+')');
   const waitLabel=(index,label)=>waitFor(dots+'['+index+']?.getAttribute("aria-label")==='+JSON.stringify(label));
   assert.deepEqual((await status()).map(x=>x.label),['Online','Online','Online']);
-  const geometry=await evaluate(dots+'.map(x=>({position:x.className,dot:x.firstElementChild.className.replace(/bg-[a-z]+-500/g,"COLOR"),height:x.firstElementChild.getBoundingClientRect().height,width:x.firstElementChild.getBoundingClientRect().width}))');
+  // Shadow colors vary with presence; preserve the dot size, border, and positioning.
+  const geometry=await evaluate(dots+'.map(x=>({position:x.className,dot:x.firstElementChild.className.split(" ").filter(token=>!token.startsWith("shadow-")).join(" ").replace(/bg-[a-z]+-500/g,"COLOR"),height:x.firstElementChild.getBoundingClientRect().height,width:x.firstElementChild.getBoundingClientRect().width}))');
   await emit('presence:update',{userId:'d1',status:'idle'});await waitLabel(0,'Idle');
   await emit('call:presence',{presence:{d1:'in-call',d2:'in-group-call'}});
   await waitLabel(0,'In Call');await waitLabel(1,'In Group Call');
@@ -222,7 +223,7 @@ test("remote call presence updates header and selected/unselected DM avatars wit
   assert.deepEqual((await status()).slice(0,2).map(x=>x.color),['rgb(239, 68, 68)','rgb(239, 68, 68)']);
   await evaluate('document.getElementById("root").dataset.theme="light"');
 
-  assert.deepEqual(await evaluate(dots+'.map(x=>({position:x.className,dot:x.firstElementChild.className.replace(/bg-[a-z]+-500/g,"COLOR"),height:x.firstElementChild.getBoundingClientRect().height,width:x.firstElementChild.getBoundingClientRect().width}))'),geometry);
+  assert.deepEqual(await evaluate(dots+'.map(x=>({position:x.className,dot:x.firstElementChild.className.split(" ").filter(token=>!token.startsWith("shadow-")).join(" ").replace(/bg-[a-z]+-500/g,"COLOR"),height:x.firstElementChild.getBoundingClientRect().height,width:x.firstElementChild.getBoundingClientRect().width}))'),geometry);
   // A normal online event cannot overwrite the per-user call overlay.
   await emit('presence:update',{userId:'d1',status:'active'});await waitLabel(0,'In Call');
   // Select the previously unselected call participant; both remain red.
@@ -348,7 +349,7 @@ test("remote call presence updates header and selected/unselected DM avatars wit
   // Theme inheritance remains intact when the menu is portalled outside the app.
   await evaluate('document.getElementById("root").dataset.theme="dark"');
   await waitFor(menu+'.parentElement.dataset.theme==="dark"');
-  await waitFor('getComputedStyle('+menu+').backgroundColor==="rgb(17, 24, 39)"');
+  await waitFor('getComputedStyle('+menu+').backgroundColor==="rgb(15, 23, 42)"');
   await evaluate('document.body.dispatchEvent(new PointerEvent("pointerdown",{bubbles:true}))');await waitFor('!'+menu);
   await openMenu();await key('Tab','Tab',9);await waitFor('!'+menu);
   await openMenu();await evaluate('window.selectTestConversation("dm-d2")');await waitFor('!'+menu+' && document.querySelector("header h1").textContent==="Bob"');

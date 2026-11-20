@@ -5750,12 +5750,8 @@ const JiraReportsDashboard = () => {
   };
 
   return (
-<<<<<<< HEAD
-    <div className="min-h-screen bg-slate-50/70 text-slate-950">
-      <ToastNotice toast={toast} onDismiss={() => setToast(null)} />
-=======
     <div className="min-h-screen bg-slate-50/70 text-slate-950 dark:bg-slate-950 dark:text-slate-100">
->>>>>>> 6d3c6df72f2f735bdd7ebeaf5eede4c93d516c1e
+      <ToastNotice toast={toast} onDismiss={() => setToast(null)} />
       <div className="space-y-4">
         <div className="rounded-lg border border-slate-200 bg-white px-4 py-4 shadow-sm dark:border-slate-800 dark:bg-slate-900/90">
           <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
@@ -5775,11 +5771,7 @@ const JiraReportsDashboard = () => {
               <Button className="print:hidden" type="button" variant="outline" size="sm" onClick={resetFilters}>Reset</Button>
             </div>
           </div>
-<<<<<<< HEAD
-          <nav className="mt-4 flex gap-1 overflow-x-auto border-b border-slate-200 pb-0 dashboard-scrollbar print:hidden">
-=======
-          <nav className="mt-4 flex gap-1 overflow-x-auto border-b border-slate-200 pb-0 dashboard-scrollbar dark:border-slate-800">
->>>>>>> 6d3c6df72f2f735bdd7ebeaf5eede4c93d516c1e
+          <nav className="mt-4 flex gap-1 overflow-x-auto border-b border-slate-200 pb-0 dashboard-scrollbar dark:border-slate-800 print:hidden">
             {REPORT_PAGES.map((page) => (
               <NavLink
                 className={({ isActive }) => cn(
