@@ -814,7 +814,9 @@ const AuthPage = () => {
 
   return (
     <main
-      className="auth-page-shell overflow-y-auto bg-[#FBFCFF] text-[#080B2F] xl:h-[var(--app-viewport-height)] xl:overflow-hidden"
+      data-theme="light"
+      data-theme-lock="light"
+      className="auth-theme-lock auth-page-shell overflow-y-auto bg-[#FBFCFF] text-[#080B2F] xl:h-[var(--app-viewport-height)] xl:overflow-hidden"
       style={{ fontFamily: '"Inter", sans-serif' }}
     >
       <div className="mx-auto grid min-h-full max-w-[1920px] grid-cols-1 xl:h-full xl:grid-cols-[minmax(0,1fr)_minmax(34rem,34rem)]">

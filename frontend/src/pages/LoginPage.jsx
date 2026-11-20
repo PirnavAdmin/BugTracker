@@ -136,7 +136,7 @@ export default function LoginPage({ signup = false }) {
     "h-12 w-full rounded-lg border border-slate-300 bg-white px-4 text-slate-950 outline-none transition placeholder:text-slate-400 focus:border-violet-600 focus:ring-4 focus:ring-violet-100";
 
   return (
-    <main className="min-h-screen bg-[radial-gradient(circle_at_15%_20%,rgba(124,58,237,.12),transparent_30%),radial-gradient(circle_at_85%_80%,rgba(37,99,235,.1),transparent_30%),#f8fafc] px-5 py-3 text-slate-950">
+    <main data-theme="light" data-theme-lock="light" className="auth-theme-lock min-h-screen bg-[radial-gradient(circle_at_15%_20%,rgba(124,58,237,.12),transparent_30%),radial-gradient(circle_at_85%_80%,rgba(37,99,235,.1),transparent_30%),#f8fafc] px-5 py-3 text-slate-950">
       <header className="mx-auto flex max-w-6xl items-center justify-between">
         <Link to="/">
           <img className="h-14 w-auto" src={pirnavLogo} alt="CureCode" />
