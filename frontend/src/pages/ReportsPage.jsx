@@ -98,6 +98,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import ToastNotice from "@/components/shared/ToastNotice";
 import { getBugColumnKey, TESTER_BUG_COLUMNS } from "@/components/bugs/bugBoardConfig";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -528,23 +529,103 @@ const DeveloperDistributionWidget = ({
   );
 };
 
-const exportCsv = (rows) => {
+const getReportExportFilename = (name = "report") => {
+  const safeName =
+    String(name)
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-|-$/g, "") || "report";
+
+  return `${safeName}-${new Date().toISOString().slice(0, 10)}`;
+};
+
+const downloadBlob = (blob, filename) => {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  link.style.display = "none";
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+};
+
+const exportCsv = (rows, reportName = "workflow-analytics") => {
   if (typeof document === "undefined") {
-    return;
+    throw new Error("Report export is only available in a browser");
   }
 
   const escapeValue = (value) => {
     const text = String(value ?? "");
-    return /[",\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+    return /[",\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
   };
   const csv = rows.map((row) => row.map(escapeValue).join(",")).join("\n");
-  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = `workflow-analytics-${new Date().toISOString().slice(0, 10)}.csv`;
-  link.click();
-  URL.revokeObjectURL(url);
+  const blob = new Blob(["\uFEFF", csv], { type: "text/csv;charset=utf-8;" });
+  downloadBlob(blob, `${getReportExportFilename(reportName)}.csv`);
+};
+
+const exportExcel = async (rows, reportName = "report") => {
+  if (typeof document === "undefined") {
+    throw new Error("Report export is only available in a browser");
+  }
+
+  const excelModule = await import("exceljs");
+  const ExcelJS = excelModule.default || excelModule;
+  const workbook = new ExcelJS.Workbook();
+  const worksheet = workbook.addWorksheet("Report");
+  const headers = rows[0] || [];
+
+  worksheet.columns = headers.map((header, index) => ({
+    header: String(header ?? ""),
+    key: `column${index}`,
+    width: Math.min(
+      Math.max(String(header ?? "").length + 4, 14),
+      36
+    ),
+  }));
+  worksheet.addRows(rows.slice(1));
+  worksheet.getRow(1).font = { bold: true, color: { argb: "FFFFFFFF" } };
+  worksheet.getRow(1).fill = {
+    type: "pattern",
+    pattern: "solid",
+    fgColor: { argb: "FF2563EB" },
+  };
+  worksheet.views = [{ state: "frozen", ySplit: 1 }];
+  if (headers.length) {
+    worksheet.autoFilter = {
+      from: { row: 1, column: 1 },
+      to: { row: Math.max(rows.length, 1), column: headers.length },
+    };
+  }
+
+  const buffer = await workbook.xlsx.writeBuffer();
+  const blob = new Blob([buffer], {
+    type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  });
+  downloadBlob(blob, `${getReportExportFilename(reportName)}.xlsx`);
+};
+
+const copyTextToClipboard = async (text) => {
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(text);
+    return;
+  }
+
+  const textarea = document.createElement("textarea");
+  textarea.value = text;
+  textarea.setAttribute("readonly", "");
+  textarea.style.position = "fixed";
+  textarea.style.opacity = "0";
+  document.body.appendChild(textarea);
+  textarea.select();
+  const didCopy = document.execCommand("copy");
+  textarea.remove();
+
+  if (!didCopy) {
+    throw new Error("Clipboard access is unavailable in this browser");
+  }
 };
 
 const getStatusParts = (statusFilter) => {
@@ -2460,12 +2541,7 @@ const KpiMiniCard = ({ title, value, icon: Icon, tone = "blue" }) => {
 
 const OrganizationReportsDashboard = () => {
   const queryClient = useQueryClient();
-  const [workflowView, setWorkflowView] = useState("all");
-  const [developerTeamFilter, setDeveloperTeamFilter] = useState("all");
-  const [qaTeamFilter, setQaTeamFilter] = useState("all");
-  const [activeDashboard, setActiveDashboard] = useState("Overview");
-  const [comparisonMode, setComparisonMode] = useState("sprint");
-  const [filters, setFilters] = useState({
+  const defaultFilters = {
     projectId: "all",
     teamId: "all",
     sprintId: "all",
@@ -2478,7 +2554,45 @@ const OrganizationReportsDashboard = () => {
     status: "all",
     dateFrom: "",
     dateTo: "",
+  };
+  const initialReportState = useRef(null);
+  if (!initialReportState.current) {
+    let restoredState = null;
+    if (typeof window !== "undefined") {
+      try {
+        const sharedFilters = new URLSearchParams(window.location.search).get("reportsFilters");
+        restoredState = sharedFilters ? JSON.parse(sharedFilters) : null;
+      } catch {
+        restoredState = null;
+      }
+
+      if (!restoredState) {
+        try {
+          restoredState = JSON.parse(
+            window.localStorage.getItem("enterprise-report-filters") || "null"
+          );
+        } catch {
+          restoredState = null;
+        }
+      }
+    }
+    initialReportState.current =
+      restoredState && typeof restoredState === "object" ? restoredState : {};
+  }
+  const [workflowView, setWorkflowView] = useState("all");
+  const [developerTeamFilter, setDeveloperTeamFilter] = useState("all");
+  const [qaTeamFilter, setQaTeamFilter] = useState("all");
+  const [activeDashboard, setActiveDashboard] = useState("Overview");
+  const [comparisonMode, setComparisonMode] = useState(
+    initialReportState.current.comparisonMode || "sprint"
+  );
+  const [filters, setFilters] = useState({
+    ...defaultFilters,
+    ...(initialReportState.current.filters || {}),
   });
+  const [toast, setToast] = useState(null);
+  const showActionToast = (type, message) =>
+    setToast({ id: Date.now(), type, message });
   const statusParts = getStatusParts(filters.status);
   const bugSummaryFilter =
     statusParts.statusGroup === "open"
@@ -3095,24 +3209,42 @@ const OrganizationReportsDashboard = () => {
     setWorkflowView("all");
     setDeveloperTeamFilter("all");
     setQaTeamFilter("all");
-    setFilters({
-      projectId: "all",
-      teamId: "all",
-      sprintId: "all",
-      epicId: "all",
-      assigneeId: "all",
-      developerId: "all",
-      testerId: "all",
-      priority: "all",
-      severity: "all",
-      status: "all",
-      dateFrom: "",
-      dateTo: "",
-    });
+    setComparisonMode("sprint");
+    setFilters(defaultFilters);
+    try {
+      localStorage.removeItem("enterprise-report-filters");
+      const url = new URL(window.location.href);
+      url.searchParams.delete("reportsFilters");
+      window.history.replaceState(window.history.state, "", url);
+      showActionToast("success", "Report filters reset.");
+    } catch (error) {
+      showActionToast(
+        "error",
+        error?.message || "Filters were reset, but saved report filters could not be cleared."
+      );
+    }
   };
-  const refresh = () => queryClient.invalidateQueries({ queryKey: ["analytics"] });
-  const exportAnalytics = () =>
-    exportCsv([
+  const refresh = async () => {
+    try {
+      await Promise.all([
+        queryClient.refetchQueries({
+          queryKey: ["analytics"],
+          type: "active",
+          throwOnError: true,
+        }),
+        queryClient.refetchQueries({
+          queryKey: ["projects"],
+          exact: true,
+          type: "active",
+          throwOnError: true,
+        }),
+      ]);
+      showActionToast("success", "Report data refreshed.");
+    } catch (error) {
+      showActionToast("error", error?.message || "Unable to refresh report data.");
+    }
+  };
+  const getAnalyticsExportRows = () => [
       ["Workflow", "ID", "Title", "Project", "Team", "Tester", "Owner", "Status", "Priority", "Severity", "Created", "Resolution ms"],
       ...workflowIssues.map((issue) => [
         issue.type === ISSUE_TYPES.BUG ? "Bug" : "Task",
@@ -3128,18 +3260,69 @@ const OrganizationReportsDashboard = () => {
         issue.createdAt || "",
         issue.resolutionTimeMs || "",
       ]),
-    ]);
-  const exportExcel = () => exportAnalytics();
+  ];
+  const exportAnalytics = () => {
+    try {
+      exportCsv(getAnalyticsExportRows(), "enterprise-analytics");
+      showActionToast("success", "CSV report downloaded.");
+    } catch (error) {
+      showActionToast("error", error?.message || "Unable to export the CSV report.");
+    }
+  };
+  const exportExcelReport = async () => {
+    try {
+      await exportExcel(getAnalyticsExportRows(), "enterprise-analytics");
+      showActionToast("success", "Excel report downloaded.");
+    } catch (error) {
+      showActionToast("error", error?.message || "Unable to export the Excel report.");
+    }
+  };
   const saveFilter = () => {
-    localStorage.setItem("enterprise-report-filters", JSON.stringify({ filters, comparisonMode }));
+    try {
+      localStorage.setItem(
+        "enterprise-report-filters",
+        JSON.stringify({ filters, comparisonMode, savedAt: new Date().toISOString() })
+      );
+      showActionToast("success", "Current report filters were saved in this browser.");
+    } catch (error) {
+      showActionToast("error", error?.message || "Unable to save report filters.");
+    }
   };
   const scheduleReport = () => {
-    localStorage.setItem("enterprise-report-schedule", JSON.stringify({ filters, comparisonMode, cadence: "weekly" }));
+    try {
+      const scheduledAt = new Date();
+      const nextRunAt = new Date(scheduledAt);
+      nextRunAt.setDate(nextRunAt.getDate() + 7);
+      const reportUrl = new URL(window.location.href);
+      reportUrl.searchParams.set("reportsFilters", JSON.stringify({ filters, comparisonMode }));
+      localStorage.setItem(
+        "enterprise-report-schedule",
+        JSON.stringify({
+          filters,
+          comparisonMode,
+          cadence: "weekly",
+          scheduledAt: scheduledAt.toISOString(),
+          nextRunAt: nextRunAt.toISOString(),
+          reportUrl: reportUrl.toString(),
+        })
+      );
+      showActionToast(
+        "success",
+        "Weekly report schedule saved in this browser. Automatic email delivery is not configured."
+      );
+    } catch (error) {
+      showActionToast("error", error?.message || "Unable to save the report schedule.");
+    }
   };
   const shareReport = async () => {
-    const url = new URL(window.location.href);
-    url.searchParams.set("reportsFilters", btoa(JSON.stringify({ filters, comparisonMode })));
-    await navigator.clipboard?.writeText(url.toString());
+    try {
+      const url = new URL(window.location.href);
+      url.searchParams.set("reportsFilters", JSON.stringify({ filters, comparisonMode }));
+      await copyTextToClipboard(url.toString());
+      showActionToast("success", "A link to this filtered report was copied.");
+    } catch (error) {
+      showActionToast("error", error?.message || "Unable to copy the report link.");
+    }
   };
   const enterFullscreen = () => document.documentElement.requestFullscreen?.();
   const drillTo = (view) => {
@@ -3163,6 +3346,7 @@ const OrganizationReportsDashboard = () => {
 
   return (
     <div className="space-y-5">
+      <ToastNotice toast={toast} onDismiss={() => setToast(null)} />
       <Card className="overflow-hidden rounded-[16px] border-slate-200 bg-white shadow-md">
         <CardContent className="space-y-3 p-3 sm:p-4">
           <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
@@ -3173,9 +3357,9 @@ const OrganizationReportsDashboard = () => {
                 Task flow and bug flow are measured independently with a combined performance view.
               </p>
             </div>
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap gap-2 print:hidden">
               <EnterpriseActionButton icon={FileText} onClick={() => window.print()}>Export PDF</EnterpriseActionButton>
-              <EnterpriseActionButton icon={Download} onClick={exportExcel}>Excel</EnterpriseActionButton>
+              <EnterpriseActionButton icon={Download} onClick={exportExcelReport}>Excel</EnterpriseActionButton>
               <EnterpriseActionButton icon={Download} onClick={exportAnalytics}>CSV</EnterpriseActionButton>
               <EnterpriseActionButton icon={CalendarClock} onClick={scheduleReport}>Schedule Report</EnterpriseActionButton>
               <EnterpriseActionButton icon={Share2} onClick={shareReport}>Share</EnterpriseActionButton>
@@ -3898,7 +4082,45 @@ const normalizeCustomReportDateRange = (filters = {}, datePreset = DEFAULT_REPOR
 const isValidReportDatePreset = (value) =>
   REPORT_DATE_PRESETS.some((preset) => preset.value === value);
 
-const readJiraReportStateFromSearchParams = (searchParams) => {
+const readJiraReportStateFromSearchParams = (searchParams, activePage = "") => {
+  const hasExplicitReportState =
+    searchParams.has("datePreset") ||
+    searchParams.has("comparison") ||
+    REPORT_FILTER_KEYS.some((key) => searchParams.has(key));
+
+  if (!hasExplicitReportState && typeof window !== "undefined") {
+    try {
+      const savedState = JSON.parse(
+        window.localStorage.getItem("jira-report-filters") || "null"
+      );
+
+      if (
+        savedState &&
+        savedState.activePage === activePage &&
+        savedState.filters &&
+        typeof savedState.filters === "object"
+      ) {
+        const savedDatePreset = isValidReportDatePreset(savedState.datePreset)
+          ? savedState.datePreset
+          : DEFAULT_REPORT_DATE_PRESET;
+        const filters = {
+          ...REPORT_DEFAULT_FILTER_VALUES,
+          ...getReportDatePreset(savedDatePreset),
+          ...savedState.filters,
+        };
+
+        return {
+          comparisonMode:
+            savedState.comparisonMode || DEFAULT_REPORT_COMPARISON_MODE,
+          datePreset: savedDatePreset,
+          filters: normalizeCustomReportDateRange(filters, savedDatePreset),
+        };
+      }
+    } catch {
+      // Ignore an invalid saved report state and continue with URL/default filters.
+    }
+  }
+
   const hasCustomDateRange = Boolean(searchParams.get("dateFrom") || searchParams.get("dateTo"));
   const datePreset = isValidReportDatePreset(searchParams.get("datePreset"))
     ? searchParams.get("datePreset")
@@ -4613,9 +4835,15 @@ const JiraReportsDashboard = () => {
   const queryClient = useQueryClient();
   const activePage = reportKey || "overview";
   const initialReportState = useRef(null);
+  const [toast, setToast] = useState(null);
+  const showActionToast = (type, message) =>
+    setToast({ id: Date.now(), type, message });
 
   if (!initialReportState.current) {
-    initialReportState.current = readJiraReportStateFromSearchParams(searchParams);
+    initialReportState.current = readJiraReportStateFromSearchParams(
+      searchParams,
+      activePage
+    );
   }
 
   const [comparisonMode, setComparisonMode] = useState(
@@ -4640,7 +4868,10 @@ const JiraReportsDashboard = () => {
   }, [activePage, reportSearch]);
 
   useEffect(() => {
-    const nextState = readJiraReportStateFromSearchParams(searchParams);
+    const nextState = readJiraReportStateFromSearchParams(
+      searchParams,
+      activePage
+    );
     const nextSearch = buildJiraReportSearchParams(
       nextState.filters,
       nextState.datePreset,
@@ -5033,6 +5264,15 @@ const JiraReportsDashboard = () => {
     setComparisonMode(DEFAULT_REPORT_COMPARISON_MODE);
     setFilters(nextFilters);
     replaceReportSearch(nextFilters, DEFAULT_REPORT_DATE_PRESET, DEFAULT_REPORT_COMPARISON_MODE);
+    try {
+      window.localStorage.removeItem("jira-report-filters");
+      showActionToast("success", "Report filters reset.");
+    } catch (error) {
+      showActionToast(
+        "error",
+        error?.message || "Filters were reset, but saved report filters could not be cleared."
+      );
+    }
   };
   const showAllResults = () => {
     const nextFilters = {
@@ -5052,9 +5292,8 @@ const JiraReportsDashboard = () => {
       : activePage === "bugs" || activePage === "qa"
         ? [{ value: "all", label: "All statuses" }, ...BUG_STATUS_OPTIONS]
         : STATUS_OPTIONS;
-  const exportRows = (rows, name = activePage) =>
-    exportCsv([
-      ["Type", "Key", "Title", "Project", "Epic", "Story", "Sprint", "Owner", "Tester", "Status", "Priority", "Created", "Closed"],
+  const buildIssueExportRows = (rows) => [
+    ["Type", "Key", "Title", "Project", "Epic", "Story", "Sprint", "Owner", "Tester", "Status", "Priority", "Created", "Closed"],
       ...rows.map((issue) => [
         issue.type === ISSUE_TYPES.BUG ? "Bug" : "Task",
         getIssueDisplayKey(issue),
@@ -5070,23 +5309,10 @@ const JiraReportsDashboard = () => {
         issue.createdAt || "",
         issue.closedAt || "",
       ]),
-    ], name);
-  const shareReport = async () => {
-    const url = new URL(window.location.href);
-    url.searchParams.set("filters", btoa(JSON.stringify({ filters, comparisonMode })));
-    await navigator.clipboard?.writeText(url.toString());
-  };
-  const saveFilter = () => localStorage.setItem("jira-report-filters", JSON.stringify({ filters, comparisonMode, activePage }));
-  const scheduleReport = () => localStorage.setItem("jira-report-schedule", JSON.stringify({ filters, comparisonMode, activePage, cadence: "weekly" }));
-  const hasDrilldown = Boolean(drilldown);
-  const renderDrilldownPanel = () =>
-    drilldown ? (
-      <JiraDrilldown rows={drilldown.rows} title={drilldown.title} onClear={() => setDrilldown(null)} />
-    ) : null;
-
-  const exportCurrentReport = () => {
+  ];
+  const getCurrentReportExportRows = () => {
     if (activePage === "qa") {
-      exportCsv([
+      return [
         ["Tester", "Availability", "Task - Total", "Task - Active", "Task - In Progress", "Task - Done", "Bug - Total", "Bug - Active", "Bug - Ready For QA", "Bug - Closed"],
         ...availableTesterRows.map((tester) => [
           tester.name,
@@ -5100,12 +5326,119 @@ const JiraReportsDashboard = () => {
           tester.readyForQa,
           tester.closed,
         ]),
-      ]);
-      return;
+      ];
     }
 
-    exportRows(reportExportIssues, activePage);
+    return buildIssueExportRows(reportExportIssues);
   };
+  const exportCurrentReport = () => {
+    try {
+      exportCsv(getCurrentReportExportRows(), activePage);
+      showActionToast("success", `${activeReport?.label || "Report"} CSV downloaded.`);
+    } catch (error) {
+      showActionToast("error", error?.message || "Unable to export this report.");
+    }
+  };
+  const exportCurrentExcel = async () => {
+    try {
+      await exportExcel(getCurrentReportExportRows(), activePage);
+      showActionToast("success", `${activeReport?.label || "Report"} Excel file downloaded.`);
+    } catch (error) {
+      showActionToast("error", error?.message || "Unable to export this report to Excel.");
+    }
+  };
+  const shareReport = async () => {
+    try {
+      const url = new URL(reportPath(), window.location.origin).toString();
+      await copyTextToClipboard(url);
+      showActionToast("success", "A link to this filtered report was copied.");
+    } catch (error) {
+      showActionToast("error", error?.message || "Unable to copy the report link.");
+    }
+  };
+  const refreshReport = async () => {
+    try {
+      await Promise.all([
+        queryClient.refetchQueries({
+          queryKey: ["analytics"],
+          type: "active",
+          throwOnError: true,
+        }),
+        queryClient.refetchQueries({
+          queryKey: ["projects"],
+          exact: true,
+          type: "active",
+          throwOnError: true,
+        }),
+        queryClient.refetchQueries({
+          queryKey: ["workspace-users", "reports"],
+          exact: true,
+          type: "active",
+          throwOnError: true,
+        }),
+        selectedProjectId
+          ? queryClient.refetchQueries({
+              queryKey: ["jira-reports", "sprints", selectedProjectId],
+              exact: true,
+              type: "active",
+              throwOnError: true,
+            })
+          : Promise.resolve(),
+      ]);
+      showActionToast("success", "Report data refreshed.");
+    } catch (error) {
+      showActionToast("error", error?.message || "Unable to refresh report data.");
+    }
+  };
+  const saveFilter = () => {
+    try {
+      window.localStorage.setItem(
+        "jira-report-filters",
+        JSON.stringify({
+          filters,
+          datePreset,
+          comparisonMode,
+          activePage,
+          savedAt: new Date().toISOString(),
+        })
+      );
+      showActionToast("success", "Current report filters were saved in this browser.");
+    } catch (error) {
+      showActionToast("error", error?.message || "Unable to save report filters.");
+    }
+  };
+  const scheduleReport = () => {
+    try {
+      const scheduledAt = new Date();
+      const nextRunAt = new Date(scheduledAt);
+      nextRunAt.setDate(nextRunAt.getDate() + 7);
+      window.localStorage.setItem(
+        "jira-report-schedule",
+        JSON.stringify({
+          filters,
+          datePreset,
+          comparisonMode,
+          activePage,
+          cadence: "weekly",
+          scheduledAt: scheduledAt.toISOString(),
+          nextRunAt: nextRunAt.toISOString(),
+          reportUrl: new URL(reportPath(), window.location.origin).toString(),
+        })
+      );
+      showActionToast(
+        "success",
+        "Weekly report schedule saved in this browser. Automatic email delivery is not configured."
+      );
+    } catch (error) {
+      showActionToast("error", error?.message || "Unable to save the report schedule.");
+    }
+  };
+  const hasDrilldown = Boolean(drilldown);
+  const renderDrilldownPanel = () =>
+    drilldown ? (
+      <JiraDrilldown rows={drilldown.rows} title={drilldown.title} onClear={() => setDrilldown(null)} />
+    ) : null;
+
   const topDeveloper = developerPerformance[0] || null;
   const renderPage = () => {
     if (activePage === "tasks") {
@@ -5417,7 +5750,12 @@ const JiraReportsDashboard = () => {
   };
 
   return (
+<<<<<<< HEAD
+    <div className="min-h-screen bg-slate-50/70 text-slate-950">
+      <ToastNotice toast={toast} onDismiss={() => setToast(null)} />
+=======
     <div className="min-h-screen bg-slate-50/70 text-slate-950 dark:bg-slate-950 dark:text-slate-100">
+>>>>>>> 6d3c6df72f2f735bdd7ebeaf5eede4c93d516c1e
       <div className="space-y-4">
         <div className="rounded-lg border border-slate-200 bg-white px-4 py-4 shadow-sm dark:border-slate-800 dark:bg-slate-900/90">
           <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
@@ -5426,18 +5764,22 @@ const JiraReportsDashboard = () => {
               <h1 className="mt-1 text-2xl font-semibold">Enterprise Reporting</h1>
               <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Jira-style analytics with dedicated report pages and drill-down data.</p>
             </div>
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap gap-2 print:hidden">
               <EnterpriseActionButton icon={FileText} onClick={() => window.print()}>PDF</EnterpriseActionButton>
-              <EnterpriseActionButton icon={Download} onClick={exportCurrentReport}>Excel</EnterpriseActionButton>
+              <EnterpriseActionButton icon={Download} onClick={exportCurrentExcel}>Excel</EnterpriseActionButton>
               <EnterpriseActionButton icon={Download} onClick={exportCurrentReport}>CSV</EnterpriseActionButton>
               <EnterpriseActionButton icon={Share2} onClick={shareReport}>Share</EnterpriseActionButton>
-              <EnterpriseActionButton icon={RefreshCcw} onClick={() => queryClient.invalidateQueries({ queryKey: ["analytics"] })}>Refresh</EnterpriseActionButton>
+              <EnterpriseActionButton icon={RefreshCcw} onClick={refreshReport}>Refresh</EnterpriseActionButton>
               <EnterpriseActionButton icon={Save} onClick={saveFilter}>Save Filter</EnterpriseActionButton>
               <EnterpriseActionButton icon={CalendarClock} onClick={scheduleReport}>Schedule</EnterpriseActionButton>
-              <Button type="button" variant="outline" size="sm" onClick={resetFilters}>Reset</Button>
+              <Button className="print:hidden" type="button" variant="outline" size="sm" onClick={resetFilters}>Reset</Button>
             </div>
           </div>
+<<<<<<< HEAD
+          <nav className="mt-4 flex gap-1 overflow-x-auto border-b border-slate-200 pb-0 dashboard-scrollbar print:hidden">
+=======
           <nav className="mt-4 flex gap-1 overflow-x-auto border-b border-slate-200 pb-0 dashboard-scrollbar dark:border-slate-800">
+>>>>>>> 6d3c6df72f2f735bdd7ebeaf5eede4c93d516c1e
             {REPORT_PAGES.map((page) => (
               <NavLink
                 className={({ isActive }) => cn(
