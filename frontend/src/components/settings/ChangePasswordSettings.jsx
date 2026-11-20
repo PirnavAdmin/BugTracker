@@ -238,14 +238,6 @@ const ChangePasswordSettings = () => {
     }));
   };
 
-  const setAllPasswordsVisible = (visible) => {
-    setPasswordVisibility({
-      currentPassword: visible,
-      newPassword: visible,
-      confirmPassword: visible,
-    });
-  };
-
   const handleSubmit = async (event) => {
     event.preventDefault();
 
@@ -328,37 +320,39 @@ const ChangePasswordSettings = () => {
                 onChange={handleFieldChange}
               />
 
-              <div className="space-y-2">
-                <p className="text-xs text-slate-500">
-                  Use at least 8 characters with uppercase and lowercase letters, a number, and a special character.
-                </p>
-                <div className="flex items-center gap-3">
-                  <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-slate-100">
-                    <div
+              {passwordValidationError ? (
+                <div className="space-y-2">
+                  <p className="text-xs text-slate-500">
+                    Use at least 8 characters with uppercase and lowercase letters, a number, and a special character.
+                  </p>
+                  <div className="flex items-center gap-3">
+                    <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-slate-100">
+                      <div
+                        className={cn(
+                          "h-full rounded-full transition-all duration-300 ease-out",
+                          strengthMeta.tone === "emerald" && "bg-emerald-500",
+                          strengthMeta.tone === "amber" && "bg-amber-400",
+                          strengthMeta.tone === "rose" && "bg-rose-500",
+                          strengthMeta.tone === "slate" && "bg-slate-300"
+                        )}
+                        style={{ width: `${strengthMeta.width}%` }}
+                      />
+                    </div>
+                    <span
                       className={cn(
-                        "h-full rounded-full transition-all duration-300 ease-out",
-                        strengthMeta.tone === "emerald" && "bg-emerald-500",
-                        strengthMeta.tone === "amber" && "bg-amber-400",
-                        strengthMeta.tone === "rose" && "bg-rose-500",
-                        strengthMeta.tone === "slate" && "bg-slate-300"
+                        "min-w-[56px] text-right text-xs font-semibold transition-colors duration-200",
+                        strengthMeta.tone === "emerald" &&
+                          "text-emerald-600",
+                        strengthMeta.tone === "amber" && "text-amber-600",
+                        strengthMeta.tone === "rose" && "text-rose-600",
+                        strengthMeta.tone === "slate" && "text-slate-500"
                       )}
-                      style={{ width: `${strengthMeta.width}%` }}
-                    />
+                    >
+                      {strengthMeta.label}
+                    </span>
                   </div>
-                  <span
-                    className={cn(
-                      "min-w-[56px] text-right text-xs font-semibold transition-colors duration-200",
-                      strengthMeta.tone === "emerald" &&
-                        "text-emerald-600",
-                      strengthMeta.tone === "amber" && "text-amber-600",
-                      strengthMeta.tone === "rose" && "text-rose-600",
-                      strengthMeta.tone === "slate" && "text-slate-500"
-                    )}
-                  >
-                    {strengthMeta.label}
-                  </span>
                 </div>
-              </div>
+              ) : null}
             </div>
 
             <PasswordField
@@ -382,19 +376,6 @@ const ChangePasswordSettings = () => {
               onBlur={handleFieldBlur}
               onChange={handleFieldChange}
             />
-
-            <label className="flex items-center gap-3 text-sm text-slate-600">
-              <input
-                type="checkbox"
-                className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500/30"
-                checked={Object.values(passwordVisibility).every(Boolean)}
-                disabled={isPasswordUpdatePending}
-                onChange={(event) =>
-                  setAllPasswordsVisible(event.target.checked)
-                }
-              />
-              <span>Show Password</span>
-            </label>
 
             <Button
               className="mt-1 h-12 w-full rounded-2xl bg-gradient-to-r from-blue-600 to-sky-500 text-white shadow-[0_18px_34px_-18px_rgba(37,99,235,0.55)] transition-all duration-200 hover:-translate-y-0.5 hover:from-blue-700 hover:to-sky-600 hover:shadow-[0_22px_42px_-18px_rgba(37,99,235,0.62)]"
