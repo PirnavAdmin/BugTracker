@@ -107,10 +107,10 @@ const TaskCardSurface = ({
       style={style}
       aria-busy={isUpdating}
       className={cn(
-        "group relative rounded-[16px] border border-slate-200 bg-white p-4 text-left shadow-sm transition duration-200 ease-out hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-[0_18px_40px_-30px_rgba(37,99,235,0.34)]",
-        isNearDue && "border-amber-300",
+        "group relative rounded-[16px] border border-slate-200 bg-white p-4 text-left shadow-sm transition duration-200 ease-out hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-[0_18px_40px_-30px_rgba(37,99,235,0.34)] dark:border-slate-800/90 dark:bg-slate-900/90 dark:hover:border-slate-700 dark:hover:shadow-black/50",
+        isNearDue && "border-amber-300 dark:border-amber-500/50",
         isDragging && "opacity-40",
-        isOverlay && "rotate-[0.5deg] shadow-[0_24px_54px_-28px_rgba(15,23,42,0.58)]",
+        isOverlay && "rotate-[0.5deg] shadow-[0_24px_54px_-28px_rgba(15,23,42,0.58)] dark:shadow-black/80",
         isUpdating && "pointer-events-none opacity-70",
         readOnly && "cursor-pointer hover:translate-y-0"
       )}
@@ -139,7 +139,7 @@ const TaskCardSurface = ({
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+            <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500 dark:bg-slate-800 dark:text-slate-400">
               {getIssueDisplayKey(issue)}
             </span>
             <Badge
@@ -159,22 +159,22 @@ const TaskCardSurface = ({
             ) : null}
           </div>
 
-          <h3 className="mt-3 line-clamp-2 text-sm font-semibold leading-5 text-slate-950 transition group-hover:text-blue-700">
+          <h3 className="mt-3 line-clamp-2 text-sm font-semibold leading-5 text-slate-950 transition group-hover:text-blue-700 dark:text-slate-100 dark:group-hover:text-blue-400">
             {issue.title}
           </h3>
         </div>
 
         {!readOnly ? (
-          <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-slate-400 transition group-hover:border-blue-200 group-hover:text-blue-500">
+          <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-slate-400 transition group-hover:border-blue-200 group-hover:text-blue-500 dark:border-slate-800 dark:bg-slate-800 dark:text-slate-400 dark:group-hover:border-slate-700 dark:group-hover:text-blue-400">
             <GripVertical className="h-4 w-4" />
           </span>
         ) : null}
       </div>
 
-      <div className="mt-4 space-y-2.5 text-xs text-slate-600">
+      <div className="mt-4 space-y-2.5 text-xs text-slate-600 dark:text-slate-400">
         <div className="flex items-center gap-2">
           <FolderKanban className="h-4 w-4 shrink-0 text-slate-400" />
-          <span className="truncate font-medium text-slate-800">
+          <span className="truncate font-medium text-slate-800 dark:text-slate-300">
             {issue.projectId?.name || "Unknown project"}
           </span>
         </div>
@@ -183,13 +183,13 @@ const TaskCardSurface = ({
           {assignee ? (
             <UserAvatar
               user={assignee}
-              className="h-4 w-4 shrink-0 rounded-full border border-slate-200"
+              className="h-4 w-4 shrink-0 rounded-full border border-slate-200 dark:border-slate-700"
               fallbackClassName="text-[7px]"
             />
           ) : (
             <UserCircle2 className="h-4 w-4 shrink-0 text-slate-400" />
           )}
-          <span className="truncate font-medium text-slate-800">
+          <span className="truncate font-medium text-slate-800 dark:text-slate-300">
             {assignee?.name || "Unassigned"}
           </span>
         </div>
@@ -202,7 +202,7 @@ const TaskCardSurface = ({
         ) : null}
 
         {issue?.dueAt ? (
-          <div className={cn("flex items-center gap-2", isOverdue ? "text-rose-700" : "text-slate-600")}>
+          <div className={cn("flex items-center gap-2", isOverdue ? "text-rose-700 dark:text-rose-400" : "text-slate-600 dark:text-slate-400")}>
             <AlertTriangle className={cn("h-4 w-4 shrink-0", isOverdue ? "text-rose-500" : "text-amber-500")} />
             <span>{isOverdue ? `Overdue by ${deadlineLabel.replace(" Late", "")}` : deadlineLabel || "On schedule"}</span>
           </div>
@@ -210,8 +210,8 @@ const TaskCardSurface = ({
       </div>
 
       {isUpdating ? (
-        <div className="absolute inset-0 flex items-center justify-center rounded-[16px] bg-white/72 backdrop-blur-[2px]">
-          <span className="inline-flex items-center gap-2 rounded-full border border-blue-100 bg-white px-3 py-1.5 text-xs font-semibold text-blue-700 shadow-sm">
+        <div className="absolute inset-0 flex items-center justify-center rounded-[16px] bg-white/72 backdrop-blur-[2px] dark:bg-slate-950/70">
+          <span className="inline-flex items-center gap-2 rounded-full border border-blue-100 bg-white px-3 py-1.5 text-xs font-semibold text-blue-700 shadow-sm dark:border-blue-900/60 dark:bg-slate-900 dark:text-blue-400">
             <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
             Updating
           </span>

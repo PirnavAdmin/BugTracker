@@ -152,7 +152,7 @@ const IssueCardActionMenu = ({
         ref={triggerRef}
         variant="ghost"
         size="icon"
-        className="h-7 w-7 shrink-0 rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-900"
+        className="h-7 w-7 shrink-0 rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100"
         type="button"
         aria-label="Issue actions"
         aria-expanded={open}
@@ -176,7 +176,7 @@ const IssueCardActionMenu = ({
               ref={menuRef}
               role="menu"
               className={cn(
-                "fixed z-[70] w-56 max-w-[calc(100vw-1.5rem)] rounded-2xl border border-slate-200/90 bg-white p-1.5 shadow-[0_20px_44px_-28px_rgba(15,23,42,0.35)]",
+                "fixed z-[70] w-56 max-w-[calc(100vw-1.5rem)] rounded-2xl border border-slate-200/90 bg-white p-1.5 shadow-[0_20px_44px_-28px_rgba(15,23,42,0.35)] dark:border-slate-800 dark:bg-slate-900 dark:shadow-black/60",
                 menuPosition.ready ? "opacity-100" : "opacity-0"
               )}
               style={{
@@ -190,7 +190,7 @@ const IssueCardActionMenu = ({
               <button
                 type="button"
                 role="menuitem"
-                className="w-full rounded-xl px-3 py-2 text-left text-sm font-medium text-slate-700 transition hover:bg-slate-100"
+                className="w-full rounded-xl px-3 py-2 text-left text-sm font-medium text-slate-700 transition hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800"
                 onClick={() => {
                   onSelectIssue?.(issue);
                   setOpen(false);
@@ -201,8 +201,8 @@ const IssueCardActionMenu = ({
 
               {canChangeStatus && statusOptions.length ? (
                 <>
-                  <div className="my-1 border-t border-slate-100" />
-                  <p className="px-3 pb-1 pt-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-400">
+                  <div className="my-1 border-t border-slate-100 dark:border-slate-800" />
+                  <p className="px-3 pb-1 pt-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500">
                     Move to status
                   </p>
                   {statusOptions.map((option) => (
@@ -214,8 +214,8 @@ const IssueCardActionMenu = ({
                       className={cn(
                         "w-full rounded-xl px-3 py-2 text-left text-sm transition",
                         option.value === currentStatus
-                          ? "cursor-default bg-slate-50 font-semibold text-slate-900"
-                          : "font-medium text-slate-700 hover:bg-slate-100"
+                          ? "cursor-default bg-slate-50 font-semibold text-slate-900 dark:bg-slate-800/80 dark:text-slate-100"
+                          : "font-medium text-slate-700 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
                       )}
                       onClick={() => handleStatusSelect(option.value)}
                     >
@@ -256,18 +256,18 @@ const IssueCard = ({
   const deadlineLabel = getIssueDeadlineLabel(issue);
   const secondaryChips = [
     issue.epicId?.name
-      ? { key: `epic-${issue._id}`, label: issue.epicId.name, className: "border-violet-100 bg-violet-50 text-violet-700" }
+      ? { key: `epic-${issue._id}`, label: issue.epicId.name, className: "border-violet-100 bg-violet-50 text-violet-700 dark:border-violet-800/60 dark:bg-violet-950/40 dark:text-violet-300" }
       : null,
     issue.sprintId?.name
-      ? { key: `sprint-${issue._id}`, label: issue.sprintId.name, className: "border-sky-100 bg-sky-50 text-sky-700" }
-      : { key: `backlog-${issue._id}`, label: "Backlog", className: "border-slate-200 bg-slate-50 text-slate-600" },
+      ? { key: `sprint-${issue._id}`, label: issue.sprintId.name, className: "border-sky-100 bg-sky-50 text-sky-700 dark:border-sky-800/60 dark:bg-sky-950/40 dark:text-sky-300" }
+      : { key: `backlog-${issue._id}`, label: "Backlog", className: "border-slate-200 bg-slate-50 text-slate-600 dark:border-slate-800 dark:bg-slate-800/60 dark:text-slate-300" },
   ].filter(Boolean);
 
   return (
     <article
       className={cn(
-        "group rounded-[18px] border border-slate-200 bg-white p-3 shadow-sm transition hover:border-blue-200 hover:shadow-[0_14px_32px_-28px_rgba(37,99,235,0.35)]",
-        isNearDue && "border-amber-300"
+        "group rounded-[18px] border border-slate-200 bg-white p-3 shadow-sm transition hover:border-blue-200 hover:shadow-[0_14px_32px_-28px_rgba(37,99,235,0.35)] dark:border-slate-800/90 dark:bg-slate-900/90 dark:hover:border-slate-700 dark:hover:shadow-black/40",
+        isNearDue && "border-amber-300 dark:border-amber-500/60"
       )}
       role="button"
       tabIndex={0}
@@ -293,7 +293,7 @@ const IssueCard = ({
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-1.5">
-            <span className="font-mono text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-500">
+            <span className="font-mono text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-500 dark:text-slate-400">
               {issueKey}
             </span>
             {issue.priority ? (
@@ -316,7 +316,7 @@ const IssueCard = ({
 
           <button
             type="button"
-            className="mt-1.5 block w-full line-clamp-2 text-left text-[15px] font-bold leading-5 text-slate-950 transition group-hover:text-blue-700"
+            className="mt-1.5 block w-full line-clamp-2 text-left text-[15px] font-bold leading-5 text-slate-950 transition group-hover:text-blue-700 dark:text-slate-100 dark:group-hover:text-blue-400"
             onClick={(event) => {
               event.stopPropagation();
               onSelectIssue(issue);
@@ -354,7 +354,7 @@ const IssueCard = ({
 
           {canChangeStatus ? (
             <div
-              className="hidden rounded-lg border border-slate-200 bg-slate-50 p-1 text-slate-400 lg:flex"
+              className="hidden rounded-lg border border-slate-200 bg-slate-50 p-1 text-slate-400 lg:flex dark:border-slate-800 dark:bg-slate-800/60 dark:text-slate-400"
               aria-hidden="true"
             >
               <GripVertical className="h-3.5 w-3.5" />
@@ -363,7 +363,7 @@ const IssueCard = ({
         </div>
       </div>
 
-      <div className="mt-2.5 space-y-1.5 border-t border-slate-100 pt-2.5">
+      <div className="mt-2.5 space-y-1.5 border-t border-slate-100 pt-2.5 dark:border-slate-800">
         <div className="flex items-center gap-2">
           {assignee ? (
             <UserAvatar
@@ -372,18 +372,18 @@ const IssueCard = ({
               fallbackClassName="text-[10px]"
             />
           ) : (
-            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-slate-100 text-slate-500">
+            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400">
               <UserCircle2 className="h-3.5 w-3.5" />
             </div>
           )}
 
-          <p className="min-w-0 flex-1 truncate text-xs font-medium text-slate-800">
+          <p className="min-w-0 flex-1 truncate text-xs font-medium text-slate-800 dark:text-slate-300">
             {assignees.length
               ? assignees.map((user) => user.name || user.email).join(", ")
               : "Unassigned"}
           </p>
 
-          <div className="flex shrink-0 items-center gap-1 text-[11px] text-slate-500">
+          <div className="flex shrink-0 items-center gap-1 text-[11px] text-slate-500 dark:text-slate-400">
             {isOverdue ? (
               <AlertTriangle className="h-3.5 w-3.5 text-rose-500" />
             ) : (
@@ -395,7 +395,7 @@ const IssueCard = ({
           </div>
         </div>
 
-        <p className="truncate text-[11px] text-slate-500">
+        <p className="truncate text-[11px] text-slate-500 dark:text-slate-400">
           {[projectLabel, teamLabel].filter(Boolean).join(" • ")}
         </p>
       </div>

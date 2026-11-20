@@ -280,7 +280,7 @@ const MessageInput = memo(({ conversationId, currentUser, onSend }) => {
 
   return (
     <form
-      className="relative shrink-0 border-t border-slate-200 bg-[#f0f2f5] px-2 py-2 shadow-none sm:px-4 sm:py-3"
+      className="relative shrink-0 border-t border-slate-200 bg-[#f0f2f5] px-2 py-2 shadow-none dark:border-slate-800 dark:bg-slate-900/90 sm:px-4 sm:py-3"
       style={{ minHeight: "70px" }}
       onSubmit={handleSubmit}
     >
@@ -289,7 +289,7 @@ const MessageInput = memo(({ conversationId, currentUser, onSend }) => {
           {attachments.map((attachment) => (
             <div
               key={attachment.id}
-              className="flex items-start gap-3 rounded-[18px] border border-emerald-100 bg-white/88 px-3 py-2 shadow-sm sm:items-center"
+              className="flex items-start gap-3 rounded-[18px] border border-slate-200 bg-white/88 px-3 py-2 shadow-sm dark:border-slate-800 dark:bg-slate-800 sm:items-center"
             >
               {attachment.previewUrl ? (
                 <img
@@ -298,15 +298,15 @@ const MessageInput = memo(({ conversationId, currentUser, onSend }) => {
                   className="h-16 w-16 shrink-0 rounded-2xl object-cover sm:h-12 sm:w-12"
                 />
               ) : (
-                <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-700 sm:h-12 sm:w-12">
+                <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400 sm:h-12 sm:w-12">
                   <FileText className="h-4 w-4" />
                 </span>
               )}
               <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-bold text-slate-800">
+                <p className="truncate text-sm font-bold text-slate-800 dark:text-slate-100">
                   {attachment.fileName || attachment.name}
                 </p>
-                <div className="mt-1 flex items-center gap-2 text-xs font-semibold text-slate-500">
+                <div className="mt-1 flex items-center gap-2 text-xs font-semibold text-slate-500 dark:text-slate-400">
                   <span>{formatFileSize(attachment.size)}</span>
                   {attachment.status === "uploading" ? (
                     <>
@@ -315,7 +315,7 @@ const MessageInput = memo(({ conversationId, currentUser, onSend }) => {
                     </>
                   ) : null}
                   {attachment.status === "uploaded" ? (
-                    <span className="text-emerald-600">Complete</span>
+                    <span className="text-emerald-600 dark:text-emerald-400">Complete</span>
                   ) : null}
                   {attachment.status === "error" ? (
                     <span className="text-rose-500">
@@ -324,7 +324,7 @@ const MessageInput = memo(({ conversationId, currentUser, onSend }) => {
                   ) : null}
                 </div>
                 {attachment.status === "uploading" ? (
-                  <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-emerald-100">
+                  <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-emerald-100 dark:bg-emerald-950/60">
                     <div
                       className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-teal-400 transition-all"
                       style={{ width: `${attachment.progress}%` }}
@@ -351,7 +351,7 @@ const MessageInput = memo(({ conversationId, currentUser, onSend }) => {
         </div>
       ) : null}
 
-      <div className="relative flex min-h-[54px] items-center gap-1.5 rounded-[24px] border border-slate-200 bg-white p-1.5 sm:gap-2 sm:p-2">
+      <div className="relative flex min-h-[54px] items-center gap-1.5 rounded-[24px] border border-slate-200 bg-white p-1.5 shadow-sm dark:border-slate-800 dark:bg-slate-950 sm:gap-2 sm:p-2">
         <input
           ref={fileInputRef}
           type="file"
@@ -364,7 +364,7 @@ const MessageInput = memo(({ conversationId, currentUser, onSend }) => {
           type="button"
           variant="ghost"
           size="icon"
-          className="h-9 w-9 shrink-0 hover:bg-emerald-50 hover:text-emerald-700 sm:h-10 sm:w-10"
+          className="h-9 w-9 shrink-0 text-slate-500 hover:bg-slate-100 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200 sm:h-10 sm:w-10"
           aria-label="Attach file"
           title="Attach file"
           onClick={() => fileInputRef.current?.click()}
@@ -380,7 +380,7 @@ const MessageInput = memo(({ conversationId, currentUser, onSend }) => {
               handleSubmit(event);
             }
           }}
-          className="max-h-32 min-h-[40px] resize-none border-0 bg-transparent px-1.5 py-2.5 text-sm text-slate-900 shadow-none placeholder:text-slate-400 focus-visible:ring-0 sm:max-h-36 sm:min-h-[44px] sm:px-2 sm:py-3"
+          className="max-h-32 min-h-[40px] resize-none border-0 bg-transparent px-1.5 py-2.5 text-sm text-slate-900 shadow-none placeholder:text-slate-400 focus-visible:ring-0 dark:text-slate-100 dark:placeholder:text-slate-500 sm:max-h-36 sm:min-h-[44px] sm:px-2 sm:py-3"
           placeholder="Message the team"
           rows={1}
         />
@@ -389,7 +389,7 @@ const MessageInput = memo(({ conversationId, currentUser, onSend }) => {
             type="button"
             variant="ghost"
             size="icon"
-            className="h-9 w-9 shrink-0 hover:bg-amber-50 hover:text-amber-600 sm:h-10 sm:w-10"
+            className="h-9 w-9 shrink-0 text-slate-500 hover:bg-slate-100 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200 sm:h-10 sm:w-10"
             aria-label="Add emoji"
             title="Add emoji"
             onClick={() => setIsEmojiOpen((current) => !current)}
@@ -403,7 +403,7 @@ const MessageInput = memo(({ conversationId, currentUser, onSend }) => {
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={{ opacity: 0, y: 8, scale: 0.98 }}
                 transition={{ duration: 0.16 }}
-                className="absolute bottom-12 right-0 z-[45] max-w-[calc(100vw-2rem)] overflow-hidden rounded-[22px] border border-emerald-100 bg-white shadow-[0_26px_70px_-42px_rgba(15,23,42,0.5)]"
+                className="absolute bottom-12 right-0 z-[45] max-w-[calc(100vw-2rem)] overflow-hidden rounded-[22px] border border-slate-200 bg-white shadow-[0_26px_70px_-42px_rgba(15,23,42,0.5)] dark:border-slate-800 dark:bg-slate-900"
               >
                 <Suspense
                   fallback={

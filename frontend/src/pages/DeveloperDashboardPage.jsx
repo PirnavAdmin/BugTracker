@@ -610,7 +610,7 @@ const DeveloperAiCodeReviewCard = ({ isLoading, project }) => {
   const hasCommit = Boolean(activity.commitSha);
 
   return (
-    <Card className="relative overflow-hidden rounded-2xl border-blue-100/80 bg-[linear-gradient(135deg,rgba(255,255,255,0.96),rgba(239,246,255,0.88)_45%,rgba(236,253,245,0.68))] shadow-[0_26px_70px_-42px_rgba(37,99,235,0.68)]">
+    <Card className="relative overflow-hidden rounded-2xl border-blue-100/80 bg-[linear-gradient(135deg,rgba(255,255,255,0.96),rgba(239,246,255,0.88)_45%,rgba(236,253,245,0.68))] shadow-[0_26px_70px_-42px_rgba(37,99,235,0.68)] dark:border-slate-800 dark:bg-slate-900/90 dark:bg-none dark:shadow-black/50">
       <motion.div
         aria-hidden="true"
         animate={{ x: ["-18%", "18%", "-18%"], opacity: [0.35, 0.7, 0.35] }}
@@ -620,7 +620,7 @@ const DeveloperAiCodeReviewCard = ({ isLoading, project }) => {
       <CardContent className="relative flex h-full flex-col p-4">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-blue-600">AI Code Review</p>
+            <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-blue-600 dark:text-blue-400">AI Code Review</p>
             {isLoading ? (
               <div className="mt-2 space-y-2">
                 <Skeleton className="h-5 w-44 rounded-full" />
@@ -628,10 +628,10 @@ const DeveloperAiCodeReviewCard = ({ isLoading, project }) => {
               </div>
             ) : (
               <>
-                <h3 className="mt-1 truncate text-base font-semibold text-slate-950">
+                <h3 className="mt-1 truncate text-base font-semibold text-slate-950 dark:text-slate-100">
                   {hasCommit ? activity.projectName : "No commit selected"}
                 </h3>
-                <p className="mt-1 text-sm text-slate-600">
+                <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
                   {hasCommit ? `${activity.branch} - ${shortSha(activity.commitSha)}` : "Latest push review appears here."}
                 </p>
               </>
@@ -639,7 +639,7 @@ const DeveloperAiCodeReviewCard = ({ isLoading, project }) => {
           </div>
           <motion.span
             animate={{ y: [0, -3, 0] }}
-            className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl border border-white/80 bg-white/85 text-blue-600 shadow-[0_12px_30px_-22px_rgba(37,99,235,0.75)]"
+            className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl border border-white/80 bg-white/85 text-blue-600 shadow-[0_12px_30px_-22px_rgba(37,99,235,0.75)] dark:border-slate-800 dark:bg-slate-800 dark:text-blue-400"
             transition={{ duration: 2.4, ease: "easeInOut", repeat: Infinity }}
           >
             <Sparkles className="h-5 w-5" aria-hidden="true" />
@@ -1313,15 +1313,15 @@ const BugBucketPanel = ({ issues, isLoading, onOpenIssue, onPickIssue, onViewAll
   }, [pageCount]);
 
   return (
-    <Card className="overflow-hidden border-cyan-100/80 bg-white/94 shadow-[0_18px_46px_-36px_rgba(8,145,178,0.42)] ring-1 ring-cyan-100/70 backdrop-blur-xl">
-      <CardHeader className="border-b border-cyan-100/90 bg-[linear-gradient(135deg,rgba(236,254,255,0.98),rgba(239,246,255,0.94),rgba(255,255,255,0.92))] py-3">
+    <Card className="overflow-hidden border-cyan-100/80 bg-white/94 shadow-[0_18px_46px_-36px_rgba(8,145,178,0.42)] ring-1 ring-cyan-100/70 backdrop-blur-xl dark:border-slate-800 dark:bg-slate-900/90 dark:ring-0 dark:shadow-black/50">
+      <CardHeader className="border-b border-cyan-100/90 bg-[linear-gradient(135deg,rgba(236,254,255,0.98),rgba(239,246,255,0.94),rgba(255,255,255,0.92))] py-3 dark:border-slate-800 dark:bg-slate-900 dark:bg-none">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <p className="mb-1 text-[11px] font-bold uppercase tracking-[0.22em] text-cyan-600">
+            <p className="mb-1 text-[11px] font-bold uppercase tracking-[0.22em] text-cyan-600 dark:text-cyan-400">
               Primary workflow
             </p>
-            <CardTitle className="flex items-center gap-2 text-lg tracking-tight text-slate-950">
-              <FolderKanban className="h-5 w-5 text-cyan-600" />
+            <CardTitle className="flex items-center gap-2 text-lg tracking-tight text-slate-950 dark:text-slate-100">
+              <FolderKanban className="h-5 w-5 text-cyan-600 dark:text-cyan-400" />
               Work Queue
             </CardTitle>
             <CardDescription>Pickup-ready work waiting for developer ownership.</CardDescription>
@@ -2284,11 +2284,11 @@ const DeveloperDashboardPage = () => {
       />
 
       <section className="space-y-5">
-          <Card className="min-w-0 overflow-hidden border-white/70 bg-white/90 shadow-[0_22px_64px_-42px_rgba(15,23,42,0.42)] backdrop-blur-xl">
-            <CardHeader className="border-b border-slate-200/80 bg-[linear-gradient(135deg,rgba(255,255,255,0.96),rgba(239,246,255,0.9),rgba(240,253,250,0.78))]">
+          <Card className="min-w-0 overflow-hidden border-white/70 bg-white/90 shadow-[0_22px_64px_-42px_rgba(15,23,42,0.42)] backdrop-blur-xl dark:border-slate-800 dark:bg-slate-900/90 dark:shadow-black/50">
+            <CardHeader className="border-b border-slate-200/80 bg-[linear-gradient(135deg,rgba(255,255,255,0.96),rgba(239,246,255,0.9),rgba(240,253,250,0.78))] dark:border-slate-800 dark:bg-slate-900 dark:bg-none">
               <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                 <div>
-                  <CardTitle className="text-xl tracking-tight text-slate-950">
+                  <CardTitle className="text-xl tracking-tight text-slate-950 dark:text-slate-100">
                     Work Overview
                   </CardTitle>
                   <CardDescription>
@@ -2299,7 +2299,7 @@ const DeveloperDashboardPage = () => {
                 </div>
 
                 <div className="flex flex-wrap items-center gap-2">
-                  <div className="grid grid-cols-4 gap-1 rounded-[22px] border border-white/80 bg-slate-100/80 p-1 shadow-inner">
+                  <div className="grid grid-cols-4 gap-1 rounded-[22px] border border-white/80 bg-slate-100/80 p-1 shadow-inner dark:border-slate-800 dark:bg-slate-950/60">
                     {TABS.map(({ id, label, Icon }) => {
                       const active = activeTab === id;
                       const count = workOverviewCounts[id] || 0;

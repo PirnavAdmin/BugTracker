@@ -26,13 +26,13 @@ const DialogContent = React.forwardRef(({ className, children, overlayClassName,
     <DialogPrimitive.Content
       ref={ref}
       className={cn(
-        "fixed left-[50%] top-[50%] z-[60] grid w-[calc(100vw-1rem)] max-w-4xl max-h-[calc(var(--app-viewport-height)-1rem)] translate-x-[-50%] translate-y-[-50%] gap-4 overflow-x-hidden overflow-y-auto rounded-[24px] border border-gray-200 bg-white p-4 shadow-xl duration-200 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[state=closed]:slide-out-to-top-2 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95 data-[state=open]:slide-in-from-top-2 sm:w-[calc(100vw-2rem)] sm:max-h-[calc(var(--app-viewport-height)-2rem)] sm:rounded-[32px] sm:p-8",
+        "fixed left-[50%] top-[50%] z-[60] grid w-[calc(100vw-1rem)] max-w-4xl max-h-[calc(var(--app-viewport-height)-1rem)] translate-x-[-50%] translate-y-[-50%] gap-4 overflow-x-hidden overflow-y-auto rounded-[24px] border border-gray-200 bg-white p-4 shadow-xl duration-200 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[state=closed]:slide-out-to-top-2 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95 data-[state=open]:slide-in-from-top-2 sm:w-[calc(100vw-2rem)] sm:max-h-[calc(var(--app-viewport-height)-2rem)] sm:rounded-[32px] sm:p-8 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100 dark:shadow-2xl",
         className
       )}
       {...props}
     >
       {children}
-      <DialogPrimitive.Close className="absolute right-4 top-4 z-[70] rounded-full border border-gray-200 bg-white p-2 text-gray-500 shadow-sm transition hover:bg-gray-50 hover:text-gray-900">
+      <DialogPrimitive.Close className="absolute right-4 top-4 z-[70] rounded-full border border-gray-200 bg-white p-2 text-gray-500 shadow-sm transition hover:bg-gray-50 hover:text-gray-900 dark:border-slate-750 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700 dark:hover:text-white">
         <X className="h-4 w-4" />
         <span className="sr-only">Close</span>
       </DialogPrimitive.Close>
@@ -52,7 +52,7 @@ const DialogFooter = ({ className, ...props }) => (
 const DialogTitle = React.forwardRef(({ className, ...props }, ref) => (
   <DialogPrimitive.Title
     ref={ref}
-    className={cn("text-xl font-semibold text-gray-900", className)}
+    className={cn("text-xl font-semibold text-gray-900 dark:text-slate-100", className)}
     {...props}
   />
 ));
@@ -61,7 +61,7 @@ DialogTitle.displayName = DialogPrimitive.Title.displayName;
 const DialogDescription = React.forwardRef(({ className, ...props }, ref) => (
   <DialogPrimitive.Description
     ref={ref}
-    className={cn("text-sm leading-6 text-gray-600", className)}
+    className={cn("text-sm leading-6 text-gray-600 dark:text-slate-400", className)}
     {...props}
   />
 ));

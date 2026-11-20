@@ -23,9 +23,9 @@ const IssueColumn = ({
 }) => (
   <section
     className={cn(
-      "rounded-[28px] border border-slate-200 bg-slate-50/80 p-4 transition",
+      "rounded-[28px] border border-slate-200 bg-slate-50/80 p-4 transition dark:border-slate-800/80 dark:bg-slate-900/40",
       isDropTarget &&
-        "border-blue-200 bg-blue-50/50 shadow-[0_18px_40px_-32px_rgba(37,99,235,0.35)]"
+        "border-blue-200 bg-blue-50/50 shadow-[0_18px_40px_-32px_rgba(37,99,235,0.35)] dark:border-blue-700/60 dark:bg-blue-950/30"
     )}
     onDragOver={(event) => {
       if (!canChangeStatus) {
@@ -48,9 +48,9 @@ const IssueColumn = ({
       <div className="min-w-0">
         <div className="flex items-center gap-2">
           <span className={cn("h-2.5 w-2.5 rounded-full", column.accentClassName)} />
-          <p className="text-sm font-semibold text-slate-900">{column.label}</p>
+          <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">{column.label}</p>
         </div>
-        <p className="mt-1 text-xs text-slate-500">{column.helper}</p>
+        <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{column.helper}</p>
       </div>
       <Badge variant={getIssueStatusVariant(column.key)}>{issueCount ?? issues.length}</Badge>
     </div>
@@ -73,8 +73,8 @@ const IssueColumn = ({
       ) : (
         <div
           className={cn(
-            "rounded-[22px] border border-dashed border-slate-200 bg-white px-4 py-8 text-center text-sm text-slate-500 transition",
-            isDropTarget && "border-blue-200 text-blue-700"
+            "rounded-[22px] border border-dashed border-slate-200 bg-white px-4 py-8 text-center text-sm text-slate-500 transition dark:border-slate-800 dark:bg-slate-900/50 dark:text-slate-400",
+            isDropTarget && "border-blue-200 text-blue-700 dark:border-blue-700/60 dark:text-blue-400"
           )}
         >
           {isDropTarget
@@ -85,7 +85,7 @@ const IssueColumn = ({
     </div>
 
     {pagination?.totalPages > 1 ? (
-      <div className="mt-4 flex items-center justify-between gap-2 border-t border-slate-200 pt-3 text-xs text-slate-500">
+      <div className="mt-4 flex items-center justify-between gap-2 border-t border-slate-200 pt-3 text-xs text-slate-500 dark:border-slate-800 dark:text-slate-400">
         <span>
           Page {pagination.page} of {pagination.totalPages}
         </span>

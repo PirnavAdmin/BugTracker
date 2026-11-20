@@ -268,7 +268,7 @@ const ChatHeader = memo(
     };
 
     return (
-      <header className="flex min-h-[86px] shrink-0 items-center gap-3 border-b border-slate-200 bg-white/88 px-3 py-3 backdrop-blur-xl sm:px-5">
+      <header className="flex min-h-[86px] shrink-0 items-center gap-3 border-b border-slate-200 bg-white/88 px-3 py-3 backdrop-blur-xl dark:border-slate-800 dark:bg-slate-900/90 sm:px-5">
         <Button
           type="button"
           variant="ghost"
@@ -283,17 +283,17 @@ const ChatHeader = memo(
           <UserAvatar
             user={directUser}
             name={directUser?.name || title}
-            className="h-11 w-11 shrink-0 rounded-2xl border border-white/70 shadow-sm"
+            className="h-11 w-11 shrink-0 rounded-2xl border border-white/70 shadow-sm dark:border-slate-700"
           />
         ) : (
-          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-slate-200 bg-slate-100 text-slate-900 shadow-sm">
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-slate-200 bg-slate-100 text-slate-900 shadow-sm dark:border-slate-800 dark:bg-slate-800 dark:text-slate-100">
             <Hash className="h-5 w-5" />
           </div>
         )}
 
         <div className="min-w-0 flex-1">
           <div className="flex min-w-0 flex-wrap items-center gap-2">
-            <h1 className="truncate text-base font-extrabold text-slate-950 sm:text-lg">{title}</h1>
+            <h1 className="truncate text-base font-extrabold text-slate-950 dark:text-slate-100 sm:text-lg">{title}</h1>
             <Badge
               variant={conversation?.type === "direct" ? "success" : "default"}
               className="shrink-0"
@@ -302,7 +302,7 @@ const ChatHeader = memo(
             </Badge>
           </div>
 
-          <div className="mt-1 flex flex-wrap items-center gap-2 text-xs font-medium text-slate-500">
+          <div className="mt-1 flex flex-wrap items-center gap-2 text-xs font-medium text-slate-500 dark:text-slate-400">
             {conversation?.type === "direct" ? (
               <StatusIndicator status={directPresenceStatus} showLabel />
             ) : (
@@ -327,7 +327,7 @@ const ChatHeader = memo(
                 type="button"
                 variant="ghost"
                 size="icon"
-                className="text-slate-700 hover:bg-slate-100 hover:text-slate-950"
+                className="text-slate-700 hover:bg-slate-100 hover:text-slate-950 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-slate-100"
                 onClick={() => startCall({ conversation, callType: "audio" })}
                 disabled={!isDirectCallAvailable}
                 title="Audio call"
@@ -339,7 +339,7 @@ const ChatHeader = memo(
                 type="button"
                 variant="ghost"
                 size="icon"
-                className="text-slate-700 hover:bg-slate-100 hover:text-slate-950"
+                className="text-slate-700 hover:bg-slate-100 hover:text-slate-950 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-slate-100"
                 onClick={() => startCall({ conversation, callType: "video" })}
                 disabled={!isDirectCallAvailable}
                 title="Video call"
@@ -365,7 +365,7 @@ const ChatHeader = memo(
                 type="button"
                 variant="outline"
                 size="sm"
-                className="hidden border-slate-300 text-slate-700 hover:bg-slate-100 hover:text-slate-950 sm:inline-flex"
+                className="hidden border-slate-300 text-slate-700 hover:bg-slate-100 hover:text-slate-950 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800 dark:hover:text-slate-100 sm:inline-flex"
                 onClick={() => startCall({ conversation, callType: "audio" })}
                 disabled={!isGroupCallAvailable}
               >
@@ -376,7 +376,7 @@ const ChatHeader = memo(
                 type="button"
                 variant="outline"
                 size="sm"
-                className="hidden border-slate-300 text-slate-700 hover:bg-slate-100 hover:text-slate-950 sm:inline-flex"
+                className="hidden border-slate-300 text-slate-700 hover:bg-slate-100 hover:text-slate-950 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800 dark:hover:text-slate-100 sm:inline-flex"
                 onClick={() => startCall({ conversation, callType: "video" })}
                 disabled={!isGroupCallAvailable}
               >
@@ -391,7 +391,7 @@ const ChatHeader = memo(
               type="button"
               variant="ghost"
               size="icon"
-              className="shrink-0 text-slate-500 hover:bg-rose-50 hover:text-rose-600"
+              className="shrink-0 text-rose-500 hover:bg-rose-500/10 hover:text-rose-600 dark:text-rose-400 dark:hover:bg-rose-950/40 dark:hover:text-rose-300"
               onClick={handleDelete}
               title={conversation?.type === "direct" ? "Delete chat" : "Remove group chat"}
             >
@@ -404,7 +404,7 @@ const ChatHeader = memo(
               type="button"
               variant="ghost"
               size="icon"
-              className="shrink-0 text-slate-500 hover:bg-slate-100 hover:text-slate-900"
+              className="shrink-0 text-slate-500 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100"
               onClick={handleToggleActionsMenu}
               title="More actions"
               aria-label="More actions"
@@ -421,40 +421,40 @@ const ChatHeader = memo(
                   onClick={() => setIsActionsMenuOpen(false)}
                 />
                 <div
-                  className="absolute right-0 top-[calc(100%+8px)] z-20 w-56 max-w-[calc(100vw-1.5rem)] rounded-2xl border border-slate-200 bg-white p-2 shadow-[0_20px_50px_-30px_rgba(15,23,42,0.35)]"
+                  className="absolute right-0 top-[calc(100%+8px)] z-20 w-56 max-w-[calc(100vw-1.5rem)] rounded-2xl border border-slate-200 bg-white p-2 shadow-[0_20px_50px_-30px_rgba(15,23,42,0.35)] dark:border-slate-800 dark:bg-slate-900"
                 >
                   <button
                     type="button"
-                    className="flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-sm font-medium text-slate-700 transition hover:bg-slate-100"
+                    className="flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-sm font-medium text-slate-700 transition hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800"
                     onClick={() => handleTogglePreference("isPinned")}
                   >
                     <span className="inline-flex items-center gap-2 whitespace-nowrap">
                       <Pin className="h-4 w-4" />
                       {isPinned ? "Unpin chat" : "Pin chat"}
                     </span>
-                    {isPinned ? <Check className="h-4 w-4 text-slate-900" /> : null}
+                    {isPinned ? <Check className="h-4 w-4 text-slate-900 dark:text-slate-100" /> : null}
                   </button>
                   <button
                     type="button"
-                    className="flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-sm font-medium text-slate-700 transition hover:bg-slate-100"
+                    className="flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-sm font-medium text-slate-700 transition hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800"
                     onClick={() => handleTogglePreference("isStarred")}
                   >
                     <span className="inline-flex items-center gap-2 whitespace-nowrap">
                       <Star className="h-4 w-4" />
                       {isStarred ? "Remove star" : "Star chat"}
                     </span>
-                    {isStarred ? <Check className="h-4 w-4 text-slate-900" /> : null}
+                    {isStarred ? <Check className="h-4 w-4 text-slate-900 dark:text-slate-100" /> : null}
                   </button>
                   <button
                     type="button"
-                    className="flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-sm font-medium text-slate-700 transition hover:bg-slate-100"
+                    className="flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-sm font-medium text-slate-700 transition hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800"
                     onClick={() => handleTogglePreference("isArchived")}
                   >
                     <span className="inline-flex items-center gap-2 whitespace-nowrap">
                       <Archive className="h-4 w-4" />
                       {isArchived ? "Restore chat" : "Archive chat"}
                     </span>
-                    {isArchived ? <Check className="h-4 w-4 text-slate-900" /> : null}
+                    {isArchived ? <Check className="h-4 w-4 text-slate-900 dark:text-slate-100" /> : null}
                   </button>
                 </div>
               </>

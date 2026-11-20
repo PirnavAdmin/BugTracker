@@ -37,23 +37,23 @@ const TeamCard = ({ canManageTeam = false, isDeleting = false, onDeleteTeam, tea
 
   return (
   <>
-  <Card className="team-card overflow-hidden border-purple-100 bg-[radial-gradient(circle_at_top_left,_rgba(168,85,247,0.14),transparent_48%),linear-gradient(135deg,_#ffffff_42%,_#faf5ff_100%)] shadow-sm transition-all duration-200 ease-out hover:-translate-y-1 hover:border-purple-200 hover:shadow-[0_20px_44px_-22px_rgba(147,51,234,0.55)]">
+  <Card className="team-card overflow-hidden border-purple-100 bg-[radial-gradient(circle_at_top_left,_rgba(168,85,247,0.14),transparent_48%),linear-gradient(135deg,_#ffffff_42%,_#faf5ff_100%)] shadow-sm transition-all duration-200 ease-out hover:-translate-y-1 hover:border-purple-200 hover:shadow-[0_20px_44px_-22px_rgba(147,51,234,0.55)] dark:border-slate-800 dark:bg-slate-900/90 dark:bg-none dark:shadow-black/40">
     <CardContent className="relative flex min-h-[104px] items-center gap-3 p-3">
       <div className="min-w-0 flex-1">
-        <h3 className="truncate text-base font-semibold leading-5 text-slate-950">
+        <h3 className="truncate text-base font-semibold leading-5 text-slate-950 dark:text-slate-100">
           {team.name}
         </h3>
-        <p className="truncate text-[11px] font-medium leading-4 text-slate-500">
+        <p className="truncate text-[11px] font-medium leading-4 text-slate-500 dark:text-slate-400">
           {team.description || "No description provided."}
         </p>
-        <div className="mt-1 flex min-w-0 items-center gap-1 text-[10px] font-medium text-slate-400">
+        <div className="mt-1 flex min-w-0 items-center gap-1 text-[10px] font-medium text-slate-400 dark:text-slate-500">
           <CalendarDays className="h-3 w-3 shrink-0" />
           <span className="truncate">Created {formatDate(team.createdAt)}</span>
         </div>
       </div>
 
-      <div className="flex shrink-0 items-center border-l border-slate-100 pl-3">
-        <Badge className="border border-sky-100 bg-sky-50 px-1.5 py-0 text-[9px] leading-4 text-sky-700 hover:bg-sky-50">
+      <div className="flex shrink-0 items-center border-l border-slate-100 pl-3 dark:border-slate-800">
+        <Badge className="border border-sky-100 bg-sky-50 px-1.5 py-0 text-[9px] leading-4 text-sky-700 hover:bg-sky-50 dark:border-sky-800/60 dark:bg-sky-950/40 dark:text-sky-300">
           {team.memberCount || team.members?.length || 0} members
         </Badge>
       </div>

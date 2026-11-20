@@ -15,6 +15,22 @@
     <link rel="preload" as="image" href="/icons/icon-192x192.png?v=20260727-4" />
     <link rel="manifest" href="/site.webmanifest?v=20260727-4" />
     <title>CureCode | Where code gets cured.</title>
+    <script>
+      (function () {
+        try {
+          var saved = localStorage.getItem("curecode-theme");
+          if (saved === "dark") {
+            document.documentElement.classList.add("dark");
+            document.documentElement.setAttribute("data-theme", "dark");
+            document.documentElement.style.colorScheme = "dark";
+          } else {
+            document.documentElement.classList.remove("dark");
+            document.documentElement.setAttribute("data-theme", "light");
+            document.documentElement.style.colorScheme = "light";
+          }
+        } catch (e) {}
+      })();
+    </script>
     <style>
       #root:empty {
         min-height: 100vh;

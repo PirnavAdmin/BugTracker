@@ -171,20 +171,20 @@ const SprintCompletionDialog = ({
             }
           }}
         >
-          <div className="rounded-[24px] border border-slate-200 bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(248,250,252,0.95))] p-5 shadow-sm">
+          <div className="rounded-[24px] border border-slate-200 bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(248,250,252,0.95))] p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 dark:bg-none">
             <div className="grid gap-4 xl:grid-cols-[minmax(0,1.75fr)_minmax(360px,1.1fr)]">
               <div className="space-y-3">
                 <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">
+                  <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500 dark:text-slate-400">
                     Sprint Summary
                   </p>
-                  <p className="mt-2 text-lg font-semibold text-slate-950">{sprint?.name}</p>
-                  <p className="mt-1 text-sm leading-6 text-slate-600">
+                  <p className="mt-2 text-lg font-semibold text-slate-950 dark:text-slate-100">{sprint?.name}</p>
+                  <p className="mt-1 text-sm leading-6 text-slate-600 dark:text-slate-400">
                     {sprint?.goal || "No sprint goal was added."}
                   </p>
                 </div>
 
-                <div className="flex flex-wrap gap-3 text-sm text-slate-600">
+                <div className="flex flex-wrap gap-3 text-sm text-slate-600 dark:text-slate-400">
                   <span>
                     Duration:{" "}
                     {sprint?.startDate && sprint?.endDate
@@ -227,16 +227,16 @@ const SprintCompletionDialog = ({
                 ].map((card) => {
                   const Icon = card.icon;
                   const accentClass = {
-                    emerald: "border-emerald-200 bg-emerald-50 text-emerald-700",
-                    amber: "border-amber-200 bg-amber-50 text-amber-700",
-                    blue: "border-blue-200 bg-blue-50 text-blue-700",
-                    slate: "border-slate-200 bg-slate-100 text-slate-700",
+                    emerald: "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-800/60 dark:bg-emerald-950/40 dark:text-emerald-300",
+                    amber: "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-800/60 dark:bg-amber-950/40 dark:text-amber-300",
+                    blue: "border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-800/60 dark:bg-blue-950/40 dark:text-blue-300",
+                    slate: "border-slate-200 bg-slate-100 text-slate-700 dark:border-slate-800 dark:bg-slate-800 dark:text-slate-300",
                   }[card.accent];
 
                   return (
                     <div
                       key={card.label}
-                      className="rounded-[20px] border border-white/70 bg-white/92 p-4 shadow-sm"
+                      className="rounded-[20px] border border-white/70 bg-white/92 p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900/90"
                     >
                       <div className="flex items-center justify-between gap-3">
                         <span
@@ -244,12 +244,12 @@ const SprintCompletionDialog = ({
                         >
                           <Icon className="h-4 w-4" />
                         </span>
-                        <span className="text-lg font-semibold text-slate-950">{card.value}</span>
+                        <span className="text-lg font-semibold text-slate-950 dark:text-slate-100">{card.value}</span>
                       </div>
-                      <p className="mt-3 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                      <p className="mt-3 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">
                         {card.label}
                       </p>
-                      <p className="mt-1 text-sm text-slate-500">{card.helper}</p>
+                      <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{card.helper}</p>
                     </div>
                   );
                 })}

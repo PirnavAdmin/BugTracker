@@ -183,7 +183,7 @@ const PlanningActionMenu = ({
               ref={menuRef}
               role="menu"
               className={cn(
-                "fixed z-[70] w-56 max-w-[calc(100vw-1.5rem)] rounded-[18px] border border-white/75 bg-white/96 p-2 shadow-[0_26px_52px_-28px_rgba(15,23,42,0.34)] backdrop-blur-xl",
+                "fixed z-[70] w-56 max-w-[calc(100vw-1.5rem)] rounded-[18px] border border-white/75 bg-white/96 p-2 shadow-[0_26px_52px_-28px_rgba(15,23,42,0.34)] backdrop-blur-xl dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:shadow-2xl",
                 menuPosition.ready ? "opacity-100" : "opacity-0"
               )}
               style={{
@@ -196,7 +196,7 @@ const PlanningActionMenu = ({
             >
               <button
                 type="button"
-                className="w-full rounded-[12px] px-3 py-2 text-left text-sm font-medium text-slate-700 transition hover:bg-slate-100/80 hover:text-slate-950"
+                className="w-full rounded-[12px] px-3 py-2 text-left text-sm font-medium text-slate-700 transition hover:bg-slate-100/80 hover:text-slate-950 dark:text-slate-200 dark:hover:bg-slate-800 dark:hover:text-white"
                 onClick={() => {
                   onSelectIssue?.(issue);
                   setOpen(false);
@@ -205,14 +205,14 @@ const PlanningActionMenu = ({
                 Open details
               </button>
 
-              <div className="mt-2 px-3 pb-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">
+              <div className="mt-2 px-3 pb-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">
                 Move To Sprint
               </div>
 
               <button
                 type="button"
                 disabled={!canManagePlanning || isUpdating || !currentSprintId}
-                className="w-full rounded-[12px] px-3 py-2 text-left text-sm text-slate-700 transition hover:bg-slate-100/80 hover:text-slate-950 disabled:cursor-not-allowed disabled:opacity-45"
+                className="w-full rounded-[12px] px-3 py-2 text-left text-sm text-slate-700 transition hover:bg-slate-100/80 hover:text-slate-950 disabled:cursor-not-allowed disabled:opacity-45 dark:text-slate-200 dark:hover:bg-slate-800 dark:hover:text-white"
                 onClick={() => {
                   onMoveIssue?.(issue._id, "");
                   setOpen(false);
@@ -230,7 +230,7 @@ const PlanningActionMenu = ({
                     key={sprintId}
                     type="button"
                     disabled={!canManagePlanning || isUpdating || isCurrentSprint}
-                    className="w-full rounded-[12px] px-3 py-2 text-left text-sm text-slate-700 transition hover:bg-slate-100/80 hover:text-slate-950 disabled:cursor-not-allowed disabled:opacity-45"
+                    className="w-full rounded-[12px] px-3 py-2 text-left text-sm text-slate-700 transition hover:bg-slate-100/80 hover:text-slate-950 disabled:cursor-not-allowed disabled:opacity-45 dark:text-slate-200 dark:hover:bg-slate-800 dark:hover:text-white"
                     onClick={() => {
                       onMoveIssue?.(issue._id, sprintId);
                       setOpen(false);
@@ -302,14 +302,14 @@ const IssuePlanningCard = ({
         onDropBefore?.(issue);
       }}
       className={cn(
-        "group rounded-[14px] border border-white/70 bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(248,250,252,0.86))] px-2.5 py-2 shadow-[0_10px_24px_-22px_rgba(15,23,42,0.36)] backdrop-blur-xl transition hover:-translate-y-0.5 hover:border-blue-200/80 hover:shadow-[0_18px_34px_-26px_rgba(59,130,246,0.28)]",
+        "group rounded-[14px] border border-white/70 bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(248,250,252,0.86))] px-2.5 py-2 shadow-[0_10px_24px_-22px_rgba(15,23,42,0.36)] backdrop-blur-xl transition hover:-translate-y-0.5 hover:border-blue-200/80 hover:shadow-[0_18px_34px_-26px_rgba(59,130,246,0.28)] dark:border-slate-800 dark:bg-slate-900/90 dark:bg-none dark:hover:border-slate-700 dark:shadow-black/40",
         canDrag && !isUpdating ? "cursor-grab active:cursor-grabbing" : ""
       )}
     >
       <div className="flex items-start gap-2.5">
         <div
           className={cn(
-            "mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-[10px] border border-slate-200/80 bg-white/82 text-slate-400 shadow-sm",
+            "mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-[10px] border border-slate-200/80 bg-white/82 text-slate-400 shadow-sm dark:border-slate-700/60 dark:bg-slate-800/80 dark:text-slate-400",
             canDrag && !isUpdating ? "opacity-100" : "opacity-50"
           )}
           aria-hidden="true"
@@ -325,10 +325,10 @@ const IssuePlanningCard = ({
               className="min-w-0 flex-1 text-left"
             >
               <div className="flex min-w-0 items-center gap-2.5">
-                <span className="shrink-0 rounded-full border border-slate-200/80 bg-white/90 px-1.5 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-500 shadow-sm">
+                <span className="shrink-0 rounded-full border border-slate-200/80 bg-white/90 px-1.5 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-500 shadow-sm dark:border-slate-700/60 dark:bg-slate-800/80 dark:text-slate-300">
                   {issueKey}
                 </span>
-                <p className="min-w-0 truncate text-sm font-semibold leading-5 text-slate-950 transition group-hover:text-blue-700">
+                <p className="min-w-0 truncate text-sm font-semibold leading-5 text-slate-950 transition group-hover:text-blue-700 dark:text-slate-100 dark:group-hover:text-blue-400">
                   {issue.title}
                 </p>
               </div>

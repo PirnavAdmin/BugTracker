@@ -508,7 +508,7 @@ const AiCodeReviewPanelContent = ({
     return (
       <div
         className={cn(
-          "relative flex min-h-[224px] flex-1 flex-col overflow-hidden rounded-2xl border border-white/70 bg-white/75 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.72)]",
+          "relative flex min-h-[224px] flex-1 flex-col overflow-hidden rounded-2xl border border-white/70 bg-white/75 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.72)] dark:border-slate-800 dark:bg-slate-900/60 dark:shadow-none",
           className
         )}
       >
@@ -528,30 +528,30 @@ const AiCodeReviewPanelContent = ({
         <div className="relative flex items-start justify-between gap-3">
           <div className="min-w-0">
             {showTitle ? (
-              <p className="inline-flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.16em] text-blue-700">
+              <p className="inline-flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.16em] text-blue-700 dark:text-blue-400">
                 <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
                 AI Code Review
               </p>
             ) : null}
             <div className={cn("flex flex-wrap items-center gap-2", showTitle && "mt-2")}>
-              <Badge className="rounded-full border-white/80 bg-white/80 px-2.5 py-1 text-slate-700 shadow-sm" variant="outline">
+              <Badge className="rounded-full border-white/80 bg-white/80 px-2.5 py-1 text-slate-700 shadow-sm dark:border-slate-800 dark:bg-slate-800 dark:text-slate-200" variant="outline">
                 {viewState.statusLabel}
               </Badge>
               {safeReview.status === "FAILED" ? (
-                <span className="inline-flex items-center gap-1 text-xs font-semibold text-rose-700">
+                <span className="inline-flex items-center gap-1 text-xs font-semibold text-rose-700 dark:text-rose-400">
                   <AlertTriangle className="h-3.5 w-3.5" aria-hidden="true" />
                   {safeReview.error || error || "Unable to complete review."}
                 </span>
               ) : null}
               {status === "REVIEWING" ? (
-                <span className="inline-flex items-center gap-1 text-xs font-semibold text-blue-700">
+                <span className="inline-flex items-center gap-1 text-xs font-semibold text-blue-700 dark:text-blue-400">
                   <LoaderCircle className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
                   Analyzing changes
                 </span>
               ) : null}
             </div>
           </div>
-          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl border border-white/80 bg-white/85 text-blue-600 shadow-sm">
+          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl border border-white/80 bg-white/85 text-blue-600 shadow-sm dark:border-slate-800 dark:bg-slate-800 dark:text-blue-400">
             <Bot className="h-5 w-5" aria-hidden="true" />
           </span>
         </div>
@@ -559,13 +559,13 @@ const AiCodeReviewPanelContent = ({
         <div className="relative flex flex-1 flex-col items-center justify-center py-4 text-center">
           <motion.div
             animate={status === "REVIEWING" ? { scale: [1, 1.035, 1] } : { scale: 1 }}
-            className={cn("rounded-full bg-gradient-to-br p-[3px] shadow-[0_20px_54px_-30px_rgba(37,99,235,0.75)]", ringTone)}
+            className={cn("rounded-full bg-gradient-to-br p-[3px] shadow-[0_20px_54px_-30px_rgba(37,99,235,0.75)] dark:shadow-black/70", ringTone)}
             transition={{ duration: 1.6, ease: "easeInOut", repeat: status === "REVIEWING" ? Infinity : 0 }}
           >
-            <div className="grid h-28 w-28 place-items-center rounded-full bg-white">
+            <div className="grid h-28 w-28 place-items-center rounded-full bg-white dark:bg-slate-900">
               <div>
-                <p className="text-4xl font-bold tracking-normal text-slate-950">{score}</p>
-                <p className="mt-1 text-[11px] font-bold uppercase tracking-[0.16em] text-slate-500">
+                <p className="text-4xl font-bold tracking-normal text-slate-950 dark:text-slate-100">{score}</p>
+                <p className="mt-1 text-[11px] font-bold uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">
                   Score
                 </p>
               </div>
@@ -575,7 +575,7 @@ const AiCodeReviewPanelContent = ({
 
         <div className="relative mt-auto grid gap-2 sm:grid-cols-2">
           {safeReview.status === "COMPLETED" ? (
-            <Button className="h-10 rounded-xl border-white/80 bg-white/90 shadow-sm" onClick={() => setOpen(true)} type="button" variant="outline">
+            <Button className="h-10 rounded-xl border-white/80 bg-white/90 shadow-sm dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100" onClick={() => setOpen(true)} type="button" variant="outline">
               <ShieldAlert className="h-4 w-4" aria-hidden="true" />
               View Report
             </Button>

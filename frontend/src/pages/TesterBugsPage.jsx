@@ -591,23 +591,23 @@ const TesterBugsPage = () => {
   return (
     <ErrorBoundary>
     <div className="mx-auto w-[98%] max-w-none space-y-4">
-      <section className="overflow-hidden rounded-[28px] border border-white/70 bg-[linear-gradient(135deg,#F8FBFF_0%,#EEF6FF_48%,#F7F3FF_100%)] p-5 shadow-[0_18px_50px_-34px_rgba(15,23,42,0.45)] backdrop-blur">
+      <section className="overflow-hidden rounded-[28px] border border-white/70 bg-[linear-gradient(135deg,#F8FBFF_0%,#EEF6FF_48%,#F7F3FF_100%)] p-5 shadow-[0_18px_50px_-34px_rgba(15,23,42,0.45)] backdrop-blur dark:border-slate-800 dark:bg-slate-900/90 dark:bg-none dark:shadow-black/50">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div className="max-w-3xl">
-            <p className="text-xs font-bold uppercase tracking-[0.18em] text-blue-600">Tester Workspace</p>
-            <h1 className="mt-2 text-2xl font-semibold text-slate-950 sm:text-3xl">
+            <p className="text-xs font-bold uppercase tracking-[0.18em] text-blue-600 dark:text-blue-400">Tester Workspace</p>
+            <h1 className="mt-2 text-2xl font-semibold text-slate-950 sm:text-3xl dark:text-slate-100">
               Create and track project bugs
             </h1>
-            <p className="mt-2 text-sm leading-6 text-slate-600">
+            <p className="mt-2 text-sm leading-6 text-slate-600 dark:text-slate-400">
               Report assigned project issues with screenshots, then switch back to the board to verify fixes.
             </p>
           </div>
-          <div className="grid grid-cols-2 gap-2 rounded-2xl border border-white/80 bg-white/80 p-1 shadow-sm">
+          <div className="grid grid-cols-2 gap-2 rounded-2xl border border-white/80 bg-white/80 p-1 shadow-sm dark:border-slate-800 dark:bg-slate-900/80">
             <button
               className={`inline-flex h-11 items-center justify-center gap-2 rounded-xl px-4 text-sm font-semibold transition ${
                 activePanel === "create"
                   ? "bg-blue-600 text-white shadow-sm"
-                  : "text-slate-600 hover:bg-blue-50 hover:text-blue-700"
+                  : "text-slate-600 hover:bg-blue-50 hover:text-blue-700 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-slate-100"
               }`}
               type="button"
               onClick={showCreatePanel}
@@ -619,7 +619,7 @@ const TesterBugsPage = () => {
               className={`inline-flex h-11 items-center justify-center gap-2 rounded-xl px-4 text-sm font-semibold transition ${
                 activePanel === "board"
                   ? "bg-blue-600 text-white shadow-sm"
-                  : "text-slate-600 hover:bg-blue-50 hover:text-blue-700"
+                  : "text-slate-600 hover:bg-blue-50 hover:text-blue-700 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-slate-100"
               }`}
               type="button"
               onClick={showBoardPanel}
@@ -632,8 +632,8 @@ const TesterBugsPage = () => {
       </section>
 
       {activePanel === "board" ? (
-      <Card className="overflow-hidden border-white/70 bg-white/92 shadow-[0_18px_50px_-34px_rgba(15,23,42,0.45)] backdrop-blur">
-        <CardHeader className="border-b border-slate-200/80 bg-white/94 p-4 sm:p-5">
+      <Card className="overflow-hidden border-white/70 bg-white/92 shadow-[0_18px_50px_-34px_rgba(15,23,42,0.45)] backdrop-blur dark:border-slate-800 dark:bg-slate-900/90 dark:shadow-black/50">
+        <CardHeader className="border-b border-slate-200/80 bg-white/94 p-4 sm:p-5 dark:border-slate-800 dark:bg-slate-900">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
             <div>
               <CardTitle>Reported Bug Board</CardTitle>
