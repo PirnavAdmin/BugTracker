@@ -57,6 +57,7 @@ export default function LoginPage({ signup = false }) {
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showResetPassword, setShowResetPassword] = useState(false);
+  const [showResetConfirmPassword, setShowResetConfirmPassword] = useState(false);
   const [sent, setSent] = useState(false);
   const [emailError, setEmailError] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
@@ -113,6 +114,7 @@ export default function LoginPage({ signup = false }) {
       setNewPassword("");
       setConfirmPassword("");
       setShowResetPassword(false);
+      setShowResetConfirmPassword(false);
       setSuccessMessage("Password updated successfully. Please sign in.");
     },
   });
@@ -226,7 +228,7 @@ export default function LoginPage({ signup = false }) {
                         className="absolute right-3 top-3 text-slate-500"
                         onClick={() => setShowResetPassword((current) => !current)}
                       >
-                        {showResetPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                        {showResetPassword ? <Eye size={20} /> : <EyeOff size={20} />}
                       </button>
                     </div>
                   </label>
@@ -261,18 +263,18 @@ export default function LoginPage({ signup = false }) {
                       <input
                         aria-invalid={Boolean(resetConfirmPasswordError)}
                         className={field + " pr-12"}
-                        type={showResetPassword ? "text" : "password"}
+                        type={showResetConfirmPassword ? "text" : "password"}
                         value={confirmPassword}
                         onChange={(event) => setConfirmPassword(event.target.value)}
                         required
                       />
                       <button
                         type="button"
-                        aria-label={showResetPassword ? "Hide password" : "Show password"}
+                        aria-label={showResetConfirmPassword ? "Hide confirm password" : "Show confirm password"}
                         className="absolute right-3 top-3 text-slate-500"
-                        onClick={() => setShowResetPassword((current) => !current)}
+                        onClick={() => setShowResetConfirmPassword((current) => !current)}
                       >
-                        {showResetPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                        {showResetConfirmPassword ? <Eye size={20} /> : <EyeOff size={20} />}
                       </button>
                     </div>
                   </label>
@@ -297,7 +299,11 @@ export default function LoginPage({ signup = false }) {
               <button
                 type="button"
                 className="w-full text-sm font-bold text-violet-700"
-                onClick={() => setForgot(false)}
+                onClick={() => {
+                  setForgot(false);
+                  setShowResetPassword(false);
+                  setShowResetConfirmPassword(false);
+                }}
               >
                 Back to sign in
               </button>
@@ -375,7 +381,11 @@ export default function LoginPage({ signup = false }) {
                   <button
                     type="button"
                     className="font-bold text-violet-700"
-                    onClick={() => setForgot(true)}
+                    onClick={() => {
+                      setForgot(true);
+                      setShowResetPassword(false);
+                      setShowResetConfirmPassword(false);
+                    }}
                   >
                     Forgot password?
                   </button>
