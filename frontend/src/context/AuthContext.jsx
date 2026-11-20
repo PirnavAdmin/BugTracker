@@ -106,6 +106,7 @@ export const AuthProvider = ({ children }) => {
       role: session?.user?.role || null,
       dashboardPath: getDashboardPathByRole(session?.user?.role),
       isAuthenticated: Boolean(session?.token),
+      rememberMe: Boolean(session?.rememberMe),
       setAuthSession,
       logout,
     }),

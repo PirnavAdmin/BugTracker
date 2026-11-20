@@ -8,6 +8,11 @@ import { useAuth } from "@/hooks/use-auth";
 import { getDashboardPathByRole } from "@/lib/roles";
 import { getEmailValidationError } from "@/lib/emailValidation";
 import {
+  clearRememberedLogin,
+  readRememberedLogin,
+  writeRememberedLogin,
+} from "@/lib/session";
+import {
   getPasswordStrength,
   getPasswordValidationError,
 } from "@/lib/passwordValidation";
@@ -49,9 +54,14 @@ export default function LoginPage({ signup = false }) {
       : null;
   })();
   const [mode, setMode] = useState(signup ? "signup" : "login");
-  const [form, setForm] = useState({ name: "", email: "", password: "" });
+  const [savedLogin] = useState(() => readRememberedLogin());
+  const [remember, setRemember] = useState(() => Boolean(savedLogin?.email));
+  const [form, setForm] = useState(() => ({
+    name: "",
+    email: savedLogin?.email || "",
+    password: savedLogin?.password || "",
+  }));
   const [show, setShow] = useState(false);
-  const [remember, setRemember] = useState(false);
   const [forgot, setForgot] = useState(false);
   const [otp, setOtp] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -92,6 +102,15 @@ export default function LoginPage({ signup = false }) {
       if (mode === "signup") {
         setMode("login");
         return;
+      }
+      if (remember && form.email) {
+        writeRememberedLogin({
+          email: form.email.trim().toLowerCase(),
+          password: form.password,
+          user: data?.user || null,
+        });
+      } else if (!remember) {
+        clearRememberedLogin();
       }
       setAuthSession(data, { rememberMe: remember });
       const billingTarget =
@@ -374,7 +393,13 @@ export default function LoginPage({ signup = false }) {
                     <input
                       type="checkbox"
                       checked={remember}
-                      onChange={(event) => setRemember(event.target.checked)}
+                      onChange={(event) => {
+                        const isChecked = event.target.checked;
+                        setRemember(isChecked);
+                        if (!isChecked) {
+                          clearRememberedLogin();
+                        }
+                      }}
                     />
                     Remember me
                   </label>

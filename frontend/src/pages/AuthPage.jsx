@@ -39,6 +39,11 @@ import { getDashboardPathByRole } from "@/lib/roles";
 import { cn } from "@/lib/utils";
 import { getEmailValidationError } from "@/lib/emailValidation";
 import {
+  clearRememberedLogin,
+  readRememberedLogin,
+  writeRememberedLogin,
+} from "@/lib/session";
+import {
   getPasswordStrength,
   getPasswordValidationError,
 } from "@/lib/passwordValidation";
@@ -61,7 +66,6 @@ const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const passwordHasLetter = /[A-Za-z]/;
 const passwordHasNumber = /\d/;
 const ADMIN_ROUTE_PATH = "/admin";
-const REMEMBERED_LOGIN_KEY = "curecode_remembered_login";
 const isAdminDefaultLoginEnabledOnClient =
   import.meta.env.VITE_ENABLE_ADMIN_DEFAULT_LOGIN !== "false";
 
@@ -196,65 +200,6 @@ const getAuthErrorMessage = (error) => {
   }
 
   return message || "Authentication failed.";
-};
-
-const readRememberedLogin = () => {
-  if (typeof window === "undefined") {
-    return null;
-  }
-
-  try {
-    const rawValue = window.localStorage.getItem(REMEMBERED_LOGIN_KEY);
-    const rememberedLogin = rawValue ? JSON.parse(rawValue) : null;
-
-    if (!rememberedLogin?.email || typeof rememberedLogin.password !== "string") {
-      return null;
-    }
-
-    return {
-      email: rememberedLogin.email,
-      password: rememberedLogin.password,
-      user: rememberedLogin.user || null,
-      savedAt: rememberedLogin.savedAt || "",
-    };
-  } catch (error) {
-    window.localStorage.removeItem(REMEMBERED_LOGIN_KEY);
-    return null;
-  }
-};
-
-const writeRememberedLogin = ({ email, password, user }) => {
-  if (typeof window === "undefined") {
-    return;
-  }
-
-  window.localStorage.setItem(
-    REMEMBERED_LOGIN_KEY,
-    JSON.stringify({
-      email,
-      password,
-      user: user
-        ? {
-            _id: user._id,
-            name: user.name,
-            email: user.email || email,
-            role: user.role,
-            avatarUrl: user.avatarUrl,
-            profileUrl: user.profileUrl,
-            profileImageUrl: user.profileImageUrl,
-          }
-        : null,
-      savedAt: new Date().toISOString(),
-    })
-  );
-};
-
-const clearRememberedLogin = () => {
-  if (typeof window === "undefined") {
-    return;
-  }
-
-  window.localStorage.removeItem(REMEMBERED_LOGIN_KEY);
 };
 
 const validateForm = ({ mode, formData }) => {
