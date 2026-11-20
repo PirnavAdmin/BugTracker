@@ -16,6 +16,9 @@ const { normalizeTenantId, withTenantFilter } = require("../utils/tenant");
 const { deleteS3Object, uploadToS3 } = require("../utils/s3");
 const { confirmStorage, releaseStorage, reserveStorage } = require("../services/storageUsageService");
 const { getEmailValidationError } = require("../utils/emailValidation");
+const {
+  getStrongPasswordValidationMessage,
+} = require("../utils/passwordValidation");
 
 const passwordHasLetter = /[A-Za-z]/;
 const passwordHasNumber = /\d/;
@@ -421,7 +424,8 @@ const changePassword = asyncHandler(async (req, res) => {
     throw new Error("New password must be different from the current password");
   }
 
-  const passwordValidationMessage = getPasswordValidationMessage(newPassword);
+  const passwordValidationMessage =
+    getStrongPasswordValidationMessage(newPassword);
 
   if (passwordValidationMessage) {
     res.status(400);
@@ -572,7 +576,8 @@ const resetPasswordWithOtp = asyncHandler(async (req, res) => {
     throw new Error("OTP must be 6 digits");
   }
 
-  const passwordValidationMessage = getPasswordValidationMessage(newPassword);
+  const passwordValidationMessage =
+    getStrongPasswordValidationMessage(newPassword);
 
   if (passwordValidationMessage) {
     res.status(400);

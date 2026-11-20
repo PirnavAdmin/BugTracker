@@ -7,6 +7,10 @@ import { loginRequest, registerRequest, requestPasswordReset, resetPassword } fr
 import { useAuth } from "@/hooks/use-auth";
 import { getDashboardPathByRole } from "@/lib/roles";
 import { getEmailValidationError } from "@/lib/emailValidation";
+import {
+  getPasswordStrength,
+  getPasswordValidationError,
+} from "@/lib/passwordValidation";
 
 const emailValid = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 const safeRedirect = (search) => {
@@ -51,8 +55,23 @@ export default function LoginPage({ signup = false }) {
   const [forgot, setForgot] = useState(false);
   const [otp, setOtp] = useState("");
   const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [showResetPassword, setShowResetPassword] = useState(false);
   const [sent, setSent] = useState(false);
   const [emailError, setEmailError] = useState("");
+  const [successMessage, setSuccessMessage] = useState("");
+  const resetPasswordValidationError = getPasswordValidationError(newPassword);
+  const resetConfirmPasswordError = !confirmPassword
+    ? "Confirm your password"
+    : confirmPassword !== newPassword
+      ? "Confirm password must match new password"
+      : "";
+  const resetPasswordStrength = getPasswordStrength(newPassword);
+  const isResetPasswordFormValid =
+    /^\d{6}$/.test(otp) &&
+    Boolean(confirmPassword) &&
+    !resetPasswordValidationError &&
+    !resetConfirmPasswordError;
 
   const auth = useMutation({
     mutationFn: () =>
@@ -90,6 +109,11 @@ export default function LoginPage({ signup = false }) {
     onSuccess: () => {
       setForgot(false);
       setSent(false);
+      setOtp("");
+      setNewPassword("");
+      setConfirmPassword("");
+      setShowResetPassword(false);
+      setSuccessMessage("Password updated successfully. Please sign in.");
     },
   });
   const submit = (event) => {
@@ -147,11 +171,20 @@ export default function LoginPage({ signup = false }) {
                 : "Sign in to your CureCode workspace"}
           </p>
           {isInactiveLogout && <InactivityNotice />}
+          {!forgot && successMessage ? (
+            <p role="status" className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm font-medium text-emerald-700">
+              {successMessage}
+            </p>
+          ) : null}
           {forgot ? (
             <form
               onSubmit={(event) => {
                 event.preventDefault();
-                sent ? reset.mutate() : requestReset.mutate();
+                if (sent) {
+                  if (isResetPasswordFormValid) reset.mutate();
+                  return;
+                }
+                requestReset.mutate();
               }}
               className="mt-7 space-y-4"
             >
@@ -178,21 +211,86 @@ export default function LoginPage({ signup = false }) {
                   </label>
                   <label className="block text-sm font-bold">
                     New password
-                    <input
-                      className={field + " mt-1.5"}
-                      type="password"
-                      value={newPassword}
-                      onChange={(event) => setNewPassword(event.target.value)}
-                      minLength="8"
-                      required
-                    />
+                    <div className="relative mt-1.5">
+                      <input
+                        aria-invalid={Boolean(resetPasswordValidationError)}
+                        className={field + " pr-12"}
+                        type={showResetPassword ? "text" : "password"}
+                        value={newPassword}
+                        onChange={(event) => setNewPassword(event.target.value)}
+                        required
+                      />
+                      <button
+                        type="button"
+                        aria-label={showResetPassword ? "Hide password" : "Show password"}
+                        className="absolute right-3 top-3 text-slate-500"
+                        onClick={() => setShowResetPassword((current) => !current)}
+                      >
+                        {showResetPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                      </button>
+                    </div>
                   </label>
+                  {resetPasswordValidationError ? (
+                    <p role="alert" className="text-sm font-semibold text-rose-600">
+                      {resetPasswordValidationError}
+                    </p>
+                  ) : null}
+                  {newPassword ? (
+                    <div className="flex items-center gap-3" aria-live="polite">
+                      <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-slate-100">
+                        <div
+                          className={
+                            "h-full rounded-full transition-all duration-300 " +
+                            (resetPasswordStrength.tone === "rose"
+                              ? "bg-rose-500"
+                              : resetPasswordStrength.tone === "amber"
+                                ? "bg-amber-400"
+                                : "bg-emerald-500")
+                          }
+                          style={{ width: `${resetPasswordStrength.width}%` }}
+                        />
+                      </div>
+                      <span className="min-w-[56px] text-right text-xs font-semibold">
+                        {resetPasswordStrength.label}
+                      </span>
+                    </div>
+                  ) : null}
+                  <label className="block text-sm font-bold">
+                    Confirm password
+                    <div className="relative mt-1.5">
+                      <input
+                        aria-invalid={Boolean(resetConfirmPasswordError)}
+                        className={field + " pr-12"}
+                        type={showResetPassword ? "text" : "password"}
+                        value={confirmPassword}
+                        onChange={(event) => setConfirmPassword(event.target.value)}
+                        required
+                      />
+                      <button
+                        type="button"
+                        aria-label={showResetPassword ? "Hide password" : "Show password"}
+                        className="absolute right-3 top-3 text-slate-500"
+                        onClick={() => setShowResetPassword((current) => !current)}
+                      >
+                        {showResetPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                      </button>
+                    </div>
+                  </label>
+                  {resetConfirmPasswordError ? (
+                    <p role="alert" className="text-sm font-semibold text-rose-600">
+                      {resetConfirmPasswordError}
+                    </p>
+                  ) : null}
                 </>
               )}
               <Error error={requestReset.error || reset.error} />
               <button
                 className="h-12 w-full rounded-lg bg-gradient-to-r from-violet-700 to-blue-600 font-bold text-white"
-                disabled={requestReset.isPending || reset.isPending}
+                disabled={
+                  requestReset.isPending ||
+                  reset.isPending ||
+                  (sent && !isResetPasswordFormValid)
+                }
               >
                 {sent ? "Update password" : "Send OTP"}
               </button>

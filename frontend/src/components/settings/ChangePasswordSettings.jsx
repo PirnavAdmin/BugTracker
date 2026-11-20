@@ -12,10 +12,11 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { changePasswordRequest } from "@/lib/api";
+import {
+  getPasswordStrength,
+  getPasswordValidationError,
+} from "@/lib/passwordValidation";
 import { cn } from "@/lib/utils";
-
-const passwordHasLetter = /[A-Za-z]/;
-const passwordHasNumber = /\d/;
 
 const initialFormState = {
   currentPassword: "",
@@ -27,58 +28,6 @@ const initialTouchedState = {
   currentPassword: false,
   newPassword: false,
   confirmPassword: false,
-};
-
-const getPasswordChecks = (password = "") => ({
-  minLength: password.length >= 8,
-  hasLetter: passwordHasLetter.test(password),
-  hasNumber: passwordHasNumber.test(password),
-});
-
-const getStrengthMeta = (password, checks) => {
-  if (!password) {
-    return {
-      label: "Not set",
-      tone: "slate",
-      width: 0,
-    };
-  }
-
-  let score = 0;
-
-  if (checks.minLength) {
-    score += 1;
-  }
-
-  if (checks.hasLetter && checks.hasNumber) {
-    score += 1;
-  }
-
-  if (password.length >= 12) {
-    score += 1;
-  }
-
-  if (score <= 1) {
-    return {
-      label: "Weak",
-      tone: "rose",
-      width: 34,
-    };
-  }
-
-  if (score === 2) {
-    return {
-      label: "Medium",
-      tone: "amber",
-      width: 68,
-    };
-  }
-
-  return {
-    label: "Strong",
-    tone: "emerald",
-    width: 100,
-  };
 };
 
 const getSafeMessage = (value, fallback) =>
@@ -166,14 +115,14 @@ const ChangePasswordSettings = () => {
 
   const isPasswordUpdatePending = changePasswordMutation.isPending;
 
-  const passwordChecks = useMemo(
-    () => getPasswordChecks(formData.newPassword),
+  const strengthMeta = useMemo(
+    () => getPasswordStrength(formData.newPassword),
     [formData.newPassword]
   );
 
-  const strengthMeta = useMemo(
-    () => getStrengthMeta(formData.newPassword, passwordChecks),
-    [formData.newPassword, passwordChecks]
+  const passwordValidationError = useMemo(
+    () => getPasswordValidationError(formData.newPassword),
+    [formData.newPassword]
   );
 
   const validationErrors = useMemo(() => {
@@ -186,10 +135,8 @@ const ChangePasswordSettings = () => {
     if (touched.newPassword) {
       if (!formData.newPassword) {
         errors.newPassword = "New password is required";
-      } else if (!passwordChecks.minLength) {
-        errors.newPassword = "Password must be at least 8 characters";
-      } else if (!passwordChecks.hasLetter || !passwordChecks.hasNumber) {
-        errors.newPassword = "Password must include letters and numbers";
+      } else if (passwordValidationError) {
+        errors.newPassword = passwordValidationError;
       } else if (
         formData.currentPassword &&
         formData.newPassword === formData.currentPassword
@@ -208,15 +155,13 @@ const ChangePasswordSettings = () => {
     }
 
     return errors;
-  }, [formData, passwordChecks, touched]);
+  }, [formData, passwordValidationError, touched]);
 
   const isFormValid =
     Boolean(formData.currentPassword) &&
     Boolean(formData.newPassword) &&
     Boolean(formData.confirmPassword) &&
-    passwordChecks.minLength &&
-    passwordChecks.hasLetter &&
-    passwordChecks.hasNumber &&
+    !passwordValidationError &&
     formData.currentPassword !== formData.newPassword &&
     formData.newPassword === formData.confirmPassword;
 
@@ -342,7 +287,7 @@ const ChangePasswordSettings = () => {
 
               <div className="space-y-2">
                 <p className="text-xs text-slate-500">
-                  Use at least 8 characters and include letters and numbers.
+                  Use at least 8 characters with uppercase and lowercase letters, a number, and a special character.
                 </p>
                 <div className="flex items-center gap-3">
                   <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-slate-100">

@@ -38,6 +38,10 @@ import {
 import { getDashboardPathByRole } from "@/lib/roles";
 import { cn } from "@/lib/utils";
 import { getEmailValidationError } from "@/lib/emailValidation";
+import {
+  getPasswordStrength,
+  getPasswordValidationError,
+} from "@/lib/passwordValidation";
 
 const initialForm = {
   fullName: "",
@@ -692,19 +696,12 @@ const AuthPage = () => {
         errors.otp = "Enter the 6 digit OTP";
       }
 
-      if (!resetForm.newPassword) {
-        errors.newPassword = "New password is required";
-      } else if (resetForm.newPassword.length < 8) {
-        errors.newPassword = "Password must be at least 8 characters long";
-      } else if (
-        !passwordHasLetter.test(resetForm.newPassword) ||
-        !passwordHasNumber.test(resetForm.newPassword)
-      ) {
-        errors.newPassword = "Password must include at least one letter and one number";
+      if (resetPasswordValidationError) {
+        errors.newPassword = resetPasswordValidationError;
       }
 
-      if (resetForm.confirmPassword !== resetForm.newPassword) {
-        errors.confirmPassword = "Passwords do not match";
+      if (resetConfirmPasswordError) {
+        errors.confirmPassword = resetConfirmPasswordError;
       }
     }
 
@@ -753,6 +750,24 @@ const AuthPage = () => {
     passwordResetRequestMutation.error || passwordResetMutation.error;
   const isResetPending =
     passwordResetRequestMutation.isPending || passwordResetMutation.isPending;
+  const resetPasswordValidationError = getPasswordValidationError(
+    resetForm.newPassword
+  );
+  const resetPasswordStrength = getPasswordStrength(resetForm.newPassword);
+  const resetOtpError = !resetForm.otp.trim()
+    ? "OTP is required"
+    : !/^\d{6}$/.test(resetForm.otp.trim())
+      ? "Enter the 6 digit OTP"
+      : "";
+  const resetConfirmPasswordError = !resetForm.confirmPassword
+    ? "Confirm your password"
+    : resetForm.confirmPassword !== resetForm.newPassword
+      ? "Confirm password must match new password"
+      : "";
+  const isResetPasswordFormValid =
+    !resetOtpError &&
+    !resetPasswordValidationError &&
+    !resetConfirmPasswordError;
 
   const authEyebrow = mode === "forgot" ? "Password Help" : mode === "register" ? "Start free" : "Welcome back";
   const authTitle =
@@ -1133,9 +1148,9 @@ const AuthPage = () => {
                       <div className="relative">
                         <KeyRound className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-[#8B94B8]" />
                         <Input
-                          aria-invalid={Boolean(resetErrors.otp)}
+                          aria-invalid={Boolean(resetOtpError)}
                           autoComplete="one-time-code"
-                          className={cn(fieldClassName, "tracking-[0.32em]", resetErrors.otp && "border-rose-300 focus-visible:border-rose-400")}
+                          className={cn(fieldClassName, "tracking-[0.32em]", resetOtpError && "border-rose-300 focus-visible:border-rose-400")}
                           disabled={isResetPending}
                           id="otp"
                           inputMode="numeric"
@@ -1145,7 +1160,7 @@ const AuthPage = () => {
                           onChange={handleResetChange}
                         />
                       </div>
-                      {resetErrors.otp ? <p className="text-sm font-semibold text-rose-500">{resetErrors.otp}</p> : null}
+                      {resetOtpError ? <p className="text-sm font-semibold text-rose-500">{resetOtpError}</p> : null}
                     </div>
 
                     <div className="space-y-2">
@@ -1153,9 +1168,9 @@ const AuthPage = () => {
                       <div className="relative">
                         <LockKeyhole className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-[#8B94B8]" />
                         <Input
-                          aria-invalid={Boolean(resetErrors.newPassword)}
+                          aria-invalid={Boolean(resetPasswordValidationError)}
                           autoComplete="new-password"
-                          className={cn(passwordFieldClassName, resetErrors.newPassword && "border-rose-300 focus-visible:border-rose-400")}
+                          className={cn(passwordFieldClassName, resetPasswordValidationError && "border-rose-300 focus-visible:border-rose-400")}
                           disabled={isResetPending}
                           id="newPassword"
                           name="newPassword"
@@ -1171,10 +1186,33 @@ const AuthPage = () => {
                           type="button"
                           onClick={() => setShowResetPassword((current) => !current)}
                         >
-                          {showResetPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                          {showResetPassword ? <Eye className="h-5 w-5" /> : <EyeOff className="h-5 w-5" />}
                         </button>
                       </div>
-                      {resetErrors.newPassword ? <p className="text-sm font-semibold text-rose-500">{resetErrors.newPassword}</p> : null}
+                      {resetPasswordValidationError ? <p className="text-sm font-semibold text-rose-500">{resetPasswordValidationError}</p> : null}
+                      {resetForm.newPassword ? (
+                        <div className="flex items-center gap-3" aria-live="polite">
+                          <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-slate-100">
+                            <div
+                              className={cn(
+                                "h-full rounded-full transition-all duration-300",
+                                resetPasswordStrength.tone === "rose" && "bg-rose-500",
+                                resetPasswordStrength.tone === "amber" && "bg-amber-400",
+                                resetPasswordStrength.tone === "emerald" && "bg-emerald-500"
+                              )}
+                              style={{ width: `${resetPasswordStrength.width}%` }}
+                            />
+                          </div>
+                          <span className={cn(
+                            "min-w-[56px] text-right text-xs font-semibold",
+                            resetPasswordStrength.tone === "rose" && "text-rose-600",
+                            resetPasswordStrength.tone === "amber" && "text-amber-600",
+                            resetPasswordStrength.tone === "emerald" && "text-emerald-600"
+                          )}>
+                            {resetPasswordStrength.label}
+                          </span>
+                        </div>
+                      ) : null}
                     </div>
 
                     <div className="space-y-2">
@@ -1182,9 +1220,9 @@ const AuthPage = () => {
                       <div className="relative">
                         <LockKeyhole className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-[#8B94B8]" />
                         <Input
-                          aria-invalid={Boolean(resetErrors.confirmPassword)}
+                          aria-invalid={Boolean(resetConfirmPasswordError)}
                           autoComplete="new-password"
-                          className={cn(passwordFieldClassName, resetErrors.confirmPassword && "border-rose-300 focus-visible:border-rose-400")}
+                          className={cn(passwordFieldClassName, resetConfirmPasswordError && "border-rose-300 focus-visible:border-rose-400")}
                           disabled={isResetPending}
                           id="confirmPassword"
                           name="confirmPassword"
@@ -1194,7 +1232,7 @@ const AuthPage = () => {
                           onChange={handleResetChange}
                         />
                       </div>
-                      {resetErrors.confirmPassword ? <p className="text-sm font-semibold text-rose-500">{resetErrors.confirmPassword}</p> : null}
+                      {resetConfirmPasswordError ? <p className="text-sm font-semibold text-rose-500">{resetConfirmPasswordError}</p> : null}
                     </div>
                   </>
                 ) : null}
@@ -1205,7 +1243,7 @@ const AuthPage = () => {
                   </div>
                 ) : null}
 
-                <Button className="group h-12 w-full rounded-[8px] border-0 bg-[linear-gradient(100deg,#8428E8,#1178F2)] text-base font-extrabold text-white shadow-[0_18px_42px_-18px_rgba(109,40,217,0.75)] transition duration-300 hover:-translate-y-0.5" disabled={isResetPending} type="submit">
+                <Button className="group h-12 w-full rounded-[8px] border-0 bg-[linear-gradient(100deg,#8428E8,#1178F2)] text-base font-extrabold text-white shadow-[0_18px_42px_-18px_rgba(109,40,217,0.75)] transition duration-300 hover:-translate-y-0.5" disabled={isResetPending || (resetStep === "reset" && !isResetPasswordFormValid)} type="submit">
                   {resetSubmitLabel}
                   {isResetPending ? <Sparkles className="h-5 w-5 animate-pulse" /> : <ArrowRight className="h-5 w-5 transition group-hover:translate-x-0.5" />}
                 </Button>
