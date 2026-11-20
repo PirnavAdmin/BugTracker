@@ -665,6 +665,11 @@ export const markAllNotificationsAsRead = async () => {
   return response.data;
 };
 
+export const clearNotifications = async () => {
+  const response = await api.delete("/issues/notifications");
+  return response.data;
+};
+
 export const createIssue = async (payload) => {
   const normalizedPayload = normalizeIssuePayload(payload);
   logIssuePayload("Create issue", normalizedPayload);

@@ -14,6 +14,7 @@ const {
   importTasksFromSpreadsheet,
   markNotificationRead,
   markAllNotificationsRead,
+  clearNotifications,
   createIssue,
   updateIssue,
   pickIssue,
@@ -83,6 +84,12 @@ router.post(
   protect,
   tenantCacheInvalidation(["notifications", "dashboard"]),
   markAllNotificationsRead
+);
+router.delete(
+  "/notifications",
+  protect,
+  tenantCacheInvalidation(["notifications", "dashboard"]),
+  clearNotifications
 );
 router.get("/stats", protect, tenantCache({ resource: "dashboard" }), getIssueStats);
 router.get("/stories", protect, tenantCache({ resource: "tasks" }), getStories);
