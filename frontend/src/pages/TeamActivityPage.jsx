@@ -91,11 +91,12 @@ const TeamActivityPage = () => {
         search,
       }),
     refetchInterval: 60 * 1000,
+    retry: 1,
   });
   const users = useMemo(() => (Array.isArray(data?.users) ? data.users : []), [data]);
   const summary = data?.summary || { active: 0, idle: 0, offline: 0 };
   const totalUsers = data?.totalUsers ?? users.length;
-  const totalPages = data?.totalPages ?? 0;
+  const totalPages = data?.totalPages ?? Math.max(1, Math.ceil(totalUsers / pageSize));
   const currentPage = data?.currentPage ?? page;
   const workspaceUserCount =
     summary.active + summary.idle + summary.offline;
@@ -201,10 +202,10 @@ const TeamActivityPage = () => {
               </Button>
             )}
             <label className="relative">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400 dark:text-slate-500" />
               <input
                 aria-label="Search users"
-                className="h-9 w-44 rounded-md border border-slate-200 bg-white pl-9 pr-3 text-sm outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-500/15 sm:w-56"
+                className="h-9 w-44 rounded-md border border-slate-200 bg-white pl-9 pr-3 text-sm outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-500/15 sm:w-56 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100 dark:placeholder-slate-400"
                 placeholder="Search users"
                 type="search"
                 value={searchInput}
@@ -220,8 +221,18 @@ const TeamActivityPage = () => {
         </CardHeader>
         <CardContent className="p-0">
           {error ? (
-            <div className="p-4 text-sm text-rose-700 dark:text-rose-400">
-              {error.response?.data?.message || "Unable to load team activity."}
+            <div className="flex flex-col items-center justify-center gap-3 p-8 text-center text-sm text-rose-600 dark:text-rose-400">
+              <p>{error.response?.data?.message || error.message || "Unable to load team activity."}</p>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => refetch()}
+                disabled={isFetching}
+              >
+                <RefreshCw className={cn("mr-2 h-4 w-4", isFetching && "animate-spin")} />
+                Try again
+              </Button>
             </div>
           ) : users.length ? (
             <div className="overflow-x-auto">
@@ -235,13 +246,13 @@ const TeamActivityPage = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                  {filteredUsers.map((row) => {
+                  {users.map((row, index) => {
                     const user = row.user || {};
                     const status = row.status || "offline";
                     const meta = statusMeta[status] || statusMeta.offline;
 
                     return (
-                      <tr key={user._id} className="bg-white/35 dark:bg-slate-900/40 hover:bg-slate-50/60 dark:hover:bg-slate-800/50 transition">
+                      <tr key={user._id || index} className="bg-white/35 dark:bg-slate-900/40 hover:bg-slate-50/60 dark:hover:bg-slate-800/50 transition">
                         <td className="px-4 py-3">
                           <div className="font-semibold text-slate-900 dark:text-slate-100">
                             {user.name || user.email || "Unknown user"}
@@ -308,7 +319,7 @@ const TeamActivityPage = () => {
                   Users per page
                   <select
                     aria-label="Users per page"
-                    className="h-8 rounded-md border border-slate-200 bg-white px-2 text-slate-700 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-500/15"
+                    className="h-8 rounded-md border border-slate-200 bg-white px-2 text-slate-700 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-500/15 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200"
                     value={pageSize}
                     onChange={(event) => {
                       setPageSize(Number(event.target.value));
