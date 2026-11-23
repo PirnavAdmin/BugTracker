@@ -1,6 +1,7 @@
 const express = require("express");
 const Project = require("../models/Project");
 const { notifyGitPushEvent } = require("../services/notificationService");
+const tenantCacheService = require("../services/tenantCacheService");
 const { decryptGitToken } = require("../utils/gitTokenCrypto");
 const { normalizeWorkspaceId } = require("../utils/workspace");
 
@@ -286,6 +287,10 @@ router.post("/github", async (req, res) => {
   };
 
   await project.save();
+
+  if (project.tenantId) {
+    await tenantCacheService.invalidateTenantCache(project.tenantId, ["projects"]);
+  }
 
   if (eventName === "push") {
     try {
