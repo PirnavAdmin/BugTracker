@@ -1477,7 +1477,6 @@ main > header > a > img[alt="CureCode"] {
 
 .app-theme-root {
   color-scheme: light;
-  transition: background-color 200ms ease, color 200ms ease;
 }
 
 :root[data-theme="dark"]:not([data-theme="light"]),
@@ -1551,19 +1550,11 @@ html.dark:not([data-theme="light"]) body {
   color: #475569 !important;
 }
 
-:is(.dark, [data-theme="dark"], .app-theme-root[data-theme="dark"]) :is(
-  .bg-white,
-  [class*="bg-white/"],
-  [class*="bg-slate-50"],
-  [class*="bg-slate-100"],
-  [class*="bg-slate-200"],
-  [class*="bg-gray-50"],
-  [class*="bg-gray-100"],
-  [class*="bg-gray-200"],
-  .app-panel,
-  .app-panel-strong
-) {
-  transition-duration: 200ms;
+/* Smooth View Transition for Theme Switching */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 250ms;
+  animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 /* Neutralize white gradient overlays in dark mode */
@@ -1670,6 +1661,12 @@ html.dark:not([data-theme="light"]) body {
   [class*="border-slate-"],
   [class*="border-gray-"],
   [class*="border-white/"],
+  [class*="border-blue-50"],
+  [class*="border-blue-100"],
+  [class*="border-blue-200"],
+  [class*="border-violet-50"],
+  [class*="border-violet-100"],
+  [class*="border-violet-200"],
   [class*="divide-slate-"],
   [class*="divide-gray-"]
 ) {
