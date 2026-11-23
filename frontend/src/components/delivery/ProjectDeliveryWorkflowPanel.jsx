@@ -639,7 +639,7 @@ export const ProjectOverviewDashboardPanel = ({ issues = [], onViewGitActivity, 
     <Card className="rounded-[24px] border-white/70 bg-white/86 shadow-[0_20px_56px_-36px_rgba(15,23,42,0.38)] dark:border-slate-800 dark:bg-slate-900/90 dark:shadow-black/40">
       <CardContent className="p-5">
         <div className="grid gap-5 xl:grid-cols-2">
-          <section className="rounded-2xl border border-blue-100/80 bg-blue-50/28 p-4 dark:border-slate-800 dark:bg-slate-950/40">
+          <section className="rounded-2xl border border-slate-200/80 bg-slate-50/50 p-4 dark:border-slate-800 dark:bg-slate-950/40">
             <div className="flex items-start justify-between gap-3">
               <div>
                 <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-blue-600 dark:text-blue-400">Git Activity</p>

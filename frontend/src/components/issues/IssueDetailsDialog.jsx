@@ -1358,11 +1358,11 @@ const IssueDetailsDialog = ({
         <div className={cn("min-h-0 min-w-0 overflow-hidden", compactDrawer && "overflow-y-auto overscroll-contain scroll-smooth px-4 py-4")}>
         <div className={cn("grid h-full min-h-0 min-w-0 grid-cols-1 overflow-hidden lg:grid-cols-[minmax(0,1fr)_minmax(360px,420px)] xl:grid-cols-[minmax(0,1fr)_minmax(380px,460px)]", compactDrawer && "h-auto gap-4 overflow-visible lg:grid-cols-1")}>
           <section className={cn("min-h-0 min-w-0 space-y-6 overflow-y-auto overscroll-contain bg-white p-4 sm:p-6", compactDrawer && "overflow-visible p-0")}>
-            <div className="rounded-[28px] border border-slate-200/80 bg-gradient-to-br from-slate-50 to-white p-5 shadow-[0_18px_50px_-42px_rgba(15,23,42,0.5)]">
-              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">
+            <div className="rounded-[28px] border border-slate-200/80 bg-gradient-to-br from-slate-50 to-white p-5 shadow-[0_18px_50px_-42px_rgba(15,23,42,0.5)] dark:border-slate-800 dark:from-slate-900/80 dark:to-slate-950/80 dark:shadow-none">
+              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500 dark:text-slate-400">
                 Description
               </p>
-              <p className="mt-3 whitespace-pre-wrap text-sm leading-7 text-slate-700">
+              <p className="mt-3 whitespace-pre-wrap text-sm leading-7 text-slate-700 dark:text-slate-200">
                 {issue.description || "No detailed description has been added yet."}
               </p>
             </div>
