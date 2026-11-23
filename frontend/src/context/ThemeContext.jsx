@@ -1,4 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { flushSync } from "react-dom";
 import { useLocation } from "react-router-dom";
 import { AUTH_SESSION_CLEARED_EVENT } from "@/lib/session";
 
@@ -69,6 +70,66 @@ const applyThemeToDOM = (theme, isLightLocked = false) => {
   }
 };
 
+/**
+ * Executes a seamless theme change without visual glitching or glowing borders.
+ * Uses View Transitions API where supported for smooth cross-fading,
+ * and temporarily locks CSS property transitions so elements settle immediately
+ * without intermediate contrast lag.
+ */
+const executeThemeTransition = (applyChanges) => {
+  if (typeof document === "undefined") {
+    applyChanges();
+    return;
+  }
+
+  const disableTransitions = () => {
+    const css = document.createElement("style");
+    css.setAttribute("id", "curecode-theme-transition-lock");
+    css.appendChild(
+      document.createTextNode(
+        "*,*::before,*::after{-webkit-transition:none!important;-moz-transition:none!important;-o-transition:none!important;-ms-transition:none!important;transition:none!important}"
+      )
+    );
+    document.head.appendChild(css);
+    return () => {
+      (() => window.getComputedStyle(document.body))();
+      if (document.head.contains(css)) {
+        document.head.removeChild(css);
+      }
+    };
+  };
+
+  const hasViewTransition =
+    typeof document.startViewTransition === "function" &&
+    !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  if (hasViewTransition) {
+    const removeTransitionLock = disableTransitions();
+    try {
+      const transition = document.startViewTransition(() => {
+        flushSync(() => {
+          applyChanges();
+        });
+      });
+      transition.finished.finally(() => {
+        removeTransitionLock();
+      });
+    } catch {
+      removeTransitionLock();
+    }
+    return;
+  }
+
+  // Fallback: lock transitions during theme change so elements snap atomically without glowing borders or lag
+  const removeTransitionLock = disableTransitions();
+  flushSync(() => {
+    applyChanges();
+  });
+  setTimeout(() => {
+    removeTransitionLock();
+  }, 32);
+};
+
 export const ThemeProvider = ({ children }) => {
   const location = useLocation();
   const isLightLocked = isAlwaysLightRoute(location.pathname);
@@ -88,8 +149,10 @@ export const ThemeProvider = ({ children }) => {
   useEffect(() => {
     const handleResetToLight = () => {
       localStorage.setItem(THEME_STORAGE_KEY, "light");
-      setTheme("light");
-      applyThemeToDOM("light", isAlwaysLightRoute(window.location?.pathname || ""));
+      executeThemeTransition(() => {
+        setTheme("light");
+        applyThemeToDOM("light", isAlwaysLightRoute(window.location?.pathname || ""));
+      });
     };
 
     window.addEventListener(AUTH_SESSION_CLEARED_EVENT, handleResetToLight);
@@ -107,18 +170,35 @@ export const ThemeProvider = ({ children }) => {
   }, [theme, isLightLocked]);
 
   const toggleTheme = useCallback(() => {
-    setTheme((currentTheme) => {
-      const nextTheme = currentTheme === "light" ? "dark" : "light";
-      localStorage.setItem(THEME_STORAGE_KEY, nextTheme);
+    const nextTheme = theme === "dark" ? "light" : "dark";
+    localStorage.setItem(THEME_STORAGE_KEY, nextTheme);
+
+    executeThemeTransition(() => {
       applyThemeToDOM(nextTheme, isLightLocked);
-      return nextTheme;
+      setTheme(nextTheme);
     });
-  }, [isLightLocked]);
+  }, [theme, isLightLocked]);
+
+  const updateTheme = useCallback(
+    (targetTheme) => {
+      const nextTheme = typeof targetTheme === "function" ? targetTheme(theme) : targetTheme;
+      if (nextTheme !== "light" && nextTheme !== "dark") return;
+      localStorage.setItem(THEME_STORAGE_KEY, nextTheme);
+
+      executeThemeTransition(() => {
+        applyThemeToDOM(nextTheme, isLightLocked);
+        setTheme(nextTheme);
+      });
+    },
+    [theme, isLightLocked]
+  );
 
   const resetThemeToLight = useCallback(() => {
     localStorage.setItem(THEME_STORAGE_KEY, "light");
-    setTheme("light");
-    applyThemeToDOM("light", isLightLocked);
+    executeThemeTransition(() => {
+      applyThemeToDOM("light", isLightLocked);
+      setTheme("light");
+    });
   }, [isLightLocked]);
 
   const value = useMemo(
@@ -126,11 +206,11 @@ export const ThemeProvider = ({ children }) => {
       theme: isLightLocked ? "light" : theme,
       actualTheme: theme,
       toggleTheme,
-      setTheme,
+      setTheme: updateTheme,
       resetThemeToLight,
       isLightLocked,
     }),
-    [theme, isLightLocked, toggleTheme, resetThemeToLight]
+    [theme, isLightLocked, toggleTheme, updateTheme, resetThemeToLight]
   );
 
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;

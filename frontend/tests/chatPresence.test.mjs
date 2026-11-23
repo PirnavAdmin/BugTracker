@@ -59,6 +59,8 @@ import {AuthContext} from '/src/context/AuthContext.jsx';
 import {PresenceProvider} from '/src/context/PresenceContext.jsx';
 import {CallProvider} from '/src/components/chat/CallProvider.jsx';
 import ChatHeader from '/src/components/chat/ChatHeader.jsx';
+import {useChatStore} from '/src/lib/chatStore.js';
+window.chatTestStore=useChatStore;
 import ChatWindow from '/src/components/chat/ChatWindow.jsx';
 import {Dialog,DialogContent,DialogTitle,DialogDescription} from '/src/components/ui/dialog.jsx';
 import ChatSidebar from '/src/components/chat/ChatSidebar.jsx';
@@ -274,6 +276,46 @@ test("remote call presence updates header and selected/unselected DM avatars wit
   assert.equal(await evaluate('window.deletes'),0);assert.equal(await evaluate('window.confirmations'),0);
   await key("Escape", "Escape", 27);
   await waitFor("!document.getElementById(\"chat-actions-menu\")");
+  // Exercise confirmation, loading, cancellation, and error recovery with synthetic history only.
+  await evaluate(`window.originalClearAction=window.chatTestStore.getState().clearConversationHistory;
+    window.clearAttempts=0;
+    window.chatTestStore.setState({messagesByConversation:{'dm-d2':[{_id:'synthetic-history',message:'Call ended',createdAt:'2026-01-01T00:00:00Z'}]},
+      clearConversationHistory:(id)=>{window.clearAttempts++;
+        window.chatTestStore.setState({clearingByConversation:{[id]:true}});
+        return new Promise((resolve,reject)=>{
+          window.failSyntheticClear=()=>{window.chatTestStore.setState({clearingByConversation:{}});reject(new Error('Synthetic clear failure'));};
+          window.finishSyntheticClear=()=>{window.chatTestStore.getState().applyConversationCleared({conversationId:id,clearedAt:'2026-11-20T10:00:00Z'});window.chatTestStore.setState({clearingByConversation:{}});resolve(true);};
+        });
+      }});`);
+  const clearItem='[...document.querySelectorAll("#chat-actions-menu button")].find(x=>x.textContent.includes("Clear Conversation"))';
+  const dialogButton=label=>'[...document.querySelectorAll(\'[role="dialog"] button\')].find(x=>x.textContent.trim()==='+JSON.stringify(label)+')';
+  await evaluate(button("More actions", "header ")+".click()");
+  await waitFor('document.getElementById("chat-actions-menu")');
+  assert.equal(await evaluate(clearItem+'.disabled'),false);
+  await evaluate(clearItem+'.click()');
+  await waitFor('document.querySelector(\'[role="dialog"]\')');
+  assert.ok(await evaluate('document.querySelector(\'[role="dialog"]\').textContent.includes("This clears the conversation history for you only. Other participants will keep their messages.")'));
+  await evaluate(dialogButton('Cancel')+'.click()');
+  await waitFor('!document.querySelector(\'[role="dialog"]\')');
+  assert.equal(await evaluate('window.clearAttempts'),0);
+  await evaluate(button("More actions", "header ")+".click()");
+  await waitFor('document.getElementById("chat-actions-menu")');
+  await evaluate(clearItem+'.click()');
+  await waitFor('document.querySelector(\'[role="dialog"]\')');
+  await evaluate(dialogButton('Clear Conversation')+'.click()');
+  await waitFor('Boolean('+dialogButton('Clearing...')+')');
+  assert.equal(await evaluate(dialogButton('Clearing...')+'.disabled'),true);
+  await evaluate(dialogButton('Clearing...')+'.click()');
+  assert.equal(await evaluate('window.clearAttempts'),1);
+  await evaluate('window.failSyntheticClear()');
+  await waitFor('document.querySelector(\'[role="alert"]\')?.textContent.includes("Synthetic clear failure")');
+  assert.equal(await evaluate('window.chatTestStore.getState().messagesByConversation["dm-d2"].length'),1);
+  await evaluate(dialogButton('Clear Conversation')+'.click()');
+  await waitFor('window.clearAttempts===2');
+  await evaluate('window.finishSyntheticClear()');
+  await waitFor('!document.querySelector(\'[role="dialog"]\')');
+  assert.equal(await evaluate('window.chatTestStore.getState().messagesByConversation["dm-d2"].length'),0);
+  await evaluate('window.chatTestStore.setState({clearConversationHistory:window.originalClearAction})');
   // Exercise the unchanged video action with generated media and a rejected fake socket call.
   assert.ok(await evaluate('Boolean(('+button("Start video call", "header ")+').querySelector("svg.lucide-video"))'));
   await evaluate(button("Start video call", "header ")+".click()");

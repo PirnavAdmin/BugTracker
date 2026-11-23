@@ -689,9 +689,9 @@ const MetricTile = ({ active = false, description, icon: Icon, label, tone, valu
   return (
     <Component
       className={cn(
-        "group flex min-h-[64px] w-full items-center justify-between gap-3 rounded-xl border border-l-4 border-slate-200 bg-white px-3 py-2.5 text-left shadow-sm transition duration-150 hover:-translate-y-px hover:border-blue-200 hover:bg-blue-50/30 hover:shadow-md",
+        "group flex min-h-[64px] w-full items-center justify-between gap-3 rounded-xl border border-l-4 border-slate-200 bg-white px-3 py-2.5 text-left shadow-sm transition duration-150 hover:-translate-y-px hover:border-blue-200 hover:bg-blue-50/30 hover:shadow-md dark:border-slate-800 dark:bg-slate-900/90 dark:hover:border-blue-500/40 dark:hover:bg-slate-800/80",
         onClick && "cursor-pointer",
-        active && "border-blue-200 border-l-blue-500 bg-blue-50/40"
+        active && "border-blue-200 border-l-blue-500 bg-blue-50/40 dark:border-blue-500/50 dark:border-l-blue-400 dark:bg-blue-950/40"
       )}
       type={onClick ? "button" : undefined}
       onClick={onClick}
@@ -699,10 +699,10 @@ const MetricTile = ({ active = false, description, icon: Icon, label, tone, valu
       aria-label={description ? `${label}: ${description}` : label}
     >
       <div className="min-w-0">
-        <p className="truncate text-[10px] font-bold uppercase tracking-[0.16em] text-slate-500">
+        <p className="truncate text-[10px] font-bold uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">
           {label}
         </p>
-        <p className="mt-1 text-2xl font-semibold leading-none text-slate-950">{value}</p>
+        <p className="mt-1 text-2xl font-semibold leading-none text-slate-950 dark:text-slate-100">{value}</p>
       </div>
       <span className={cn("flex h-8 w-8 shrink-0 items-center justify-center rounded-lg", tone)}>
         <Icon className="h-4 w-4" />

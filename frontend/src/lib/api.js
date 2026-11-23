@@ -1301,6 +1301,11 @@ export const removeChatConversationParticipant = async (conversationId, userId) 
   return response.data?.conversation || response.data;
 };
 
+export const clearChatConversationHistory = async (conversationId) => {
+  const response = await api.post(`/chat/conversations/${conversationId}/clear-history`);
+  return response.data;
+};
+
 export const deleteChatConversation = async (conversationId) => {
   const response = await api.delete(`/chat/conversations/${conversationId}`);
   return response.data;

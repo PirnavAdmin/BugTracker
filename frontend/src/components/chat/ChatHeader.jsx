@@ -68,6 +68,23 @@ const ChatHeader = memo(
     const removeParticipantFromConversation = useChatStore(
       (state) => state.removeParticipantFromConversation
     );
+    const clearConversationHistory = useChatStore((state) => state.clearConversationHistory);
+    const isClearing = useChatStore((state) => Boolean(state.clearingByConversation[getId(conversation)]));
+    const hasVisibleHistory = useChatStore((state) => Boolean(
+      state.messagesByConversation[getId(conversation)]?.some((message) => !message.pending) || conversation?.lastMessageAt));
+    const [clearDialogConversation, setClearDialogConversation] = useState(null);
+    const [clearError, setClearError] = useState("");
+    const canClear = Boolean(currentUserId && conversation &&
+      conversation.participants?.some((participant) => getId(participant) === String(currentUserId)) && hasVisibleHistory);
+    const handleClear = async () => {
+      if (!clearDialogConversation || isClearing) return;
+      setClearError("");
+      try {
+        if (await clearConversationHistory(clearDialogConversation)) setClearDialogConversation(null);
+      } catch (error) {
+        setClearError(error?.response?.data?.message || error?.message || "Unable to clear conversation. Please try again.");
+      }
+    };
     const [isParticipantsOpen, setIsParticipantsOpen] = useState(false);
     const [participantQuery, setParticipantQuery] = useState("");
     const [participantResults, setParticipantResults] = useState([]);
@@ -97,7 +114,6 @@ const ChatHeader = memo(
     );
     const isGroupCallAvailable =
       conversation?.type !== "direct" && conversation && !activeCall && !activeChannelCall;
-    const canDelete = conversation && !["project", "team"].includes(conversation.channelType);
     const canManageParticipants =
       conversation?.type === "group" && conversation?.channelType === "custom";
     const isPinned = Boolean(conversation?.isPinned);
@@ -144,6 +160,8 @@ const ChatHeader = memo(
 
     useEffect(() => {
       setIsActionsMenuOpen(false);
+      setClearDialogConversation(null);
+      setClearError("");
     }, [conversation?._id]);
 
     useEffect(() => {
@@ -444,25 +462,36 @@ const ChatHeader = memo(
                   </span>
                   {isArchived ? <Check className="h-4 w-4 text-slate-900 dark:text-slate-100" /> : null}
                 </button>
-                {canDelete ? (
+                {conversation ? (
                   <button
                     type="button"
                     role="menuitem"
                     tabIndex={-1}
-                    disabled
-                    className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-medium text-slate-400 disabled:cursor-not-allowed"
-                    title="Personal chat-history clearing is not available yet."
-                    aria-describedby="clear-conversation-unavailable"
+                    disabled={!canClear || isClearing}
+                    className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-medium text-slate-700 hover:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed"
+                    onClick={() => { setIsActionsMenuOpen(false); setClearError(""); setClearDialogConversation(getId(conversation)); }}
                   >
                     <Trash2 className="h-4 w-4" />
                     Clear Conversation
                   </button>
                 ) : null}
-                <span id="clear-conversation-unavailable" className="sr-only">Personal chat-history clearing is not available yet.</span>
               </ChatActionsMenu>
             ) : null}
           </div>
 
+          <Dialog open={Boolean(clearDialogConversation)} onOpenChange={(open) => { if (!open && !isClearing) setClearDialogConversation(null); }}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Clear Conversation?</DialogTitle>
+                <DialogDescription>This clears the conversation history for you only. Other participants will keep their messages.</DialogDescription>
+              </DialogHeader>
+              {clearError ? <p role="alert" className="text-sm text-rose-600">{clearError}</p> : null}
+              <DialogFooter>
+                <Button variant="outline" disabled={isClearing} onClick={() => setClearDialogConversation(null)}>Cancel</Button>
+                <Button disabled={isClearing} onClick={handleClear}>{isClearing ? "Clearing..." : "Clear Conversation"}</Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
           {conversation?.type !== "direct" ? (
             <Dialog open={isParticipantsOpen} onOpenChange={setIsParticipantsOpen}>
               <DialogTrigger asChild>

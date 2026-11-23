@@ -438,18 +438,18 @@ const getStatusChipClassName = (status = "Active") => {
 
 const getKpiIconClassName = (label = "") => {
   const iconClasses = {
-    Timeline: "bg-[#EFF6FF] text-blue-600",
-    Progress: "bg-[#ECFDF5] text-emerald-600",
-    "Days Remaining": "bg-[#FFF7ED] text-orange-600",
-    Health: "bg-[#FEF2F2] text-red-600",
-    Budget: "bg-[#F5F3FF] text-violet-600",
-    Tasks: "bg-[#EFF6FF] text-blue-600",
-    Bugs: "bg-[#FEF2F2] text-red-600",
-    Members: "bg-[#EFF6FF] text-blue-600",
-    Teams: "bg-[#F5F3FF] text-indigo-600",
+    Timeline: "bg-[#EFF6FF] text-blue-600 dark:bg-blue-950/60 dark:text-blue-300",
+    Progress: "bg-[#ECFDF5] text-emerald-600 dark:bg-emerald-950/60 dark:text-emerald-300",
+    "Days Remaining": "bg-[#FFF7ED] text-orange-600 dark:bg-orange-950/60 dark:text-orange-300",
+    Health: "bg-[#FEF2F2] text-red-600 dark:bg-red-950/60 dark:text-red-300",
+    Budget: "bg-[#F5F3FF] text-violet-600 dark:bg-violet-950/60 dark:text-violet-300",
+    Tasks: "bg-[#EFF6FF] text-blue-600 dark:bg-blue-950/60 dark:text-blue-300",
+    Bugs: "bg-[#FEF2F2] text-red-600 dark:bg-red-950/60 dark:text-red-300",
+    Members: "bg-[#EFF6FF] text-blue-600 dark:bg-blue-950/60 dark:text-blue-300",
+    Teams: "bg-[#F5F3FF] text-indigo-600 dark:bg-indigo-950/60 dark:text-indigo-300",
   };
 
-  return iconClasses[label] || "bg-slate-100 text-slate-600";
+  return iconClasses[label] || "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300";
 };
 
 const CompletionRing = ({ value = 0 }) => {
@@ -1923,24 +1923,24 @@ const ProjectsPage = () => {
                     active
                       ? highlight
                         ? "border-violet-300 bg-gradient-to-r from-violet-600 to-indigo-600 text-white shadow-md shadow-violet-200"
-                        : "border-[#B6D4FE] bg-[#E9F2FF] text-[#0C66E4]"
-                      : "border-transparent text-slate-600 hover:bg-slate-50 hover:text-slate-950"
+                        : "border-[#B6D4FE] bg-[#E9F2FF] text-[#0C66E4] dark:border-blue-500/50 dark:bg-blue-950/40 dark:text-blue-300"
+                      : "border-transparent text-slate-600 hover:bg-slate-50 hover:text-slate-950 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100"
                   }`}
                   type="button"
                   onClick={action}
                 >
-                  <Icon className={`h-4 w-4 shrink-0 transition duration-200 group-hover:scale-110 group-hover:-rotate-3 ${active ? iconTone : "text-slate-600"}`} />
+                  <Icon className={`h-4 w-4 shrink-0 transition duration-200 group-hover:scale-110 group-hover:-rotate-3 ${active ? iconTone : "text-slate-600 dark:text-slate-400"}`} />
                   {label}
                 </button>
               ))}
             </nav>
 
-            <div className="mt-auto rounded-xl border border-emerald-100 bg-emerald-50/70 p-3 shadow-[0_2px_12px_rgba(0,0,0,.04)]">
-              <div className="flex items-center gap-2 text-sm font-semibold text-slate-950">
-                <Users2 className="h-4 w-4 text-emerald-700" />
+            <div className="mt-auto rounded-xl border border-emerald-100 bg-emerald-50/70 p-3 shadow-[0_2px_12px_rgba(0,0,0,.04)] dark:border-emerald-800/60 dark:bg-emerald-950/40">
+              <div className="flex items-center gap-2 text-sm font-semibold text-slate-950 dark:text-slate-100">
+                <Users2 className="h-4 w-4 text-emerald-700 dark:text-emerald-300" />
                 Teams
               </div>
-              <p className="mt-1 text-xs leading-5 text-slate-600">
+              <p className="mt-1 text-xs leading-5 text-slate-600 dark:text-slate-400">
                 Organize people into workspace teams.
               </p>
               <Button
@@ -2076,8 +2076,8 @@ const ProjectsPage = () => {
                       key={project._id}
                       className={`group relative flex h-[60px] w-full items-center gap-2 rounded-xl border px-2.5 text-left transition ${
                         isSelected
-                          ? "border-[#B6D4FE] bg-[#E9F2FF]"
-                          : "border-transparent bg-white hover:border-[#B6D4FE] hover:bg-[#F3F8FF] hover:shadow-[0_4px_14px_rgba(37,99,235,0.10)]"
+                          ? "border-[#B6D4FE] bg-[#E9F2FF] dark:border-blue-500/50 dark:bg-blue-950/50"
+                          : "border-transparent bg-white hover:border-[#B6D4FE] hover:bg-[#F3F8FF] hover:shadow-[0_4px_14px_rgba(37,99,235,0.10)] dark:border-transparent dark:bg-slate-900/90 dark:hover:border-slate-700 dark:hover:bg-slate-800/80"
                       }`}
                       type="button"
                       onClick={() => {
@@ -2107,20 +2107,29 @@ const ProjectsPage = () => {
                       </span>
                       <span className="min-w-0 flex-1">
                         <span className="flex min-w-0 items-center justify-between gap-2">
-                          <span className="block truncate text-sm font-semibold text-slate-950">
+                          <span className={cn(
+                            "block truncate text-sm font-semibold",
+                            isSelected ? "text-blue-950 dark:text-blue-100" : "text-slate-950 dark:text-slate-100"
+                          )}>
                             {project.name}
                           </span>
-                          <span className="shrink-0 text-[11px] font-semibold text-slate-500">
+                          <span className={cn(
+                            "shrink-0 text-[11px] font-semibold",
+                            isSelected ? "text-blue-700 dark:text-blue-300" : "text-slate-500 dark:text-slate-400"
+                          )}>
                             {listProgress}%
                           </span>
                         </span>
-                        <span className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px] text-slate-500">
+                        <span className={cn(
+                          "mt-1 flex flex-wrap items-center gap-1.5 text-[11px]",
+                          isSelected ? "text-blue-700/80 dark:text-blue-300/80" : "text-slate-500 dark:text-slate-400"
+                        )}>
                           <span>{project.issueCount || 0} issues</span>
                           <span>/</span>
                           <span>{getProjectMemberCount(project)} members</span>
                         </span>
                       </span>
-                      <MoreHorizontal className="h-4 w-4 text-slate-400 opacity-0 transition group-hover:opacity-100" />
+                      <MoreHorizontal className="h-4 w-4 text-slate-400 opacity-0 transition group-hover:opacity-100 dark:text-slate-400" />
                     </button>
                   );
                 })
@@ -2147,7 +2156,7 @@ const ProjectsPage = () => {
                     <div
                       className="flex flex-col gap-3 px-5 py-4 transition-colors lg:flex-row lg:items-start lg:justify-between"
                       style={{
-                        background: `linear-gradient(110deg, ${getProjectThemeColor(selectedProject)}24 0%, ${getProjectThemeColor(selectedProject)}10 58%, #ffffff 100%)`,
+                        background: `linear-gradient(110deg, ${getProjectThemeColor(selectedProject)}24 0%, ${getProjectThemeColor(selectedProject)}10 58%, var(--app-surface) 100%)`,
                         borderBottom: `1px solid ${getProjectThemeColor(selectedProject)}24`,
                       }}
                     >
@@ -2238,7 +2247,7 @@ const ProjectsPage = () => {
                             <ChevronDown className="h-3.5 w-3.5" />
                           </Button>
                           {isQuickAddOpen ? (
-                            <div className="absolute right-0 top-11 z-20 w-44 overflow-hidden rounded-xl border border-[#EEF2F7] bg-white p-1 shadow-[0_18px_46px_-28px_rgba(15,23,42,0.35)]">
+                            <div className="absolute right-0 top-11 z-20 w-44 overflow-hidden rounded-xl border border-[#EEF2F7] bg-white p-1 shadow-[0_18px_46px_-28px_rgba(15,23,42,0.35)] dark:border-slate-800 dark:bg-slate-900">
                               {[
                                 { label: "Story", path: `/stories?projectId=${selectedProject._id}` },
                                 { label: "Task", path: `/tasks?projectId=${selectedProject._id}` },
@@ -2254,7 +2263,7 @@ const ProjectsPage = () => {
                               ].map((item) => (
                                 <button
                                   key={item.label}
-                                  className="flex h-9 w-full items-center gap-2 rounded-lg px-3 text-sm font-medium text-slate-700 hover:bg-[#E9F2FF] hover:text-[#0C66E4]"
+                                  className="flex h-9 w-full items-center gap-2 rounded-lg px-3 text-sm font-medium text-slate-700 hover:bg-[#E9F2FF] hover:text-[#0C66E4] dark:text-slate-200 dark:hover:bg-slate-800 dark:hover:text-blue-400"
                                   type="button"
                                   onClick={() => {
                                     setIsQuickAddOpen(false);
@@ -3023,13 +3032,13 @@ const ProjectsPage = () => {
                             </p>
                           </div>
 
-                          <div className="rounded-2xl border border-[#B6D4FE] bg-[#F4F8FF] p-4">
+                          <div className="rounded-2xl border border-[#B6D4FE] bg-[#F4F8FF] p-4 dark:border-blue-500/40 dark:bg-blue-950/30">
                             <label className="space-y-1.5">
-                              <span className="text-xs font-semibold uppercase tracking-wide text-blue-600">
+                              <span className="text-xs font-semibold uppercase tracking-wide text-blue-600 dark:text-blue-300">
                                 Team Lead
                               </span>
                               <select
-                                className="h-10 w-full rounded-xl border border-[#B6D4FE] bg-white px-3 text-sm text-slate-950 outline-none focus:border-blue-400 focus:ring-4 focus:ring-blue-500/10"
+                                className="h-10 w-full rounded-xl border border-[#B6D4FE] bg-white px-3 text-sm text-slate-950 outline-none focus:border-blue-400 focus:ring-4 focus:ring-blue-500/10 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
                                 value={projectSettings.teamLead}
                                 disabled={!canManageProjects || isUsersLoading}
                                 onChange={(event) =>
@@ -3044,18 +3053,18 @@ const ProjectsPage = () => {
                                 ))}
                               </select>
                             </label>
-                            <p className="mt-2 text-xs text-slate-500">
+                            <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
                               Only users with the Team Lead role are listed here.
                             </p>
                           </div>
 
-                          <div className="rounded-2xl border border-[#EEF2F7] bg-white/80 p-4">
+                          <div className="rounded-2xl border border-[#EEF2F7] bg-white/80 p-4 dark:border-slate-800 dark:bg-slate-900/60">
                             <label className="space-y-1.5">
-                              <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                              <span className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
                                 QA Lead
                               </span>
                               <select
-                                className="h-10 w-full rounded-xl border border-[#DDE5F0] bg-white px-3 text-sm text-slate-950 outline-none focus:border-blue-400 focus:ring-4 focus:ring-blue-500/10"
+                                className="h-10 w-full rounded-xl border border-[#DDE5F0] bg-white px-3 text-sm text-slate-950 outline-none focus:border-blue-400 focus:ring-4 focus:ring-blue-500/10 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
                                 value={projectSettings.qaLead}
                                 disabled={!canManageProjects || isUsersLoading}
                                 onChange={(event) =>
@@ -3070,24 +3079,24 @@ const ProjectsPage = () => {
                                 ))}
                               </select>
                             </label>
-                            <p className="mt-2 text-xs text-slate-500">
+                            <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
                               QA Leads coordinate test ownership and verification.
                             </p>
                           </div>
                         </div>
                       </div>
 
-                      <div className="border-t border-[#EEF2F7] pt-4">
+                      <div className="border-t border-[#EEF2F7] pt-4 dark:border-slate-800">
                         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                           <div>
-                            <h4 className="text-sm font-semibold text-slate-950">
+                            <h4 className="text-sm font-semibold text-slate-950 dark:text-slate-100">
                               Teams
                             </h4>
-                            <p className="mt-1 text-xs text-slate-500">
+                            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
                               Attach or remove teams from this project.
                             </p>
                           </div>
-                          <span className="rounded-full border border-[#B6D4FE] bg-[#E9F2FF] px-2.5 py-1 text-xs font-semibold text-[#0C66E4]">
+                          <span className="rounded-full border border-[#B6D4FE] bg-[#E9F2FF] px-2.5 py-1 text-xs font-semibold text-[#0C66E4] dark:border-blue-500/40 dark:bg-blue-950/40 dark:text-blue-300">
                             {selectedProjectTeams.length}
                           </span>
                         </div>

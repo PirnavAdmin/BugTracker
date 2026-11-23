@@ -395,13 +395,13 @@ const ProjectDeliveryOverview = ({
       description="Track project workload, bug pressure, QA activity and delivery health."
       action={
         <div className="flex flex-wrap items-center justify-end gap-2">
-          <Badge className="rounded-full border-slate-200/80 bg-white/72 px-3 py-1 text-xs font-medium text-slate-600 shadow-sm">
+          <Badge className="rounded-full border-slate-200/80 bg-white/72 px-3 py-1 text-xs font-medium text-slate-600 shadow-sm dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300">
             {projects.length} Projects
           </Badge>
           <select
             value={selectedProjectId}
             onChange={(event) => onProjectChange?.(event.target.value)}
-            className="h-8 max-w-[150px] rounded-full border border-white/70 bg-white/78 px-3 text-xs font-medium text-slate-700 shadow-sm outline-none transition focus:border-blue-200 focus:ring-2 focus:ring-blue-500/20"
+            className="h-8 max-w-[150px] rounded-full border border-white/70 bg-white/78 px-3 text-xs font-medium text-slate-700 shadow-sm outline-none transition focus:border-blue-200 focus:ring-2 focus:ring-blue-500/20 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200"
             aria-label="Filter project delivery overview"
           >
             <option value="all">All Projects</option>
@@ -414,7 +414,7 @@ const ProjectDeliveryOverview = ({
           <select
             value={sortBy}
             onChange={(event) => onSortChange?.(event.target.value)}
-            className="h-8 max-w-[118px] rounded-full border border-white/70 bg-white/78 px-3 text-xs font-medium text-slate-700 shadow-sm outline-none transition focus:border-blue-200 focus:ring-2 focus:ring-blue-500/20"
+            className="h-8 max-w-[118px] rounded-full border border-white/70 bg-white/78 px-3 text-xs font-medium text-slate-700 shadow-sm outline-none transition focus:border-blue-200 focus:ring-2 focus:ring-blue-500/20 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200"
             aria-label="Sort project delivery overview"
           >
             <option value="health-asc">Health</option>
@@ -448,33 +448,33 @@ const ProjectDeliveryOverview = ({
                 animate={shouldReduceMotion ? undefined : { opacity: 1, y: 0 }}
                 transition={{ delay: index * 0.035, duration: 0.28, ease: "easeOut" }}
                 onClick={() => onOpen(project)}
-                className="group grid w-full gap-3 rounded-[20px] border border-white/72 bg-white/66 px-3 py-3 text-left shadow-[0_14px_34px_-32px_rgba(15,23,42,0.34)] backdrop-blur-sm transition duration-300 hover:-translate-y-0.5 hover:border-blue-200/90 hover:bg-white/88 hover:shadow-[0_20px_46px_-34px_rgba(37,99,235,0.36)] md:grid-cols-[minmax(0,1.7fr)_0.56fr_0.56fr_0.6fr_0.54fr_0.86fr] md:items-center"
+                className="group grid w-full gap-3 rounded-[20px] border border-white/72 bg-white/66 px-3 py-3 text-left shadow-[0_14px_34px_-32px_rgba(15,23,42,0.34)] backdrop-blur-sm transition duration-300 hover:-translate-y-0.5 hover:border-blue-200/90 hover:bg-white/88 hover:shadow-[0_20px_46px_-34px_rgba(37,99,235,0.36)] dark:border-slate-800 dark:bg-slate-900/60 dark:hover:bg-slate-800 md:grid-cols-[minmax(0,1.7fr)_0.56fr_0.56fr_0.6fr_0.54fr_0.86fr] md:items-center"
               >
                 <span className="min-w-0">
                   <span className="flex min-w-0 items-center gap-2">
-                    <span className="truncate text-sm font-semibold text-slate-950">
+                    <span className="truncate text-sm font-semibold text-slate-950 dark:text-slate-100">
                       {project.name}
                     </span>
                     {project.gitActive ? (
                       <span className="h-2 w-2 shrink-0 rounded-full bg-emerald-500 shadow-[0_0_0_4px_rgba(16,185,129,0.12)]" title="Git activity available" />
                     ) : null}
                   </span>
-                  <span className="mt-0.5 block text-xs font-medium text-slate-500">
+                  <span className="mt-0.5 block text-xs font-medium text-slate-500 dark:text-slate-400">
                     {formatCompactNumber(project.open)} open - {formatCompactNumber(project.closed)} closed
                     {project.pendingQa ? ` - ${formatCompactNumber(project.pendingQa)} QA` : ""}
                   </span>
                 </span>
 
-                <span className="hidden text-sm font-medium text-slate-800 md:block">
+                <span className="hidden text-sm font-medium text-slate-800 dark:text-slate-200 md:block">
                   {formatCompactNumber(project.total)}
                 </span>
-                <span className="hidden text-sm font-medium text-rose-600 md:block">
+                <span className="hidden text-sm font-medium text-rose-600 dark:text-rose-400 md:block">
                   {formatCompactNumber(project.open)}
                 </span>
-                <span className="hidden text-sm font-medium text-emerald-700 md:block">
+                <span className="hidden text-sm font-medium text-emerald-700 dark:text-emerald-400 md:block">
                   {formatCompactNumber(project.closed)}
                 </span>
-                <span className="hidden text-sm font-medium text-cyan-700 md:block">
+                <span className="hidden text-sm font-medium text-cyan-700 dark:text-cyan-400 md:block">
                   {formatCompactNumber(project.pendingQa)}
                 </span>
 
@@ -487,7 +487,7 @@ const ProjectDeliveryOverview = ({
                     <ChevronRight className="h-4 w-4 text-slate-400 transition group-hover:translate-x-0.5 group-hover:text-blue-600" />
                   </span>
                   <span className="mt-2 flex items-center gap-2">
-                    <span className="h-1.5 flex-1 overflow-hidden rounded-full bg-slate-200">
+                    <span className="h-1.5 flex-1 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-800">
                       <motion.span
                         className={cn("block h-full rounded-full", health.barClassName)}
                         initial={shouldReduceMotion ? false : { width: 0 }}
@@ -495,7 +495,7 @@ const ProjectDeliveryOverview = ({
                         transition={{ delay: 0.08 + index * 0.035, duration: 0.55, ease: "easeOut" }}
                       />
                     </span>
-                    <span className="w-9 text-right text-xs font-medium text-slate-700">
+                    <span className="w-9 text-right text-xs font-medium text-slate-700 dark:text-slate-300">
                       {project.health}%
                     </span>
                   </span>
@@ -590,14 +590,14 @@ const TopContributors = ({
                   </span>
                 </span>
                 <span className="flex shrink-0 flex-col items-end gap-1">
-                  <span className="rounded-full border border-blue-100 bg-blue-50 px-2.5 py-1 text-sm font-semibold text-blue-700">
+                  <span className="rounded-full border border-blue-100 bg-blue-50 px-2.5 py-1 text-sm font-semibold text-blue-700 dark:border-blue-800/60 dark:bg-blue-950/50 dark:text-blue-300">
                     {contributor.percent}%
                   </span>
                   {contributor.rankMovement ? (
                     <span
                       className={cn(
                         "text-[10px] font-medium",
-                        contributor.rankMovement > 0 ? "text-emerald-600" : "text-rose-600"
+                        contributor.rankMovement > 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"
                       )}
                     >
                       {contributor.rankMovement > 0
@@ -608,14 +608,14 @@ const TopContributors = ({
                 </span>
               </div>
 
-              <div className="mt-2.5 grid grid-cols-3 gap-1.5 text-[11px] font-medium text-slate-600">
-                <span className="rounded-full bg-emerald-50 px-2 py-1 text-emerald-700">
+              <div className="mt-2.5 grid grid-cols-3 gap-1.5 text-[11px] font-medium text-slate-600 dark:text-slate-300">
+                <span className="rounded-full bg-emerald-50 px-2 py-1 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300">
                   {formatCompactNumber(contributor.resolved)} Resolved
                 </span>
-                <span className="rounded-full bg-blue-50 px-2 py-1 text-blue-700">
+                <span className="rounded-full bg-blue-50 px-2 py-1 text-blue-700 dark:bg-blue-950/50 dark:text-blue-300">
                   {formatCompactNumber(contributor.open)} Open
                 </span>
-                <span className="rounded-full bg-rose-50 px-2 py-1 text-rose-700">
+                <span className="rounded-full bg-rose-50 px-2 py-1 text-rose-700 dark:bg-rose-950/50 dark:text-rose-300">
                   {formatCompactNumber(contributor.critical)} Critical
                 </span>
               </div>
@@ -1886,24 +1886,24 @@ const TriageBoardWidget = ({ bugs, onOpen, onNavigate }) => {
       label: "Incoming",
       value: metrics.incoming,
       helper: "New bugs",
-      className: "border-blue-100 bg-blue-50/55 text-blue-700",
-      valueClassName: "text-blue-950",
+      className: "border-blue-100 bg-blue-50/55 text-blue-700 dark:border-blue-800/60 dark:bg-blue-950/40 dark:text-blue-300",
+      valueClassName: "text-blue-950 dark:text-blue-200",
     },
     {
       key: "unassigned",
       label: "Unassigned",
       value: metrics.unassigned,
       helper: "Need ownership",
-      className: "border-amber-100 bg-amber-50/55 text-amber-700",
-      valueClassName: "text-amber-950",
+      className: "border-amber-100 bg-amber-50/55 text-amber-700 dark:border-amber-800/60 dark:bg-amber-950/40 dark:text-amber-300",
+      valueClassName: "text-amber-950 dark:text-amber-200",
     },
     {
       key: "review",
       label: "Review",
       value: metrics.awaitingReview,
       helper: "Being triaged",
-      className: "border-violet-100 bg-violet-50/55 text-violet-700",
-      valueClassName: "text-violet-950",
+      className: "border-violet-100 bg-violet-50/55 text-violet-700 dark:border-violet-800/60 dark:bg-violet-950/40 dark:text-violet-300",
+      valueClassName: "text-violet-950 dark:text-violet-200",
     },
   ];
 
@@ -1934,7 +1934,7 @@ const TriageBoardWidget = ({ bugs, onOpen, onNavigate }) => {
               <p className={cn("mt-1 text-2xl font-black leading-none", metric.valueClassName)}>
                 {formatCompactNumber(metric.value)}
               </p>
-              <p className="mt-1 text-[11px] font-semibold text-slate-500">{metric.helper}</p>
+              <p className="mt-1 text-[11px] font-semibold text-slate-500 dark:text-slate-400">{metric.helper}</p>
             </div>
           ))}
         </div>
@@ -1955,14 +1955,14 @@ const TriageBoardWidget = ({ bugs, onOpen, onNavigate }) => {
             <button
               key={bug._id}
               onClick={() => onOpen(bug)}
-              className="group grid w-full grid-cols-[78px_minmax(0,1fr)_auto] items-center gap-3 rounded-2xl border border-slate-100/90 bg-white/56 px-3 py-2.5 text-left shadow-[0_12px_30px_-30px_rgba(15,23,42,0.36)] transition duration-200 hover:-translate-y-0.5 hover:border-blue-100 hover:bg-white/88 hover:shadow-[0_16px_38px_-32px_rgba(37,99,235,0.42)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/50"
+              className="group grid w-full grid-cols-[78px_minmax(0,1fr)_auto] items-center gap-3 rounded-2xl border border-slate-100/90 bg-white/56 px-3 py-2.5 text-left shadow-[0_12px_30px_-30px_rgba(15,23,42,0.36)] transition duration-200 hover:-translate-y-0.5 hover:border-blue-100 hover:bg-white/88 hover:shadow-[0_16px_38px_-32px_rgba(37,99,235,0.42)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/50 dark:border-slate-800 dark:bg-slate-900/60 dark:hover:bg-slate-800"
             >
-              <span className="font-mono text-[11px] font-bold text-slate-500">{getIssueDisplayKey(bug)}</span>
+              <span className="font-mono text-[11px] font-bold text-slate-500 dark:text-blue-400">{getIssueDisplayKey(bug)}</span>
               <span className="min-w-0">
-                <span className="block truncate text-xs font-semibold text-slate-800">
+                <span className="block truncate text-xs font-semibold text-slate-800 dark:text-slate-100">
                   {bug.title || "Untitled bug"}
                 </span>
-                <span className="mt-0.5 line-clamp-1 text-[11px] font-medium text-slate-500">
+                <span className="mt-0.5 line-clamp-1 text-[11px] font-medium text-slate-500 dark:text-slate-400">
                   {description}
                 </span>
               </span>
