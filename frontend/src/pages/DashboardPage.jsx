@@ -50,6 +50,7 @@ import UserAvatar from "@/components/shared/UserAvatar";
 import { ProjectOverviewDashboardPanel } from "@/components/delivery/ProjectDeliveryWorkflowPanel";
 import { useAuth } from "@/hooks/use-auth";
 import { useChatStore } from "@/lib/chatStore";
+import { getChatSocket } from "@/lib/socket";
 import { ROLE_MANAGER } from "@/lib/roles";
 import {
   ISSUE_STATUS,
@@ -2095,6 +2096,29 @@ const DashboardPage = () => {
     }
   }, [hasLoadedChatConversations, loadChatConversations, user?._id]);
 
+  useEffect(() => {
+    const socket = getChatSocket();
+
+    if (!socket) {
+      return undefined;
+    }
+
+    const handleGitWebhook = ({ projectId } = {}) => {
+      if (projectId) {
+        void queryClient.invalidateQueries({ queryKey: ["projects"], exact: true });
+      }
+    };
+
+    socket.on("project_git_webhook_received", handleGitWebhook);
+    if (!socket.connected) {
+      socket.connect();
+    }
+
+    return () => {
+      socket.off("project_git_webhook_received", handleGitWebhook);
+    };
+  }, [queryClient]);
+
   const {
     data: issuesData = [],
     isLoading: isIssuesLoading,
@@ -2102,6 +2126,7 @@ const DashboardPage = () => {
   } = useQuery({
     queryKey: ["issues", "admin-dashboard-overview", { excludeType: ISSUE_TYPES.BUG }],
     queryFn: () => fetchIssues({ excludeType: ISSUE_TYPES.BUG, view: "list" }),
+    refetchInterval: 30_000,
   });
   const {
     data: bugsData = [],
@@ -2110,6 +2135,7 @@ const DashboardPage = () => {
   } = useQuery({
     queryKey: ["bugs", "admin-dashboard-overview"],
     queryFn: () => fetchBugs({ sortBy: "recently-updated" }),
+    refetchInterval: 30_000,
   });
   const {
     data: usersData = [],
@@ -2123,6 +2149,7 @@ const DashboardPage = () => {
   } = useQuery({
     queryKey: ["projects"],
     queryFn: fetchProjects,
+    refetchInterval: 30_000,
   });
   const {
     data: allTeamsData = [],
