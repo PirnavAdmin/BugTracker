@@ -61,7 +61,7 @@ const ChatMeetingsSidebar = ({
           <Button
             type="button"
             size="sm"
-            className="bg-slate-950 text-white hover:bg-slate-800"
+            className="bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-sm hover:from-blue-600 hover:to-blue-700"
             onClick={onNewMeeting}
           >
             <CalendarDays className="h-4 w-4" />
@@ -79,7 +79,7 @@ const ChatMeetingsSidebar = ({
         <button
           type="button"
           onClick={onNewMeeting}
-          className="flex h-11 w-11 items-center justify-center rounded-2xl border border-slate-200 bg-slate-950 text-white shadow-sm transition hover:bg-slate-800"
+          className="flex h-11 w-11 items-center justify-center rounded-2xl border border-blue-400/30 bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-sm transition hover:from-blue-600 hover:to-blue-700"
           title="New meeting"
           aria-label="New meeting"
         >
@@ -166,7 +166,7 @@ const ChatMeetingsSidebar = ({
                 <Button
                   type="button"
                   size="sm"
-                  className="bg-slate-950 text-white hover:bg-slate-800"
+                  className="bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-sm hover:from-blue-600 hover:to-blue-700"
                   onClick={() => onJoin(meeting)}
                 >
                   <ExternalLink className="h-4 w-4" />

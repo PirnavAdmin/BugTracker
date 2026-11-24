@@ -6977,21 +6977,37 @@ const deleteIssue = asyncHandler(async (req, res) => {
   const isTesterOwnerOfBug = hasBugQaOwnership(issue, userId);
   const isReportedAndUnpicked = isBug && isBugReportedAndUnpicked(issue);
 
+  const isTask = !isBug && !isStory;
+  const isTaskStoryLead = hasTaskStoryLeadAccess(req.user.role);
+  const isCreator = Boolean(userId && reporterId && userId === reporterId);
+  const isTaskUnassigned =
+    isTask &&
+    !getUserIdString(issue.assignee) &&
+    (!Array.isArray(issue.assignees) || !issue.assignees.some((a) => Boolean(getUserIdString(a)))) &&
+    !getUserIdString(issue.assignedDeveloperId);
+
+  const canDeleteTaskAsLead = isTaskStoryLead && isTask && isCreator && isTaskUnassigned;
+
   const canDelete =
     isUserAdmin ||
     isUserManager ||
-    (isUserTester && isTesterOwnerOfBug && isReportedAndUnpicked);
+    (isUserTester && isTesterOwnerOfBug && isReportedAndUnpicked) ||
+    canDeleteTaskAsLead;
 
-  console.log("DELETE BUG DEBUG", {
+  console.log("DELETE WORK ITEM DEBUG", {
     issueId: String(issue._id),
     issueReporter: reporterId,
     loggedInUser: userId,
     role: req.user.role,
     isBug,
     isStory,
+    isTask,
     isUserAdmin,
     isUserManager,
     isUserTester,
+    isTaskStoryLead,
+    isCreator,
+    isTaskUnassigned,
     isTesterOwnerOfBug,
     isReportedAndUnpicked,
     canDelete,
@@ -7001,6 +7017,11 @@ const deleteIssue = asyncHandler(async (req, res) => {
     if (isUserTester && isTesterOwnerOfBug && !isReportedAndUnpicked) {
       res.status(403);
       throw new Error("Bug can no longer be deleted after assignment.");
+    }
+
+    if (isTaskStoryLead && isTask && isCreator && !isTaskUnassigned) {
+      res.status(403);
+      throw new Error("Task can no longer be deleted after assignment.");
     }
 
     res.status(403);

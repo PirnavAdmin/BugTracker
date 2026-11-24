@@ -23,7 +23,7 @@ const getId = (value) => String(value?._id || value?.id || value || "");
 
 const statusClassName = (status) => {
   if (status === "live") {
-    return "bg-slate-950 text-white";
+    return "bg-gradient-to-r from-blue-500 to-blue-600 text-white";
   }
 
   if (status === "completed") {
@@ -68,7 +68,11 @@ const ChatMeetingsPanel = ({
               Browse upcoming, live, and completed meetings across your chats.
             </p>
           </div>
-          <Button type="button" className="bg-slate-950 text-white hover:bg-slate-800" onClick={onNewMeeting}>
+          <Button
+            type="button"
+            className="bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-sm hover:from-blue-600 hover:to-blue-700"
+            onClick={onNewMeeting}
+          >
             <CalendarDays className="h-4 w-4" />
             New Meeting
           </Button>
@@ -93,7 +97,7 @@ const ChatMeetingsPanel = ({
                 size="sm"
                 className={
                   selectedFilter === filter.id
-                    ? "bg-slate-950 text-white hover:bg-slate-800"
+                    ? "bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-sm hover:from-blue-600 hover:to-blue-700"
                     : "border-slate-300 text-slate-700 hover:bg-slate-100 hover:text-slate-950"
                 }
                 onClick={() => onFilterChange(filter.id)}
@@ -161,7 +165,7 @@ const ChatMeetingsPanel = ({
                     <Button
                       type="button"
                       size="sm"
-                      className="bg-slate-950 text-white hover:bg-slate-800"
+                      className="bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-sm hover:from-blue-600 hover:to-blue-700"
                       disabled={actionMeta.disabled}
                       onClick={() => onJoin(meeting)}
                     >
@@ -208,7 +212,11 @@ const ChatMeetingsPanel = ({
             title="No meetings found"
             description="Create a meeting or adjust the filters to see scheduled chat meetings."
             action={
-              <Button type="button" className="bg-slate-950 text-white hover:bg-slate-800" onClick={onNewMeeting}>
+              <Button
+                type="button"
+                className="bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-sm hover:from-blue-600 hover:to-blue-700"
+                onClick={onNewMeeting}
+              >
                 <CalendarDays className="h-4 w-4" />
                 New Meeting
               </Button>

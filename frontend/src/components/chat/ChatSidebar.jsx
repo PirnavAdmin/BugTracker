@@ -306,7 +306,7 @@ const ChatSidebar = memo(
               ) : null}
               <Button
                 type="submit"
-                className="h-10 w-full rounded-xl bg-slate-950 text-white hover:bg-slate-800 dark:bg-blue-600 dark:hover:bg-blue-500"
+                className="h-10 w-full rounded-xl bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-sm hover:from-blue-600 hover:to-blue-700 dark:from-blue-600 dark:to-blue-700 dark:hover:from-blue-500 dark:hover:to-blue-600"
                 disabled={!groupName.trim() || selectedMembers.length < 1 || isSubmittingGroup}
               >
                 <UsersRound className="h-4 w-4" />

@@ -317,5 +317,23 @@ export const canManageProjects = (role) =>
 export const canAssignIssues = (role) =>
   hasAdminPanelAccess(role) || hasTaskStoryLeadAccess(role);
 export const canDeleteIssues = (role) => hasAdminPanelAccess(role);
+export const canDeleteTaskForUser = (task, user) => {
+  if (!task || !user) return false;
+  const role = user.role;
+  if (hasAdminPanelAccess(role)) return true;
+
+  if (!hasTaskStoryLeadAccess(role)) return false;
+
+  const userId = String(user._id || user.id || "");
+  const reporterId = String(task.reporter?._id || task.reporter || "");
+  const isCreator = Boolean(userId && reporterId && userId === reporterId);
+
+  const hasAssignee = Boolean(task.assignee?._id || task.assignee);
+  const hasAssignees = Array.isArray(task.assignees) && task.assignees.some((a) => Boolean(a?._id || a));
+  const hasDeveloper = Boolean(task.assignedDeveloperId?._id || task.assignedDeveloperId);
+  const isUnassigned = !hasAssignee && !hasAssignees && !hasDeveloper;
+
+  return isCreator && isUnassigned;
+};
 export const canCreateIssues = (role) =>
   hasAdminPanelAccess(role) || hasTesterPanelAccess(role);
