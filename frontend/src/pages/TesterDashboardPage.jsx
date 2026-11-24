@@ -1609,40 +1609,41 @@ const TesterDashboardPage = () => {
 
   return (
     <div className="space-y-4">
-      <section className="relative isolate flex flex-wrap items-center gap-3 overflow-hidden rounded-[28px] border border-blue-100/80 bg-white p-3 shadow-[0_24px_65px_-42px_rgba(37,99,235,0.65)] lg:flex-nowrap">
+      <section className="relative isolate flex flex-col items-stretch gap-3 overflow-hidden rounded-[26px] border border-blue-100/80 bg-white p-3 shadow-[0_24px_65px_-42px_rgba(37,99,235,0.65)] sm:p-4 lg:flex-row lg:items-center">
         <GreetingBeachScene timeOfDay={timeOfDay} />
-        <div className="relative z-10 w-full min-w-0 shrink-0 sm:flex-1 lg:w-[420px] lg:flex-none xl:w-[460px]">
-          <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-          <Input
-            aria-label="Search bugs"
-            className="h-11 rounded-2xl border-slate-200/90 bg-white/86 pl-10 shadow-sm"
-            onChange={(event) => setSearchTerm(event.target.value)}
-            placeholder="Search bugs"
-            value={searchTerm}
-          />
-        </div>
-
-        <Button
-          className="interactive-button relative z-10 h-11 w-full shrink-0 rounded-2xl border border-indigo-300/30 bg-[linear-gradient(90deg,#2563EB_0%,#6366F1_55%,#8B5CF6_100%)] px-4 text-white shadow-[0_14px_28px_-18px_rgba(99,102,241,0.82)] hover:brightness-105 sm:w-auto sm:px-5"
-          onClick={() =>
-            selectedQaProject
-              ? handleCreateBugForProject(selectedQaProject)
-              : navigate("/bugs?view=report")
-          }
-          type="button"
-        >
-          <Plus className="h-4 w-4" />
-          New Bug
-        </Button>
-
-        <div className="relative z-10 min-w-[240px] flex-1 px-3 py-1 [text-shadow:0_1px_12px_rgba(255,255,255,0.9)] lg:text-right">
-          <p className="text-xl font-semibold tracking-tight text-slate-950">
+        <div className="relative z-10 min-w-0 flex-1 px-3 py-1 [text-shadow:0_1px_12px_rgba(255,255,255,0.9)]">
+          <p className="text-lg font-semibold tracking-tight text-slate-950 sm:text-xl">
             {greeting},{" "}
-            <span className="inline-flex rounded-lg bg-gradient-to-r from-indigo-600 to-violet-500 px-2.5 py-0.5 text-white shadow-[0_8px_20px_-10px_rgba(99,102,241,0.9)]">
+            <span className="inline-flex max-w-full rounded-lg bg-gradient-to-r from-blue-600 to-cyan-500 px-2.5 py-0.5 text-white shadow-[0_8px_20px_-10px_rgba(37,99,235,0.9)] [overflow-wrap:anywhere]">
               {testerName}
             </span>
           </p>
-          
+        </div>
+
+        <div className="relative z-10 flex w-full min-w-0 flex-col gap-3 sm:flex-row sm:items-center lg:ml-auto lg:w-auto lg:shrink-0">
+          <div className="relative w-full min-w-0 sm:flex-1 lg:w-[clamp(10rem,20vw,18rem)] lg:flex-none">
+            <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+            <Input
+              aria-label="Search bugs"
+              className="h-11 rounded-2xl border-slate-200/90 bg-white/86 pl-10 shadow-sm"
+              onChange={(event) => setSearchTerm(event.target.value)}
+              placeholder="Search bugs"
+              value={searchTerm}
+            />
+          </div>
+
+          <Button
+            className="interactive-button h-11 w-full shrink-0 rounded-2xl border border-indigo-300/30 bg-[linear-gradient(90deg,#2563EB_0%,#6366F1_55%,#8B5CF6_100%)] px-4 text-white shadow-[0_14px_28px_-18px_rgba(99,102,241,0.82)] hover:brightness-105 sm:w-auto sm:px-5"
+            onClick={() =>
+              selectedQaProject
+                ? handleCreateBugForProject(selectedQaProject)
+                : navigate("/bugs?view=report")
+            }
+            type="button"
+          >
+            <Plus className="h-4 w-4" />
+            New Bug
+          </Button>
         </div>
       </section>
 
