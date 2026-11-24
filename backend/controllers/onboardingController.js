@@ -4,13 +4,6 @@ const PlatformSubscription = require("../models/PlatformSubscription");
 const User = require("../models/User");
 const platformCompanyService = require("../services/platformCompanyService");
 const generateToken = require("../utils/generateToken");
-const {
-  ACCESS_TOKEN_MAX_AGE_SECONDS,
-  USER_REFRESH_COOKIE_NAME,
-  USER_REFRESH_COOKIE_PATH,
-  createAuthSession,
-  setRefreshCookie,
-} = require("../utils/authSessions");
 const { normalizeTenantId } = require("../utils/tenant");
 const { normalizeWorkspaceId } = require("../utils/workspace");
 
@@ -74,28 +67,11 @@ const createCompanyAccount = asyncHandler(async (req, res) => {
     const user = await User.findById(result.adminUser._id);
     const tenantId = normalizeTenantId(user.tenantId);
     const workspaceId = normalizeWorkspaceId(user.workspaceId);
-    const session = await createAuthSession({
-      principalId: user._id,
-      principalType: "user",
-    });
-
-    setRefreshCookie(res, {
-      name: USER_REFRESH_COOKIE_NAME,
-      path: USER_REFRESH_COOKIE_PATH,
-      refreshToken: session.refreshToken,
-      expiresAt: session.expiresAt,
-    });
+    const maxAgeSeconds = generateToken.getTokenMaxAgeSeconds();
 
     res.status(201).json({
-      token: generateToken(user._id, workspaceId, {
-        tenantId,
-        sessionId: session.sessionId,
-        expiresInSeconds: ACCESS_TOKEN_MAX_AGE_SECONDS,
-      }),
-      expiresAt: session.expiresAt.toISOString(),
-      accessTokenExpiresAt: new Date(
-        Date.now() + ACCESS_TOKEN_MAX_AGE_SECONDS * 1000
-      ).toISOString(),
+      token: generateToken(user._id, workspaceId, { tenantId }),
+      expiresAt: new Date(Date.now() + maxAgeSeconds * 1000).toISOString(),
       rememberMe: false,
       selectedPlan: { planId, billingCycle },
       user: {

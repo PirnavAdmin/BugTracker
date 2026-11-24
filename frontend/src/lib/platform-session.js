@@ -1,6 +1,5 @@
 export const PLATFORM_AUTH_STORAGE_KEY = "curecode_platform_session";
 export const PLATFORM_AUTH_SESSION_CLEARED_EVENT = "curecode_platform_session_cleared";
-export const PLATFORM_AUTH_SESSION_UPDATED_EVENT = "curecode_platform_session_updated";
 const DEFAULT_PLATFORM_SESSION_MAX_AGE_MS = 8 * 60 * 60 * 1000;
 
 const getStorageTargets = () => {
@@ -22,14 +21,11 @@ const normalizePlatformSession = (session) => {
     return null;
   }
 
-  const expiresAt =
-    session.expiresAt ||
-    new Date(Date.now() + DEFAULT_PLATFORM_SESSION_MAX_AGE_MS).toISOString();
-
   return {
     ...session,
-    expiresAt,
-    accessTokenExpiresAt: session.accessTokenExpiresAt || expiresAt,
+    expiresAt:
+      session.expiresAt ||
+      new Date(Date.now() + DEFAULT_PLATFORM_SESSION_MAX_AGE_MS).toISOString(),
   };
 };
 

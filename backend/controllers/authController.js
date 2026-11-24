@@ -9,18 +9,6 @@ const asyncHandler = require("../utils/asyncHandler");
 const { DEFAULT_USER } = require("../utils/defaultUser");
 const generateToken = require("../utils/generateToken");
 const {
-  ACCESS_TOKEN_MAX_AGE_SECONDS,
-  USER_REFRESH_COOKIE_NAME,
-  USER_REFRESH_COOKIE_PATH,
-  clearRefreshCookie,
-  createAuthSession,
-  getCookieValue,
-  revokeAuthSession,
-  revokeAuthSessionsForPrincipal,
-  rotateAuthSession,
-  setRefreshCookie,
-} = require("../utils/authSessions");
-const {
   createWorkspaceId,
   normalizeWorkspaceId,
 } = require("../utils/workspace");
@@ -139,35 +127,14 @@ const serializeAuthUser = (user, { teams = [] } = {}) => ({
   teamCount: teams.length,
 });
 
-const buildAuthPayload = async (user, res, { rememberMe = false } = {}) => {
+const buildAuthPayload = async (user, { rememberMe = false } = {}) => {
   const normalizedWorkspaceId = normalizeWorkspaceId(user.workspaceId);
   const tenantId = normalizeTenantId(user.tenantId);
-  const session = await createAuthSession({
-    principalId: user._id,
-    principalType: "user",
-    rememberMe,
-  });
-  const token = generateToken(user._id, normalizedWorkspaceId, {
-    rememberMe,
-    tenantId,
-    sessionId: session.sessionId,
-    expiresInSeconds: ACCESS_TOKEN_MAX_AGE_SECONDS,
-  });
-
-  setRefreshCookie(res, {
-    name: USER_REFRESH_COOKIE_NAME,
-    path: USER_REFRESH_COOKIE_PATH,
-    refreshToken: session.refreshToken,
-    rememberMe,
-    expiresAt: session.expiresAt,
-  });
+  const maxAgeSeconds = generateToken.getTokenMaxAgeSeconds({ rememberMe });
 
   return {
-    token,
-    expiresAt: session.expiresAt.toISOString(),
-    accessTokenExpiresAt: new Date(
-      Date.now() + ACCESS_TOKEN_MAX_AGE_SECONDS * 1000
-    ).toISOString(),
+    token: generateToken(user._id, normalizedWorkspaceId, { rememberMe, tenantId }),
+    expiresAt: new Date(Date.now() + maxAgeSeconds * 1000).toISOString(),
     rememberMe,
     // Login establishes the session only. Team membership is fetched by the
     // authenticated profile endpoint when it is actually needed, so login is
@@ -175,80 +142,6 @@ const buildAuthPayload = async (user, res, { rememberMe = false } = {}) => {
     user: serializeAuthUser(user),
   };
 };
-
-const refreshAuthSession = asyncHandler(async (req, res) => {
-  if (req.get("x-curecode-session") !== "refresh") {
-    res.status(403);
-    throw new Error("Session refresh request is invalid.");
-  }
-
-  const session = await rotateAuthSession({
-    refreshToken: getCookieValue(req, USER_REFRESH_COOKIE_NAME),
-    principalType: "user",
-  });
-
-  if (!session) {
-    res.status(401);
-    throw new Error("Session expired. Please sign in again.");
-  }
-
-  const user = await User.findById(session.principalId).lean();
-  if (!user) {
-    await revokeAuthSessionsForPrincipal({
-      principalId: session.principalId,
-      principalType: "user",
-    });
-    clearRefreshCookie(res, {
-      name: USER_REFRESH_COOKIE_NAME,
-      path: USER_REFRESH_COOKIE_PATH,
-    });
-    res.status(401);
-    throw new Error("User account no longer exists.");
-  }
-
-  setRefreshCookie(res, {
-    name: USER_REFRESH_COOKIE_NAME,
-    path: USER_REFRESH_COOKIE_PATH,
-    refreshToken: session.refreshToken,
-    rememberMe: session.rememberMe,
-    expiresAt: session.expiresAt,
-  });
-
-  res.status(200).json({
-    token: generateToken(
-      user._id,
-      normalizeWorkspaceId(user.workspaceId),
-      {
-        tenantId: normalizeTenantId(user.tenantId),
-        sessionId: session.sessionId,
-        rememberMe: session.rememberMe,
-        expiresInSeconds: ACCESS_TOKEN_MAX_AGE_SECONDS,
-      }
-    ),
-    accessTokenExpiresAt: new Date(
-      Date.now() + ACCESS_TOKEN_MAX_AGE_SECONDS * 1000
-    ).toISOString(),
-    expiresAt: session.expiresAt.toISOString(),
-    rememberMe: session.rememberMe,
-  });
-});
-
-const logoutAuthSession = asyncHandler(async (req, res) => {
-  if (req.get("x-curecode-session") !== "logout") {
-    res.status(403);
-    throw new Error("Session logout request is invalid.");
-  }
-
-  await revokeAuthSession({
-    refreshToken: getCookieValue(req, USER_REFRESH_COOKIE_NAME),
-    principalType: "user",
-  });
-  clearRefreshCookie(res, {
-    name: USER_REFRESH_COOKIE_NAME,
-    path: USER_REFRESH_COOKIE_PATH,
-  });
-  res.status(200).json({ message: "Signed out successfully." });
-});
 
 const buildCurrentUserPayload = async (user) => ({
   user: {
@@ -364,6 +257,7 @@ const register = asyncHandler(async (req, res) => {
 
   res.status(201).json({
     message: "Account created successfully. Please sign in.",
+    ...(await buildAuthPayload(user)),
   });
 });
 
@@ -401,7 +295,7 @@ const login = asyncHandler(async (req, res) => {
     "Server-Timing",
     `db;dur=${lookupDurationMs.toFixed(1)}, bcrypt;dur=${passwordDurationMs.toFixed(1)}, total;dur=${(performance.now() - startedAt).toFixed(1)}`
   );
-  res.status(200).json(await buildAuthPayload(user, res, { rememberMe }));
+  res.status(200).json(await buildAuthPayload(user, { rememberMe }));
 });
 
 const adminLogin = asyncHandler(async (req, res) => {
@@ -437,7 +331,7 @@ const adminLogin = asyncHandler(async (req, res) => {
   }
 
   await syncUserForAuth(user, adminDefaultPassword);
-  res.status(200).json(await buildAuthPayload(user, res, { rememberMe }));
+  res.status(200).json(await buildAuthPayload(user, { rememberMe }));
 });
 
 const getUsers = asyncHandler(async (req, res) => {
@@ -554,10 +448,6 @@ const changePassword = asyncHandler(async (req, res) => {
 
   user.password = newPassword;
   await user.save();
-  await revokeAuthSessionsForPrincipal({
-    principalId: user._id,
-    principalType: "user",
-  });
 
   res.status(200).json({
     message: "Password updated successfully",
@@ -726,10 +616,6 @@ const resetPasswordWithOtp = asyncHandler(async (req, res) => {
   user.passwordResetOtpExpiresAt = null;
   user.passwordResetRequestedAt = null;
   await user.save();
-  await revokeAuthSessionsForPrincipal({
-    principalId: user._id,
-    principalType: "user",
-  });
 
   res.status(200).json({
     message: "Password updated successfully. Please sign in.",
@@ -740,8 +626,6 @@ module.exports = {
   register,
   login,
   adminLogin,
-  refreshAuthSession,
-  logoutAuthSession,
   getCurrentUser,
   updateCurrentUserAvatar,
   getUsers,
