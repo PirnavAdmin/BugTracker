@@ -1,7 +1,12 @@
 import { createContext, useEffect, useMemo, useState } from "react";
-import { fetchCurrentPlatformAdmin, logoutPlatformAdmin } from "@/lib/api";
+import { useQueryClient } from "@tanstack/react-query";
+import {
+  logoutPlatformAdmin,
+  refreshPlatformAuthSession,
+} from "@/lib/api";
 import {
   PLATFORM_AUTH_SESSION_CLEARED_EVENT,
+  PLATFORM_AUTH_SESSION_UPDATED_EVENT,
   clearPlatformSession,
   readPlatformSession,
   writePlatformSession,
@@ -11,7 +16,8 @@ export const PlatformAuthContext = createContext(null);
 
 export const PlatformAuthProvider = ({ children }) => {
   const [session, setSession] = useState(() => readPlatformSession());
-  const [isCheckingPlatformSession, setIsCheckingPlatformSession] = useState(Boolean(session?.token));
+  const isCheckingPlatformSession = false;
+  const queryClient = useQueryClient();
 
   const setPlatformAuthSession = (value) => {
     setSession(value);
@@ -23,66 +29,62 @@ export const PlatformAuthProvider = ({ children }) => {
       if (session?.token) {
         await logoutPlatformAdmin();
       }
-    } catch {
-      // Local cleanup is still required when the server session check fails.
+    } catch (error) {
+      console.error("Unable to revoke the platform session:", error);
     } finally {
       setSession(null);
       clearPlatformSession();
+      queryClient.clear();
     }
   };
 
   useEffect(() => {
     const handleSessionCleared = () => setSession(null);
+    const handleSessionUpdated = () => setSession(readPlatformSession());
 
     window.addEventListener(PLATFORM_AUTH_SESSION_CLEARED_EVENT, handleSessionCleared);
+    window.addEventListener(PLATFORM_AUTH_SESSION_UPDATED_EVENT, handleSessionUpdated);
 
     return () => {
       window.removeEventListener(PLATFORM_AUTH_SESSION_CLEARED_EVENT, handleSessionCleared);
+      window.removeEventListener(PLATFORM_AUTH_SESSION_UPDATED_EVENT, handleSessionUpdated);
     };
   }, []);
 
   useEffect(() => {
-    if (!session?.token) {
-      setIsCheckingPlatformSession(false);
+    queryClient.clear();
+  }, [queryClient, session?.platformAdmin?._id]);
+
+  useEffect(() => {
+    if (!session?.token || !session?.accessTokenExpiresAt) {
       return undefined;
     }
 
-    let isCurrent = true;
-    setIsCheckingPlatformSession(true);
+    let timer;
+    let disposed = false;
+    const refreshBeforeExpiry = () => {
+      if (disposed) {
+        return;
+      }
 
-    fetchCurrentPlatformAdmin()
-      .then((platformAdmin) => {
-        if (!isCurrent || !platformAdmin?._id) {
-          return;
-        }
-
-        setSession((currentSession) => {
-          if (!currentSession?.token) {
-            return currentSession;
+      const expiryTime = new Date(session.accessTokenExpiresAt).getTime();
+      const refreshDelay = Math.max(0, expiryTime - Date.now() - 60_000);
+      timer = window.setTimeout(() => {
+        refreshPlatformAuthSession().catch((error) => {
+          if (!disposed && ![401, 403].includes(error?.response?.status)) {
+            timer = window.setTimeout(refreshBeforeExpiry, 60_000);
           }
-
-          const nextSession = {
-            ...currentSession,
-            platformAdmin,
-          };
-
-          writePlatformSession(nextSession);
-          return nextSession;
         });
-      })
-      .catch(() => {
-        // 401s are handled by the platform API interceptor.
-      })
-      .finally(() => {
-        if (isCurrent) {
-          setIsCheckingPlatformSession(false);
-        }
-      });
+      }, refreshDelay);
+    };
+
+    refreshBeforeExpiry();
 
     return () => {
-      isCurrent = false;
+      disposed = true;
+      window.clearTimeout(timer);
     };
-  }, [session?.token]);
+  }, [session?.accessTokenExpiresAt, session?.token]);
 
   const value = useMemo(
     () => ({

@@ -1,4 +1,11 @@
-import { CalendarDays, FolderKanban, MessageCircle, Pin, Star, Archive } from "lucide-react";
+import {
+  Archive,
+  CalendarDays,
+  FolderOpen,
+  MessageCircle,
+  Pin,
+  Star,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -6,13 +13,16 @@ const MODULES = [
   { id: "chats", label: "Chats", icon: MessageCircle },
   { id: "meetings", label: "Meetings", icon: CalendarDays },
   { id: "pinned", label: "Pinned", icon: Pin },
-  { id: "files", label: "Shared Files", icon: FolderKanban },
+  { id: "files", label: "Shared Files", icon: FolderOpen },
   { id: "starred", label: "Starred", icon: Star },
-  { id: "archives", label: "Archives", icon: Archive },
+  { id: "archives", label: "Archived", icon: Archive },
 ];
 
 const ChatModuleNav = ({ activeModule, onSelect }) => (
-  <aside className="hidden h-full min-h-0 max-h-full w-[92px] shrink-0 border-r border-slate-200 bg-slate-50 touch-pan-y flex-col gap-2 overflow-x-hidden overflow-y-auto overscroll-contain scroll-smooth px-3 py-5 [-ms-overflow-style:none] [scrollbar-width:none] [-webkit-overflow-scrolling:touch] [&::-webkit-scrollbar]:hidden lg:flex dark:border-slate-800 dark:bg-slate-950">
+  <nav
+    aria-label="Chat section navigation"
+    className="flex h-full min-h-0 w-[68px] shrink-0 flex-col gap-1 overflow-hidden border-r border-slate-200 bg-slate-50 px-1.5 py-2 sm:w-[72px] lg:w-[76px] dark:border-slate-800 dark:bg-slate-950"
+  >
     {MODULES.map((module) => {
       const Icon = module.icon;
       const isActive = activeModule === module.id;
@@ -22,30 +32,32 @@ const ChatModuleNav = ({ activeModule, onSelect }) => (
           key={module.id}
           type="button"
           variant="ghost"
+          title={module.label}
+          aria-label={module.label}
+          aria-current={isActive ? "page" : undefined}
           className={cn(
-            "flex h-auto shrink-0 flex-col items-center gap-2 rounded-[22px] px-2 py-3 text-center text-[11px] font-bold transition-all",
+            "flex h-auto min-h-0 max-h-[76px] flex-1 shrink flex-col items-center justify-center gap-1 rounded-2xl px-0.5 py-1 text-center text-[9px] font-semibold leading-3 transition-colors focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2",
             isActive
-              ? "bg-gradient-to-br from-blue-500 to-blue-600 text-white shadow-[0_14px_30px_-14px_rgba(37,99,235,0.55)] hover:from-blue-600 hover:to-blue-700 hover:text-white dark:from-blue-600 dark:to-blue-700 dark:text-white dark:hover:from-blue-500 dark:hover:to-blue-600"
-              : "text-slate-500 hover:bg-white/80 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-900 dark:hover:text-slate-200"
+              ? "bg-blue-600 text-white shadow-sm hover:bg-blue-700 hover:text-white dark:bg-blue-600 dark:text-white dark:hover:bg-blue-500"
+              : "text-slate-600 hover:bg-white hover:text-blue-700 dark:text-slate-400 dark:hover:bg-slate-900 dark:hover:text-blue-300"
           )}
           onClick={() => onSelect(module.id)}
         >
           <span
             className={cn(
-              "flex h-10 w-10 items-center justify-center rounded-2xl transition-colors",
+              "flex h-8 w-8 shrink-0 items-center justify-center rounded-xl transition-colors",
               isActive
-                ? "text-white shadow-xs"
-                : "border border-slate-200/70 bg-white text-slate-600 shadow-xs dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300"
+                ? "bg-white/15 text-white"
+                : "border border-slate-200 bg-white text-slate-600 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300"
             )}
-            style={isActive ? { backgroundColor: "rgba(255, 255, 255, 0.22)" } : undefined}
           >
-            <Icon className="h-5 w-5 stroke-[2.2]" />
+            <Icon className="h-[18px] w-[18px] stroke-[2]" />
           </span>
-          <span className="leading-4">{module.label}</span>
+          <span className="max-w-full leading-3">{module.label}</span>
         </Button>
       );
     })}
-  </aside>
+  </nav>
 );
 
 export default ChatModuleNav;

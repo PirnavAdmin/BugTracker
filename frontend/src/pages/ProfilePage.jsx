@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
 import UserAvatar from "@/components/shared/UserAvatar";
 import ToastNotice from "@/components/shared/ToastNotice";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { uploadProfileAvatar } from "@/lib/api";
+import { fetchCurrentUser, uploadProfileAvatar } from "@/lib/api";
 import { readStoredSession } from "@/lib/session";
 import { formatDate } from "@/lib/utils";
 import {
@@ -25,6 +25,15 @@ import { Link } from "react-router-dom";
 const ProfilePage = () => {
   const { user, setAuthSession } = useAuth();
   const queryClient = useQueryClient();
+  const profileQuery = useQuery({
+    queryKey: ["profile", "current-user", user?._id],
+    queryFn: fetchCurrentUser,
+    enabled: Boolean(user?._id),
+    staleTime: 5 * 60 * 1000,
+  });
+  const profileUser = profileQuery.data
+    ? { ...user, ...profileQuery.data }
+    : user;
   const [isEditing, setIsEditing] = useState(false);
   const [uploadError, setUploadError] = useState("");
   const [toast, setToast] = useState(null);
@@ -90,6 +99,7 @@ const ProfilePage = () => {
 
       setUploadError("");
       setIsEditing(false);
+      queryClient.invalidateQueries({ queryKey: ["profile", "current-user"] });
       queryClient.invalidateQueries({ queryKey: ["users"] });
       queryClient.invalidateQueries({ queryKey: ["teams"] });
     },
@@ -112,11 +122,11 @@ const ProfilePage = () => {
     );
   }
 
-  const formattedJoinDate = user.createdAt
-    ? formatDate(user.createdAt, { fallback: "Not available" })
+  const formattedJoinDate = profileUser.createdAt
+    ? formatDate(profileUser.createdAt, { fallback: "Not available" })
     : "Not available";
-  const teamNames = Array.isArray(user.teams)
-    ? user.teams.map((team) => team?.name).filter(Boolean)
+  const teamNames = Array.isArray(profileUser.teams)
+    ? profileUser.teams.map((team) => team?.name).filter(Boolean)
     : [];
 
   const handleAvatarChange = (event) => {
@@ -134,13 +144,13 @@ const ProfilePage = () => {
     {
       icon: Mail,
       label: "Email",
-      value: user.email,
+      value: profileUser.email,
       color: "blue",
     },
     {
       icon: Briefcase,
       label: "Role",
-      value: user.role || "N/A",
+      value: profileUser.role || "N/A",
       color: "purple",
     },
     {
@@ -166,7 +176,7 @@ const ProfilePage = () => {
             <div className="flex flex-col items-center gap-3">
               <div className="relative">
                 <UserAvatar
-                  user={user}
+                  user={profileUser}
                   className="h-24 w-24 ring-4 ring-blue-200"
                   fallbackClassName="text-2xl font-bold"
                 />
@@ -206,13 +216,13 @@ const ProfilePage = () => {
             </div>
 
             <div className="flex-1 text-center sm:text-left">
-              <h1 className="text-3xl font-bold text-slate-900">{user.name}</h1>
-              <p className="mt-1 text-slate-600">{user.email}</p>
-              {user.role && (
+              <h1 className="text-3xl font-bold text-slate-900">{profileUser.name}</h1>
+              <p className="mt-1 text-slate-600">{profileUser.email}</p>
+              {profileUser.role && (
                 <div className="mt-3 inline-block">
                   <span className="inline-flex items-center gap-2 rounded-full bg-blue-100 px-4 py-1.5 text-sm font-semibold text-blue-700">
                     <Shield className="h-4 w-4" />
-                    {user.role}
+                    {profileUser.role}
                   </span>
                 </div>
               )}

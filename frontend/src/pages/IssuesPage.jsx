@@ -44,6 +44,7 @@ import {
   canAssignIssues,
   canCreateIssues,
   canDeleteIssues,
+  canDeleteTaskForUser,
   hasAdminPanelAccess,
   ROLE_ADMIN,
   ROLE_TEAM_LEAD,
@@ -1058,7 +1059,7 @@ const IssuesPage = () => {
         canEditCoreDetails={isAdminView || isTeamLeadView}
         canEditPriority={isAdminView || isTeamLeadView}
         canEditAssignee={canAssignIssue || isTeamLeadView}
-        canDeleteIssue={canDeleteIssue}
+        canDeleteIssue={canDeleteIssue || canDeleteTaskForUser(selectedIssueDetail || selectedIssue, user)}
       />
 
       <ToastNotice toast={toast} onDismiss={() => setToast(null)} />

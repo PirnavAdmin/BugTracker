@@ -3,6 +3,7 @@ const {
   getCurrentPlatformAdmin,
   loginPlatformAdmin,
   logoutPlatformAdmin,
+  refreshPlatformAdminSession,
 } = require("../controllers/platformAuthController");
 const platformCompanyController = require("../controllers/platformCompanyController");
 const platformDashboardController = require("../controllers/platformDashboardController");
@@ -14,6 +15,7 @@ const billingController = require("../controllers/billingController");
 const router = express.Router();
 
 router.post("/auth/login", loginPlatformAdmin);
+router.post("/auth/refresh", refreshPlatformAdminSession);
 router.get("/auth/me", platformAuth, getCurrentPlatformAdmin);
 router.post("/auth/logout", platformAuth, logoutPlatformAdmin);
 router.get("/plans", platformAuth, platformCompanyController.listPlans);
