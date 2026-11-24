@@ -30,6 +30,7 @@ const {
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const MANAGED_USER_PAGE_SIZES = new Set([5, 10, 20, 50, 100]);
 const DEFAULT_IMPORTED_PASSWORD = "Curecode@123";
+const DEFAULT_INVITED_PASSWORD = "Curecode@123";
 const DEFAULT_IMPORTED_ROLE = "Developer";
 const normalizeRole = (value) => normalizeText(value);
 
@@ -47,8 +48,7 @@ const buildNameFromEmail = (email) => {
   return cleaned ? toTitleCase(cleaned) : "Invited User";
 };
 
-const generateTemporaryPassword = () =>
-  `${crypto.randomBytes(4).toString("hex")}A9!`;
+const generateTemporaryPassword = () => DEFAULT_INVITED_PASSWORD;
 
 const serializeUser = (user) => ({
   _id: user._id,
@@ -325,11 +325,11 @@ const inviteUser = asyncHandler(async (req, res) => {
 
   res.status(201).json({
     message: emailSent
-      ? "User invited successfully and temporary password sent by email"
+      ? "User invited successfully and default password sent by email"
       : "User account created, but the invitation email was not sent",
     warning: warning || undefined,
     emailSent,
-    temporaryPassword: emailSent ? undefined : temporaryPassword,
+    temporaryPassword: temporaryPassword || DEFAULT_INVITED_PASSWORD,
     invitedUser: serializeInvitedUser(user),
   });
 });

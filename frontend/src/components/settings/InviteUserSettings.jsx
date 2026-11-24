@@ -51,7 +51,7 @@ const InviteDeliveryPreview = ({ entries = [], helperText, title }) => {
             {entry.temporaryPassword ? (
               <div className="mt-3 rounded-[12px] border border-amber-200 bg-amber-50 px-3 py-2">
                 <p className="text-xs font-semibold uppercase tracking-[0.18em] text-amber-700">
-                  Temporary password
+                  Default password
                 </p>
                 <p className="mt-1 font-mono text-sm font-semibold text-slate-950">
                   {entry.temporaryPassword}
@@ -80,7 +80,7 @@ const InviteUserSettings = ({
 }) => (
   <SettingsPanel
     title="Invite User"
-    description="Create a workspace account for one teammate and assign their role upfront."
+    description="Create a workspace account for one teammate and assign their role upfront. Invited users get the default password Curecode@123."
   >
     <div className="max-w-2xl space-y-5">
       <form className="space-y-4" onSubmit={onSubmit}>
@@ -146,8 +146,8 @@ const InviteUserSettings = ({
         entries={recentInvite ? [recentInvite] : []}
         helperText={
           recentInvite?.emailSent === false
-            ? "The email was not delivered. Share the temporary password with the user manually."
-            : "A temporary password was created and sent to the invited user's email address."
+            ? "The email was not delivered. Share the default password Curecode@123 with the user manually."
+            : "An invitation email was sent. The user can sign in with the default password Curecode@123."
         }
       />
     </div>

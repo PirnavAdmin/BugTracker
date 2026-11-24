@@ -230,7 +230,7 @@ const ChatMeetingDialog = ({
               </Button>
               <Button
                 type="submit"
-                className="min-w-[160px] bg-slate-950 px-6 text-white hover:bg-slate-800"
+                className="min-w-[160px] bg-gradient-to-r from-blue-500 to-blue-600 px-6 text-white shadow-sm hover:from-blue-600 hover:to-blue-700"
                 disabled={isSaving}
               >
                 {isSaving ? "Saving..." : "Save Meeting"}

@@ -358,7 +358,7 @@ const ChatHeader = memo(
                 <Button
                   type="button"
                   size="sm"
-                  className="bg-slate-950 text-white hover:bg-slate-800"
+                  className="bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-sm hover:from-blue-600 hover:to-blue-700"
                   onClick={() => joinCall(activeChannelCall)}
                 >
                   <Phone className="h-4 w-4" />
@@ -594,7 +594,7 @@ const ChatHeader = memo(
                                   className={cn(
                                     "rounded-full px-2 py-1 text-[11px] font-extrabold",
                                     isSelected
-                                      ? "bg-slate-950 text-white"
+                                      ? "bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-sm"
                                       : "bg-slate-100 text-slate-500"
                                   )}
                                 >

@@ -419,7 +419,7 @@ const UserSettingsPage = () => {
           ? {
               ...data.invitedUser,
               emailSent: data.emailSent !== false,
-              temporaryPassword: data.temporaryPassword || "",
+              temporaryPassword: data.temporaryPassword || "Curecode@123",
               warning: data.warning || "",
             }
           : null
