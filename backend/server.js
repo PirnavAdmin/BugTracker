@@ -50,7 +50,29 @@ const server = http.createServer(app);
 
 app.disable("x-powered-by");
 
-app.use(cors());
+const configuredFrontendOrigins = String(process.env.FRONTEND_URL || "")
+  .split(",")
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+const corsOptions = {
+  origin(origin, callback) {
+    if (
+      !origin ||
+      configuredFrontendOrigins.includes(origin) ||
+      (process.env.NODE_ENV !== "production" &&
+        /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(origin))
+    ) {
+      callback(null, true);
+      return;
+    }
+
+    callback(null, false);
+  },
+  credentials: true,
+  allowedHeaders: ["Authorization", "Content-Type", "X-CureCode-Session"],
+};
+
+app.use(cors(corsOptions));
 // Cashfree signs the timestamp concatenated with the exact, unparsed request bytes.
 app.post("/api/billing/cashfree/webhook", express.raw({ type: "application/json", limit: "2mb" }), cashfreeBillingWebhook);
 app.use(express.json({ limit: "25mb" }));
