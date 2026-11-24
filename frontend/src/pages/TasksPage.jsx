@@ -28,6 +28,7 @@ import {
 } from "@/lib/issues";
 import {
   canDeleteIssues,
+  canDeleteTaskForUser,
   hasAdminPanelAccess,
   hasTaskStoryLeadAccess,
   ROLE_ADMIN,
@@ -549,7 +550,7 @@ const TasksPage = () => {
         canEditStatus={!isTeamProgressView}
         canEditPriority={canCoordinateTasks}
         canEditAssignee={canCoordinateTasks}
-        canDeleteIssue={canDeleteTask && !isTeamProgressView}
+        canDeleteIssue={canDeleteTask || canDeleteTaskForUser(selectedIssue, user)}
       />
 
       {canCoordinateTasks ? (
