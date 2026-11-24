@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   CheckCircle2,
   Copy,
@@ -6,6 +7,7 @@ import {
   GitCommit,
   Layers3,
   Package,
+  RefreshCw,
   Rocket,
   ShieldCheck,
 } from "lucide-react";
@@ -15,6 +17,8 @@ import {
   getRepositorySummary,
   normalizeDeliveryModules,
 } from "@/lib/delivery-workflow";
+import { syncProjectGitRepository } from "@/lib/api";
+import { ISSUE_STATUS, normalizeBugStatusForIssue, resolveIssueProjectId } from "@/lib/issues";
 import AiCodeReviewPanel from "@/components/ai/AiCodeReviewPanel";
 import { cn, formatDateTime } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
@@ -52,6 +56,28 @@ const getProjectId = (project = {}) => String(project.id || project._id || proje
 const getProjectRecord = (project = {}) => project.raw || project;
 const getCommitShortSha = (sha = "") => String(sha || "").slice(0, 7);
 const formatActivityTime = (value) => (value ? formatDateTime(value) : "-");
+const getProjectGitActivities = (project = {}) => {
+  const history = Array.isArray(project.gitActivityHistory) ? project.gitActivityHistory : [];
+  const latest = project.latestGitActivity;
+  const seen = new Set();
+
+  return [latest, ...history]
+    .filter((activity) => activity && typeof activity === "object")
+    .filter((activity) => {
+      const key = activity.commitSha || activity.pushedAt;
+
+      if (!key || seen.has(key)) {
+        return false;
+      }
+
+      seen.add(key);
+      return true;
+    })
+    .sort(
+      (left, right) =>
+        new Date(right.pushedAt || 0).getTime() - new Date(left.pushedAt || 0).getTime()
+    );
+};
 const formatActivityClock = (value) => {
   if (!value) {
     return "-";
@@ -545,6 +571,9 @@ const isGitConnected = (project = {}) => {
 
 export const ProjectOverviewDashboardPanel = ({ issues = [], onViewGitActivity, projects = [], workQueueBugs = [] }) => {
   const [selectedGitProjectId, setSelectedGitProjectId] = useState("");
+  const [syncingProjectId, setSyncingProjectId] = useState("");
+  const [gitSyncError, setGitSyncError] = useState({ projectId: "", message: "" });
+  const queryClient = useQueryClient();
   const activeProjects = projects.filter((project) => project.status !== "Completed");
   const projectRows = useMemo(
     () =>
@@ -579,10 +608,69 @@ export const ProjectOverviewDashboardPanel = ({ issues = [], onViewGitActivity, 
     [projectRows]
   );
   const latestConnectedPush = connectedProjectRows.find((row) => hasRecordedPush(row.activity)) || null;
-  const selectedGitProject = connectedProjectRows.find(
-    (row) => row.projectId === selectedGitProjectId
-  );
-  const latestPush = selectedGitProject || latestConnectedPush || null;
+  const selectedProjectRow = projectRows.find((row) => row.projectId === selectedGitProjectId);
+  const latestPush = selectedProjectRow || latestConnectedPush || null;
+  const selectedProjectActivities = latestPush
+    ? getProjectGitActivities(getProjectRecord(latestPush.project))
+    : [];
+  const selectedProjectActivity = selectedProjectActivities[0] || latestPush?.activity;
+  const selectedPushesToday = selectedProjectActivities.filter(
+    (activity) =>
+      activity.pushedAt &&
+      new Date(activity.pushedAt).toDateString() === new Date().toDateString()
+  ).length;
+  const selectedProjectIssues = latestPush
+    ? issues.filter((issue) => resolveIssueProjectId(issue) === latestPush.projectId)
+    : [];
+  const selectedTestingCount = selectedProjectIssues.filter((issue) => {
+    const status =
+      issue.type === "Bug" ? normalizeBugStatusForIssue(issue) : issue.status;
+    return status === ISSUE_STATUS.TESTING;
+  }).length;
+  const selectedWaitingForQa = latestPush?.metrics.pendingQa || 0;
+  const selectedGitSyncError =
+    gitSyncError.projectId === selectedGitProjectId ? gitSyncError.message : "";
+
+  const syncSelectedProject = useCallback(async (projectId) => {
+    if (!projectId) {
+      return;
+    }
+
+    setSyncingProjectId(projectId);
+    setGitSyncError({ projectId, message: "" });
+
+    try {
+      const response = await syncProjectGitRepository({ projectId });
+      const syncedProject = response?.project || response;
+
+      if (!syncedProject?._id) {
+        throw new Error("Git synchronization returned no project data.");
+      }
+
+      queryClient.setQueryData(["projects"], (currentProjects) =>
+        Array.isArray(currentProjects)
+          ? currentProjects.map((project) =>
+              getProjectId(project) === String(syncedProject._id)
+                ? { ...project, ...syncedProject }
+                : project
+            )
+          : currentProjects
+      );
+    } catch (error) {
+      setGitSyncError({
+        projectId,
+        message:
+          error?.response?.data?.message ||
+          error?.message ||
+          "Unable to synchronize this project's GitHub activity.",
+      });
+    } finally {
+      setSyncingProjectId((currentProjectId) =>
+        currentProjectId === projectId ? "" : currentProjectId
+      );
+    }
+  }, [queryClient]);
+
   const workQueueProjectRows = useMemo(() => {
     const projectNames = new Map(projects.map((project) => [
       getProjectId(project),
@@ -609,31 +697,20 @@ export const ProjectOverviewDashboardPanel = ({ issues = [], onViewGitActivity, 
 
   useEffect(() => {
     const nextSelectedId =
-      selectedGitProjectId && connectedProjectRows.some((row) => row.projectId === selectedGitProjectId)
+      selectedGitProjectId && projectRows.some((row) => row.projectId === selectedGitProjectId)
         ? selectedGitProjectId
-        : latestConnectedPush?.projectId || connectedProjectRows[0]?.projectId || "";
+        : latestConnectedPush?.projectId || projectRows[0]?.projectId || "";
 
     if (nextSelectedId !== selectedGitProjectId) {
       setSelectedGitProjectId(nextSelectedId);
     }
-  }, [connectedProjectRows, latestConnectedPush, selectedGitProjectId]);
-  const todayKey = new Date().toDateString();
-  const totals = projectRows.reduce(
-    (summary, project) => {
-      return {
-        gitConnected: summary.gitConnected + (project.connected ? 1 : 0),
-        pendingQa: summary.pendingQa + project.metrics.pendingQa,
-        pushesToday:
-          summary.pushesToday +
-          (project.activity.pushedAt && new Date(project.activity.pushedAt).toDateString() === todayKey ? 1 : 0),
-        recentActive: summary.recentActive + (hasRecordedPush(project.activity) ? 1 : 0),
-        testing:
-          summary.testing +
-          (String(project.activity.qaStatus || "").toLowerCase().includes("test") ? 1 : 0),
-      };
-    },
-    { gitConnected: 0, pendingQa: 0, pushesToday: 0, recentActive: 0, testing: 0 }
-  );
+  }, [projectRows, latestConnectedPush, selectedGitProjectId]);
+
+  useEffect(() => {
+    if (selectedProjectRow?.connected) {
+      void syncSelectedProject(selectedProjectRow.projectId);
+    }
+  }, [selectedProjectRow?.connected, selectedProjectRow?.projectId, syncSelectedProject]);
 
   return (
     <Card className="rounded-[24px] border-white/70 bg-white/86 shadow-[0_20px_56px_-36px_rgba(15,23,42,0.38)] dark:border-slate-800 dark:bg-slate-900/90 dark:shadow-black/40">
@@ -646,16 +723,16 @@ export const ProjectOverviewDashboardPanel = ({ issues = [], onViewGitActivity, 
                 <h2 className="mt-1 text-lg font-semibold text-slate-950 dark:text-slate-100">Recent code changes across connected projects.</h2>
               </div>
               <div className="flex shrink-0 items-center gap-2">
-                {connectedProjectRows.length ? (
+                {projectRows.length ? (
                   <select
-                    aria-label="Select Git connected project"
+                    aria-label="Select project Git activity"
                     className="h-9 max-w-[180px] rounded-xl border border-blue-100 bg-white px-3 text-xs font-semibold text-slate-700 shadow-sm outline-none transition focus:border-blue-300 focus:ring-2 focus:ring-blue-500/20 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
                     value={selectedGitProjectId}
                     onChange={(event) => setSelectedGitProjectId(event.target.value)}
                   >
-                    {connectedProjectRows.map((row) => (
+                    {projectRows.map((row) => (
                       <option key={row.projectId} value={row.projectId}>
-                        {row.project.name || "Untitled project"}
+                        {row.project.name || "Untitled project"}{row.connected ? "" : " · Not connected"}
                       </option>
                     ))}
                   </select>
@@ -665,35 +742,46 @@ export const ProjectOverviewDashboardPanel = ({ issues = [], onViewGitActivity, 
             </div>
 
             <div className="mt-4 grid gap-2 sm:grid-cols-2">
-              <MetricPill label="Git Connected" value={totals.gitConnected} tone="blue" />
-              <MetricPill label="Pushes Today" value={totals.pushesToday} tone="emerald" />
-              <MetricPill label="Waiting for QA" value={totals.pendingQa} tone="amber" />
-              <MetricPill label="Testing" value={totals.testing} tone="blue" />
+              <MetricPill label="Git Connected" value={latestPush?.connected ? 1 : 0} tone="blue" />
+              <MetricPill label="Pushes Today" value={selectedPushesToday} tone="emerald" />
+              <MetricPill label="Waiting for QA" value={selectedWaitingForQa} tone="amber" />
+              <MetricPill label="Testing" value={selectedTestingCount} tone="blue" />
             </div>
 
-            {latestPush && hasRecordedPush(latestPush.activity) ? (
+            {syncingProjectId === selectedGitProjectId ? (
+              <p aria-live="polite" className="mt-3 text-xs text-blue-700 dark:text-blue-300">
+                Synchronizing GitHub activity…
+              </p>
+            ) : null}
+            {selectedGitSyncError ? (
+              <p aria-live="assertive" className="mt-3 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">
+                {selectedGitSyncError}
+              </p>
+            ) : null}
+
+            {latestPush && selectedProjectActivity && hasRecordedPush(selectedProjectActivity) ? (
               <div className="mt-4 rounded-2xl border border-white/80 bg-white/88 p-3 shadow-sm dark:border-slate-800 dark:bg-slate-900/80">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-slate-500 dark:text-slate-400">Latest Push</p>
                     <p className="mt-1 truncate text-sm font-semibold text-slate-950 dark:text-slate-100">{latestPush.project.name}</p>
                     <p className="mt-1 truncate text-xs font-semibold text-slate-600 dark:text-slate-400">
-                      {latestPush.activity.pushedByName} · {latestPush.activity.branch}
+                      {selectedProjectActivity.pushedByName} · {selectedProjectActivity.branch}
                     </p>
                   </div>
-                  <Badge className={cn("shrink-0 rounded-full border px-2.5 py-1", getActivityStatusTone(latestPush.activity.qaStatus))} variant="outline">
-                    {getActivityStatusLabel(latestPush.activity.qaStatus)}
+                  <Badge className={cn("shrink-0 rounded-full border px-2.5 py-1", getActivityStatusTone(selectedProjectActivity.qaStatus))} variant="outline">
+                    {getActivityStatusLabel(selectedProjectActivity.qaStatus)}
                   </Badge>
                 </div>
                 <p className="mt-2 line-clamp-2 text-sm font-medium text-slate-800 dark:text-slate-200">
-                  {latestPush.activity.commitMessage}
+                  {selectedProjectActivity.commitMessage}
                 </p>
                 <div className="mt-3 flex flex-wrap gap-1.5 text-xs">
                   <span className="rounded-full bg-slate-50 px-2 py-1 font-semibold text-slate-600 dark:bg-slate-800 dark:text-slate-300">
-                    {getCommitShortSha(latestPush.activity.commitSha) || "No SHA"}
+                    {getCommitShortSha(selectedProjectActivity.commitSha) || "No SHA"}
                   </span>
                   <span className="rounded-full bg-slate-50 px-2 py-1 font-semibold text-slate-600 dark:bg-slate-800 dark:text-slate-300">
-                    {getFilesChangedCount(latestPush.activity)} files changed
+                    {getFilesChangedCount(selectedProjectActivity)} files changed
                   </span>
                   {(latestPush.modules.length ? latestPush.modules : ["No modules detected"]).slice(0, 3).map((module) => (
                     <span className="rounded-full bg-cyan-50 px-2 py-1 font-semibold text-cyan-700 dark:bg-cyan-950/60 dark:text-cyan-300" key={module}>
@@ -701,11 +789,39 @@ export const ProjectOverviewDashboardPanel = ({ issues = [], onViewGitActivity, 
                     </span>
                   ))}
                   <span className="rounded-full bg-slate-50 px-2 py-1 font-semibold text-slate-600 dark:bg-slate-800 dark:text-slate-300">
-                    {formatActivityTime(latestPush.activity.pushedAt)}
+                    {formatActivityTime(selectedProjectActivity.pushedAt)}
                   </span>
                 </div>
+                {selectedProjectActivity.filesChanged?.length ? (
+                  <div className="mt-2 flex flex-wrap gap-1.5" aria-label="Changed files">
+                    {selectedProjectActivity.filesChanged.slice(0, 4).map((file) => (
+                      <span className="max-w-full truncate rounded-md bg-slate-100 px-2 py-1 text-[11px] text-slate-600 dark:bg-slate-800 dark:text-slate-300" key={file} title={file}>
+                        {file}
+                      </span>
+                    ))}
+                    {selectedProjectActivity.filesChanged.length > 4 ? (
+                      <span className="rounded-md bg-slate-100 px-2 py-1 text-[11px] text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+                        +{selectedProjectActivity.filesChanged.length - 4} more
+                      </span>
+                    ) : null}
+                  </div>
+                ) : null}
+                {selectedProjectActivities.length > 1 ? (
+                  <div className="mt-3 space-y-2 border-t border-slate-100 pt-3 dark:border-slate-800">
+                    {selectedProjectActivities.slice(1, 4).map((activity) => (
+                      <div className="min-w-0" key={activity.commitSha || activity.pushedAt}>
+                        <p className="truncate text-xs font-semibold text-slate-800 dark:text-slate-200" title={activity.commitMessage}>
+                          {activity.commitMessage || "Commit"}
+                        </p>
+                        <p className="mt-0.5 truncate text-[11px] text-slate-500 dark:text-slate-400">
+                          {activity.pushedByName || "Unknown contributor"} · {activity.branch || "Unknown branch"} · {getCommitShortSha(activity.commitSha) || "No SHA"} · {formatActivityTime(activity.pushedAt)} · {getFilesChangedCount(activity)} files
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
                 <AiCodeReviewPanel
-                  activity={latestPush.activity}
+                  activity={selectedProjectActivity}
                   className="mt-3"
                   project={latestPush.project}
                 />
@@ -714,19 +830,35 @@ export const ProjectOverviewDashboardPanel = ({ issues = [], onViewGitActivity, 
               <div className="mt-4 rounded-2xl border border-dashed border-blue-200 bg-white/70 p-5 text-center dark:border-slate-800 dark:bg-slate-900/40">
                 <GitBranch className="mx-auto h-7 w-7 text-blue-400" />
                 <p className="mt-2 text-sm font-semibold text-slate-900 dark:text-slate-100">
-                  {connectedProjectRows.length ? "No recent Git activity for this project" : "No Git connected projects"}
+                  {latestPush?.connected
+                    ? "No recent Git activity for this project"
+                    : latestPush
+                      ? "No repository connected for this project"
+                      : "No Git connected projects"}
                 </p>
                 <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                  {connectedProjectRows.length
+                  {latestPush?.connected
                     ? "The selected project is connected, but no push has been recorded yet."
                     : "Connect a project repository to review its latest push here."}
                 </p>
               </div>
             )}
 
-            <Button className="mt-4 h-9 rounded-xl dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700" type="button" variant="outline" onClick={() => onViewGitActivity?.(latestPush?.project)}>
-              View Git Activity
-            </Button>
+            <div className="mt-4 flex flex-wrap gap-2">
+              <Button
+                className="h-9 rounded-xl dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                disabled={!latestPush?.connected || syncingProjectId === selectedGitProjectId}
+                type="button"
+                variant="outline"
+                onClick={() => void syncSelectedProject(selectedGitProjectId)}
+              >
+                <RefreshCw className={cn("h-4 w-4", syncingProjectId === selectedGitProjectId && "animate-spin")} />
+                {syncingProjectId === selectedGitProjectId ? "Syncing…" : "Refresh Git"}
+              </Button>
+              <Button className="h-9 rounded-xl dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700" type="button" variant="outline" onClick={() => onViewGitActivity?.(latestPush?.project)}>
+                {latestPush?.connected ? "View Git Activity" : "Connect Repository"}
+              </Button>
+            </div>
           </section>
 
           <section className="rounded-2xl border border-slate-200/80 bg-slate-50/50 p-4 dark:border-slate-800 dark:bg-slate-950/40">

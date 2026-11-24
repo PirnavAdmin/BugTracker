@@ -460,7 +460,7 @@ const AiCodeReviewPanelContent = ({
   useEffect(() => {
     setReview(normalizeAiReview(safeActivity.aiReview));
     setError("");
-  }, [safeActivity.aiReview, commitSha]);
+  }, [safeActivity.aiReview, commitSha, projectId]);
 
   const handleRunReview = async ({ forceRefresh = false } = {}) => {
     if (!canRun) {
