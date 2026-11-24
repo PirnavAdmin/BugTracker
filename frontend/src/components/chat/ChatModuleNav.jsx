@@ -25,7 +25,7 @@ const ChatModuleNav = ({ activeModule, onSelect }) => (
           className={cn(
             "flex h-auto flex-col items-center gap-2 rounded-[22px] px-2 py-3 text-center text-[11px] font-bold transition-all",
             isActive
-              ? "bg-slate-950 text-white shadow-[0_16px_36px_-24px_rgba(15,23,42,0.4)] hover:bg-slate-900 hover:text-white dark:bg-blue-600 dark:text-white dark:hover:bg-blue-500"
+              ? "bg-gradient-to-br from-blue-500 to-blue-600 text-white shadow-[0_14px_30px_-14px_rgba(37,99,235,0.55)] hover:from-blue-600 hover:to-blue-700 hover:text-white dark:from-blue-600 dark:to-blue-700 dark:text-white dark:hover:from-blue-500 dark:hover:to-blue-600"
               : "text-slate-500 hover:bg-white/80 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-900 dark:hover:text-slate-200"
           )}
           onClick={() => onSelect(module.id)}

@@ -12,23 +12,29 @@ const statusMeta = {
   active: {
     label: "Active",
     variant: "success",
-    dotClassName: "bg-emerald-500",
-    activeCardClass: "border-emerald-500/60 bg-emerald-50/70 shadow-sm ring-2 ring-emerald-500/20",
-    hoverCardClass: "hover:border-emerald-300 hover:bg-emerald-50/30",
+    dotClassName: "bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.35)]",
+    cardClass:
+      "border-emerald-200/90 bg-white hover:border-emerald-400 hover:bg-emerald-50/30 dark:border-slate-800 dark:bg-slate-900/60 dark:hover:border-emerald-800/60 dark:hover:bg-emerald-950/20",
+    activeCardClass:
+      "border-emerald-500 bg-emerald-50/80 shadow-md ring-2 ring-emerald-500/20 dark:border-emerald-500 dark:bg-emerald-950/50",
   },
   idle: {
     label: "Idle",
     variant: "warning",
-    dotClassName: "bg-amber-500",
-    activeCardClass: "border-amber-500/60 bg-amber-50/70 shadow-sm ring-2 ring-amber-500/20",
-    hoverCardClass: "hover:border-amber-300 hover:bg-amber-50/30",
+    dotClassName: "bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.35)]",
+    cardClass:
+      "border-amber-200/90 bg-white hover:border-amber-400 hover:bg-amber-50/30 dark:border-slate-800 dark:bg-slate-900/60 dark:hover:border-amber-800/60 dark:hover:bg-amber-950/20",
+    activeCardClass:
+      "border-amber-500 bg-amber-50/80 shadow-md ring-2 ring-amber-500/20 dark:border-amber-500 dark:bg-amber-950/50",
   },
   offline: {
     label: "Offline",
     variant: "secondary",
     dotClassName: "bg-slate-400",
-    activeCardClass: "border-slate-500/60 bg-slate-100/80 shadow-sm ring-2 ring-slate-400/20",
-    hoverCardClass: "hover:border-slate-300 hover:bg-slate-100/40",
+    cardClass:
+      "border-slate-200 bg-white hover:border-slate-400 hover:bg-slate-50/70 dark:border-slate-800 dark:bg-slate-900/60 dark:hover:border-slate-700 dark:hover:bg-slate-800/40",
+    activeCardClass:
+      "border-slate-400 bg-slate-100/90 shadow-md ring-2 ring-slate-400/20 dark:border-slate-500 dark:bg-slate-800",
   },
 };
 
@@ -154,26 +160,24 @@ const TeamActivityPage = () => {
                   type="button"
                   onClick={() => handleCardClick(status)}
                   className={cn(
-                    "rounded-lg border px-3 py-2 text-left transition-all cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500/20",
-                    isSelected
-                      ? meta.activeCardClass
-                      : cn("border-white/60 bg-white/55 dark:border-slate-800 dark:bg-slate-900/60", meta.hoverCardClass)
+                    "group relative rounded-xl border p-4 text-left shadow-xs transition-all duration-200 cursor-pointer hover:-translate-y-0.5 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-blue-500/20",
+                    isSelected ? meta.activeCardClass : meta.cardClass
                   )}
                   aria-pressed={isSelected}
                   title={`Filter by ${meta.label} members`}
                 >
                   <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2 text-xs font-semibold text-slate-500 dark:text-slate-400">
-                      <span className={cn("h-2.5 w-2.5 rounded-full", meta.dotClassName)} />
-                      {meta.label}
+                    <div className="flex items-center gap-2 text-xs font-semibold text-slate-600 dark:text-slate-400">
+                      <span className={cn("h-2.5 w-2.5 rounded-full transition-transform group-hover:scale-110", meta.dotClassName)} />
+                      <span>{meta.label}</span>
                     </div>
                     {isSelected && (
-                      <span className="rounded-full bg-white/80 dark:bg-slate-800 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300 shadow-xs">
+                      <span className="rounded-full border border-slate-200/80 bg-white/95 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-slate-700 shadow-xs dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200">
                         Filtered
                       </span>
                     )}
                   </div>
-                  <p className="mt-1 text-2xl font-bold text-slate-950 dark:text-slate-100">
+                  <p className="mt-2 text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-950 dark:text-slate-100">
                     {summary[status] || 0}
                   </p>
                 </button>
