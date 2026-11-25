@@ -42,7 +42,7 @@ const fixture = () => {
     "./models/CallParticipant.model": {
       findOneAndUpdate: async () => ({}), updateMany: async () => ({}), find: () => query([]),
     },
-    "./models/Conversation.model": {}, "./models/User": {},
+    "./models/Conversation.model": {}, "./models/Message.model": {}, "./models/User": {},
     "./controllers/chat.controller": {
       CHAT_ACCESS_ROLES: [],
       loadConversationForUser: async () => ({ _id: "conversation", participants: call?.participants || [] }),

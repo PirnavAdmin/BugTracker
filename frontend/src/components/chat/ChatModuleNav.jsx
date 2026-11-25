@@ -1,7 +1,6 @@
 import {
   Archive,
   CalendarDays,
-  FolderOpen,
   MessageCircle,
   Pin,
   Star,
@@ -13,7 +12,6 @@ const MODULES = [
   { id: "chats", label: "Chats", icon: MessageCircle },
   { id: "meetings", label: "Meetings", icon: CalendarDays },
   { id: "pinned", label: "Pinned", icon: Pin },
-  { id: "files", label: "Shared Files", icon: FolderOpen },
   { id: "starred", label: "Starred", icon: Star },
   { id: "archives", label: "Archived", icon: Archive },
 ];

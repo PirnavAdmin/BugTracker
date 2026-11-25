@@ -10,6 +10,9 @@ import {
   removeChatConversationParticipant,
   searchChatUsers,
   sendChatMessage,
+  deleteChatMessage,
+  toggleChatMessageReaction,
+  updateChatMessage,
 } from "@/lib/api";
 import { getChatSocket } from "@/lib/socket";
 
@@ -471,7 +474,7 @@ export const useChatStore = create((set, get) => ({
     });
   },
 
-  sendMessage: async ({ conversationId, message, attachments = [], currentUser }) => {
+  sendMessage: async ({ conversationId, message, attachments = [], currentUser, metadata = null }) => {
     const text = String(message || "").trim();
 
     if (!conversationId || (!text && !attachments.length)) {
@@ -485,6 +488,7 @@ export const useChatStore = create((set, get) => ({
       senderId: currentUser,
       message: text,
       attachments,
+      metadata,
       seenBy: currentUser?._id
         ? [
             {
@@ -527,6 +531,7 @@ export const useChatStore = create((set, get) => ({
               conversationId,
               message: text,
               attachments,
+              metadata,
               clientMessageId: tempId,
             });
             get().receiveMessage({
@@ -556,6 +561,7 @@ export const useChatStore = create((set, get) => ({
             conversationId,
             message: text,
             attachments,
+            metadata,
             tempId,
           },
           (response) => {
@@ -588,6 +594,7 @@ export const useChatStore = create((set, get) => ({
         conversationId,
         message: text,
         attachments,
+        metadata,
         clientMessageId: tempId,
       });
       get().receiveMessage({
@@ -603,6 +610,193 @@ export const useChatStore = create((set, get) => ({
         error?.response?.data?.message || error?.message || "Unable to send message"
       );
       return false;
+    }
+  },
+
+  updateMessageReactions: ({ conversationId, messageId, reactions, message: updatedMessage }) => {
+    if (!conversationId || !messageId) return;
+    set((state) => {
+      const messages = state.messagesByConversation[conversationId] || [];
+      const updatedMessages = messages.map((m) => {
+        if (getId(m) === String(messageId)) {
+          if (updatedMessage) {
+            return { ...m, ...updatedMessage };
+          }
+          const meta =
+            m.metadata && typeof m.metadata === "object" && !Array.isArray(m.metadata)
+              ? { ...m.metadata }
+              : {};
+          return {
+            ...m,
+            metadata: {
+              ...meta,
+              reactions: Array.isArray(reactions) ? reactions : [],
+            },
+          };
+        }
+        return m;
+      });
+      return {
+        messagesByConversation: {
+          ...state.messagesByConversation,
+          [conversationId]: updatedMessages,
+        },
+      };
+    });
+  },
+
+  updateMessageEdited: ({ conversationId, messageId, message: updatedMessage }) => {
+    if (!conversationId || !messageId) return;
+    set((state) => {
+      const messages = state.messagesByConversation[conversationId] || [];
+      const updatedMessages = messages.map((m) => {
+        if (getId(m) === String(messageId)) {
+          return {
+            ...m,
+            ...(updatedMessage || {}),
+            message: updatedMessage?.message ?? m.message,
+            edited: true,
+            metadata: updatedMessage?.metadata || {
+              ...(m.metadata || {}),
+              editedAt: new Date().toISOString(),
+            },
+          };
+        }
+        return m;
+      });
+      return {
+        messagesByConversation: {
+          ...state.messagesByConversation,
+          [conversationId]: updatedMessages,
+        },
+      };
+    });
+  },
+
+  updateMessageDeleted: ({ conversationId, messageId }) => {
+    if (!conversationId || !messageId) return;
+    set((state) => {
+      const messages = state.messagesByConversation[conversationId] || [];
+      const updatedMessages = messages.map((m) => {
+        if (getId(m) === String(messageId)) {
+          return {
+            ...m,
+            deleted: true,
+            message: "",
+            attachments: [],
+          };
+        }
+        return m;
+      });
+      return {
+        messagesByConversation: {
+          ...state.messagesByConversation,
+          [conversationId]: updatedMessages,
+        },
+      };
+    });
+  },
+
+  toggleReaction: async ({ conversationId, messageId, emoji, currentUser }) => {
+    if (!conversationId || !messageId || !emoji) return;
+
+    // Optimistic local update
+    const currentMessages = get().messagesByConversation[conversationId] || [];
+    const targetMessage = currentMessages.find((m) => getId(m) === String(messageId));
+    if (targetMessage) {
+      const currentMeta =
+        targetMessage.metadata && typeof targetMessage.metadata === "object" && !Array.isArray(targetMessage.metadata)
+          ? { ...targetMessage.metadata }
+          : {};
+      const reactions = Array.isArray(currentMeta.reactions) ? [...currentMeta.reactions] : [];
+      const userId = getId(currentUser);
+      const existingIdx = reactions.findIndex((r) => r.emoji === emoji && getId(r.userId) === userId);
+      if (existingIdx >= 0) {
+        reactions.splice(existingIdx, 1);
+      } else {
+        reactions.push({
+          emoji,
+          userId,
+          userName: currentUser?.name || "Teammate",
+        });
+      }
+      get().updateMessageReactions({
+        conversationId,
+        messageId,
+        reactions,
+      });
+    }
+
+    const socket = getChatSocket();
+    if (socket?.connected) {
+      socket.emit("message:react", { conversationId, messageId, emoji });
+      return;
+    }
+
+    try {
+      const result = await toggleChatMessageReaction(messageId, emoji);
+      if (result?.reactions) {
+        get().updateMessageReactions({
+          conversationId,
+          messageId,
+          reactions: result.reactions,
+          message: result.message,
+        });
+      }
+    } catch (err) {
+      console.error("Failed to toggle reaction:", err);
+    }
+  },
+
+  editMessage: async ({ conversationId, messageId, text }) => {
+    if (!conversationId || !messageId || !text?.trim()) return;
+
+    // Optimistic local update
+    get().updateMessageEdited({
+      conversationId,
+      messageId,
+      message: { message: text.trim(), edited: true },
+    });
+
+    const socket = getChatSocket();
+    if (socket?.connected) {
+      socket.emit("message:edit", { conversationId, messageId, message: text.trim() });
+      return;
+    }
+
+    try {
+      const updated = await updateChatMessage(messageId, text.trim());
+      if (updated) {
+        get().updateMessageEdited({
+          conversationId,
+          messageId,
+          message: updated,
+        });
+      }
+    } catch (err) {
+      console.error("Failed to edit message:", err);
+    }
+  },
+
+  deleteMessage: async ({ conversationId, messageId }) => {
+    if (!conversationId || !messageId) return;
+
+    // Optimistic local update
+    get().updateMessageDeleted({
+      conversationId,
+      messageId,
+    });
+
+    const socket = getChatSocket();
+    if (socket?.connected) {
+      socket.emit("message:delete", { conversationId, messageId });
+      return;
+    }
+
+    try {
+      await deleteChatMessage(messageId);
+    } catch (err) {
+      console.error("Failed to delete message:", err);
     }
   },
 

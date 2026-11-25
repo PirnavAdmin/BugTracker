@@ -218,6 +218,15 @@ const ChatRealtimeBridge = () => {
         ? `(${unreadBackgroundCountRef.current}) ${originalTitleRef.current}`
         : originalTitleRef.current;
     };
+    const handleReactionUpdated = (payload) => {
+      useChatStore.getState().updateMessageReactions(payload);
+    };
+    const handleMessageEdited = (payload) => {
+      useChatStore.getState().updateMessageEdited(payload);
+    };
+    const handleMessageDeleted = (payload) => {
+      useChatStore.getState().updateMessageDeleted(payload);
+    };
     const handleConnect = () => {
       loadConversations({ force: true });
       const currentConversationId = useChatStore.getState().activeConversationId;
@@ -233,7 +242,9 @@ const ChatRealtimeBridge = () => {
     socket.on("online_users", handleOnlineUsers);
     socket.on("user_typing", handleTyping);
     socket.on("message_seen", handleMessageSeen);
-    socket.on("connect", handleConnect);
+    socket.on("message:reaction_updated", handleReactionUpdated);
+    socket.on("message:edited", handleMessageEdited);
+    socket.on("message:deleted", handleMessageDeleted);
     socket.connect();
 
     return () => {
@@ -242,6 +253,9 @@ const ChatRealtimeBridge = () => {
       socket.off("online_users", handleOnlineUsers);
       socket.off("user_typing", handleTyping);
       socket.off("message_seen", handleMessageSeen);
+      socket.off("message:reaction_updated", handleReactionUpdated);
+      socket.off("message:edited", handleMessageEdited);
+      socket.off("message:deleted", handleMessageDeleted);
       socket.off("connect", handleConnect);
     };
   }, [

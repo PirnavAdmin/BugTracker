@@ -1504,6 +1504,21 @@ export const sendChatMessage = async (payload) => {
   return response.data?.message || response.data;
 };
 
+export const toggleChatMessageReaction = async (messageId, emoji) => {
+  const response = await api.post(`/chat/messages/${messageId}/reactions`, { emoji });
+  return response.data;
+};
+
+export const updateChatMessage = async (messageId, message) => {
+  const response = await api.patch(`/chat/messages/${messageId}`, { message });
+  return response.data?.message || response.data;
+};
+
+export const deleteChatMessage = async (messageId) => {
+  const response = await api.delete(`/chat/messages/${messageId}`);
+  return response.data;
+};
+
 export const fetchChatAttachmentBlob = async ({
   conversationId,
   messageId,
