@@ -15,16 +15,19 @@ import {
   ChevronDown,
   Copy,
   Download,
+  FileSpreadsheet,
   FileText,
   Flame,
   Gauge,
   GitBranch,
   Laptop,
   Layers3,
+  Loader2,
   Mail,
   Maximize2,
   MessageSquare,
   PieChart as PieChartIcon,
+  Printer,
   RefreshCcw,
   RotateCcw,
   Save,
@@ -32,6 +35,7 @@ import {
   Share2,
   ShieldCheck,
   Star,
+  Table,
   TimerReset,
   TrendingUp,
   Trophy,
@@ -619,6 +623,159 @@ const exportExcel = async (rows, reportName = "report") => {
     type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
   });
   downloadBlob(blob, `${getReportExportFilename(reportName)}.xlsx`);
+};
+
+const generatePdfBlob = (rows = [], reportTitle = "Report", scopeSummary = "", metricsSummary = "") => {
+  const sanitize = (str) =>
+    String(str ?? "")
+      .replace(/\\/g, "\\\\")
+      .replace(/\(/g, "\\(")
+      .replace(/\)/g, "\\)");
+
+  const pages = [];
+  const rowsPerPage = 28;
+  const totalPages = Math.max(1, Math.ceil(Math.max(rows.length, 1) / rowsPerPage));
+
+  for (let p = 0; p < totalPages; p++) {
+    const pageRows = rows.slice(p * rowsPerPage, (p + 1) * rowsPerPage);
+    const lines = [];
+    lines.push("BT");
+    if (p === 0) {
+      lines.push("/F1 15 Tf");
+      lines.push("40 800 Td");
+      lines.push(`(${sanitize(reportTitle)}) Tj`);
+      lines.push("/F2 9 Tf");
+      lines.push("0 -16 Td");
+      lines.push(`(Generated: ${new Date().toLocaleDateString()} | Scope: ${sanitize(scopeSummary || "All")}) Tj`);
+      if (metricsSummary) {
+        lines.push("0 -13 Td");
+        lines.push(`(Metrics: ${sanitize(metricsSummary)}) Tj`);
+      }
+    } else {
+      lines.push("/F1 11 Tf");
+      lines.push("40 800 Td");
+      lines.push(`(${sanitize(reportTitle)} - Page ${p + 1} of ${totalPages}) Tj`);
+    }
+
+    let y = p === 0 ? 740 : 770;
+    lines.push("/F2 8.5 Tf");
+    pageRows.forEach((row, rIdx) => {
+      const isHeader = p === 0 && rIdx === 0;
+      const formattedRow = row.map((cell) => String(cell ?? "").trim()).join("  |  ");
+      const truncated = formattedRow.length > 115 ? formattedRow.slice(0, 112) + "..." : formattedRow;
+      lines.push(`1 0 0 1 40 ${y} Tm`);
+      if (isHeader) {
+        lines.push("/F1 9 Tf");
+      } else if (rIdx === 1 && p === 0) {
+        lines.push("/F2 8.5 Tf");
+      }
+      lines.push(`(${sanitize(truncated)}) Tj`);
+      y -= 18;
+    });
+
+    lines.push("1 0 0 1 40 30 Tm");
+    lines.push("/F2 8 Tf");
+    lines.push(`(CureCode Enterprise Reporting -- Page ${p + 1} of ${totalPages}) Tj`);
+    lines.push("ET");
+    pages.push(lines.join("\n"));
+  }
+
+  const header = "%PDF-1.4\n";
+  const numPages = pages.length;
+  const pageObjStart = 3;
+  const contentObjStart = pageObjStart + numPages;
+  const fontF1Obj = contentObjStart + numPages;
+  const fontF2Obj = fontF1Obj + 1;
+  const totalObjs = fontF2Obj;
+  const kidsArray = Array.from({ length: numPages }, (_, i) => `${pageObjStart + i} 0 R`).join(" ");
+
+  const objects = [];
+  objects.push("1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj");
+  objects.push(`2 0 obj\n<< /Type /Pages /Kids [${kidsArray}] /Count ${numPages} >>\nendobj`);
+
+  for (let i = 0; i < numPages; i++) {
+    const pageId = pageObjStart + i;
+    const contentId = contentObjStart + i;
+    objects.push(
+      `${pageId} 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595.28 841.89] /Resources << /Font << /F1 ${fontF1Obj} 0 R /F2 ${fontF2Obj} 0 R >> >> /Contents ${contentId} 0 R >>\nendobj`
+    );
+  }
+
+  for (let i = 0; i < numPages; i++) {
+    const contentId = contentObjStart + i;
+    const stream = pages[i];
+    const len = new TextEncoder().encode(stream).length;
+    objects.push(`${contentId} 0 obj\n<< /Length ${len} >>\nstream\n${stream}\nendstream\nendobj`);
+  }
+
+  objects.push(`${fontF1Obj} 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>\nendobj`);
+  objects.push(`${fontF2Obj} 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj`);
+
+  const xref = ["xref", `0 ${totalObjs + 1}`, "0000000000 65535 f "];
+  let body = "";
+  for (let i = 0; i < objects.length; i++) {
+    const objOffset = header.length + body.length;
+    xref.push(String(objOffset).padStart(10, "0") + " 00000 n ");
+    body += objects[i] + "\n";
+  }
+
+  const xrefOffset = header.length + body.length;
+  const trailer = `trailer\n<< /Size ${totalObjs + 1} /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF`;
+  const pdfString = header + body + xref.join("\n") + "\n" + trailer;
+  return new Blob([new TextEncoder().encode(pdfString)], { type: "application/pdf" });
+};
+
+const getReportExportBlob = async ({
+  format = "pdf",
+  rows = [],
+  reportName = "report",
+  reportTitle = "Report",
+  scopeSummary = "",
+  metricsSummary = "",
+}) => {
+  const baseName = getReportExportFilename(reportName);
+  if (format === "excel") {
+    const excelModule = await import("exceljs");
+    const ExcelJS = excelModule.default || excelModule;
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet("Report");
+    const headers = rows[0] || [];
+
+    worksheet.columns = headers.map((header, index) => ({
+      header: String(header ?? ""),
+      key: `column${index}`,
+      width: Math.min(Math.max(String(header ?? "").length + 4, 14), 36),
+    }));
+    worksheet.addRows(rows.slice(1));
+    worksheet.getRow(1).font = { bold: true, color: { argb: "FFFFFFFF" } };
+    worksheet.getRow(1).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF2563EB" } };
+    worksheet.views = [{ state: "frozen", ySplit: 1 }];
+    if (headers.length) {
+      worksheet.autoFilter = {
+        from: { row: 1, column: 1 },
+        to: { row: Math.max(rows.length, 1), column: headers.length },
+      };
+    }
+    const buffer = await workbook.xlsx.writeBuffer();
+    const blob = new Blob([buffer], {
+      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    });
+    return { blob, filename: `${baseName}.xlsx`, mimeType: blob.type, label: "Excel Spreadsheet" };
+  }
+
+  if (format === "csv") {
+    const escapeValue = (value) => {
+      const text = String(value ?? "");
+      return /[",\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+    };
+    const csv = rows.map((row) => row.map(escapeValue).join(",")).join("\n");
+    const blob = new Blob(["\uFEFF", csv], { type: "text/csv;charset=utf-8;" });
+    return { blob, filename: `${baseName}.csv`, mimeType: blob.type, label: "CSV File" };
+  }
+
+  // Default: PDF
+  const blob = generatePdfBlob(rows, reportTitle, scopeSummary, metricsSummary);
+  return { blob, filename: `${baseName}.pdf`, mimeType: blob.type, label: "PDF Document" };
 };
 
 const copyTextToClipboard = async (text) => {
@@ -3430,9 +3587,7 @@ const OrganizationReportsDashboard = () => {
               <EnterpriseActionButton icon={Download} onClick={exportExcelReport}>Excel</EnterpriseActionButton>
               <EnterpriseActionButton icon={Download} onClick={exportAnalytics}>CSV</EnterpriseActionButton>
               <EnterpriseActionButton icon={Share2} onClick={shareReport}>Share</EnterpriseActionButton>
-              <EnterpriseActionButton icon={Save} onClick={saveFilter}>Save Filter</EnterpriseActionButton>
               <EnterpriseActionButton icon={Maximize2} onClick={enterFullscreen}>Fullscreen</EnterpriseActionButton>
-              <Button type="button" variant="outline" size="sm" onClick={resetFilters}>Reset</Button>
             </div>
           </div>
 
@@ -4893,28 +5048,172 @@ const JiraDrilldown = ({ rows = [], title, onClear }) => (
   </JiraPanel>
 );
 
+const FORMAT_OPTIONS = [
+  {
+    id: "pdf",
+    label: "PDF",
+    extension: ".pdf",
+    icon: FileText,
+    badge: "Executive",
+    badgeColor: "bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300",
+    description: "Print-ready PDF report document",
+  },
+  {
+    id: "excel",
+    label: "Excel",
+    extension: ".xlsx",
+    icon: FileSpreadsheet,
+    badge: "Spreadsheet",
+    badgeColor: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300",
+    description: "Microsoft Excel table with styling",
+  },
+  {
+    id: "csv",
+    label: "CSV",
+    extension: ".csv",
+    icon: Table,
+    badge: "Data File",
+    badgeColor: "bg-blue-100 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300",
+    description: "Standard tabular data spreadsheet",
+  },
+];
+
 const ShareReportModal = ({
   open,
   onOpenChange,
   reportTitle,
-  reportUrl,
   scopeSummary,
   metricsSummary,
   onToast,
+  getExportRows,
+  reportKey,
+  onPrintPdf,
 }) => {
-  const [copiedLink, setCopiedLink] = useState(false);
+  const [selectedFormat, setSelectedFormat] = useState("pdf");
+  const [isGenerating, setIsGenerating] = useState(false);
   const [copiedSummary, setCopiedSummary] = useState(false);
 
   const canNativeShare = typeof navigator !== "undefined" && typeof navigator.share === "function";
 
-  const handleCopyLink = async () => {
+  const generateCurrentFile = async (format = selectedFormat) => {
+    const rows = typeof getExportRows === "function" ? getExportRows() : [];
+    return getReportExportBlob({
+      format,
+      rows,
+      reportName: reportKey || "report",
+      reportTitle,
+      scopeSummary,
+      metricsSummary,
+    });
+  };
+
+  const handleDownloadFile = async () => {
+    setIsGenerating(true);
     try {
-      await copyTextToClipboard(reportUrl);
-      setCopiedLink(true);
-      setTimeout(() => setCopiedLink(false), 2000);
-      onToast("success", "Link copied to clipboard!");
-    } catch {
-      onToast("error", "Unable to copy link.");
+      const { blob, filename } = await generateCurrentFile(selectedFormat);
+      downloadBlob(blob, filename);
+      onToast("success", `${filename} downloaded successfully!`);
+    } catch (err) {
+      onToast("error", err?.message || "Failed to generate report file.");
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  const handleNativeShare = async () => {
+    setIsGenerating(true);
+    try {
+      const { blob, filename, mimeType, label } = await generateCurrentFile(selectedFormat);
+      const file = new File([blob], filename, { type: mimeType });
+
+      if (canNativeShare && navigator.canShare && navigator.canShare({ files: [file] })) {
+        await navigator.share({
+          files: [file],
+          title: reportTitle,
+          text: `CureCode Report: ${reportTitle} (${label})\nScope: ${scopeSummary || "All"}`,
+        });
+        onToast("success", `${filename} shared successfully.`);
+        onOpenChange(false);
+        return;
+      }
+
+      downloadBlob(blob, filename);
+      onToast("success", `${filename} downloaded! You can now send it to your apps.`);
+    } catch (err) {
+      if (err?.name !== "AbortError") {
+        onToast("error", err?.message || "System share failed.");
+      }
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  const handleWhatsAppShare = async () => {
+    setIsGenerating(true);
+    try {
+      const { blob, filename, mimeType, label } = await generateCurrentFile(selectedFormat);
+      downloadBlob(blob, filename);
+
+      const file = new File([blob], filename, { type: mimeType });
+      if (canNativeShare && navigator.canShare && navigator.canShare({ files: [file] })) {
+        try {
+          await navigator.share({
+            files: [file],
+            title: reportTitle,
+            text: `*CureCode Report - ${reportTitle}*\nFormat: ${label} (${filename})\n${scopeSummary ? `Scope: ${scopeSummary}\n` : ""}${metricsSummary ? `Metrics: ${metricsSummary}\n` : ""}`,
+          });
+          onToast("success", "Report shared to WhatsApp!");
+          onOpenChange(false);
+          return;
+        } catch (shareErr) {
+          if (shareErr?.name === "AbortError") return;
+        }
+      }
+
+      const text = encodeURIComponent(
+        `*CureCode Report - ${reportTitle}*\nFormat: ${label} (${filename})\n${scopeSummary ? `Scope: ${scopeSummary}\n` : ""}${metricsSummary ? `Metrics: ${metricsSummary}\n` : ""}\n📎 Attached Document: ${filename}`
+      );
+      window.open(`https://api.whatsapp.com/send?text=${text}`, "_blank", "noopener,noreferrer");
+      onToast("success", `${filename} downloaded! Ready to attach in WhatsApp.`);
+    } catch (err) {
+      onToast("error", err?.message || "Unable to prepare report for WhatsApp.");
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  const handleTeamsShare = async () => {
+    setIsGenerating(true);
+    try {
+      const { blob, filename, label } = await generateCurrentFile(selectedFormat);
+      downloadBlob(blob, filename);
+      const text = encodeURIComponent(
+        `CureCode Report: ${reportTitle}\nFormat: ${label} (${filename})\n${scopeSummary ? `Scope: ${scopeSummary}\n` : ""}${metricsSummary ? `Metrics: ${metricsSummary}\n` : ""}\nAttached Document: ${filename}`
+      );
+      window.open(`https://teams.microsoft.com/share?msgText=${text}`, "_blank", "noopener,noreferrer");
+      onToast("success", `${filename} downloaded! Ready to attach in MS Teams.`);
+    } catch (err) {
+      onToast("error", err?.message || "Unable to prepare report for Teams.");
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  const handleEmailShare = async () => {
+    setIsGenerating(true);
+    try {
+      const { blob, filename, label } = await generateCurrentFile(selectedFormat);
+      downloadBlob(blob, filename);
+      const subject = encodeURIComponent(`CureCode Report [${label}]: ${reportTitle}`);
+      const body = encodeURIComponent(
+        `Hi team,\n\nPlease find the ${reportTitle} (${label}) attached as ${filename}.\n\nScope: ${scopeSummary || "All"}\n${metricsSummary ? `Key Metrics: ${metricsSummary}\n` : ""}\nBest regards,\nCureCode`
+      );
+      window.location.href = `mailto:?subject=${subject}&body=${body}`;
+      onToast("success", `${filename} downloaded! Attach it to your email.`);
+    } catch (err) {
+      onToast("error", err?.message || "Unable to prepare report for email.");
+    } finally {
+      setIsGenerating(false);
     }
   };
 
@@ -4924,60 +5223,17 @@ const ShareReportModal = ({
         `📊 CureCode Report: ${reportTitle}`,
         scopeSummary ? `🔍 Scope: ${scopeSummary}` : null,
         metricsSummary ? `📈 Key Metrics: ${metricsSummary}` : null,
-        `🔗 Link: ${reportUrl}`,
+        `📄 Document: ${reportTitle} (${selectedFormat.toUpperCase()})`,
       ]
         .filter(Boolean)
         .join("\n");
       await copyTextToClipboard(summaryText);
       setCopiedSummary(true);
       setTimeout(() => setCopiedSummary(false), 2000);
-      onToast("success", "Formatted summary copied for chat!");
+      onToast("success", "Formatted report summary copied to clipboard!");
     } catch {
       onToast("error", "Unable to copy summary.");
     }
-  };
-
-  const handleNativeShare = async () => {
-    if (!canNativeShare) return;
-    try {
-      await navigator.share({
-        title: `CureCode Report - ${reportTitle}`,
-        text: `Check out the ${reportTitle} on CureCode:\n${scopeSummary ? `${scopeSummary}\n` : ""}${metricsSummary ? `${metricsSummary}\n` : ""}`,
-        url: reportUrl,
-      });
-      onToast("success", "Report shared successfully.");
-      onOpenChange(false);
-    } catch (err) {
-      if (err?.name !== "AbortError") {
-        onToast("error", "System share was canceled or not available.");
-      }
-    }
-  };
-
-  const handleTeamsShare = () => {
-    const teamsMsg = encodeURIComponent(
-      `CureCode Report: ${reportTitle}\n${scopeSummary ? `Scope: ${scopeSummary}\n` : ""}${metricsSummary ? `Metrics: ${metricsSummary}\n` : ""}`
-    );
-    const teamsUrl = `https://teams.microsoft.com/share?href=${encodeURIComponent(reportUrl)}&msgText=${teamsMsg}`;
-    window.open(teamsUrl, "_blank", "noopener,noreferrer");
-    onToast("info", "Opening Microsoft Teams...");
-  };
-
-  const handleEmailShare = () => {
-    const subject = encodeURIComponent(`CureCode Report: ${reportTitle}`);
-    const body = encodeURIComponent(
-      `Hi team,\n\nHere is the latest ${reportTitle} from CureCode:\n\nScope: ${scopeSummary || "All"}\n${metricsSummary ? `Key Metrics: ${metricsSummary}\n` : ""}\nView the live interactive report here:\n${reportUrl}\n\nBest regards,\nCureCode`
-    );
-    window.location.href = `mailto:?subject=${subject}&body=${body}`;
-    onToast("info", "Opening default email client...");
-  };
-
-  const handleWhatsAppShare = () => {
-    const text = encodeURIComponent(
-      `*CureCode Report - ${reportTitle}*\n${scopeSummary ? `Scope: ${scopeSummary}\n` : ""}${metricsSummary ? `Metrics: ${metricsSummary}\n` : ""}\nLive Report: ${reportUrl}`
-    );
-    window.open(`https://api.whatsapp.com/send?text=${text}`, "_blank", "noopener,noreferrer");
-    onToast("info", "Opening WhatsApp...");
   };
 
   return (
@@ -4986,36 +5242,89 @@ const ShareReportModal = ({
         <DialogHeader className="space-y-1 text-left">
           <div className="flex items-center gap-2 text-blue-600 dark:text-blue-400">
             <Share2 className="h-5 w-5" />
-            <span className="text-xs font-bold uppercase tracking-wider">Share Report</span>
+            <span className="text-xs font-bold uppercase tracking-wider">Share Report Document</span>
           </div>
           <DialogTitle className="text-xl font-bold text-slate-950 dark:text-slate-100">
             {reportTitle}
           </DialogTitle>
           <DialogDescription className="text-sm text-slate-500 dark:text-slate-400">
-            Share this report view directly with your team, external tools, or messaging apps.
+            Choose a format (PDF, Excel, or CSV) to share directly with your team.
           </DialogDescription>
         </DialogHeader>
 
         {scopeSummary ? (
-          <div className="mt-2 rounded-lg border border-slate-100 bg-slate-50/80 p-3 text-xs text-slate-600 dark:border-slate-800/80 dark:bg-slate-800/50 dark:text-slate-300">
-            <span className="font-semibold text-slate-700 dark:text-slate-200">Active Scope: </span>
-            {scopeSummary}
+          <div className="mt-2 rounded-xl border border-slate-100 bg-slate-50/80 p-3 text-xs text-slate-600 dark:border-slate-800/80 dark:bg-slate-800/50 dark:text-slate-300">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <span className="font-semibold text-slate-700 dark:text-slate-200">
+                Active Scope: <span className="font-normal text-slate-600 dark:text-slate-400">{scopeSummary}</span>
+              </span>
+              {metricsSummary ? (
+                <span className="truncate max-w-xs text-slate-500 dark:text-slate-400">{metricsSummary}</span>
+              ) : null}
+            </div>
           </div>
         ) : null}
 
         <div className="mt-4 space-y-4">
           <div>
-            <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-              Share Directly
-            </p>
+            <label className="mb-2 block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+              1. Select File Format
+            </label>
+            <div className="grid grid-cols-3 gap-2.5">
+              {FORMAT_OPTIONS.map((format) => {
+                const isSelected = selectedFormat === format.id;
+                const FormatIcon = format.icon;
+                return (
+                  <button
+                    key={format.id}
+                    type="button"
+                    onClick={() => setSelectedFormat(format.id)}
+                    className={cn(
+                      "flex flex-col items-start gap-1 rounded-xl border p-3 text-left transition",
+                      isSelected
+                        ? "border-blue-600 bg-blue-50/70 ring-2 ring-blue-600/30 dark:border-blue-500 dark:bg-blue-950/40"
+                        : "border-slate-200 bg-slate-50/40 hover:border-slate-300 hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-800/40 dark:hover:border-slate-700"
+                    )}
+                  >
+                    <div className="flex w-full items-center justify-between">
+                      <FormatIcon className={cn("h-5 w-5", isSelected ? "text-blue-600 dark:text-blue-400" : "text-slate-600 dark:text-slate-400")} />
+                      <span className={cn("rounded px-1.5 py-0.5 text-[10px] font-bold uppercase", format.badgeColor)}>
+                        {format.extension}
+                      </span>
+                    </div>
+                    <span className="mt-1 text-xs font-bold text-slate-900 dark:text-slate-100">{format.label}</span>
+                    <span className="text-[10px] text-slate-500 line-clamp-1 dark:text-slate-400">{format.description}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div>
+            <label className="mb-2 block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+              2. Share File Directly
+            </label>
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
               <button
                 type="button"
+                onClick={handleWhatsAppShare}
+                disabled={isGenerating}
+                className="flex flex-col items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50/70 p-3 text-center transition hover:border-emerald-500 hover:bg-emerald-50/60 dark:border-slate-800 dark:bg-slate-800/60 dark:hover:border-emerald-400 dark:hover:bg-emerald-950/30 disabled:opacity-60"
+              >
+                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-600 text-white shadow-sm">
+                  <Send className="h-4 w-4" />
+                </div>
+                <span className="text-xs font-semibold text-slate-800 dark:text-slate-200">WhatsApp</span>
+              </button>
+
+              <button
+                type="button"
                 onClick={handleTeamsShare}
-                className="flex flex-col items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50/70 p-3 text-center transition hover:border-[#464EB8] hover:bg-[#464EB8]/10 dark:border-slate-800 dark:bg-slate-800/60 dark:hover:border-[#7B83EB] dark:hover:bg-[#464EB8]/20"
+                disabled={isGenerating}
+                className="flex flex-col items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50/70 p-3 text-center transition hover:border-[#464EB8] hover:bg-[#464EB8]/10 dark:border-slate-800 dark:bg-slate-800/60 dark:hover:border-[#7B83EB] dark:hover:bg-[#464EB8]/20 disabled:opacity-60"
               >
                 <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#464EB8] text-white shadow-sm">
-                  <Users2 className="h-5 w-5" />
+                  <Users2 className="h-4 w-4" />
                 </div>
                 <span className="text-xs font-semibold text-slate-800 dark:text-slate-200">MS Teams</span>
               </button>
@@ -5023,79 +5332,68 @@ const ShareReportModal = ({
               <button
                 type="button"
                 onClick={handleEmailShare}
-                className="flex flex-col items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50/70 p-3 text-center transition hover:border-blue-500 hover:bg-blue-50/60 dark:border-slate-800 dark:bg-slate-800/60 dark:hover:border-blue-400 dark:hover:bg-blue-950/30"
+                disabled={isGenerating}
+                className="flex flex-col items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50/70 p-3 text-center transition hover:border-blue-500 hover:bg-blue-50/60 dark:border-slate-800 dark:bg-slate-800/60 dark:hover:border-blue-400 dark:hover:bg-blue-950/30 disabled:opacity-60"
               >
                 <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-600 text-white shadow-sm">
-                  <Mail className="h-5 w-5" />
+                  <Mail className="h-4 w-4" />
                 </div>
                 <span className="text-xs font-semibold text-slate-800 dark:text-slate-200">Email</span>
               </button>
 
               <button
                 type="button"
-                onClick={handleWhatsAppShare}
-                className="flex flex-col items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50/70 p-3 text-center transition hover:border-emerald-500 hover:bg-emerald-50/60 dark:border-slate-800 dark:bg-slate-800/60 dark:hover:border-emerald-400 dark:hover:bg-emerald-950/30"
+                onClick={handleNativeShare}
+                disabled={isGenerating}
+                className="flex flex-col items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50/70 p-3 text-center transition hover:border-violet-500 hover:bg-violet-50/60 dark:border-slate-800 dark:bg-slate-800/60 dark:hover:border-violet-400 dark:hover:bg-violet-950/30 disabled:opacity-60"
               >
-                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-600 text-white shadow-sm">
-                  <Send className="h-5 w-5" />
+                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-violet-600 text-white shadow-sm">
+                  <Laptop className="h-4 w-4" />
                 </div>
-                <span className="text-xs font-semibold text-slate-800 dark:text-slate-200">WhatsApp</span>
+                <span className="text-xs font-semibold text-slate-800 dark:text-slate-200">Device Share</span>
               </button>
-
-              {canNativeShare ? (
-                <button
-                  type="button"
-                  onClick={handleNativeShare}
-                  className="flex flex-col items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50/70 p-3 text-center transition hover:border-violet-500 hover:bg-violet-50/60 dark:border-slate-800 dark:bg-slate-800/60 dark:hover:border-violet-400 dark:hover:bg-violet-950/30"
-                >
-                  <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-violet-600 text-white shadow-sm">
-                    <Laptop className="h-5 w-5" />
-                  </div>
-                  <span className="text-xs font-semibold text-slate-800 dark:text-slate-200">Device Apps</span>
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  onClick={handleCopySummary}
-                  className="flex flex-col items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50/70 p-3 text-center transition hover:border-amber-500 hover:bg-amber-50/60 dark:border-slate-800 dark:bg-slate-800/60 dark:hover:border-amber-400 dark:hover:bg-amber-950/30"
-                >
-                  <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-amber-600 text-white shadow-sm">
-                    <MessageSquare className="h-5 w-5" />
-                  </div>
-                  <span className="text-xs font-semibold text-slate-800 dark:text-slate-200">
-                    {copiedSummary ? "Copied!" : "Chat Snippet"}
-                  </span>
-                </button>
-              )}
             </div>
           </div>
 
-          <div className="space-y-1.5 pt-1">
-            <label className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-              Direct Link
-            </label>
+          <div className="pt-1">
             <div className="flex gap-2">
-              <Input
-                readOnly
-                value={reportUrl}
-                className="h-10 truncate bg-slate-50 font-mono text-xs dark:bg-slate-800"
-              />
               <Button
                 type="button"
-                variant="outline"
-                size="sm"
-                onClick={handleCopyLink}
-                className="h-10 shrink-0 gap-1.5 px-3"
+                onClick={handleDownloadFile}
+                disabled={isGenerating}
+                className="h-11 flex-1 gap-2 rounded-xl bg-blue-600 font-semibold text-white hover:bg-blue-700 dark:bg-blue-600 dark:hover:bg-blue-500"
               >
-                {copiedLink ? <Check className="h-4 w-4 text-emerald-600" /> : <Copy className="h-4 w-4" />}
-                <span>{copiedLink ? "Copied" : "Copy"}</span>
+                {isGenerating ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    <span>Preparing {selectedFormat.toUpperCase()}...</span>
+                  </>
+                ) : (
+                  <>
+                    <Download className="h-4 w-4" />
+                    <span>Download {selectedFormat.toUpperCase()} File</span>
+                  </>
+                )}
               </Button>
+
+              {selectedFormat === "pdf" && typeof onPrintPdf === "function" ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={onPrintPdf}
+                  className="h-11 gap-1.5 rounded-xl px-4"
+                  title="Open browser print preview to save as PDF"
+                >
+                  <Printer className="h-4 w-4" />
+                  <span>Print View</span>
+                </Button>
+              ) : null}
             </div>
           </div>
 
           <div className="flex items-center justify-between border-t border-slate-100 pt-3 dark:border-slate-800">
             <span className="text-xs text-slate-500 dark:text-slate-400">
-              Need a summary snippet for Slack / Teams?
+              Need summary text for chat or notes?
             </span>
             <Button
               type="button"
@@ -5105,7 +5403,7 @@ const ShareReportModal = ({
               className="h-8 gap-1 text-xs text-blue-600 hover:text-blue-700 dark:text-blue-400"
             >
               {copiedSummary ? <Check className="h-3.5 w-3.5 text-emerald-600" /> : <Copy className="h-3.5 w-3.5" />}
-              <span>{copiedSummary ? "Copied!" : "Copy Summary"}</span>
+              <span>{copiedSummary ? "Copied!" : "Copy Summary Text"}</span>
             </Button>
           </div>
         </div>
@@ -6115,7 +6413,6 @@ const JiraReportsDashboard = () => {
         open={isShareModalOpen}
         onOpenChange={setIsShareModalOpen}
         reportTitle={currentReportMeta?.title || `Enterprise Reporting — ${activeReport?.label || "Overview"}`}
-        reportUrl={new URL(reportPath(), window.location.origin).toString()}
         scopeSummary={[
           selectedProjectLabel && selectedProjectLabel !== "All projects" ? selectedProjectLabel : null,
           selectedSprintLabel && selectedSprintLabel !== "All sprints" ? selectedSprintLabel : null,
@@ -6124,6 +6421,9 @@ const JiraReportsDashboard = () => {
         ].filter(Boolean).join(" · ")}
         metricsSummary={`Task Completion: ${Math.round(taskMetrics?.completionRate || 0)}% · Bug Fix Rate: ${Math.round(bugMetrics?.fixRate || 0)}% · Sprint Velocity: ${taskMetrics?.velocity || 0}`}
         onToast={showActionToast}
+        getExportRows={getCurrentReportExportRows}
+        reportKey={activePage}
+        onPrintPdf={() => window.print()}
       />
       <div className="space-y-4 print:space-y-3">
         <div className="rounded-lg border border-slate-200 bg-white px-4 py-4 shadow-sm dark:border-slate-800 dark:bg-slate-900/90 print:hidden">
@@ -6135,10 +6435,7 @@ const JiraReportsDashboard = () => {
             </div>
             <div className="flex flex-wrap gap-2 print:hidden">
               <ReportExportDropdown onPdf={() => window.print()} onExcel={exportCurrentExcel} onCsv={exportCurrentReport} />
-              <EnterpriseActionButton icon={RefreshCcw} onClick={refreshReport}>Refresh</EnterpriseActionButton>
               <EnterpriseActionButton icon={Share2} onClick={shareReport}>Share</EnterpriseActionButton>
-              <EnterpriseActionButton icon={Save} onClick={saveFilter}>Save Filter</EnterpriseActionButton>
-              <Button className="print:hidden" type="button" variant="outline" size="sm" onClick={resetFilters}>Reset</Button>
             </div>
           </div>
           <nav className="mt-4 flex min-w-0 gap-1 overflow-x-auto border-b border-slate-200 pb-0 dashboard-scrollbar dark:border-slate-800 print:hidden">
@@ -6161,7 +6458,7 @@ const JiraReportsDashboard = () => {
         </div>
 
         <div className="min-w-0 space-y-3 rounded-lg border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-900/90 print:hidden">
-          <div className="grid min-w-0 grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-[repeat(4,minmax(0,1fr))_auto_auto]">
+          <div className="grid min-w-0 grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-[repeat(4,minmax(0,1fr))_auto]">
             <select aria-label="Project" className={cn(ANALYTICS_SELECT_CLASS, "h-10 w-full min-w-0 rounded-lg px-3")} value={filters.projectId} onChange={(event) => updateFilter("projectId", event.target.value)}>
               <option value="all">All projects</option>
               {projects.map((project) => <option key={project._id} value={project._id}>{project.name}</option>)}
@@ -6183,7 +6480,6 @@ const JiraReportsDashboard = () => {
               {activeAdvancedFilterCount > 0 ? <span className="rounded-full bg-blue-100 px-1.5 text-xs text-blue-700 dark:bg-blue-900/50 dark:text-blue-300">{activeAdvancedFilterCount}</span> : null}
               <ChevronDown className={cn("h-4 w-4 transition-transform", showAdvancedFilters && "rotate-180")} />
             </Button>
-            <Button type="button" variant="outline" size="sm" className="h-10" onClick={resetFilters}>Reset</Button>
           </div>
           {datePreset === "custom" ? (
             <div className="grid gap-2 sm:max-w-lg sm:grid-cols-2">
