@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Archive, CalendarDays, Pin, Star } from "lucide-react";
+import { Bell, CalendarDays, Hash } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import ChatMeetingDialog from "@/components/chat/ChatMeetingDialog";
 import ChatMeetingsPanel from "@/components/chat/ChatMeetingsPanel";
@@ -99,19 +99,15 @@ const ChatPage = () => {
     [activeConversation, conversations, meetingConversationId]
   );
   const filteredConversations = useMemo(() => {
-    if (activeModule === "archives") {
-      return conversations.filter((conversation) => conversation.isArchived);
-    }
-
-    if (activeModule === "pinned") {
+    if (activeModule === "channels") {
       return conversations.filter(
-        (conversation) => conversation.isPinned && !conversation.isArchived
+        (conversation) => !conversation.isArchived && conversation.type !== "direct"
       );
     }
 
-    if (activeModule === "starred") {
+    if (activeModule === "unread") {
       return conversations.filter(
-        (conversation) => conversation.isStarred && !conversation.isArchived
+        (conversation) => !conversation.isArchived && Number(conversation.unreadCount || 0) > 0
       );
     }
 
@@ -175,7 +171,7 @@ const ChatPage = () => {
   }, [refreshMeetings]);
 
   useEffect(() => {
-    const availableModules = ["chats", "meetings", "pinned", "starred", "archives"];
+    const availableModules = ["chats", "channels", "unread", "meetings"];
 
     if (availableModules.includes(queryModule) && activeModule !== queryModule) {
       setActiveModule(queryModule);
@@ -246,7 +242,7 @@ const ChatPage = () => {
   }, [activeConversation, editingMeetingId]);
 
   useEffect(() => {
-    if (!["pinned", "starred", "archives"].includes(activeModule)) {
+    if (!["channels", "unread"].includes(activeModule)) {
       return;
     }
 
@@ -584,30 +580,25 @@ const ChatPage = () => {
 
 
     if (
-      ["pinned", "starred", "archives"].includes(activeModule) &&
+      ["channels", "unread"].includes(activeModule) &&
       !filteredConversations.length
     ) {
       const metaByModule = {
-        pinned: {
-          title: "No pinned chats",
-          description: "Pin important chats from the 3-dot menu in the chat header.",
-          icon: <Pin className="h-6 w-6" />,
+        channels: {
+          title: "No channels yet",
+          description: "Project and team channels will appear here automatically.",
+          icon: <Hash className="h-6 w-6" />,
         },
-        starred: {
-          title: "No starred chats",
-          description: "Star chats from the 3-dot menu so they appear here.",
-          icon: <Star className="h-6 w-6" />,
-        },
-        archives: {
-          title: "No archived chats",
-          description: "Archived chats will appear here until you restore them.",
-          icon: <Archive className="h-6 w-6" />,
+        unread: {
+          title: "All caught up!",
+          description: "You have no unread messages across your conversations.",
+          icon: <Bell className="h-6 w-6" />,
         },
       };
       const meta = metaByModule[activeModule];
 
       return (
-        <div className="flex h-full flex-1 flex-col overflow-hidden bg-white px-6 py-6">
+        <div className="flex h-full flex-1 flex-col overflow-hidden bg-white px-6 py-6 dark:bg-slate-950">
           <EmptyState title={meta.title} description={meta.description} icon={meta.icon} />
         </div>
       );

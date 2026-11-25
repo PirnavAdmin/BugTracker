@@ -316,6 +316,7 @@ const MessageInput = memo(
                 id: replyingTo._id,
                 senderName: replyingTo.senderName,
                 text: replyingTo.text,
+                createdAt: replyingTo.createdAt || null,
               },
             }
           : {}),

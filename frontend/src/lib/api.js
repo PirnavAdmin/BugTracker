@@ -1346,6 +1346,11 @@ export const deleteChatMessage = async (messageId) => {
   return response.data;
 };
 
+export const togglePinChatMessage = async (messageId) => {
+  const response = await api.post(`/chat/messages/${messageId}/pin`);
+  return response.data;
+};
+
 export const fetchChatAttachmentBlob = async ({
   conversationId,
   messageId,

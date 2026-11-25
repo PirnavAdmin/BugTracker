@@ -1630,6 +1630,59 @@ const deleteChatMessage = asyncHandler(async (req, res) => {
   });
 });
 
+const togglePinChatMessage = asyncHandler(async (req, res) => {
+  ensureChatAccess(req, res);
+  const { messageId } = req.params;
+
+  if (!isValidObjectId(messageId)) {
+    res.status(400);
+    throw new Error("Invalid message id");
+  }
+
+  const message = await Message.findById(messageId);
+  if (!message || message.deleted) {
+    res.status(404);
+    throw new Error("Message not found");
+  }
+
+  const conversation = await Conversation.findOne({
+    _id: message.conversationId,
+    workspaceId: normalizeWorkspaceId(req.user.workspaceId),
+    participants: req.user._id,
+  });
+  if (!conversation) {
+    res.status(403);
+    throw new Error("You do not have permission to pin messages in this conversation");
+  }
+
+  const meta =
+    message.metadata && typeof message.metadata === "object" && !Array.isArray(message.metadata)
+      ? { ...message.metadata }
+      : {};
+  const nextPinned = !Boolean(meta.isPinned);
+  meta.isPinned = nextPinned;
+  if (nextPinned) {
+    meta.pinnedBy = req.user.name || "Teammate";
+    meta.pinnedAt = new Date().toISOString();
+  } else {
+    delete meta.pinnedBy;
+    delete meta.pinnedAt;
+  }
+
+  message.metadata = meta;
+  message.markModified("metadata");
+  await message.save();
+
+  const populatedMessage = await Message.findById(message._id)
+    .populate("senderId", userSelect)
+    .lean();
+
+  res.json({
+    message: populatedMessage,
+    isPinned: nextPinned,
+  });
+});
+
 const uploadChatAttachment = asyncHandler(async (req, res) => {
   ensureChatAccess(req, res);
 
@@ -2276,4 +2329,5 @@ module.exports = {
   toggleMessageReaction,
   editChatMessage,
   deleteChatMessage,
+  togglePinChatMessage,
 };

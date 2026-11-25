@@ -135,8 +135,6 @@ const ChatRealtimeBridge = () => {
         pathnameRef.current === "/chat" && conversationId === activeConversationRef.current;
       const isActivelyViewing = isOpenConversation && !isTabHidden;
 
-      const cutoff = useChatStore.getState().clearedAtByConversation[conversationId];
-      if (cutoff && new Date(message?.createdAt) <= new Date(cutoff)) return;
       receiveMessage(payload);
 
       if (!isOwnMessage && !isActivelyViewing) {
@@ -210,14 +208,6 @@ const ChatRealtimeBridge = () => {
         stopped: payload.stopped,
       });
     const handleMessageSeen = (payload) => markSeenLocal(payload);
-    const handleCleared = (payload) => {
-      useChatStore.getState().applyConversationCleared(payload);
-      setToast(null);
-      unreadBackgroundCountRef.current = useChatStore.getState().getTotalUnread();
-      document.title = unreadBackgroundCountRef.current
-        ? `(${unreadBackgroundCountRef.current}) ${originalTitleRef.current}`
-        : originalTitleRef.current;
-    };
     const handleReactionUpdated = (payload) => {
       useChatStore.getState().updateMessageReactions(payload);
     };
@@ -227,8 +217,10 @@ const ChatRealtimeBridge = () => {
     const handleMessageDeleted = (payload) => {
       useChatStore.getState().updateMessageDeleted(payload);
     };
+    const handleMessagePinned = (payload) => {
+      useChatStore.getState().updateMessagePinned(payload);
+    };
     const handleConnect = () => {
-      loadConversations({ force: true });
       const currentConversationId = useChatStore.getState().activeConversationId;
 
       if (currentConversationId) {
@@ -237,7 +229,6 @@ const ChatRealtimeBridge = () => {
       }
     };
 
-    socket.on("conversation_cleared", handleCleared);
     socket.on("receive_message", handleReceiveMessage);
     socket.on("online_users", handleOnlineUsers);
     socket.on("user_typing", handleTyping);
@@ -245,10 +236,11 @@ const ChatRealtimeBridge = () => {
     socket.on("message:reaction_updated", handleReactionUpdated);
     socket.on("message:edited", handleMessageEdited);
     socket.on("message:deleted", handleMessageDeleted);
+    socket.on("message:pinned_updated", handleMessagePinned);
+    socket.on("connect", handleConnect);
     socket.connect();
 
     return () => {
-      socket.off("conversation_cleared", handleCleared);
       socket.off("receive_message", handleReceiveMessage);
       socket.off("online_users", handleOnlineUsers);
       socket.off("user_typing", handleTyping);
@@ -256,6 +248,7 @@ const ChatRealtimeBridge = () => {
       socket.off("message:reaction_updated", handleReactionUpdated);
       socket.off("message:edited", handleMessageEdited);
       socket.off("message:deleted", handleMessageDeleted);
+      socket.off("message:pinned_updated", handleMessagePinned);
       socket.off("connect", handleConnect);
     };
   }, [
