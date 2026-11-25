@@ -227,7 +227,6 @@ const FormattedMessageText = ({ text, searchQuery, isOwn }) => {
     </div>
   );
 };
-};
 
 const MeetingCard = ({ metadata = {}, isOwn }) => {
   const subject = metadata.title || "Chat meeting";
