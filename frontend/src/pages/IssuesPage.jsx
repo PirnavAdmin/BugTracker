@@ -1013,12 +1013,7 @@ const IssuesPage = () => {
         allowedTypes={WORK_ITEM_TYPE_OPTIONS}
         lockType={lockComposeType}
         isPending={createIssueMutation.isPending}
-        onSubmit={async (payload) => {
-          const createdIssue = await createIssueMutation.mutateAsync(payload);
-          setIsCreateDialogOpen(false);
-          sanitizeComposeParams(searchParams, setSearchParams);
-          return createdIssue;
-        }}
+        onSubmit={(payload) => createIssueMutation.mutateAsync(payload)}
         onUploadAttachment={uploadIssueAttachment}
       />
 

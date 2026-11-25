@@ -1,6 +1,8 @@
 import { memo, useEffect, useMemo, useRef, useState } from "react";
 import {
   Archive,
+  ChevronDown,
+  ChevronUp,
   Video,
   Check,
   Hash,
@@ -12,6 +14,7 @@ import {
   Star,
   Trash2,
   UsersRound,
+  X,
 } from "lucide-react";
 import ChatActionsMenu from "@/components/chat/ChatActionsMenu";
 import UserAvatar from "@/components/shared/UserAvatar";
@@ -60,6 +63,14 @@ const ChatHeader = memo(
     onOpenMeetingDialog,
     onToggleConversationPreference,
     onToggleSidebar,
+    isSearchOpen = false,
+    setIsSearchOpen,
+    searchQuery = "",
+    onSearchChange,
+    onSearchPrev,
+    onSearchNext,
+    searchMatchIndex = 0,
+    searchMatchTotal = 0,
   }) => {
     const { activeCall, callPresence, presentingUsers, channelCalls, joinCall, startCall } = useCall();
     const addParticipantsToConversation = useChatStore(
@@ -390,6 +401,74 @@ const ChatHeader = memo(
                 Video
               </Button>
             </>
+          )}
+
+          {isSearchOpen ? (
+            <div className="flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-100/90 px-2.5 py-1 dark:border-slate-800 dark:bg-slate-900 sm:gap-2">
+              <Search className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => onSearchChange?.(e.target.value)}
+                placeholder="Search chat..."
+                className="w-24 bg-transparent text-xs text-slate-900 outline-none placeholder:text-slate-400 dark:text-slate-100 sm:w-44"
+                autoFocus
+              />
+              {searchQuery ? (
+                <span className="text-[11px] font-semibold text-slate-500 shrink-0">
+                  {searchMatchTotal > 0
+                    ? `${searchMatchIndex + 1}/${searchMatchTotal}`
+                    : "0/0"}
+                </span>
+              ) : null}
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="h-6 w-6 rounded-full text-slate-500 hover:bg-slate-200/60 dark:hover:bg-slate-800"
+                onClick={onSearchPrev}
+                disabled={searchMatchTotal <= 1}
+                title="Previous match"
+              >
+                <ChevronUp className="h-3.5 w-3.5" />
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="h-6 w-6 rounded-full text-slate-500 hover:bg-slate-200/60 dark:hover:bg-slate-800"
+                onClick={onSearchNext}
+                disabled={searchMatchTotal <= 1}
+                title="Next match"
+              >
+                <ChevronDown className="h-3.5 w-3.5" />
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="h-6 w-6 rounded-full text-slate-500 hover:bg-slate-200/60 dark:hover:bg-slate-800"
+                onClick={() => {
+                  setIsSearchOpen?.(false);
+                  onSearchChange?.("");
+                }}
+                title="Close search"
+              >
+                <X className="h-3.5 w-3.5" />
+              </Button>
+            </div>
+          ) : (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="shrink-0 text-slate-500 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100"
+              onClick={() => setIsSearchOpen?.(true)}
+              title="Search in this chat"
+              aria-label="Search in this chat"
+            >
+              <Search className="h-4 w-4" />
+            </Button>
           )}
 
           <div className="relative">

@@ -563,11 +563,7 @@ const TasksPage = () => {
           allowedTypes={[ISSUE_TYPES.TASK]}
           lockType
           isPending={createIssueMutation.isPending}
-          onSubmit={async (payload) => {
-            const createdIssue = await createIssueMutation.mutateAsync(payload);
-            setIsCreateDialogOpen(false);
-            return createdIssue;
-          }}
+          onSubmit={(payload) => createIssueMutation.mutateAsync(payload)}
           onUploadAttachment={uploadIssueAttachment}
         />
       ) : null}

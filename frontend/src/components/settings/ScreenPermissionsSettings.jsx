@@ -39,6 +39,7 @@ const ScreenPermissionsSettings = ({ showToast }) => {
       const permissions = normalizeScreenPermissions(data?.permissions || {});
 
       queryClient.setQueryData(["screen-permissions"], permissions);
+      queryClient.invalidateQueries({ queryKey: ["screen-permissions"] });
       showToast?.("success", data?.message || "Screen permissions saved.");
     },
     onError: (error) => {

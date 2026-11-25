@@ -3,6 +3,7 @@ const { Server } = require("socket.io");
 const CallLog = require("./models/CallLog.model");
 const CallParticipant = require("./models/CallParticipant.model");
 const Conversation = require("./models/Conversation.model");
+const Message = require("./models/Message.model");
 const User = require("./models/User");
 const {
   CHAT_ACCESS_ROLES,
@@ -458,6 +459,7 @@ const setupChatSocket = (server) => {
           sender: socket.user,
           message: payload.message,
           attachments: payload.attachments,
+          metadata: payload.metadata,
           clientMessageId: payload.tempId,
         });
         const eventPayload = {
@@ -484,6 +486,138 @@ const setupChatSocket = (server) => {
           tempId: payload.tempId || null,
           error: error?.message || "Unable to send message",
         });
+      }
+    });
+
+    socket.on("message:react", async (payload = {}, callback) => {
+      try {
+        const { conversationId, messageId, emoji } = payload;
+        if (!messageId || !emoji) {
+          throw new Error("Message ID and emoji are required");
+        }
+        const message = await Message.findById(messageId);
+        if (!message || message.deleted) {
+          throw new Error("Message not found or deleted");
+        }
+        const currentMetadata =
+          message.metadata && typeof message.metadata === "object" && !Array.isArray(message.metadata)
+            ? { ...message.metadata }
+            : {};
+        const currentReactions = Array.isArray(currentMetadata.reactions)
+          ? [...currentMetadata.reactions]
+          : [];
+
+        const existingIndex = currentReactions.findIndex(
+          (r) => r.emoji === emoji && String(r.userId) === String(socket.user._id)
+        );
+
+        if (existingIndex >= 0) {
+          currentReactions.splice(existingIndex, 1);
+        } else {
+          currentReactions.push({
+            emoji,
+            userId: socket.user._id,
+            userName: socket.user.name || "Teammate",
+          });
+        }
+
+        currentMetadata.reactions = currentReactions;
+        message.metadata = currentMetadata;
+        message.markModified("metadata");
+        await message.save();
+
+        const populatedMessage = await Message.findById(message._id)
+          .populate("senderId", "name email role avatar color")
+          .lean();
+
+        io.to(roomName(conversationId || message.conversationId)).emit("message:reaction_updated", {
+          conversationId: String(conversationId || message.conversationId),
+          messageId: String(message._id),
+          reactions: currentReactions,
+          message: populatedMessage,
+        });
+
+        callback?.({ ok: true, reactions: currentReactions, message: populatedMessage });
+      } catch (error) {
+        callback?.({ ok: false, error: error?.message || "Unable to toggle reaction" });
+      }
+    });
+
+    socket.on("message:edit", async (payload = {}, callback) => {
+      try {
+        const { conversationId, messageId, message: nextText } = payload;
+        if (!messageId || !nextText?.trim()) {
+          throw new Error("Message text cannot be empty");
+        }
+        const message = await Message.findById(messageId);
+        if (!message || message.deleted) {
+          throw new Error("Message not found or deleted");
+        }
+        if (String(message.senderId) !== String(socket.user._id)) {
+          throw new Error("You can only edit your own messages");
+        }
+        message.message = nextText.trim();
+        message.edited = true;
+        const meta =
+          message.metadata && typeof message.metadata === "object" && !Array.isArray(message.metadata)
+            ? { ...message.metadata }
+            : {};
+        meta.editedAt = new Date();
+        message.metadata = meta;
+        message.markModified("metadata");
+        await message.save();
+
+        const populatedMessage = await Message.findById(message._id)
+          .populate("senderId", "name email role avatar color")
+          .lean();
+
+        io.to(roomName(conversationId || message.conversationId)).emit("message:edited", {
+          conversationId: String(conversationId || message.conversationId),
+          messageId: String(message._id),
+          message: populatedMessage,
+        });
+
+        callback?.({ ok: true, message: populatedMessage });
+      } catch (error) {
+        callback?.({ ok: false, error: error?.message || "Unable to edit message" });
+      }
+    });
+
+    socket.on("message:delete", async (payload = {}, callback) => {
+      try {
+        const { conversationId, messageId } = payload;
+        if (!messageId) {
+          throw new Error("Message ID is required");
+        }
+        const message = await Message.findById(messageId);
+        if (!message) {
+          throw new Error("Message not found");
+        }
+        const isOwner = String(message.senderId) === String(socket.user._id);
+        const isAdmin = ["Admin", "PlatformAdmin"].includes(socket.user.role);
+        if (!isOwner && !isAdmin) {
+          throw new Error("You can only delete your own messages");
+        }
+        message.deleted = true;
+        message.message = "";
+        message.attachments = [];
+        const meta =
+          message.metadata && typeof message.metadata === "object" && !Array.isArray(message.metadata)
+            ? { ...message.metadata }
+            : {};
+        meta.deletedAt = new Date();
+        message.metadata = meta;
+        message.markModified("metadata");
+        await message.save();
+
+        io.to(roomName(conversationId || message.conversationId)).emit("message:deleted", {
+          conversationId: String(conversationId || message.conversationId),
+          messageId: String(message._id),
+        });
+
+        callback?.({ ok: true, messageId: String(message._id) });
+      } catch (error) {
+        callback?.({ ok: false, error: error?.message || "Unable to delete message" });
       }
     });
 

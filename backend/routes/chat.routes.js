@@ -21,6 +21,9 @@ const {
   updateMeeting,
   uploadChatAttachment,
   uploadChatAttachmentMiddleware,
+  toggleMessageReaction,
+  editChatMessage,
+  deleteChatMessage,
 } = require("../controllers/chat.controller");
 const { protect } = require("../middleware/authMiddleware");
 
@@ -38,6 +41,9 @@ router.get("/conversation/:id", protect, getConversationById);
 router.get("/messages/:conversationId", protect, getMessages);
 router.get("/messages/:conversationId/attachments/:messageId/:attachmentIndex", protect, downloadChatAttachment);
 router.post("/messages", protect, createMessage);
+router.post("/messages/:messageId/reactions", protect, toggleMessageReaction);
+router.patch("/messages/:messageId", protect, editChatMessage);
+router.delete("/messages/:messageId", protect, deleteChatMessage);
 router.get("/calls", protect, getCallLogs);
 router.get("/meetings", protect, getAllMeetings);
 router.get("/conversations/:conversationId/meetings", protect, getMeetings);

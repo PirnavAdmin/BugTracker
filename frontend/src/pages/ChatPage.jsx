@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Archive, CalendarDays, FolderKanban, Pin, Star } from "lucide-react";
+import { Archive, CalendarDays, Pin, Star } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import ChatMeetingDialog from "@/components/chat/ChatMeetingDialog";
 import ChatMeetingsPanel from "@/components/chat/ChatMeetingsPanel";
@@ -175,7 +175,7 @@ const ChatPage = () => {
   }, [refreshMeetings]);
 
   useEffect(() => {
-    const availableModules = ["chats", "meetings", "pinned", "files", "starred", "archives"];
+    const availableModules = ["chats", "meetings", "pinned", "starred", "archives"];
 
     if (availableModules.includes(queryModule) && activeModule !== queryModule) {
       setActiveModule(queryModule);
@@ -581,22 +581,7 @@ const ChatPage = () => {
       );
     }
 
-    if (activeModule === "files") {
-      const metaByModule = {
-        files: {
-          title: "Shared files",
-          description: "Shared files will live here so the chat module feels closer to Teams.",
-          icon: <FolderKanban className="h-6 w-6" />,
-        },
-      };
-      const meta = metaByModule[activeModule];
 
-      return (
-        <div className="flex h-full flex-1 flex-col overflow-hidden bg-white px-6 py-6">
-          <EmptyState title={meta.title} description={meta.description} icon={meta.icon} />
-        </div>
-      );
-    }
 
     if (
       ["pinned", "starred", "archives"].includes(activeModule) &&

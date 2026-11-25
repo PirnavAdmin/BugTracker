@@ -1,4 +1,11 @@
-import { CalendarDays, FolderKanban, MessageCircle, Pin, Star, Archive } from "lucide-react";
+import {
+  Archive,
+  CalendarDays,
+  FolderKanban,
+  MessageCircle,
+  Pin,
+  Star,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 

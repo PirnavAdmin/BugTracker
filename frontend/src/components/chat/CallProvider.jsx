@@ -2424,9 +2424,11 @@ export const CallProvider = ({ children }) => {
                       <span className="rounded-full border border-white/10 bg-white/5 px-4 py-2">
                         {joinedParticipantCount} participant{joinedParticipantCount === 1 ? "" : "s"} in room
                       </span>
-                      <span className="rounded-full border border-white/10 bg-white/5 px-4 py-2">
-                        {isGroupCall ? "Host controls start time" : "Auto-connect when they join"}
-                      </span>
+                      {isGroupCall ? (
+                        <span className="rounded-full border border-white/10 bg-white/5 px-4 py-2">
+                          Host controls start time
+                        </span>
+                      ) : null}
                     </div>
                     <Button
                       type="button"

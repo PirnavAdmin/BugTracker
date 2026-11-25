@@ -1463,11 +1463,170 @@ const createMessage = asyncHandler(async (req, res) => {
     sender: req.user,
     message: req.body.message,
     attachments: req.body.attachments,
+    metadata: req.body.metadata,
     clientMessageId: req.body.clientMessageId,
   });
 
   res.status(201).json({
     message,
+  });
+});
+
+const toggleMessageReaction = asyncHandler(async (req, res) => {
+  ensureChatAccess(req, res);
+  const { messageId } = req.params;
+  const { emoji } = req.body;
+
+  if (!isValidObjectId(messageId)) {
+    res.status(400);
+    throw new Error("Invalid message id");
+  }
+
+  if (!emoji || typeof emoji !== "string") {
+    res.status(400);
+    throw new Error("Emoji is required");
+  }
+
+  const message = await Message.findById(messageId);
+  if (!message || message.deleted) {
+    res.status(404);
+    throw new Error("Message not found or deleted");
+  }
+
+  const conversation = await Conversation.findOne({
+    _id: message.conversationId,
+    workspaceId: normalizeWorkspaceId(req.user.workspaceId),
+    participants: req.user._id,
+  });
+
+  if (!conversation) {
+    res.status(403);
+    throw new Error("Access denied");
+  }
+
+  const currentMetadata =
+    message.metadata && typeof message.metadata === "object" && !Array.isArray(message.metadata)
+      ? { ...message.metadata }
+      : {};
+  const currentReactions = Array.isArray(currentMetadata.reactions)
+    ? [...currentMetadata.reactions]
+    : [];
+
+  const existingIndex = currentReactions.findIndex(
+    (r) => r.emoji === emoji && String(r.userId) === String(req.user._id)
+  );
+
+  if (existingIndex >= 0) {
+    currentReactions.splice(existingIndex, 1);
+  } else {
+    currentReactions.push({
+      emoji,
+      userId: req.user._id,
+      userName: req.user.name || "Teammate",
+    });
+  }
+
+  currentMetadata.reactions = currentReactions;
+  message.metadata = currentMetadata;
+  message.markModified("metadata");
+  await message.save();
+
+  const populatedMessage = await Message.findById(message._id)
+    .populate("senderId", userSelect)
+    .lean();
+
+  res.json({
+    message: populatedMessage,
+    reactions: currentReactions,
+  });
+});
+
+const editChatMessage = asyncHandler(async (req, res) => {
+  ensureChatAccess(req, res);
+  const { messageId } = req.params;
+  const { message: nextText } = req.body;
+
+  if (!isValidObjectId(messageId)) {
+    res.status(400);
+    throw new Error("Invalid message id");
+  }
+
+  const sanitized = sanitizeText(nextText);
+  if (!sanitized) {
+    res.status(400);
+    throw new Error("Message text cannot be empty");
+  }
+
+  const message = await Message.findById(messageId);
+  if (!message || message.deleted) {
+    res.status(404);
+    throw new Error("Message not found or deleted");
+  }
+
+  if (String(message.senderId) !== String(req.user._id)) {
+    res.status(403);
+    throw new Error("You can only edit your own messages");
+  }
+
+  message.message = sanitized;
+  message.edited = true;
+  const meta =
+    message.metadata && typeof message.metadata === "object" && !Array.isArray(message.metadata)
+      ? { ...message.metadata }
+      : {};
+  meta.editedAt = new Date();
+  message.metadata = meta;
+  message.markModified("metadata");
+  await message.save();
+
+  const populatedMessage = await Message.findById(message._id)
+    .populate("senderId", userSelect)
+    .lean();
+
+  res.json({
+    message: populatedMessage,
+  });
+});
+
+const deleteChatMessage = asyncHandler(async (req, res) => {
+  ensureChatAccess(req, res);
+  const { messageId } = req.params;
+
+  if (!isValidObjectId(messageId)) {
+    res.status(400);
+    throw new Error("Invalid message id");
+  }
+
+  const message = await Message.findById(messageId);
+  if (!message) {
+    res.status(404);
+    throw new Error("Message not found");
+  }
+
+  const isOwner = String(message.senderId) === String(req.user._id);
+  const isAdmin = ["Admin", "PlatformAdmin"].includes(req.user.role);
+
+  if (!isOwner && !isAdmin) {
+    res.status(403);
+    throw new Error("You can only delete your own messages");
+  }
+
+  message.deleted = true;
+  message.message = "";
+  message.attachments = [];
+  const meta =
+    message.metadata && typeof message.metadata === "object" && !Array.isArray(message.metadata)
+      ? { ...message.metadata }
+      : {};
+  meta.deletedAt = new Date();
+  message.metadata = meta;
+  message.markModified("metadata");
+  await message.save();
+
+  res.json({
+    success: true,
+    messageId: String(message._id),
+    conversationId: String(message.conversationId),
   });
 });
 
@@ -2114,4 +2273,7 @@ module.exports = {
   updateMeeting,
   uploadChatAttachment,
   uploadChatAttachmentMiddleware,
+  toggleMessageReaction,
+  editChatMessage,
+  deleteChatMessage,
 };
