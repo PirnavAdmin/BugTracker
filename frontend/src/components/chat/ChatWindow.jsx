@@ -67,7 +67,7 @@ const ChatWindow = memo(
     const togglePinMessage = useChatStore((state) => state.togglePinMessage);
     const markUnreadFromMessage = useChatStore((state) => state.markUnreadFromMessage);
     const unreadFromMessageId = useChatStore(
-      (state) => state.unreadFromMessageByConversation[conversationId] || ""
+      (state) => state.unreadFromMessageByConversation?.[conversationId] || ""
     );
 
     // Reset interaction state on conversation switch
