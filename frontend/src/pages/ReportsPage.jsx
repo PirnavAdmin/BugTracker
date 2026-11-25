@@ -1,4 +1,4 @@
-﻿import { Suspense, lazy, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, lazy, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { NavLink, Navigate, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import {
@@ -633,51 +633,72 @@ const generatePdfBlob = (rows = [], reportTitle = "Report", scopeSummary = "", m
       .replace(/\)/g, "\\)");
 
   const pages = [];
-  const rowsPerPage = 28;
-  const totalPages = Math.max(1, Math.ceil(Math.max(rows.length, 1) / rowsPerPage));
+  const rowsPerPage = 22;
+  const headers = rows[0] || [];
+  const dataRows = rows.slice(1);
+  const totalPages = Math.max(1, Math.ceil(Math.max(dataRows.length, 1) / rowsPerPage));
 
   for (let p = 0; p < totalPages; p++) {
-    const pageRows = rows.slice(p * rowsPerPage, (p + 1) * rowsPerPage);
-    const lines = [];
-    lines.push("BT");
+    const pageRows = dataRows.slice(p * rowsPerPage, (p + 1) * rowsPerPage);
+    const ops = [];
+
+    // Header banner on first page
     if (p === 0) {
-      lines.push("/F1 15 Tf");
-      lines.push("40 800 Td");
-      lines.push(`(${sanitize(reportTitle)}) Tj`);
-      lines.push("/F2 9 Tf");
-      lines.push("0 -16 Td");
-      lines.push(`(Generated: ${new Date().toLocaleDateString()} | Scope: ${sanitize(scopeSummary || "All")}) Tj`);
+      // Blue executive banner
+      ops.push("q 0.145 0.388 0.921 rg 36 760 523 52 re f Q");
+      ops.push("BT /F1 15 Tf 1 1 1 rg 1 0 0 1 50 790 Tm (CureCode Enterprise Reporting) Tj ET");
+      ops.push(`BT /F2 10 Tf 1 1 1 rg 1 0 0 1 50 772 Tm (${sanitize(reportTitle)}) Tj ET`);
+
+      // Scope & generation box
+      ops.push("q 0.95 0.96 0.98 rg 0.85 0.88 0.92 RG 0.5 w 36 724 523 26 re B Q");
+      ops.push(`BT /F1 8 Tf 0.25 0.3 0.4 rg 1 0 0 1 48 737 Tm (SCOPE: ${sanitize(scopeSummary || "All")}) Tj ET`);
+      ops.push(`BT /F2 7.5 Tf 0.4 0.45 0.5 rg 1 0 0 1 48 728 Tm (Generated: ${new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })} | Confidential) Tj ET`);
+
+      // Key metrics box
       if (metricsSummary) {
-        lines.push("0 -13 Td");
-        lines.push(`(Metrics: ${sanitize(metricsSummary)}) Tj`);
+        ops.push("q 0.93 0.96 1.0 rg 0.75 0.85 0.98 RG 0.75 w 36 690 523 26 re B Q");
+        ops.push(`BT /F1 8.5 Tf 0.12 0.3 0.65 rg 1 0 0 1 48 701 Tm (KEY METRICS: ${sanitize(metricsSummary)}) Tj ET`);
       }
     } else {
-      lines.push("/F1 11 Tf");
-      lines.push("40 800 Td");
-      lines.push(`(${sanitize(reportTitle)} - Page ${p + 1} of ${totalPages}) Tj`);
+      // Top banner on subsequent pages
+      ops.push("q 0.145 0.388 0.921 rg 36 785 523 28 re f Q");
+      ops.push(`BT /F1 10 Tf 1 1 1 rg 1 0 0 1 50 795 Tm (${sanitize(reportTitle)} - Page ${p + 1} of ${totalPages}) Tj ET`);
     }
 
-    let y = p === 0 ? 740 : 770;
-    lines.push("/F2 8.5 Tf");
+    // Table
+    const tableTop = p === 0 ? (metricsSummary ? 678 : 712) : 772;
+    const colCount = Math.max(headers.length, 1);
+    const colW = Math.floor(523 / colCount);
+
+    // Header row
+    ops.push(`q 0.2 0.28 0.42 rg 36 ${tableTop - 20} 523 20 re f Q`);
+    for (let c = 0; c < headers.length; c++) {
+      const colX = 36 + c * colW + 4;
+      const text = sanitize(String(headers[c] || "").slice(0, 20));
+      ops.push(`BT /F1 7.5 Tf 1 1 1 rg 1 0 0 1 ${colX} ${tableTop - 14} Tm (${text}) Tj ET`);
+    }
+
+    // Data rows
+    let curY = tableTop - 20;
     pageRows.forEach((row, rIdx) => {
-      const isHeader = p === 0 && rIdx === 0;
-      const formattedRow = row.map((cell) => String(cell ?? "").trim()).join("  |  ");
-      const truncated = formattedRow.length > 115 ? formattedRow.slice(0, 112) + "..." : formattedRow;
-      lines.push(`1 0 0 1 40 ${y} Tm`);
-      if (isHeader) {
-        lines.push("/F1 9 Tf");
-      } else if (rIdx === 1 && p === 0) {
-        lines.push("/F2 8.5 Tf");
+      curY -= 18;
+      const bg = rIdx % 2 === 0 ? "1 1 1" : "0.96 0.97 0.99";
+      ops.push(`q ${bg} rg 36 ${curY} 523 18 re f Q`);
+      ops.push(`q 0.88 0.9 0.93 RG 0.5 w 36 ${curY} m 559 ${curY} l S Q`);
+
+      for (let c = 0; c < headers.length; c++) {
+        const colX = 36 + c * colW + 4;
+        const cellText = sanitize(String(row[c] ?? "").slice(0, 22));
+        ops.push(`BT /F2 7 Tf 0.15 0.18 0.22 rg 1 0 0 1 ${colX} ${curY + 5} Tm (${cellText}) Tj ET`);
       }
-      lines.push(`(${sanitize(truncated)}) Tj`);
-      y -= 18;
     });
 
-    lines.push("1 0 0 1 40 30 Tm");
-    lines.push("/F2 8 Tf");
-    lines.push(`(CureCode Enterprise Reporting -- Page ${p + 1} of ${totalPages}) Tj`);
-    lines.push("ET");
-    pages.push(lines.join("\n"));
+    // Page footer
+    ops.push("q 0.85 0.88 0.92 RG 0.5 w 36 38 m 559 38 l S Q");
+    ops.push("BT /F2 7.5 Tf 0.5 0.55 0.6 rg 1 0 0 1 36 26 Tm (Confidential -- CureCode Enterprise Analytics) Tj ET");
+    ops.push(`BT /F2 7.5 Tf 0.5 0.55 0.6 rg 1 0 0 1 480 26 Tm (Page ${p + 1} of ${totalPages}) Tj ET`);
+
+    pages.push(ops.join("\n"));
   }
 
   const header = "%PDF-1.4\n";
@@ -5120,6 +5141,17 @@ const ShareReportModal = ({
     }
   };
 
+  const handlePrintPdfTemplate = () => {
+    onOpenChange(false);
+    setTimeout(() => {
+      if (typeof onPrintPdf === "function") {
+        onPrintPdf();
+      } else {
+        window.print();
+      }
+    }, 150);
+  };
+
   const handleNativeShare = async () => {
     setIsGenerating(true);
     try {
@@ -5356,12 +5388,44 @@ const ShareReportModal = ({
           </div>
 
           <div className="pt-1">
-            <div className="flex gap-2">
+            {selectedFormat === "pdf" ? (
+              <div className="space-y-2">
+                <div className="flex flex-col gap-2 sm:flex-row">
+                  <Button
+                    type="button"
+                    onClick={handlePrintPdfTemplate}
+                    className="h-11 flex-1 gap-2 rounded-xl bg-blue-600 font-semibold text-white shadow-sm hover:bg-blue-700 dark:bg-blue-600 dark:hover:bg-blue-500"
+                  >
+                    <Printer className="h-4 w-4" />
+                    <span>Save / Print PDF (Executive Template)</span>
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={handleDownloadFile}
+                    disabled={isGenerating}
+                    className="h-11 gap-1.5 rounded-xl border-slate-300 px-4 font-semibold text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-200"
+                    title="Direct download of formatted PDF document"
+                  >
+                    {isGenerating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+                    <span>Download .PDF</span>
+                  </Button>
+                </div>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                  "Save / Print PDF" renders the full visual dashboard report template (select "Save as PDF" to save), identical to the Export button.
+                </p>
+              </div>
+            ) : (
               <Button
                 type="button"
                 onClick={handleDownloadFile}
                 disabled={isGenerating}
-                className="h-11 flex-1 gap-2 rounded-xl bg-blue-600 font-semibold text-white hover:bg-blue-700 dark:bg-blue-600 dark:hover:bg-blue-500"
+                className={cn(
+                  "h-11 w-full gap-2 rounded-xl font-semibold text-white shadow-sm transition",
+                  selectedFormat === "excel"
+                    ? "bg-emerald-600 hover:bg-emerald-700 dark:bg-emerald-600 dark:hover:bg-emerald-500"
+                    : "bg-blue-600 hover:bg-blue-700 dark:bg-blue-600 dark:hover:bg-blue-500"
+                )}
               >
                 {isGenerating ? (
                   <>
@@ -5371,24 +5435,11 @@ const ShareReportModal = ({
                 ) : (
                   <>
                     <Download className="h-4 w-4" />
-                    <span>Download {selectedFormat.toUpperCase()} File</span>
+                    <span>Download {selectedFormat.toUpperCase()} ({selectedFormat === "excel" ? ".xlsx" : ".csv"})</span>
                   </>
                 )}
               </Button>
-
-              {selectedFormat === "pdf" && typeof onPrintPdf === "function" ? (
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={onPrintPdf}
-                  className="h-11 gap-1.5 rounded-xl px-4"
-                  title="Open browser print preview to save as PDF"
-                >
-                  <Printer className="h-4 w-4" />
-                  <span>Print View</span>
-                </Button>
-              ) : null}
-            </div>
+            )}
           </div>
 
           <div className="flex items-center justify-between border-t border-slate-100 pt-3 dark:border-slate-800">
@@ -5898,21 +5949,157 @@ const JiraReportsDashboard = () => {
       ]),
   ];
   const getCurrentReportExportRows = () => {
+    if (activePage === "developers") {
+      if (developerMetricRows.length > 0) {
+        return [
+          [
+            "Developer",
+            "Tasks Done",
+            "Bugs Resolved",
+            "Total Completed",
+            "First-Pass Fix (%)",
+            "QA Rejections",
+            "Rework Rate (%)",
+            "Escapes",
+            "Avg Resolution",
+            "Active Work",
+          ],
+          ...developerMetricRows.map((row) => [
+            row.name,
+            row.tasksCompleted ?? 0,
+            row.bugsResolved ?? 0,
+            row.totalCompleted ?? 0,
+            row.qaSubmissions ? `${row.firstPassFixRate}%` : "—",
+            row.qaRejected ?? 0,
+            row.qaSubmissions ? `${row.reworkRate}%` : "—",
+            row.productionEscapes ?? 0,
+            formatMaybeDuration(row.averageBugResolutionTime),
+            row.activeWork ?? 0,
+          ]),
+        ];
+      }
+      return buildIssueExportRows(reportExportIssues);
+    }
+
     if (activePage === "qa") {
       return [
-        ["Tester", "Availability", "Task - Total", "Task - Active", "Task - In Progress", "Task - Done", "Bug - Total", "Bug - Active", "Bug - Ready For QA", "Bug - Closed"],
+        [
+          "Tester",
+          "Availability",
+          "Total Bugs",
+          "Active Bugs",
+          "Ready For QA",
+          "Rejected / Invalid",
+          "Closed Bugs",
+          "QA Efficiency (%)",
+          "Total Tasks",
+          "Active Tasks",
+          "In Progress Tasks",
+          "Done Tasks",
+        ],
         ...availableTesterRows.map((tester) => [
           tester.name,
           tester.availability,
+          tester.totalBugs,
+          tester.active,
+          tester.readyForQa,
+          tester.rejected,
+          tester.closed,
+          `${tester.qaEfficiency}%`,
           tester.testerTasks,
           tester.activeTasks,
           tester.inProgressTasks,
           tester.doneTasks,
-          tester.totalBugs,
-          tester.active,
-          tester.readyForQa,
-          tester.closed,
         ]),
+      ];
+    }
+
+    if (activePage === "tasks") {
+      if (workloadRows.length > 0) {
+        return [
+          ["Assignee", "Active Tasks", "Done Tasks", "Total Tasks", "Workload (%)"],
+          ...workloadRows.map((row) => {
+            const assigneeTasks = taskIssues.filter((t) => String(t.assignee?._id || "unassigned") === String(row.key));
+            const done = assigneeTasks.filter(isClosed).length;
+            const active = assigneeTasks.length - done;
+            const total = row.count || row.value || assigneeTasks.length;
+            return [
+              row.label || row.name,
+              active,
+              done,
+              total,
+              `${Math.round(percent(total, Math.max(taskIssues.length, 1)))}%`,
+            ];
+          }),
+        ];
+      }
+      return buildIssueExportRows(taskIssues);
+    }
+
+    if (activePage === "bugs") {
+      if (bugSeverityRows.length > 0 || bugPriorityRows.length > 0) {
+        return [
+          ["Category", "Classification / Group", "Bug Count", "Distribution (%)"],
+          ...bugSeverityRows.map((row) => [
+            "Severity",
+            row.name,
+            row.count,
+            `${Math.round(percent(row.count, Math.max(bugIssues.length, 1)))}%`,
+          ]),
+          ...bugPriorityRows.map((row) => [
+            "Priority",
+            row.name,
+            row.count,
+            `${Math.round(percent(row.count, Math.max(bugIssues.length, 1)))}%`,
+          ]),
+        ];
+      }
+      return buildIssueExportRows(bugIssues);
+    }
+
+    if (activePage === "sprints") {
+      if (taskStatusRows.length > 0) {
+        return [
+          ["Sprint Status Split", "Task Count", "Percentage (%)"],
+          ...taskStatusRows.map((row) => [
+            row.name,
+            row.count,
+            `${Math.round(percent(row.count, Math.max(taskIssues.length, 1)))}%`,
+          ]),
+        ];
+      }
+      return buildIssueExportRows(taskIssues);
+    }
+
+    if (activePage === "releases") {
+      if (releaseRows.length > 0) {
+        return [
+          ["Release", "Total Scope", "Completed Tasks", "Closed Bugs", "Readiness (%)"],
+          ...releaseRows.map((row) => {
+            const relIssues = allIssues.filter((issue) => String(getIssueReleaseId(issue) || "unassigned") === String(row.key));
+            const relCompleted = relIssues.filter(isClosed).length;
+            return [
+              row.label || row.name,
+              relIssues.length,
+              relIssues.filter((i) => i.type !== ISSUE_TYPES.BUG && isClosed(i)).length,
+              relIssues.filter((i) => i.type === ISSUE_TYPES.BUG && isClosed(i)).length,
+              `${Math.round(percent(relCompleted, Math.max(relIssues.length, 1)))}%`,
+            ];
+          }),
+        ];
+      }
+      return buildIssueExportRows(allIssues);
+    }
+
+    if (activePage === "overview") {
+      return [
+        ["Report Metric", "Value", "Scope / Details"],
+        ["Task Completion Rate", `${Math.round(taskMetrics?.completionRate || 0)}%`, `${taskMetrics?.completed || 0} of ${taskMetrics?.total || 0} tasks completed`],
+        ["Bug Fix Rate", `${Math.round(bugMetrics?.fixRate || 0)}%`, `${bugMetrics?.resolved || 0} of ${bugMetrics?.total || 0} bugs fixed`],
+        ["Sprint Velocity", `${taskMetrics?.velocity || 0} story points`, "Delivered velocity"],
+        ["Top Developer", topDeveloper?.name || "N/A", topDeveloper ? `${topDeveloper.score}/100 delivery score` : "No data"],
+        ["Total Filtered Tasks", `${taskIssues.length}`, activeDatePresetLabel],
+        ["Total Filtered Bugs", `${bugIssues.length}`, activeDatePresetLabel],
       ];
     }
 
