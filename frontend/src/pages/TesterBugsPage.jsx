@@ -23,6 +23,7 @@ import {
   resolveIssueProjectId,
 } from "@/lib/issues";
 import { getProjectTeams, resolveUserId } from "@/lib/project-teams";
+import { canDeleteBugForUser } from "@/lib/roles";
 import { useAuth } from "@/hooks/use-auth";
 import { useBugWorkflowRealtime } from "@/hooks/useBugWorkflowRealtime";
 import BugKanbanBoard from "@/components/bugs/BugKanbanBoard";
@@ -820,13 +821,7 @@ const TesterBugsPage = () => {
         restrictToReporterBugDetails={isReporterEditableWorkQueueBug(selectedIssue, testerId)}
         canEditPriority={isReporterEditableWorkQueueBug(selectedIssue, testerId)}
         canEditAssignee={false}
-        canDeleteIssue={
-          selectedIssue &&
-          normalizeBugStatusForIssue(selectedIssue) === ISSUE_STATUS.NEW &&
-          !selectedIssue.assignee &&
-          !resolveBugDetails(selectedIssue)?.developerLead &&
-          String(selectedIssue.reporter?._id || selectedIssue.reporter || "") === testerId
-        }
+        canDeleteIssue={canDeleteBugForUser(selectedIssue, user)}
       />
       <Dialog open={Boolean(deleteCandidate)} onOpenChange={(open) => !open && setDeleteCandidate(null)}>
         <DialogContent className="max-w-2xl gap-0 rounded-[22px] border-rose-100 p-0 shadow-[0_24px_80px_-40px_rgba(15,23,42,0.5)]">

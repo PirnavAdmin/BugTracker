@@ -201,17 +201,32 @@ const buildActions = ({ actionMode, columnKey, currentUserId, issue, onAction, o
   }
 
   if (actionMode === "tester") {
-    if (columnKey === "reported") {
-      const isReporter = currentUserId && String(currentUserId) === String(issue.reporter?._id || issue.reporter || "");
-      const isUnassigned = !issue.assignee && !resolveBugDetails(issue)?.developerLead;
+    const isReporter =
+      currentUserId &&
+      (String(currentUserId) === String(issue.reporter?._id || issue.reporter || "") ||
+       String(currentUserId) === String(issue.bugDetails?.testerOwner?._id || issue.bugDetails?.testerOwner || ""));
 
-      if (isReporter && isUnassigned) {
+    if (columnKey === "reported") {
+      if (isReporter) {
         return [
           {
             label: "Edit",
             icon: Pencil,
             onClick: () => onAction?.("edit", issue),
           },
+          {
+            label: "Delete",
+            icon: Trash2,
+            onClick: () => onAction?.("delete", issue),
+          },
+          openAction,
+        ];
+      }
+    }
+
+    if (["assigned", "inProgress"].includes(columnKey)) {
+      if (isReporter) {
+        return [
           {
             label: "Delete",
             icon: Trash2,
