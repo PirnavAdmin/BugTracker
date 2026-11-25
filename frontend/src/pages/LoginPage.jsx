@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
-import { ArrowRight, Eye, EyeOff } from "lucide-react";
+import { ArrowRight, Eye, EyeOff, LockKeyhole, Mail } from "lucide-react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import pirnavLogo from "@/assets/pirnav-logo.png";
 import { loginRequest, registerRequest, requestPasswordReset, resetPassword } from "@/lib/api";
@@ -343,24 +343,32 @@ export default function LoginPage({ signup = false }) {
               )}
               <label className="block text-sm font-bold">
                 Email
-                <input
-                  className={field + " mt-1.5"}
-                  aria-invalid={Boolean(emailError)}
-                  aria-describedby={emailError ? "registration-email-error" : undefined}
-                  type="email"
-                  value={form.email}
-                  onInvalid={(event) => {
-                    if (mode !== "signup") return;
-                    event.preventDefault();
-                    setEmailError(getEmailValidationError(event.currentTarget.value));
-                  }}
-                  onChange={(event) => {
-                    auth.reset();
-                    setEmailError("");
-                    setForm({ ...form, email: event.target.value });
-                  }}
-                  required
-                />
+                <div className="relative mt-1.5">
+                  {mode === "login" ? (
+                    <Mail
+                      aria-hidden="true"
+                      className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-blue-600"
+                    />
+                  ) : null}
+                  <input
+                    className={field + (mode === "login" ? " pl-11" : "")}
+                    aria-invalid={Boolean(emailError)}
+                    aria-describedby={emailError ? "registration-email-error" : undefined}
+                    type="email"
+                    value={form.email}
+                    onInvalid={(event) => {
+                      if (mode !== "signup") return;
+                      event.preventDefault();
+                      setEmailError(getEmailValidationError(event.currentTarget.value));
+                    }}
+                    onChange={(event) => {
+                      auth.reset();
+                      setEmailError("");
+                      setForm({ ...form, email: event.target.value });
+                    }}
+                    required
+                  />
+                </div>
                 {emailError && (
                   <span id="registration-email-error" role="alert" className="mt-1 block text-sm font-semibold text-rose-600">
                     {emailError}
@@ -370,8 +378,14 @@ export default function LoginPage({ signup = false }) {
               <label className="block text-sm font-bold">
                 Password
                 <div className="relative mt-1.5">
+                  {mode === "login" ? (
+                    <LockKeyhole
+                      aria-hidden="true"
+                      className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-blue-600"
+                    />
+                  ) : null}
                   <input
-                    className={field + " pr-12"}
+                    className={field + (mode === "login" ? " pl-11" : "") + " pr-12"}
                     type={show ? "text" : "password"}
                     value={form.password}
                     onChange={(event) => setForm({ ...form, password: event.target.value })}
