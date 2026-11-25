@@ -5580,12 +5580,14 @@ const createIssue = asyncHandler(async (req, res) => {
     console.log("Creating bug", { projectId, teamId, status: statusResult.value });
   }
 
+  const targetAssigneeId = assignLater ? null : assigneeId || null;
   const recentDuplicate = await Issue.findOne({
     ...ACTIVE_ISSUE_QUERY,
     projectId,
     title: { $regex: new RegExp(`^${escapeRegExp(title)}$`, "i") },
     type: normalizedType,
     reporter: req.user._id,
+    assignee: targetAssigneeId,
     createdAt: { $gte: new Date(Date.now() - 5000) },
   });
 

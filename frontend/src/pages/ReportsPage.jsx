@@ -9,19 +9,26 @@ import {
   Bug,
   CalendarDays,
   CalendarClock,
+  Check,
   CheckCircle2,
   Cloud,
   ChevronDown,
+  Copy,
   Download,
   FileText,
   Flame,
   Gauge,
   GitBranch,
+  Laptop,
   Layers3,
+  Mail,
+  Maximize2,
+  MessageSquare,
   PieChart as PieChartIcon,
   RefreshCcw,
   RotateCcw,
   Save,
+  Send,
   Share2,
   ShieldCheck,
   Star,
@@ -31,7 +38,6 @@ import {
   UserCheck,
   Users2,
   Zap,
-  Maximize2,
 } from "lucide-react";
 import {
   Area,
@@ -98,6 +104,13 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import ToastNotice from "@/components/shared/ToastNotice";
 import pirnavLogo from "@/assets/pirnav-logo.png";
 import { getBugColumnKey, TESTER_BUG_COLUMNS } from "@/components/bugs/bugBoardConfig";
@@ -3362,9 +3375,7 @@ const OrganizationReportsDashboard = () => {
               <EnterpriseActionButton icon={FileText} onClick={() => window.print()}>Export PDF</EnterpriseActionButton>
               <EnterpriseActionButton icon={Download} onClick={exportExcelReport}>Excel</EnterpriseActionButton>
               <EnterpriseActionButton icon={Download} onClick={exportAnalytics}>CSV</EnterpriseActionButton>
-              <EnterpriseActionButton icon={CalendarClock} onClick={scheduleReport}>Schedule Report</EnterpriseActionButton>
               <EnterpriseActionButton icon={Share2} onClick={shareReport}>Share</EnterpriseActionButton>
-              <EnterpriseActionButton icon={RefreshCcw} onClick={refresh}>Refresh</EnterpriseActionButton>
               <EnterpriseActionButton icon={Save} onClick={saveFilter}>Save Filter</EnterpriseActionButton>
               <EnterpriseActionButton icon={Maximize2} onClick={enterFullscreen}>Fullscreen</EnterpriseActionButton>
               <Button type="button" variant="outline" size="sm" onClick={resetFilters}>Reset</Button>
@@ -4828,6 +4839,227 @@ const JiraDrilldown = ({ rows = [], title, onClear }) => (
   </JiraPanel>
 );
 
+const ShareReportModal = ({
+  open,
+  onOpenChange,
+  reportTitle,
+  reportUrl,
+  scopeSummary,
+  metricsSummary,
+  onToast,
+}) => {
+  const [copiedLink, setCopiedLink] = useState(false);
+  const [copiedSummary, setCopiedSummary] = useState(false);
+
+  const canNativeShare = typeof navigator !== "undefined" && typeof navigator.share === "function";
+
+  const handleCopyLink = async () => {
+    try {
+      await copyTextToClipboard(reportUrl);
+      setCopiedLink(true);
+      setTimeout(() => setCopiedLink(false), 2000);
+      onToast("success", "Link copied to clipboard!");
+    } catch {
+      onToast("error", "Unable to copy link.");
+    }
+  };
+
+  const handleCopySummary = async () => {
+    try {
+      const summaryText = [
+        `📊 CureCode Report: ${reportTitle}`,
+        scopeSummary ? `🔍 Scope: ${scopeSummary}` : null,
+        metricsSummary ? `📈 Key Metrics: ${metricsSummary}` : null,
+        `🔗 Link: ${reportUrl}`,
+      ]
+        .filter(Boolean)
+        .join("\n");
+      await copyTextToClipboard(summaryText);
+      setCopiedSummary(true);
+      setTimeout(() => setCopiedSummary(false), 2000);
+      onToast("success", "Formatted summary copied for chat!");
+    } catch {
+      onToast("error", "Unable to copy summary.");
+    }
+  };
+
+  const handleNativeShare = async () => {
+    if (!canNativeShare) return;
+    try {
+      await navigator.share({
+        title: `CureCode Report - ${reportTitle}`,
+        text: `Check out the ${reportTitle} on CureCode:\n${scopeSummary ? `${scopeSummary}\n` : ""}${metricsSummary ? `${metricsSummary}\n` : ""}`,
+        url: reportUrl,
+      });
+      onToast("success", "Report shared successfully.");
+      onOpenChange(false);
+    } catch (err) {
+      if (err?.name !== "AbortError") {
+        onToast("error", "System share was canceled or not available.");
+      }
+    }
+  };
+
+  const handleTeamsShare = () => {
+    const teamsMsg = encodeURIComponent(
+      `CureCode Report: ${reportTitle}\n${scopeSummary ? `Scope: ${scopeSummary}\n` : ""}${metricsSummary ? `Metrics: ${metricsSummary}\n` : ""}`
+    );
+    const teamsUrl = `https://teams.microsoft.com/share?href=${encodeURIComponent(reportUrl)}&msgText=${teamsMsg}`;
+    window.open(teamsUrl, "_blank", "noopener,noreferrer");
+    onToast("info", "Opening Microsoft Teams...");
+  };
+
+  const handleEmailShare = () => {
+    const subject = encodeURIComponent(`CureCode Report: ${reportTitle}`);
+    const body = encodeURIComponent(
+      `Hi team,\n\nHere is the latest ${reportTitle} from CureCode:\n\nScope: ${scopeSummary || "All"}\n${metricsSummary ? `Key Metrics: ${metricsSummary}\n` : ""}\nView the live interactive report here:\n${reportUrl}\n\nBest regards,\nCureCode`
+    );
+    window.location.href = `mailto:?subject=${subject}&body=${body}`;
+    onToast("info", "Opening default email client...");
+  };
+
+  const handleWhatsAppShare = () => {
+    const text = encodeURIComponent(
+      `*CureCode Report - ${reportTitle}*\n${scopeSummary ? `Scope: ${scopeSummary}\n` : ""}${metricsSummary ? `Metrics: ${metricsSummary}\n` : ""}\nLive Report: ${reportUrl}`
+    );
+    window.open(`https://api.whatsapp.com/send?text=${text}`, "_blank", "noopener,noreferrer");
+    onToast("info", "Opening WhatsApp...");
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-lg overflow-hidden rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl dark:border-slate-800 dark:bg-slate-900 print:hidden">
+        <DialogHeader className="space-y-1 text-left">
+          <div className="flex items-center gap-2 text-blue-600 dark:text-blue-400">
+            <Share2 className="h-5 w-5" />
+            <span className="text-xs font-bold uppercase tracking-wider">Share Report</span>
+          </div>
+          <DialogTitle className="text-xl font-bold text-slate-950 dark:text-slate-100">
+            {reportTitle}
+          </DialogTitle>
+          <DialogDescription className="text-sm text-slate-500 dark:text-slate-400">
+            Share this report view directly with your team, external tools, or messaging apps.
+          </DialogDescription>
+        </DialogHeader>
+
+        {scopeSummary ? (
+          <div className="mt-2 rounded-lg border border-slate-100 bg-slate-50/80 p-3 text-xs text-slate-600 dark:border-slate-800/80 dark:bg-slate-800/50 dark:text-slate-300">
+            <span className="font-semibold text-slate-700 dark:text-slate-200">Active Scope: </span>
+            {scopeSummary}
+          </div>
+        ) : null}
+
+        <div className="mt-4 space-y-4">
+          <div>
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+              Share Directly
+            </p>
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+              <button
+                type="button"
+                onClick={handleTeamsShare}
+                className="flex flex-col items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50/70 p-3 text-center transition hover:border-[#464EB8] hover:bg-[#464EB8]/10 dark:border-slate-800 dark:bg-slate-800/60 dark:hover:border-[#7B83EB] dark:hover:bg-[#464EB8]/20"
+              >
+                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#464EB8] text-white shadow-sm">
+                  <Users2 className="h-5 w-5" />
+                </div>
+                <span className="text-xs font-semibold text-slate-800 dark:text-slate-200">MS Teams</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleEmailShare}
+                className="flex flex-col items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50/70 p-3 text-center transition hover:border-blue-500 hover:bg-blue-50/60 dark:border-slate-800 dark:bg-slate-800/60 dark:hover:border-blue-400 dark:hover:bg-blue-950/30"
+              >
+                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-600 text-white shadow-sm">
+                  <Mail className="h-5 w-5" />
+                </div>
+                <span className="text-xs font-semibold text-slate-800 dark:text-slate-200">Email</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleWhatsAppShare}
+                className="flex flex-col items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50/70 p-3 text-center transition hover:border-emerald-500 hover:bg-emerald-50/60 dark:border-slate-800 dark:bg-slate-800/60 dark:hover:border-emerald-400 dark:hover:bg-emerald-950/30"
+              >
+                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-600 text-white shadow-sm">
+                  <Send className="h-5 w-5" />
+                </div>
+                <span className="text-xs font-semibold text-slate-800 dark:text-slate-200">WhatsApp</span>
+              </button>
+
+              {canNativeShare ? (
+                <button
+                  type="button"
+                  onClick={handleNativeShare}
+                  className="flex flex-col items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50/70 p-3 text-center transition hover:border-violet-500 hover:bg-violet-50/60 dark:border-slate-800 dark:bg-slate-800/60 dark:hover:border-violet-400 dark:hover:bg-violet-950/30"
+                >
+                  <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-violet-600 text-white shadow-sm">
+                    <Laptop className="h-5 w-5" />
+                  </div>
+                  <span className="text-xs font-semibold text-slate-800 dark:text-slate-200">Device Apps</span>
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={handleCopySummary}
+                  className="flex flex-col items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50/70 p-3 text-center transition hover:border-amber-500 hover:bg-amber-50/60 dark:border-slate-800 dark:bg-slate-800/60 dark:hover:border-amber-400 dark:hover:bg-amber-950/30"
+                >
+                  <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-amber-600 text-white shadow-sm">
+                    <MessageSquare className="h-5 w-5" />
+                  </div>
+                  <span className="text-xs font-semibold text-slate-800 dark:text-slate-200">
+                    {copiedSummary ? "Copied!" : "Chat Snippet"}
+                  </span>
+                </button>
+              )}
+            </div>
+          </div>
+
+          <div className="space-y-1.5 pt-1">
+            <label className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+              Direct Link
+            </label>
+            <div className="flex gap-2">
+              <Input
+                readOnly
+                value={reportUrl}
+                className="h-10 truncate bg-slate-50 font-mono text-xs dark:bg-slate-800"
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={handleCopyLink}
+                className="h-10 shrink-0 gap-1.5 px-3"
+              >
+                {copiedLink ? <Check className="h-4 w-4 text-emerald-600" /> : <Copy className="h-4 w-4" />}
+                <span>{copiedLink ? "Copied" : "Copy"}</span>
+              </Button>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between border-t border-slate-100 pt-3 dark:border-slate-800">
+            <span className="text-xs text-slate-500 dark:text-slate-400">
+              Need a summary snippet for Slack / Teams?
+            </span>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={handleCopySummary}
+              className="h-8 gap-1 text-xs text-blue-600 hover:text-blue-700 dark:text-blue-400"
+            >
+              {copiedSummary ? <Check className="h-3.5 w-3.5 text-emerald-600" /> : <Copy className="h-3.5 w-3.5" />}
+              <span>{copiedSummary ? "Copied!" : "Copy Summary"}</span>
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+};
+
 const JiraReportsDashboard = () => {
   const { reportKey = "overview" } = useParams();
   const { user } = useAuth();
@@ -4837,6 +5069,7 @@ const JiraReportsDashboard = () => {
   const activePage = reportKey || "overview";
   const initialReportState = useRef(null);
   const [toast, setToast] = useState(null);
+  const [isShareModalOpen, setIsShareModalOpen] = useState(false);
   const showActionToast = (type, message) =>
     setToast({ id: Date.now(), type, message });
 
@@ -5348,14 +5581,8 @@ const JiraReportsDashboard = () => {
       showActionToast("error", error?.message || "Unable to export this report to Excel.");
     }
   };
-  const shareReport = async () => {
-    try {
-      const url = new URL(reportPath(), window.location.origin).toString();
-      await copyTextToClipboard(url);
-      showActionToast("success", "A link to this filtered report was copied.");
-    } catch (error) {
-      showActionToast("error", error?.message || "Unable to copy the report link.");
-    }
+  const shareReport = () => {
+    setIsShareModalOpen(true);
   };
   const refreshReport = async () => {
     try {
@@ -5800,6 +6027,20 @@ const JiraReportsDashboard = () => {
   return (
     <div className="min-h-screen bg-slate-50/70 text-slate-950 dark:bg-slate-950 dark:text-slate-100 print:min-h-0 print:bg-white print:text-slate-950">
       <ToastNotice toast={toast} onDismiss={() => setToast(null)} />
+      <ShareReportModal
+        open={isShareModalOpen}
+        onOpenChange={setIsShareModalOpen}
+        reportTitle={currentReportMeta?.title || `Enterprise Reporting — ${activeReport?.label || "Overview"}`}
+        reportUrl={new URL(reportPath(), window.location.origin).toString()}
+        scopeSummary={[
+          selectedProjectLabel && selectedProjectLabel !== "All projects" ? selectedProjectLabel : null,
+          selectedSprintLabel && selectedSprintLabel !== "All sprints" ? selectedSprintLabel : null,
+          selectedTeamLabel && selectedTeamLabel !== "All teams" ? selectedTeamLabel : null,
+          activeDatePresetLabel,
+        ].filter(Boolean).join(" · ")}
+        metricsSummary={`Task Completion: ${Math.round(taskMetrics?.completionRate || 0)}% · Bug Fix Rate: ${Math.round(bugMetrics?.fixRate || 0)}% · Sprint Velocity: ${taskMetrics?.velocity || 0}`}
+        onToast={showActionToast}
+      />
       <div className="space-y-4 print:space-y-3">
         <div className="rounded-lg border border-slate-200 bg-white px-4 py-4 shadow-sm dark:border-slate-800 dark:bg-slate-900/90 print:hidden">
           <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
@@ -5813,9 +6054,7 @@ const JiraReportsDashboard = () => {
               <EnterpriseActionButton icon={Download} onClick={exportCurrentExcel}>Excel</EnterpriseActionButton>
               <EnterpriseActionButton icon={Download} onClick={exportCurrentReport}>CSV</EnterpriseActionButton>
               <EnterpriseActionButton icon={Share2} onClick={shareReport}>Share</EnterpriseActionButton>
-              <EnterpriseActionButton icon={RefreshCcw} onClick={refreshReport}>Refresh</EnterpriseActionButton>
               <EnterpriseActionButton icon={Save} onClick={saveFilter}>Save Filter</EnterpriseActionButton>
-              <EnterpriseActionButton icon={CalendarClock} onClick={scheduleReport}>Schedule</EnterpriseActionButton>
               <Button className="print:hidden" type="button" variant="outline" size="sm" onClick={resetFilters}>Reset</Button>
             </div>
           </div>
