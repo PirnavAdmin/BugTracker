@@ -46,7 +46,7 @@ const RolePermissionsSettings = ({ showToast }) => {
     <SettingsPanel
       title="Role Permissions"
       description="Control which delivery roles can manage work in their related projects. Admins and managers always retain full access."
-      actions={<Button type="submit" form="role-permissions-form" disabled={isLoading || saveMutation.isPending}><Save className="h-4 w-4" />{saveMutation.isPending ? "Saving..." : "Save"}</Button>}
+      footerActions={<Button type="submit" form="role-permissions-form" disabled={isLoading || saveMutation.isPending}><Save className="h-4 w-4" />{saveMutation.isPending ? "Saving..." : "Save"}</Button>}
     >
       <form id="role-permissions-form" className="space-y-4" onSubmit={(event) => { event.preventDefault(); saveMutation.mutate(draft); }}>
         {WORK_PERMISSION_ROLES.map((role) => (

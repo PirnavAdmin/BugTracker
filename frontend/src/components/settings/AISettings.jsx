@@ -279,7 +279,7 @@ const AISettings = ({ showToast }) => {
     <SettingsPanel
       title="AI Settings"
       description="Control AI feature availability, role access, request limits, and monthly usage from one workspace policy."
-      actions={
+      footerActions={
         <Button onClick={handleSave} disabled={saveMutation.isPending}>
           <Save className="h-4 w-4" aria-hidden="true" />
           {saveMutation.isPending ? "Saving..." : "Save Settings"}
