@@ -3,7 +3,6 @@ const assert = require("node:assert");
 const jwt = require("jsonwebtoken");
 const PlatformAdmin = require("../models/PlatformAdmin");
 const PlatformAuditLog = require("../models/PlatformAuditLog");
-const AuthSession = require("../models/AuthSession");
 const {
   getPlatformDashboard,
   loginPlatformAdmin,
@@ -16,7 +15,6 @@ const originalJwtSecret = process.env.JWT_SECRET;
 const originalFindOne = PlatformAdmin.findOne;
 const originalFindById = PlatformAdmin.findById;
 const originalAuditCreate = PlatformAuditLog.create;
-const originalAuthSessionCreate = AuthSession.create;
 
 const createResponse = () => {
   let body;
@@ -34,8 +32,6 @@ const createResponse = () => {
       body = payload;
       return this;
     },
-    cookie() {},
-    clearCookie() {},
   };
 };
 
@@ -76,10 +72,6 @@ const createPlatformAdmin = (overrides = {}) => ({
 beforeEach(() => {
   process.env.JWT_SECRET = "test-secret";
   PlatformAuditLog.create = async (payload) => payload;
-  AuthSession.create = async (payload) => ({
-    ...payload,
-    _id: "507f1f77bcf86cd799439099",
-  });
 });
 
 afterEach(() => {
@@ -87,7 +79,6 @@ afterEach(() => {
   PlatformAdmin.findOne = originalFindOne;
   PlatformAdmin.findById = originalFindById;
   PlatformAuditLog.create = originalAuditCreate;
-  AuthSession.create = originalAuthSessionCreate;
 });
 
 test("valid SaaS Owner login returns a platform token", async () => {
@@ -168,7 +159,6 @@ test("platform logout records a successful response", async () => {
   const admin = createPlatformAdmin();
   const { res, nextError } = await callHandler(logoutPlatformAdmin, {
     platformAdmin: admin,
-    headers: { "x-curecode-session": "logout" },
   });
 
   assert.ifError(nextError);

@@ -31,6 +31,7 @@ import {
   UserCheck,
   Users2,
   Zap,
+  X,
   Maximize2,
 } from "lucide-react";
 import {
@@ -99,6 +100,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import ToastNotice from "@/components/shared/ToastNotice";
+import pirnavLogo from "@/assets/pirnav-logo.png";
 import { getBugColumnKey, TESTER_BUG_COLUMNS } from "@/components/bugs/bugBoardConfig";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -988,12 +990,13 @@ const SegmentedToggle = ({ options, value, onChange }) => (
   </div>
 );
 
-const DateField = ({ value, onChange, label }) => (
+const DateField = ({ value, onChange, label, className }) => (
   <Input
     aria-label={label}
     className={cn(
       ANALYTICS_FIELD_CLASS,
-      "date-picker-input w-full min-w-0 px-4 text-sm"
+      "date-picker-input w-full min-w-0 px-4 text-sm",
+      className
     )}
     type="date"
     value={value}
@@ -1092,11 +1095,64 @@ const EnterpriseChartPanel = ({ description, kind, data, title }) => (
 );
 
 const EnterpriseActionButton = ({ children, icon: Icon, onClick }) => (
-  <Button type="button" variant="outline" size="sm" onClick={onClick}>
+  <Button type="button" variant="outline" size="sm" className="h-10" onClick={onClick}>
     <Icon className="h-4 w-4" />
     {children}
   </Button>
 );
+
+const ReportExportDropdown = ({ onPdf, onExcel, onCsv }) => {
+  const detailsRef = useRef(null);
+
+  useEffect(() => {
+    const closeOutside = (event) => {
+      if (detailsRef.current && !detailsRef.current.contains(event.target)) {
+        detailsRef.current.open = false;
+      }
+    };
+    document.addEventListener("pointerdown", closeOutside);
+    return () => document.removeEventListener("pointerdown", closeOutside);
+  }, []);
+
+  const exportAs = (callback) => {
+    detailsRef.current.open = false;
+    callback();
+  };
+
+  return (
+    <details
+      ref={detailsRef}
+      className="relative"
+      onKeyDown={(event) => {
+        if (event.key === "Escape" && detailsRef.current.open) {
+          event.preventDefault();
+          detailsRef.current.open = false;
+          detailsRef.current.querySelector("summary")?.focus();
+        }
+      }}
+    >
+      <summary
+        className="inline-flex h-10 cursor-pointer list-none items-center justify-center gap-2 rounded-md border border-input bg-background px-3 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 [&::-webkit-details-marker]:hidden"
+        onKeyDown={(event) => {
+          if (["Enter", " ", "ArrowDown"].includes(event.key)) {
+            event.preventDefault();
+            detailsRef.current.open = event.key === "ArrowDown" || !detailsRef.current.open;
+            if (event.key === "ArrowDown") detailsRef.current.querySelector("button")?.focus();
+          }
+        }}
+      >
+        <Download className="h-4 w-4" />
+        Export
+        <ChevronDown className="h-4 w-4" />
+      </summary>
+      <div className="absolute left-0 top-full z-40 mt-2 w-36 rounded-lg border border-slate-200 bg-white p-1 shadow-lg dark:border-slate-700 dark:bg-slate-900" role="group" aria-label="Export formats">
+        <Button type="button" variant="ghost" size="sm" className="h-10 w-full justify-start" onClick={() => exportAs(onPdf)}>PDF</Button>
+        <Button type="button" variant="ghost" size="sm" className="h-10 w-full justify-start" onClick={() => exportAs(onExcel)}>Excel</Button>
+        <Button type="button" variant="ghost" size="sm" className="h-10 w-full justify-start" onClick={() => exportAs(onCsv)}>CSV</Button>
+      </div>
+    </details>
+  );
+};
 
 const DashboardSuiteNav = ({ active }) => {
   const dashboards = [
@@ -1112,7 +1168,7 @@ const DashboardSuiteNav = ({ active }) => {
   ];
 
   return (
-    <div className="flex gap-2 overflow-x-auto pb-1 dashboard-scrollbar">
+    <div className="flex gap-2 overflow-x-auto pb-1 dashboard-scrollbar print:hidden">
       {dashboards.map((dashboard) => (
         <a
           className={cn(
@@ -1576,7 +1632,7 @@ const QaAnalyticsDashboard = ({ user }) => {
               <h1 className="mt-1 text-2xl font-semibold text-slate-950 dark:text-slate-100">MY QA ANALYTICS</h1>
               <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Monitor testing activity, defect quality, build coverage and QA performance.</p>
             </div>
-            <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-[160px_150px_150px_150px_150px_120px_auto]">
+            <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-[160px_150px_150px_150px_150px_120px_auto] print:hidden">
               <select className={ANALYTICS_SELECT_CLASS} value={filters.projectId} onChange={(event) => updateFilter("projectId", event.target.value)}>
                 <option value="all">Project</option>
                 {projectOptions.map((project) => <option key={project._id} value={project._id}>{project.name}</option>)}
@@ -3372,7 +3428,7 @@ const OrganizationReportsDashboard = () => {
 
           <DashboardSuiteNav active={activeDashboard} />
 
-          <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-5">
+          <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-5 print:hidden">
             <select className={ANALYTICS_SELECT_CLASS} value={filters.projectId} onChange={(event) => updateFilter("projectId", event.target.value)}>
               <option value="all">All projects</option>
               {projects.map((project) => (
@@ -4395,23 +4451,23 @@ const JiraKpi = ({ label, value, helper, onClick }) => (
   <button
     type="button"
     onClick={onClick}
-    className="rounded-lg border border-slate-200 bg-white p-4 text-left shadow-sm transition hover:border-blue-300 hover:shadow-md"
+    className="rounded-lg border border-slate-200 bg-white p-4 text-left shadow-sm transition hover:border-blue-300 hover:shadow-md print:shadow-none print:border-slate-300 print:p-2.5 print:break-inside-avoid"
   >
-    <p className="text-xs font-medium uppercase tracking-wide text-slate-500">{label}</p>
-    <p className="mt-2 text-2xl font-semibold text-slate-950">{value}</p>
-    {helper ? <p className="mt-1 truncate text-xs text-slate-500">{helper}</p> : null}
+    <p className="text-xs font-medium uppercase tracking-wide text-slate-500 print:text-[10px] print:text-slate-600">{label}</p>
+    <p className="mt-2 text-2xl font-semibold text-slate-950 print:mt-1 print:text-xl print:font-bold">{value}</p>
+    {helper ? <p className="mt-1 truncate text-xs text-slate-500 print:text-[9px] print:text-slate-500">{helper}</p> : null}
   </button>
 );
 
 const JiraPanel = ({ children, className, title, description }) => (
-  <section className={cn("rounded-lg border border-slate-200 bg-white shadow-sm", className)}>
+  <section className={cn("rounded-lg border border-slate-200 bg-white shadow-sm print:shadow-none print:border-slate-300 print:break-inside-avoid", className)}>
     {title ? (
-      <div className="border-b border-slate-200 px-4 py-3">
-        <h2 className="text-sm font-semibold text-slate-950">{title}</h2>
-        {description ? <p className="mt-1 text-sm text-slate-500">{description}</p> : null}
+      <div className="border-b border-slate-200 px-4 py-3 print:px-3 print:py-2 print:border-slate-300">
+        <h2 className="text-sm font-semibold text-slate-950 print:text-xs print:font-bold">{title}</h2>
+        {description ? <p className="mt-1 text-sm text-slate-500 print:text-[10px] print:text-slate-600">{description}</p> : null}
       </div>
     ) : null}
-    <div className="p-4">{children}</div>
+    <div className="p-4 print:p-3">{children}</div>
   </section>
 );
 
@@ -4510,10 +4566,10 @@ const JiraSection = ({ children, defaultOpen = true, title }) => {
         className="flex w-full items-center justify-between gap-3 text-left"
         onClick={() => setOpen((current) => !current)}
       >
-        <span className="text-sm font-semibold text-slate-950">{title}</span>
-        <ChevronDown className={cn("h-4 w-4 text-slate-500 transition", open ? "rotate-180" : "")} />
+        <span className="text-sm font-semibold text-slate-950 print:text-xs print:font-bold">{title}</span>
+        <ChevronDown className={cn("h-4 w-4 text-slate-500 transition print:hidden", open ? "rotate-180" : "")} />
       </button>
-      {open ? <div className="mt-4">{children}</div> : null}
+      {open ? <div className="mt-4 print:mt-2">{children}</div> : null}
     </JiraPanel>
   );
 };
@@ -4828,6 +4884,7 @@ const JiraDrilldown = ({ rows = [], title, onClear }) => (
 );
 
 const JiraReportsDashboard = () => {
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
   const { reportKey = "overview" } = useParams();
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -5444,14 +5501,14 @@ const JiraReportsDashboard = () => {
     if (activePage === "tasks") {
       return (
         <>
-          <div className="grid gap-3 md:grid-cols-3">
+          <div className="grid gap-3 md:grid-cols-3 print:grid-cols-3 print:gap-2.5">
             <JiraKpi label="Total Tasks" value={formatCompactNumber(taskIssues.length)} helper="Task records only" onClick={() => drillTo("All tasks", taskIssues)} />
             <JiraKpi label="In Progress" value={formatCompactNumber(inProgressTasks.length)} helper="Active task work" onClick={() => drillTo("In progress tasks", inProgressTasks)} />
             <JiraKpi label="Done" value={formatCompactNumber(completedTasks.length)} helper="Completed tasks" onClick={() => drillTo("Done tasks", completedTasks)} />
           </div>
           {renderDrilldownPanel()}
           {!hasDrilldown ? (
-          <div className="grid gap-4 xl:grid-cols-2">
+          <div className="grid gap-4 xl:grid-cols-2 print:grid-cols-2 print:gap-3">
             <JiraSection title="Burndown / Burnup">
               <JiraLineChart data={taskTrendRows} lines={[{ key: "created", color: "#94a3b8" }, { key: "completed", color: "#2563eb" }]} onDrill={(row) => drillTo(`Tasks on ${row.label}`, taskIssues.filter((issue) => issue.createdAt?.startsWith(row.label) || issue.closedAt?.startsWith(row.label)))} />
             </JiraSection>
@@ -5462,7 +5519,7 @@ const JiraReportsDashboard = () => {
               <JiraBarChart data={workloadRows} onDrill={(row) => drillTo(row.label, taskIssues.filter((issue) => String(issue.assignee?._id || "unassigned") === String(row.key)))} />
             </JiraSection>
             <JiraSection title="Capacity Planning">
-              <div className="grid gap-3 sm:grid-cols-3">
+              <div className="grid gap-3 sm:grid-cols-3 print:grid-cols-3 print:gap-2">
                 <MiniStat label="Story Points" value={taskMetrics.committedPoints} />
                 <MiniStat label="Delivered" tone="emerald" value={taskMetrics.deliveredPoints} />
                 <MiniStat label="SLA" tone="blue" value={`${Math.round(taskMetrics.slaCompliance)}%`} />
@@ -5480,7 +5537,7 @@ const JiraReportsDashboard = () => {
     if (activePage === "bugs") {
       return (
         <>
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-8">
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-8 print:grid-cols-4 print:gap-2">
             <JiraKpi label="Work Queue" value={formatCompactNumber(workQueueBugs.length)} helper="Unassigned bugs ready for pickup" onClick={() => drillTo("Work queue bugs", workQueueBugs)} />
             <JiraKpi label="Assigned Bugs" value={formatCompactNumber(assignedBugs.length)} helper="Assigned to developers" onClick={() => drillTo("Assigned bugs", assignedBugs)} />
             <JiraKpi label="Closed Bugs" value={formatCompactNumber(closedReportBugs.length)} helper="Verified and closed" onClick={() => drillTo("Closed bugs", closedReportBugs)} />
@@ -5492,7 +5549,7 @@ const JiraReportsDashboard = () => {
           </div>
           {renderDrilldownPanel()}
           {!hasDrilldown ? (
-          <div className="grid gap-4 xl:grid-cols-2">
+          <div className="grid gap-4 xl:grid-cols-2 print:grid-cols-2 print:gap-3">
             <JiraSection title="Resolution Trends">
               <JiraLineChart data={bugTrendRows} lines={[{ key: "created", color: "#94a3b8" }, { key: "completed", color: "#dc2626" }, { key: "reopened", color: "#f97316" }]} onDrill={(row) => drillTo(`Bugs on ${row.label}`, bugIssues.filter((issue) => issue.createdAt?.startsWith(row.label) || issue.closedAt?.startsWith(row.label)))} />
             </JiraSection>
@@ -5503,7 +5560,7 @@ const JiraReportsDashboard = () => {
               <JiraBarChart data={bugPriorityRows.map((row) => ({ ...row, label: row.name }))} onDrill={(row) => drillTo(row.name, bugIssues.filter((issue) => row.labels?.map(normalizeAnalyticsValue).includes(normalizeAnalyticsValue(getBugPriorityValue(issue)))))} />
             </JiraSection>
             <JiraSection title="Quality Signals">
-              <div className="grid gap-3 sm:grid-cols-3">
+              <div className="grid gap-3 sm:grid-cols-3 print:grid-cols-3 print:gap-2">
                 <MiniStat label="MTTD" value={formatDuration(bugMetrics.mttdMs)} />
                 <MiniStat label="Regression" tone="amber" value={regressionBugs.length} />
                 <MiniStat label="Escaped" tone="rose" value={escapedDefects.length} />
@@ -5521,7 +5578,7 @@ const JiraReportsDashboard = () => {
     if (activePage === "developers") {
       return (
         <>
-          <div className="grid gap-4 xl:grid-cols-2">
+          <div className="grid gap-4 xl:grid-cols-2 print:grid-cols-2 print:gap-3">
             <PerformanceRankingCard
               title="Task Delivery"
               description="Completion volume and rate; not an overall performance score."
@@ -5536,7 +5593,7 @@ const JiraReportsDashboard = () => {
             />
           </div>
           <JiraSection title="Developer Fix Quality" description="QA returns are developer rework. They do not affect QA efficiency and are not combined into an overall developer score.">
-            {developerMetricRows.length ? <div className="overflow-x-auto"><table className="w-full min-w-[1120px] text-left text-sm"><thead className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-500"><tr><th className="px-3 py-2">Developer</th><th className="px-3 py-2 text-right">Tasks Done</th><th className="px-3 py-2 text-right">Bugs Resolved</th><th className="px-3 py-2 text-right">Total Completed</th><th className="px-3 py-2 text-right">First-Pass Fix</th><th className="px-3 py-2 text-right">QA Rejections</th><th className="px-3 py-2 text-right">Rework Rate</th><th className="px-3 py-2 text-right">Escapes</th><th className="px-3 py-2 text-right">Avg Resolution</th><th className="px-3 py-2 text-right">Active Work</th></tr></thead><tbody className="divide-y divide-slate-100">{developerMetricRows.map((row) => <tr key={row.id} className="hover:bg-slate-50"><td className="px-3 py-3 font-medium text-slate-900">{row.name}</td><td className="px-3 py-3 text-right">{row.tasksCompleted}</td><td className="px-3 py-3 text-right">{row.bugsResolved}</td><td className="px-3 py-3 text-right font-semibold">{row.totalCompleted}</td><td className="px-3 py-3 text-right">{row.qaSubmissions ? `${row.firstPassFixRate}%` : "—"}</td><td className="px-3 py-3 text-right">{row.qaRejected}</td><td className="px-3 py-3 text-right">{row.qaSubmissions ? `${row.reworkRate}%` : "—"}</td><td className="px-3 py-3 text-right">{row.productionEscapes}</td><td className="px-3 py-3 text-right">{formatMaybeDuration(row.averageBugResolutionTime)}</td><td className="px-3 py-3 text-right">{row.activeWork}</td></tr>)}</tbody></table></div> : <AnalyticsEmptyState icon={Users2} title="No developer metrics" description="Developer delivery and QA-fix activity will appear here for the selected filters." />}
+            {developerMetricRows.length ? <div className="overflow-x-auto print:overflow-visible"><table className="w-full min-w-[1120px] text-left text-sm print:min-w-0 print:text-xs"><thead className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-500"><tr><th className="px-3 py-2">Developer</th><th className="px-3 py-2 text-right">Tasks Done</th><th className="px-3 py-2 text-right">Bugs Resolved</th><th className="px-3 py-2 text-right">Total Completed</th><th className="px-3 py-2 text-right">First-Pass Fix</th><th className="px-3 py-2 text-right">QA Rejections</th><th className="px-3 py-2 text-right">Rework Rate</th><th className="px-3 py-2 text-right">Escapes</th><th className="px-3 py-2 text-right">Avg Resolution</th><th className="px-3 py-2 text-right">Active Work</th></tr></thead><tbody className="divide-y divide-slate-100">{developerMetricRows.map((row) => <tr key={row.id} className="hover:bg-slate-50"><td className="px-3 py-3 font-medium text-slate-900">{row.name}</td><td className="px-3 py-3 text-right">{row.tasksCompleted}</td><td className="px-3 py-3 text-right">{row.bugsResolved}</td><td className="px-3 py-3 text-right font-semibold">{row.totalCompleted}</td><td className="px-3 py-3 text-right">{row.qaSubmissions ? `${row.firstPassFixRate}%` : "—"}</td><td className="px-3 py-3 text-right">{row.qaRejected}</td><td className="px-3 py-3 text-right">{row.qaSubmissions ? `${row.reworkRate}%` : "—"}</td><td className="px-3 py-3 text-right">{row.productionEscapes}</td><td className="px-3 py-3 text-right">{formatMaybeDuration(row.averageBugResolutionTime)}</td><td className="px-3 py-3 text-right">{row.activeWork}</td></tr>)}</tbody></table></div> : <AnalyticsEmptyState icon={Users2} title="No developer metrics" description="Developer delivery and QA-fix activity will appear here for the selected filters." />}
           </JiraSection>
         </>
       );
@@ -5545,7 +5602,7 @@ const JiraReportsDashboard = () => {
     if (activePage === "qa") {
       return (
         <>
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5 print:grid-cols-5 print:gap-2">
             <JiraKpi label="Reported" value={formatCompactNumber(testerBoardMetrics.reported.length)} helper="Waiting for developer pickup" onClick={() => drillTo("Reported bugs", testerBoardMetrics.reported)} />
             <JiraKpi label="Active" value={formatCompactNumber(testerBoardMetrics.active.length)} helper="All non-terminal tester-board bugs" onClick={() => drillTo("Active bugs", testerBoardMetrics.active)} />
             <JiraKpi label="Ready For QA" value={formatCompactNumber(testerBoardMetrics.readyForQa.length)} helper="Awaiting verification" onClick={() => drillTo("Ready for QA", testerBoardMetrics.readyForQa)} />
@@ -5554,11 +5611,11 @@ const JiraReportsDashboard = () => {
           </div>
           {renderDrilldownPanel()}
           {!hasDrilldown ? (
-          <div className="grid gap-4">
+          <div className="grid gap-4 print:gap-3">
             <JiraSection title="Bug Report">
               {availableTesterRows.length ? (
-                <div className="overflow-x-auto">
-                  <table className="w-full min-w-[620px] text-left text-sm">
+                <div className="overflow-x-auto print:overflow-visible">
+                  <table className="w-full min-w-[620px] text-left text-sm print:min-w-0 print:text-xs">
                     <thead className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-500">
                       <tr>
                         <th className="px-3 py-2">Tester</th>
@@ -5593,8 +5650,8 @@ const JiraReportsDashboard = () => {
             </JiraSection>
             <JiraSection title="Task Report">
               {availableTesterRows.length ? (
-                <div className="overflow-x-auto">
-                  <table className="w-full min-w-[620px] text-left text-sm">
+                <div className="overflow-x-auto print:overflow-visible">
+                  <table className="w-full min-w-[620px] text-left text-sm print:min-w-0 print:text-xs">
                     <thead className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-500">
                       <tr>
                         <th className="px-3 py-2">Tester</th>
@@ -5630,7 +5687,7 @@ const JiraReportsDashboard = () => {
     if (activePage === "sprints") {
       return (
         <>
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4 print:grid-cols-4 print:gap-2.5">
             <JiraKpi label="Sprint Completion" value={`${Math.round(taskMetrics.completionRate)}%`} helper="Task scope only" onClick={() => drillTo("Sprint tasks", taskIssues)} />
             <JiraKpi label="Sprint Velocity" value={taskMetrics.velocity} helper="Delivered points" />
             <JiraKpi label="Scope Change" value={taskMetrics.total - completedTasks.length} helper="Open work" />
@@ -5638,7 +5695,7 @@ const JiraReportsDashboard = () => {
           </div>
           {renderDrilldownPanel()}
           {!hasDrilldown ? (
-          <div className="grid gap-4 xl:grid-cols-2">
+          <div className="grid gap-4 xl:grid-cols-2 print:grid-cols-2 print:gap-3">
             <JiraSection title="Sprint Burnup">
               <JiraLineChart data={taskTrendRows} lines={[{ key: "created", color: "#94a3b8" }, { key: "completed", color: "#2563eb" }]} />
             </JiraSection>
@@ -5654,7 +5711,7 @@ const JiraReportsDashboard = () => {
     if (activePage === "releases") {
       return (
         <>
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4 print:grid-cols-4 print:gap-2.5">
             <JiraKpi label="Release Scope" value={allIssues.length} helper="Filtered release items" onClick={() => drillTo("Release scope", allIssues)} />
             <JiraKpi label="Completed Tasks" value={completedTasks.length} helper="Task release readiness" />
             <JiraKpi label="Closed Bugs" value={closedBugs.length} helper="Bug release readiness" />
@@ -5662,12 +5719,12 @@ const JiraReportsDashboard = () => {
           </div>
           {renderDrilldownPanel()}
           {!hasDrilldown ? (
-          <div className="grid gap-4 xl:grid-cols-2">
+          <div className="grid gap-4 xl:grid-cols-2 print:grid-cols-2 print:gap-3">
             <JiraSection title="Release Distribution">
               <JiraBarChart data={releaseRows} onDrill={(row) => drillTo(row.label, allIssues.filter((issue) => String(getIssueReleaseId(issue) || "unassigned") === String(row.key)))} />
             </JiraSection>
             <JiraSection title="Release Readiness">
-              <div className="grid gap-3 sm:grid-cols-2">
+              <div className="grid gap-3 sm:grid-cols-2 print:grid-cols-2 print:gap-2">
                 <ProgressRow label="Task readiness" value={Math.round(taskMetrics.completionRate)} meta={`${completedTasks.length} completed tasks`} />
                 <ProgressRow label="Bug closure" value={Math.round(bugMetrics.fixRate)} meta={`${closedBugs.length} closed bugs`} tone="bg-rose-500" />
               </div>
@@ -5681,7 +5738,7 @@ const JiraReportsDashboard = () => {
     if (activePage === "performance") {
       return (
         <>
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5 print:grid-cols-5 print:gap-2">
             <JiraKpi label="Performance Score" value={`${performanceScore}/100`} helper="Weighted report-card score" />
             <JiraKpi label="Task Completion" value={`${Math.round(taskMetrics.completionRate)}%`} helper={`${completedTasks.length}/${taskIssues.length} tasks`} onClick={() => drillTo("Task completion", taskIssues)} />
             <JiraKpi label="Bug Resolution" value={`${Math.round(bugMetrics.fixRate)}%`} helper={`${closedBugs.length}/${bugIssues.length} bugs`} onClick={() => drillTo("Bug resolution", bugIssues)} />
@@ -5690,7 +5747,7 @@ const JiraReportsDashboard = () => {
           </div>
           {renderDrilldownPanel()}
           {!hasDrilldown ? (
-          <div className="grid gap-4 xl:grid-cols-2">
+          <div className="grid gap-4 xl:grid-cols-2 print:grid-cols-2 print:gap-3">
             <PerformanceReportCardWidget rows={performanceMetricRows} />
             <PerformanceFormulaWidget rows={performanceMetricRows} />
             <PerformanceWeightWidget rows={performanceMetricRows} />
@@ -5716,7 +5773,7 @@ const JiraReportsDashboard = () => {
               emptyTitle="No performance rows"
             />
             <JiraSection title="Productivity Summary">
-              <div className="grid gap-3 sm:grid-cols-2">
+              <div className="grid gap-3 sm:grid-cols-2 print:grid-cols-2 print:gap-2">
                 <MiniStat label="Completed Tasks" tone="blue" value={completedTasks.length} />
                 <MiniStat label="Resolved Bugs" tone="emerald" value={closedBugs.length} />
                 <MiniStat label="Reopened Bugs" tone="rose" value={reopenedBugs.length} />
@@ -5731,13 +5788,13 @@ const JiraReportsDashboard = () => {
 
     return (
       <>
-        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4 print:grid-cols-4 print:gap-2.5">
           <JiraKpi label="Task Completion" value={`${Math.round(taskMetrics.completionRate)}%`} helper={`${taskMetrics.completed}/${taskMetrics.total} tasks`} onClick={() => navigate(reportPath("tasks"))} />
           <JiraKpi label="Bug Fix Rate" value={`${Math.round(bugMetrics.fixRate)}%`} helper={`${bugMetrics.resolved}/${bugMetrics.total} bugs`} onClick={() => navigate(reportPath("bugs"))} />
           <JiraKpi label="Sprint Velocity" value={taskMetrics.velocity} helper="Task points delivered" onClick={() => navigate(reportPath("sprints"))} />
           <JiraKpi label="Top Developer" value={topDeveloper ? `${topDeveloper.score}/100` : "--"} helper={topDeveloper?.name || "No developer data"} onClick={() => navigate(reportPath("developers"))} />
         </div>
-        <div className="grid gap-4 xl:grid-cols-2">
+        <div className="grid gap-4 xl:grid-cols-2 print:grid-cols-2 print:gap-3">
           <JiraSection title="Task Trend">
             <JiraLineChart data={taskTrendRows} lines={[{ key: "created", color: "#94a3b8" }, { key: "completed", color: "#2563eb" }]} />
           </JiraSection>
@@ -5749,11 +5806,87 @@ const JiraReportsDashboard = () => {
     );
   };
 
+  const selectedProject = projects.find((project) => String(project._id) === String(filters.projectId));
+  const selectedProjectLabel = selectedProject?.name || "All projects";
+  const selectedSprint = sprints.find((sprint) => String(sprint._id) === String(filters.sprintId));
+  const selectedSprintLabel = selectedSprint?.name || (filters.sprintId === "backlog" ? "Backlog" : "All sprints");
+  const selectedTeam = teams.find((team) => String(resolveTeamId(team)) === String(filters.teamId));
+  const selectedTeamLabel = selectedTeam?.name || "All teams";
+  const activeDatePresetObj = REPORT_DATE_PRESETS.find((preset) => preset.value === datePreset);
+  const activeDatePresetLabel = datePreset === "custom"
+    ? `${filters.dateFrom || "Start"} to ${filters.dateTo || "End"}`
+    : (activeDatePresetObj?.label || "All Time");
+
+  const advancedFilterKeys = ["developerId", "testerId", "priority", "severity", "status", "releaseId"];
+  const activeAdvancedFilterCount = advancedFilterKeys.filter((key) => filters[key] !== REPORT_DEFAULT_FILTER_VALUES[key]).length
+    + Number(comparisonMode !== DEFAULT_REPORT_COMPARISON_MODE);
+  const findOptionLabel = (options, value, getValue = (option) => option._id, getLabel = (option) => option.name) =>
+    getLabel(options.find((option) => String(getValue(option)) === String(value)) || {}) || value;
+  const filterLabels = {
+    projectId: ["Project", selectedProjectLabel],
+    sprintId: ["Sprint", selectedSprintLabel],
+    teamId: ["Team", selectedTeamLabel],
+    developerId: ["Developer", findOptionLabel(members, filters.developerId, resolveUserId)],
+    testerId: ["Tester", findOptionLabel(reportTesters, filters.testerId, resolveUserId, resolveUserLabel)],
+    priority: ["Priority", filters.priority],
+    severity: ["Severity", filters.severity],
+    status: ["Status", findOptionLabel(statusFilterOptions, filters.status, (option) => option.value, (option) => option.label)],
+    releaseId: ["Release", findOptionLabel(releaseOptions, filters.releaseId, (option) => option.id)],
+  };
+  const appliedFilters = Object.entries(filterLabels)
+    .filter(([key]) => filters[key] !== REPORT_DEFAULT_FILTER_VALUES[key])
+    .map(([key, [label, value]]) => ({ key, label, value, remove: () => updateFilter(key, REPORT_DEFAULT_FILTER_VALUES[key]) }));
+  if (datePreset !== DEFAULT_REPORT_DATE_PRESET) {
+    appliedFilters.push({ key: "dateRange", label: "Date Range", value: activeDatePresetLabel,
+      remove: () => updateDatePreset(DEFAULT_REPORT_DATE_PRESET) });
+  }
+  if (comparisonMode !== DEFAULT_REPORT_COMPARISON_MODE) {
+    appliedFilters.push({ key: "comparison", label: "Sprint Comparison",
+      value: comparisonMode === "month" ? "Current vs Previous Month" : "Current vs Previous Release",
+      remove: () => updateComparisonMode(DEFAULT_REPORT_COMPARISON_MODE) });
+  }
+
+  const REPORT_METAS = {
+    overview: {
+      title: "Executive Delivery & Quality Overview",
+      subtitle: "Enterprise health metrics, task velocity, bug fix cadence, and cross-functional quality trends",
+    },
+    tasks: {
+      title: "Task Delivery & Engineering Capacity Report",
+      subtitle: "Workload distribution, throughput velocity, burndown cadence, and delivery SLA compliance",
+    },
+    bugs: {
+      title: "Defect Quality & Resolution Health Report",
+      subtitle: "Bug funnel metrics, severity distribution, resolution trends, and quality risk signals",
+    },
+    sprints: {
+      title: "Sprint Performance & Velocity Report",
+      subtitle: "Sprint burnup tracking, velocity delivery, scope change stability, and task SLA adherence",
+    },
+    developers: {
+      title: "Developer Delivery & Code Quality Audit",
+      subtitle: "Task completion volume, bug resolution count, first-pass fix rates, and QA rework rates",
+    },
+    qa: {
+      title: "QA Testing & Defect Verification Report",
+      subtitle: "Tester pipeline status, defect verification breakdown, and QA testing efficiency",
+    },
+    releases: {
+      title: "Release Readiness & Deployment Sign-Off Report",
+      subtitle: "Feature release readiness, bug closure rate, blocker audit, and deployment readiness status",
+    },
+  };
+
+  const currentReportMeta = REPORT_METAS[activePage] || {
+    title: `${activeReport?.label || "Analytics"} Report`,
+    subtitle: "Enterprise analytics and delivery data",
+  };
+
   return (
-    <div className="min-h-screen bg-slate-50/70 text-slate-950 dark:bg-slate-950 dark:text-slate-100">
+    <div className="min-h-screen min-w-0 bg-slate-50/70 text-slate-950 dark:bg-slate-950 dark:text-slate-100 print:min-h-0 print:bg-white print:text-slate-950">
       <ToastNotice toast={toast} onDismiss={() => setToast(null)} />
-      <div className="space-y-4">
-        <div className="rounded-lg border border-slate-200 bg-white px-4 py-4 shadow-sm dark:border-slate-800 dark:bg-slate-900/90">
+      <div className="min-w-0 space-y-4 print:space-y-3">
+        <div className="rounded-lg border border-slate-200 bg-white px-4 py-4 shadow-sm dark:border-slate-800 dark:bg-slate-900/90 print:hidden">
           <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
             <div>
               <p className="text-xs font-semibold uppercase tracking-wide text-blue-600 dark:text-blue-400">Reports</p>
@@ -5761,17 +5894,14 @@ const JiraReportsDashboard = () => {
               <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Jira-style analytics with dedicated report pages and drill-down data.</p>
             </div>
             <div className="flex flex-wrap gap-2 print:hidden">
-              <EnterpriseActionButton icon={FileText} onClick={() => window.print()}>PDF</EnterpriseActionButton>
-              <EnterpriseActionButton icon={Download} onClick={exportCurrentExcel}>Excel</EnterpriseActionButton>
-              <EnterpriseActionButton icon={Download} onClick={exportCurrentReport}>CSV</EnterpriseActionButton>
-              <EnterpriseActionButton icon={Share2} onClick={shareReport}>Share</EnterpriseActionButton>
+              <ReportExportDropdown onPdf={() => window.print()} onExcel={exportCurrentExcel} onCsv={exportCurrentReport} />
               <EnterpriseActionButton icon={RefreshCcw} onClick={refreshReport}>Refresh</EnterpriseActionButton>
+              <EnterpriseActionButton icon={Share2} onClick={shareReport}>Share</EnterpriseActionButton>
               <EnterpriseActionButton icon={Save} onClick={saveFilter}>Save Filter</EnterpriseActionButton>
               <EnterpriseActionButton icon={CalendarClock} onClick={scheduleReport}>Schedule</EnterpriseActionButton>
-              <Button className="print:hidden" type="button" variant="outline" size="sm" onClick={resetFilters}>Reset</Button>
             </div>
           </div>
-          <nav className="mt-4 flex gap-1 overflow-x-auto border-b border-slate-200 pb-0 dashboard-scrollbar dark:border-slate-800 print:hidden">
+          <nav className="mt-4 flex min-w-0 gap-1 overflow-x-auto border-b border-slate-200 pb-0 dashboard-scrollbar dark:border-slate-800 print:hidden">
             {REPORT_PAGES.map((page) => (
               <NavLink
                 className={({ isActive }) => cn(
@@ -5790,84 +5920,142 @@ const JiraReportsDashboard = () => {
           </nav>
         </div>
 
-        <div className="rounded-lg border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-900/90">
-          <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-5">
-            <select className={ANALYTICS_SELECT_CLASS} value={filters.projectId} onChange={(event) => updateFilter("projectId", event.target.value)}>
+        <div className="min-w-0 space-y-3 rounded-lg border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-900/90 print:hidden">
+          <div className="grid min-w-0 grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-[repeat(4,minmax(0,1fr))_auto_auto]">
+            <select aria-label="Project" className={cn(ANALYTICS_SELECT_CLASS, "h-10 w-full min-w-0 rounded-lg px-3")} value={filters.projectId} onChange={(event) => updateFilter("projectId", event.target.value)}>
               <option value="all">All projects</option>
               {projects.map((project) => <option key={project._id} value={project._id}>{project.name}</option>)}
             </select>
-            <select className={ANALYTICS_SELECT_CLASS} value={filters.sprintId} disabled={!selectedProjectId} onChange={(event) => updateFilter("sprintId", event.target.value)}>
+            <select aria-label="Sprint" className={cn(ANALYTICS_SELECT_CLASS, "h-10 w-full min-w-0 rounded-lg px-3")} value={filters.sprintId} disabled={!selectedProjectId} onChange={(event) => updateFilter("sprintId", event.target.value)}>
               <option value="all">All sprints</option>
               <option value="backlog">Backlog</option>
               {sprints.map((sprint) => <option key={sprint._id} value={sprint._id}>{sprint.name}</option>)}
             </select>
-            <select className={ANALYTICS_SELECT_CLASS} value={filters.teamId} onChange={(event) => updateFilter("teamId", event.target.value)}>
+            <select aria-label="Team" className={cn(ANALYTICS_SELECT_CLASS, "h-10 w-full min-w-0 rounded-lg px-3")} value={filters.teamId} onChange={(event) => updateFilter("teamId", event.target.value)}>
               <option value="all">All teams</option>
               {teams.map((team) => <option key={resolveTeamId(team)} value={resolveTeamId(team)}>{team.name}</option>)}
             </select>
-            <select className={ANALYTICS_SELECT_CLASS} value={filters.developerId} onChange={(event) => updateFilter("developerId", event.target.value)}>
-              <option value="all">All developers</option>
-              {members.filter((member) => member.role === "Developer").map((member) => <option key={resolveUserId(member)} value={resolveUserId(member)}>{member.name}</option>)}
+            <select aria-label="Date Range" className={cn(ANALYTICS_SELECT_CLASS, "h-10 w-full min-w-0 rounded-lg px-3")} value={datePreset} onChange={(event) => updateDatePreset(event.target.value)}>
+              {REPORT_DATE_PRESETS.map((preset) => <option key={preset.value} value={preset.value}>{preset.label}</option>)}
             </select>
-            <select className={ANALYTICS_SELECT_CLASS} value={filters.testerId} onChange={(event) => updateFilter("testerId", event.target.value)}>
-              <option value="all">All testers</option>
-              {reportTesters.map((tester) => <option key={resolveUserId(tester)} value={resolveUserId(tester)}>{resolveUserLabel(tester)}</option>)}
-            </select>
-            <select className={ANALYTICS_SELECT_CLASS} value={filters.priority} onChange={(event) => updateFilter("priority", event.target.value)}>
-              <option value="all">All priorities</option>
-              {PRIORITIES.map((priority) => <option key={priority} value={priority}>{priority}</option>)}
-            </select>
-            <select className={ANALYTICS_SELECT_CLASS} value={filters.severity} onChange={(event) => updateFilter("severity", event.target.value)}>
-              <option value="all">All severities</option>
-              {BUG_SEVERITY_OPTIONS.map((severity) => <option key={severity} value={severity}>{severity}</option>)}
-            </select>
-            <select className={ANALYTICS_SELECT_CLASS} value={filters.status} onChange={(event) => updateFilter("status", event.target.value)}>
-              {statusFilterOptions.map((status) => <option key={status.value} value={status.value}>{status.label}</option>)}
-            </select>
-            <select className={ANALYTICS_SELECT_CLASS} value={filters.releaseId} onChange={(event) => updateFilter("releaseId", event.target.value)}>
-              <option value="all">All releases</option>
-              {releaseOptions.map((release) => <option key={release.id} value={release.id}>{release.name}</option>)}
-            </select>
-            <select className={ANALYTICS_SELECT_CLASS} value={comparisonMode} onChange={(event) => updateComparisonMode(event.target.value)}>
-              <option value="sprint">Current vs Previous Sprint</option>
-              <option value="month">Current vs Previous Month</option>
-              <option value="release">Current vs Previous Release</option>
-            </select>
-            <div className="grid min-w-0 grid-cols-2 gap-1.5 rounded-2xl border border-slate-200 bg-slate-50/80 p-1 sm:grid-cols-3 md:col-span-2 xl:col-span-3 2xl:grid-cols-5 dark:border-slate-800 dark:bg-slate-950/60">
-              {REPORT_DATE_PRESETS.map((preset) => {
-                const PresetIcon = preset.icon;
-                const isActive = datePreset === preset.value;
+            <Button type="button" variant="outline" size="sm" className="h-10" aria-expanded={showAdvancedFilters} aria-controls="reports-advanced-filters" onClick={() => setShowAdvancedFilters((open) => !open)}>
+              More Filters
+              {activeAdvancedFilterCount > 0 ? <span className="rounded-full bg-blue-100 px-1.5 text-xs text-blue-700 dark:bg-blue-900/50 dark:text-blue-300">{activeAdvancedFilterCount}</span> : null}
+              <ChevronDown className={cn("h-4 w-4 transition-transform", showAdvancedFilters && "rotate-180")} />
+            </Button>
+            <Button type="button" variant="outline" size="sm" className="h-10" onClick={resetFilters}>Reset</Button>
+          </div>
+          {datePreset === "custom" ? (
+            <div className="grid gap-2 sm:max-w-lg sm:grid-cols-2">
+              <DateField label="Date from" className="h-10 rounded-lg px-3" value={filters.dateFrom} onChange={(event) => updateFilter("dateFrom", event.target.value)} />
+              <DateField label="Date to" className="h-10 rounded-lg px-3" value={filters.dateTo} onChange={(event) => updateFilter("dateTo", event.target.value)} />
+            </div>
+          ) : null}
+          {showAdvancedFilters ? (
+            <div id="reports-advanced-filters" role="region" aria-label="Advanced filters" className="grid gap-2 border-t border-slate-200 pt-3 sm:grid-cols-2 lg:grid-cols-4 dark:border-slate-800">
+              <select aria-label="Developer" className={cn(ANALYTICS_SELECT_CLASS, "h-10 w-full min-w-0 rounded-lg px-3")} value={filters.developerId} onChange={(event) => updateFilter("developerId", event.target.value)}>
+                <option value="all">All developers</option>
+                {members.filter((member) => member.role === "Developer").map((member) => <option key={resolveUserId(member)} value={resolveUserId(member)}>{member.name}</option>)}
+              </select>
+              <select aria-label="Tester" className={cn(ANALYTICS_SELECT_CLASS, "h-10 w-full min-w-0 rounded-lg px-3")} value={filters.testerId} onChange={(event) => updateFilter("testerId", event.target.value)}>
+                <option value="all">All testers</option>
+                {reportTesters.map((tester) => <option key={resolveUserId(tester)} value={resolveUserId(tester)}>{resolveUserLabel(tester)}</option>)}
+              </select>
+              <select aria-label="Priority" className={cn(ANALYTICS_SELECT_CLASS, "h-10 w-full min-w-0 rounded-lg px-3")} value={filters.priority} onChange={(event) => updateFilter("priority", event.target.value)}>
+                <option value="all">All priorities</option>
+                {PRIORITIES.map((priority) => <option key={priority} value={priority}>{priority}</option>)}
+              </select>
+              <select aria-label="Severity" className={cn(ANALYTICS_SELECT_CLASS, "h-10 w-full min-w-0 rounded-lg px-3")} value={filters.severity} onChange={(event) => updateFilter("severity", event.target.value)}>
+                <option value="all">All severities</option>
+                {BUG_SEVERITY_OPTIONS.map((severity) => <option key={severity} value={severity}>{severity}</option>)}
+              </select>
+              <select aria-label="Status" className={cn(ANALYTICS_SELECT_CLASS, "h-10 w-full min-w-0 rounded-lg px-3")} value={filters.status} onChange={(event) => updateFilter("status", event.target.value)}>
+                {statusFilterOptions.map((status) => <option key={status.value} value={status.value}>{status.label}</option>)}
+              </select>
+              <select aria-label="Release" className={cn(ANALYTICS_SELECT_CLASS, "h-10 w-full min-w-0 rounded-lg px-3")} value={filters.releaseId} onChange={(event) => updateFilter("releaseId", event.target.value)}>
+                <option value="all">All releases</option>
+                {releaseOptions.map((release) => <option key={release.id} value={release.id}>{release.name}</option>)}
+              </select>
+              <select aria-label="Sprint Comparison" className={cn(ANALYTICS_SELECT_CLASS, "h-10 w-full min-w-0 rounded-lg px-3")} value={comparisonMode} onChange={(event) => updateComparisonMode(event.target.value)}>
+                <option value="sprint">Current vs Previous Sprint</option>
+                <option value="month">Current vs Previous Month</option>
+                <option value="release">Current vs Previous Release</option>
+              </select>
+            </div>
+          ) : null}
+          {appliedFilters.length > 0 ? (
+            <div className="flex min-w-0 flex-wrap gap-1.5" aria-label="Applied filters">
+              {appliedFilters.map((filter) => (
+                <button key={filter.key} type="button" onClick={filter.remove} aria-label={`Remove ${filter.label} filter`} className="inline-flex max-w-full items-center gap-1 rounded-md border border-blue-100 bg-blue-50 px-2 py-1 text-xs text-blue-800 hover:bg-blue-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:border-blue-900 dark:bg-blue-950/40 dark:text-blue-200">
+                  <span className="min-w-0 break-words [overflow-wrap:anywhere]">{filter.label}: {filter.value}</span>
+                  <X className="h-3 w-3 shrink-0" />
+                </button>
+              ))}
+            </div>
+          ) : null}
+          <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-2 dark:border-slate-800">
+            <p className="text-xs text-slate-500 dark:text-slate-400" role="status">
+              {isLoading ? "Loading results…" : error ? "Results unavailable" : [needsTaskIssues && `${taskIssues.length} tasks`, needsBugIssues && `${bugIssues.length} bugs`].filter(Boolean).join(" · ")}
+              <span className="ml-2">{activeDatePresetLabel}</span>
+            </p>
+            <Button type="button" variant="ghost" size="sm" className="h-10 px-2 text-xs" onClick={showAllResults}>All Results</Button>
+          </div>
+        </div>
 
-                return (
-                  <button
-                    key={preset.value}
-                    type="button"
-                    className={cn(
-                      "inline-flex h-10 min-w-[132px] items-center justify-center gap-2 whitespace-nowrap rounded-xl px-3 text-sm font-semibold transition-colors",
-                      isActive
-                        ? "bg-white text-blue-700 shadow-sm outline outline-1 outline-blue-200 dark:bg-slate-800 dark:text-blue-400 dark:outline-blue-900/50"
-                        : "text-slate-600 hover:bg-white hover:text-slate-950 dark:text-slate-400 dark:hover:bg-slate-800/60 dark:hover:text-slate-100"
-                    )}
-                    onClick={() => updateDatePreset(preset.value)}
-                    aria-pressed={isActive}
-                  >
-                    <PresetIcon className="h-4 w-4 shrink-0" />
-                    <span>{preset.label}</span>
-                  </button>
-                );
-              })}
+        {/* ======================================================== */}
+        {/* EXECUTIVE PRINT TEMPLATE HEADER (Rendered only on Print/PDF) */}
+        {/* ======================================================== */}
+        <div className="hidden print:block print:mb-4 print:pb-3 print:border-b-2 print:border-slate-800">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <img src={pirnavLogo} alt="CureCode" className="h-9 w-auto object-contain" />
+              <div>
+                <h1 className="text-xl font-black tracking-tight text-slate-950">
+                  {currentReportMeta.title}
+                </h1>
+                <p className="text-[11px] font-medium text-slate-600">{currentReportMeta.subtitle}</p>
+              </div>
             </div>
-            {datePreset === "custom" ? (
-              <>
-                <DateField label="Date from" value={filters.dateFrom} onChange={(event) => updateFilter("dateFrom", event.target.value)} />
-                <DateField label="Date to" value={filters.dateTo} onChange={(event) => updateFilter("dateTo", event.target.value)} />
-              </>
-            ) : null}
-            <div className="flex items-center justify-end md:col-span-2 xl:col-span-1">
-              <Button type="button" variant="outline" size="sm" onClick={showAllResults}>
-                All Results
-              </Button>
+            <div className="text-right text-[10px] text-slate-600 space-y-0.5 leading-tight">
+              <p className="font-bold text-slate-900">Workspace: {user?.workspaceId || "CureCode"}</p>
+              <p>Generated: {new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit" })}</p>
+              <p>Author: {user?.name || "Workspace Member"}</p>
             </div>
+          </div>
+
+          <div className="mt-2.5 flex flex-wrap items-center gap-1.5 pt-2 border-t border-slate-200 text-[10px] text-slate-700">
+            <span className="font-bold uppercase tracking-wider text-slate-500 text-[9px]">Active Filters:</span>
+            <span className="rounded bg-slate-100 px-2 py-0.5 font-semibold text-slate-800 border border-slate-300">
+              Project: {selectedProjectLabel}
+            </span>
+            {filters.sprintId !== "all" && (
+              <span className="rounded bg-slate-100 px-2 py-0.5 font-semibold text-slate-800 border border-slate-300">
+                Sprint: {selectedSprintLabel}
+              </span>
+            )}
+            {filters.teamId !== "all" && (
+              <span className="rounded bg-slate-100 px-2 py-0.5 font-semibold text-slate-800 border border-slate-300">
+                Team: {selectedTeamLabel}
+              </span>
+            )}
+            <span className="rounded bg-slate-100 px-2 py-0.5 font-semibold text-slate-800 border border-slate-300">
+              Timeframe: {activeDatePresetLabel}
+            </span>
+            {filters.priority !== "all" && (
+              <span className="rounded bg-slate-100 px-2 py-0.5 font-semibold text-slate-800 border border-slate-300">
+                Priority: {filters.priority}
+              </span>
+            )}
+            {filters.severity !== "all" && (
+              <span className="rounded bg-slate-100 px-2 py-0.5 font-semibold text-slate-800 border border-slate-300">
+                Severity: {filters.severity}
+              </span>
+            )}
+            {filters.status !== "all" && (
+              <span className="rounded bg-slate-100 px-2 py-0.5 font-semibold text-slate-800 border border-slate-300">
+                Status: {filters.status}
+              </span>
+            )}
           </div>
         </div>
 
@@ -5883,6 +6071,15 @@ const JiraReportsDashboard = () => {
         ) : (
           renderPage()
         )}
+
+        {/* ======================================================== */}
+        {/* EXECUTIVE PRINT TEMPLATE FOOTER (Rendered only on Print/PDF) */}
+        {/* ======================================================== */}
+        <div className="hidden print:flex items-center justify-between border-t border-slate-300 pt-2.5 mt-6 text-[9px] text-slate-500">
+          <span>Confidential — CureCode Enterprise Analytics</span>
+          <span>https://curecode.site/reports</span>
+          <span>Generated Automatically</span>
+        </div>
       </div>
     </div>
   );

@@ -10,8 +10,6 @@ const {
   changePassword,
   requestPasswordReset,
   resetPasswordWithOtp,
-  refreshAuthSession,
-  logoutAuthSession,
 } = require("../controllers/authController");
 const { protect } = require("../middleware/authMiddleware");
 
@@ -28,8 +26,6 @@ router.post("/login", login);
 router.post("/admin-login", adminLogin);
 router.post("/forgot-password", requestPasswordReset);
 router.post("/reset-password", resetPasswordWithOtp);
-router.post("/refresh", refreshAuthSession);
-router.post("/logout", logoutAuthSession);
 router.get("/me", protect, getCurrentUser);
 router.post("/me/avatar", protect, avatarUpload.single("avatar"), updateCurrentUserAvatar);
 router.get("/users", protect, getUsers);

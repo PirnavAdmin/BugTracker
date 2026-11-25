@@ -140,7 +140,7 @@ const Navbar = () => {
   }, [isMenuOpen]);
 
   return (
-    <header className="fixed inset-x-0 top-0 z-40 h-[var(--app-navbar-height)] overflow-visible border-b border-white/40 bg-gradient-to-r from-white/78 via-blue-50/72 to-sky-100/68 shadow-[0_8px_24px_rgba(15,23,42,0.06)] backdrop-blur-2xl dark:border-white/10 dark:from-slate-950/95 dark:via-slate-900/95 dark:to-indigo-950/90 dark:shadow-black/25">
+    <header className="print:hidden fixed inset-x-0 top-0 z-40 h-[var(--app-navbar-height)] overflow-visible border-b border-white/40 bg-gradient-to-r from-white/78 via-blue-50/72 to-sky-100/68 shadow-[0_8px_24px_rgba(15,23,42,0.06)] backdrop-blur-2xl dark:border-white/10 dark:from-slate-950/95 dark:via-slate-900/95 dark:to-indigo-950/90 dark:shadow-black/25">
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,_rgba(96,165,250,0.14),transparent_32%),radial-gradient(circle_at_top_right,_rgba(186,230,253,0.20),transparent_40%)]" />
 
       <div className="relative z-10 mx-auto h-full w-full max-w-screen-2xl overflow-visible px-4 sm:px-6 lg:px-8">

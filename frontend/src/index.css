@@ -2115,3 +2115,138 @@ html.dark:not([data-theme="light"]) body {
     transform: translateY(0);
   }
 }
+
+/* ==========================================================================
+   PRINT / PDF REPORT STYLESHEET
+   ========================================================================== */
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 10mm 10mm 12mm 10mm;
+  }
+
+  /* Reset layout constraints so multi-page printing works */
+  html,
+  body,
+  #root,
+  .app-theme-root,
+  .app-main-content,
+  .page-shell-enter {
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    overflow: visible !important;
+    position: static !important;
+    background: #ffffff !important;
+    color: #0f172a !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    box-shadow: none !important;
+    border: none !important;
+  }
+
+  /* Force background colors and gradients to print */
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Hide app navigation, headers, floating menus, and non-print interactive controls */
+  header,
+  nav.fixed,
+  aside,
+  .print\:hidden {
+    display: none !important;
+  }
+
+  /* Show print-only elements */
+  .print\:block {
+    display: block !important;
+  }
+  .print\:flex {
+    display: flex !important;
+  }
+  .print\:grid {
+    display: grid !important;
+  }
+
+  /* Grid layout overrides for print */
+  .print\:grid-cols-2 {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+  .print\:grid-cols-3 {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  }
+  .print\:grid-cols-4 {
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+  }
+  .print\:grid-cols-5 {
+    grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+  }
+  .print\:gap-2 {
+    gap: 0.5rem !important;
+  }
+  .print\:gap-2\.5 {
+    gap: 0.625rem !important;
+  }
+  .print\:gap-3 {
+    gap: 0.75rem !important;
+  }
+
+  /* Prevent awkward page breaks */
+  .print-break-avoid,
+  .rounded-lg,
+  section,
+  article,
+  figure,
+  svg,
+  tr {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+
+  /* Table styling in print */
+  table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+  }
+  thead {
+    display: table-header-group !important;
+  }
+  tr {
+    page-break-inside: avoid !important;
+  }
+  th, td {
+    padding: 6px 8px !important;
+    font-size: 11px !important;
+  }
+
+  /* Remove horizontal scroll wrappers in print */
+  .overflow-x-auto,
+  .overflow-y-auto {
+    overflow: visible !important;
+  }
+
+  /* Clean card borders for crisp printout */
+  .border,
+  .border-slate-200 {
+    border-color: #cbd5e1 !important;
+    box-shadow: none !important;
+  }
+
+  /* Ensure text is dark and legible */
+  .text-slate-500,
+  .text-slate-600 {
+    color: #475569 !important;
+  }
+  .text-slate-950,
+  .text-slate-900 {
+    color: #0f172a !important;
+  }
+
+  /* SVG chart optimization in print */
+  svg {
+    max-width: 100% !important;
+    height: auto !important;
+  }
+}
