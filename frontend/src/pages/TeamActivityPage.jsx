@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { Activity, RefreshCw, Search, Users2 } from "lucide-react";
 import { fetchTeamActivity } from "@/lib/api";
 import { cn, formatDateTime } from "@/lib/utils";
@@ -98,6 +98,7 @@ const TeamActivityPage = () => {
       }),
     refetchInterval: 60 * 1000,
     retry: 1,
+    placeholderData: keepPreviousData,
   });
   const users = useMemo(() => (Array.isArray(data?.users) ? data.users : []), [data]);
   const summary = data?.summary || { active: 0, idle: 0, offline: 0 };
