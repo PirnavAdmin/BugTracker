@@ -31,6 +31,7 @@ import {
   UserCheck,
   Users2,
   Zap,
+  X,
   Maximize2,
 } from "lucide-react";
 import {
@@ -989,12 +990,13 @@ const SegmentedToggle = ({ options, value, onChange }) => (
   </div>
 );
 
-const DateField = ({ value, onChange, label }) => (
+const DateField = ({ value, onChange, label, className }) => (
   <Input
     aria-label={label}
     className={cn(
       ANALYTICS_FIELD_CLASS,
-      "date-picker-input w-full min-w-0 px-4 text-sm"
+      "date-picker-input w-full min-w-0 px-4 text-sm",
+      className
     )}
     type="date"
     value={value}
@@ -1093,11 +1095,64 @@ const EnterpriseChartPanel = ({ description, kind, data, title }) => (
 );
 
 const EnterpriseActionButton = ({ children, icon: Icon, onClick }) => (
-  <Button type="button" variant="outline" size="sm" onClick={onClick}>
+  <Button type="button" variant="outline" size="sm" className="h-10" onClick={onClick}>
     <Icon className="h-4 w-4" />
     {children}
   </Button>
 );
+
+const ReportExportDropdown = ({ onPdf, onExcel, onCsv }) => {
+  const detailsRef = useRef(null);
+
+  useEffect(() => {
+    const closeOutside = (event) => {
+      if (detailsRef.current && !detailsRef.current.contains(event.target)) {
+        detailsRef.current.open = false;
+      }
+    };
+    document.addEventListener("pointerdown", closeOutside);
+    return () => document.removeEventListener("pointerdown", closeOutside);
+  }, []);
+
+  const exportAs = (callback) => {
+    detailsRef.current.open = false;
+    callback();
+  };
+
+  return (
+    <details
+      ref={detailsRef}
+      className="relative"
+      onKeyDown={(event) => {
+        if (event.key === "Escape" && detailsRef.current.open) {
+          event.preventDefault();
+          detailsRef.current.open = false;
+          detailsRef.current.querySelector("summary")?.focus();
+        }
+      }}
+    >
+      <summary
+        className="inline-flex h-10 cursor-pointer list-none items-center justify-center gap-2 rounded-md border border-input bg-background px-3 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 [&::-webkit-details-marker]:hidden"
+        onKeyDown={(event) => {
+          if (["Enter", " ", "ArrowDown"].includes(event.key)) {
+            event.preventDefault();
+            detailsRef.current.open = event.key === "ArrowDown" || !detailsRef.current.open;
+            if (event.key === "ArrowDown") detailsRef.current.querySelector("button")?.focus();
+          }
+        }}
+      >
+        <Download className="h-4 w-4" />
+        Export
+        <ChevronDown className="h-4 w-4" />
+      </summary>
+      <div className="absolute left-0 top-full z-40 mt-2 w-36 rounded-lg border border-slate-200 bg-white p-1 shadow-lg dark:border-slate-700 dark:bg-slate-900" role="group" aria-label="Export formats">
+        <Button type="button" variant="ghost" size="sm" className="h-10 w-full justify-start" onClick={() => exportAs(onPdf)}>PDF</Button>
+        <Button type="button" variant="ghost" size="sm" className="h-10 w-full justify-start" onClick={() => exportAs(onExcel)}>Excel</Button>
+        <Button type="button" variant="ghost" size="sm" className="h-10 w-full justify-start" onClick={() => exportAs(onCsv)}>CSV</Button>
+      </div>
+    </details>
+  );
+};
 
 const DashboardSuiteNav = ({ active }) => {
   const dashboards = [
@@ -4829,6 +4884,7 @@ const JiraDrilldown = ({ rows = [], title, onClear }) => (
 );
 
 const JiraReportsDashboard = () => {
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
   const { reportKey = "overview" } = useParams();
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -5761,6 +5817,35 @@ const JiraReportsDashboard = () => {
     ? `${filters.dateFrom || "Start"} to ${filters.dateTo || "End"}`
     : (activeDatePresetObj?.label || "All Time");
 
+  const advancedFilterKeys = ["developerId", "testerId", "priority", "severity", "status", "releaseId"];
+  const activeAdvancedFilterCount = advancedFilterKeys.filter((key) => filters[key] !== REPORT_DEFAULT_FILTER_VALUES[key]).length
+    + Number(comparisonMode !== DEFAULT_REPORT_COMPARISON_MODE);
+  const findOptionLabel = (options, value, getValue = (option) => option._id, getLabel = (option) => option.name) =>
+    getLabel(options.find((option) => String(getValue(option)) === String(value)) || {}) || value;
+  const filterLabels = {
+    projectId: ["Project", selectedProjectLabel],
+    sprintId: ["Sprint", selectedSprintLabel],
+    teamId: ["Team", selectedTeamLabel],
+    developerId: ["Developer", findOptionLabel(members, filters.developerId, resolveUserId)],
+    testerId: ["Tester", findOptionLabel(reportTesters, filters.testerId, resolveUserId, resolveUserLabel)],
+    priority: ["Priority", filters.priority],
+    severity: ["Severity", filters.severity],
+    status: ["Status", findOptionLabel(statusFilterOptions, filters.status, (option) => option.value, (option) => option.label)],
+    releaseId: ["Release", findOptionLabel(releaseOptions, filters.releaseId, (option) => option.id)],
+  };
+  const appliedFilters = Object.entries(filterLabels)
+    .filter(([key]) => filters[key] !== REPORT_DEFAULT_FILTER_VALUES[key])
+    .map(([key, [label, value]]) => ({ key, label, value, remove: () => updateFilter(key, REPORT_DEFAULT_FILTER_VALUES[key]) }));
+  if (datePreset !== DEFAULT_REPORT_DATE_PRESET) {
+    appliedFilters.push({ key: "dateRange", label: "Date Range", value: activeDatePresetLabel,
+      remove: () => updateDatePreset(DEFAULT_REPORT_DATE_PRESET) });
+  }
+  if (comparisonMode !== DEFAULT_REPORT_COMPARISON_MODE) {
+    appliedFilters.push({ key: "comparison", label: "Sprint Comparison",
+      value: comparisonMode === "month" ? "Current vs Previous Month" : "Current vs Previous Release",
+      remove: () => updateComparisonMode(DEFAULT_REPORT_COMPARISON_MODE) });
+  }
+
   const REPORT_METAS = {
     overview: {
       title: "Executive Delivery & Quality Overview",
@@ -5798,9 +5883,9 @@ const JiraReportsDashboard = () => {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50/70 text-slate-950 dark:bg-slate-950 dark:text-slate-100 print:min-h-0 print:bg-white print:text-slate-950">
+    <div className="min-h-screen min-w-0 bg-slate-50/70 text-slate-950 dark:bg-slate-950 dark:text-slate-100 print:min-h-0 print:bg-white print:text-slate-950">
       <ToastNotice toast={toast} onDismiss={() => setToast(null)} />
-      <div className="space-y-4 print:space-y-3">
+      <div className="min-w-0 space-y-4 print:space-y-3">
         <div className="rounded-lg border border-slate-200 bg-white px-4 py-4 shadow-sm dark:border-slate-800 dark:bg-slate-900/90 print:hidden">
           <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
             <div>
@@ -5809,17 +5894,14 @@ const JiraReportsDashboard = () => {
               <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Jira-style analytics with dedicated report pages and drill-down data.</p>
             </div>
             <div className="flex flex-wrap gap-2 print:hidden">
-              <EnterpriseActionButton icon={FileText} onClick={() => window.print()}>PDF</EnterpriseActionButton>
-              <EnterpriseActionButton icon={Download} onClick={exportCurrentExcel}>Excel</EnterpriseActionButton>
-              <EnterpriseActionButton icon={Download} onClick={exportCurrentReport}>CSV</EnterpriseActionButton>
-              <EnterpriseActionButton icon={Share2} onClick={shareReport}>Share</EnterpriseActionButton>
+              <ReportExportDropdown onPdf={() => window.print()} onExcel={exportCurrentExcel} onCsv={exportCurrentReport} />
               <EnterpriseActionButton icon={RefreshCcw} onClick={refreshReport}>Refresh</EnterpriseActionButton>
+              <EnterpriseActionButton icon={Share2} onClick={shareReport}>Share</EnterpriseActionButton>
               <EnterpriseActionButton icon={Save} onClick={saveFilter}>Save Filter</EnterpriseActionButton>
               <EnterpriseActionButton icon={CalendarClock} onClick={scheduleReport}>Schedule</EnterpriseActionButton>
-              <Button className="print:hidden" type="button" variant="outline" size="sm" onClick={resetFilters}>Reset</Button>
             </div>
           </div>
-          <nav className="mt-4 flex gap-1 overflow-x-auto border-b border-slate-200 pb-0 dashboard-scrollbar dark:border-slate-800 print:hidden">
+          <nav className="mt-4 flex min-w-0 gap-1 overflow-x-auto border-b border-slate-200 pb-0 dashboard-scrollbar dark:border-slate-800 print:hidden">
             {REPORT_PAGES.map((page) => (
               <NavLink
                 className={({ isActive }) => cn(
@@ -5838,84 +5920,85 @@ const JiraReportsDashboard = () => {
           </nav>
         </div>
 
-        <div className="rounded-lg border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-900/90 print:hidden">
-          <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-5">
-            <select className={ANALYTICS_SELECT_CLASS} value={filters.projectId} onChange={(event) => updateFilter("projectId", event.target.value)}>
+        <div className="min-w-0 space-y-3 rounded-lg border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-900/90 print:hidden">
+          <div className="grid min-w-0 grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-[repeat(4,minmax(0,1fr))_auto_auto]">
+            <select aria-label="Project" className={cn(ANALYTICS_SELECT_CLASS, "h-10 w-full min-w-0 rounded-lg px-3")} value={filters.projectId} onChange={(event) => updateFilter("projectId", event.target.value)}>
               <option value="all">All projects</option>
               {projects.map((project) => <option key={project._id} value={project._id}>{project.name}</option>)}
             </select>
-            <select className={ANALYTICS_SELECT_CLASS} value={filters.sprintId} disabled={!selectedProjectId} onChange={(event) => updateFilter("sprintId", event.target.value)}>
+            <select aria-label="Sprint" className={cn(ANALYTICS_SELECT_CLASS, "h-10 w-full min-w-0 rounded-lg px-3")} value={filters.sprintId} disabled={!selectedProjectId} onChange={(event) => updateFilter("sprintId", event.target.value)}>
               <option value="all">All sprints</option>
               <option value="backlog">Backlog</option>
               {sprints.map((sprint) => <option key={sprint._id} value={sprint._id}>{sprint.name}</option>)}
             </select>
-            <select className={ANALYTICS_SELECT_CLASS} value={filters.teamId} onChange={(event) => updateFilter("teamId", event.target.value)}>
+            <select aria-label="Team" className={cn(ANALYTICS_SELECT_CLASS, "h-10 w-full min-w-0 rounded-lg px-3")} value={filters.teamId} onChange={(event) => updateFilter("teamId", event.target.value)}>
               <option value="all">All teams</option>
               {teams.map((team) => <option key={resolveTeamId(team)} value={resolveTeamId(team)}>{team.name}</option>)}
             </select>
-            <select className={ANALYTICS_SELECT_CLASS} value={filters.developerId} onChange={(event) => updateFilter("developerId", event.target.value)}>
-              <option value="all">All developers</option>
-              {members.filter((member) => member.role === "Developer").map((member) => <option key={resolveUserId(member)} value={resolveUserId(member)}>{member.name}</option>)}
+            <select aria-label="Date Range" className={cn(ANALYTICS_SELECT_CLASS, "h-10 w-full min-w-0 rounded-lg px-3")} value={datePreset} onChange={(event) => updateDatePreset(event.target.value)}>
+              {REPORT_DATE_PRESETS.map((preset) => <option key={preset.value} value={preset.value}>{preset.label}</option>)}
             </select>
-            <select className={ANALYTICS_SELECT_CLASS} value={filters.testerId} onChange={(event) => updateFilter("testerId", event.target.value)}>
-              <option value="all">All testers</option>
-              {reportTesters.map((tester) => <option key={resolveUserId(tester)} value={resolveUserId(tester)}>{resolveUserLabel(tester)}</option>)}
-            </select>
-            <select className={ANALYTICS_SELECT_CLASS} value={filters.priority} onChange={(event) => updateFilter("priority", event.target.value)}>
-              <option value="all">All priorities</option>
-              {PRIORITIES.map((priority) => <option key={priority} value={priority}>{priority}</option>)}
-            </select>
-            <select className={ANALYTICS_SELECT_CLASS} value={filters.severity} onChange={(event) => updateFilter("severity", event.target.value)}>
-              <option value="all">All severities</option>
-              {BUG_SEVERITY_OPTIONS.map((severity) => <option key={severity} value={severity}>{severity}</option>)}
-            </select>
-            <select className={ANALYTICS_SELECT_CLASS} value={filters.status} onChange={(event) => updateFilter("status", event.target.value)}>
-              {statusFilterOptions.map((status) => <option key={status.value} value={status.value}>{status.label}</option>)}
-            </select>
-            <select className={ANALYTICS_SELECT_CLASS} value={filters.releaseId} onChange={(event) => updateFilter("releaseId", event.target.value)}>
-              <option value="all">All releases</option>
-              {releaseOptions.map((release) => <option key={release.id} value={release.id}>{release.name}</option>)}
-            </select>
-            <select className={ANALYTICS_SELECT_CLASS} value={comparisonMode} onChange={(event) => updateComparisonMode(event.target.value)}>
-              <option value="sprint">Current vs Previous Sprint</option>
-              <option value="month">Current vs Previous Month</option>
-              <option value="release">Current vs Previous Release</option>
-            </select>
-            <div className="grid min-w-0 grid-cols-2 gap-1.5 rounded-2xl border border-slate-200 bg-slate-50/80 p-1 sm:grid-cols-3 md:col-span-2 xl:col-span-3 2xl:grid-cols-5 dark:border-slate-800 dark:bg-slate-950/60">
-              {REPORT_DATE_PRESETS.map((preset) => {
-                const PresetIcon = preset.icon;
-                const isActive = datePreset === preset.value;
-
-                return (
-                  <button
-                    key={preset.value}
-                    type="button"
-                    className={cn(
-                      "inline-flex h-10 min-w-[132px] items-center justify-center gap-2 whitespace-nowrap rounded-xl px-3 text-sm font-semibold transition-colors",
-                      isActive
-                        ? "bg-white text-blue-700 shadow-sm outline outline-1 outline-blue-200 dark:bg-slate-800 dark:text-blue-400 dark:outline-blue-900/50"
-                        : "text-slate-600 hover:bg-white hover:text-slate-950 dark:text-slate-400 dark:hover:bg-slate-800/60 dark:hover:text-slate-100"
-                    )}
-                    onClick={() => updateDatePreset(preset.value)}
-                    aria-pressed={isActive}
-                  >
-                    <PresetIcon className="h-4 w-4 shrink-0" />
-                    <span>{preset.label}</span>
-                  </button>
-                );
-              })}
+            <Button type="button" variant="outline" size="sm" className="h-10" aria-expanded={showAdvancedFilters} aria-controls="reports-advanced-filters" onClick={() => setShowAdvancedFilters((open) => !open)}>
+              More Filters
+              {activeAdvancedFilterCount > 0 ? <span className="rounded-full bg-blue-100 px-1.5 text-xs text-blue-700 dark:bg-blue-900/50 dark:text-blue-300">{activeAdvancedFilterCount}</span> : null}
+              <ChevronDown className={cn("h-4 w-4 transition-transform", showAdvancedFilters && "rotate-180")} />
+            </Button>
+            <Button type="button" variant="outline" size="sm" className="h-10" onClick={resetFilters}>Reset</Button>
+          </div>
+          {datePreset === "custom" ? (
+            <div className="grid gap-2 sm:max-w-lg sm:grid-cols-2">
+              <DateField label="Date from" className="h-10 rounded-lg px-3" value={filters.dateFrom} onChange={(event) => updateFilter("dateFrom", event.target.value)} />
+              <DateField label="Date to" className="h-10 rounded-lg px-3" value={filters.dateTo} onChange={(event) => updateFilter("dateTo", event.target.value)} />
             </div>
-            {datePreset === "custom" ? (
-              <>
-                <DateField label="Date from" value={filters.dateFrom} onChange={(event) => updateFilter("dateFrom", event.target.value)} />
-                <DateField label="Date to" value={filters.dateTo} onChange={(event) => updateFilter("dateTo", event.target.value)} />
-              </>
-            ) : null}
-            <div className="flex items-center justify-end md:col-span-2 xl:col-span-1">
-              <Button type="button" variant="outline" size="sm" onClick={showAllResults}>
-                All Results
-              </Button>
+          ) : null}
+          {showAdvancedFilters ? (
+            <div id="reports-advanced-filters" role="region" aria-label="Advanced filters" className="grid gap-2 border-t border-slate-200 pt-3 sm:grid-cols-2 lg:grid-cols-4 dark:border-slate-800">
+              <select aria-label="Developer" className={cn(ANALYTICS_SELECT_CLASS, "h-10 w-full min-w-0 rounded-lg px-3")} value={filters.developerId} onChange={(event) => updateFilter("developerId", event.target.value)}>
+                <option value="all">All developers</option>
+                {members.filter((member) => member.role === "Developer").map((member) => <option key={resolveUserId(member)} value={resolveUserId(member)}>{member.name}</option>)}
+              </select>
+              <select aria-label="Tester" className={cn(ANALYTICS_SELECT_CLASS, "h-10 w-full min-w-0 rounded-lg px-3")} value={filters.testerId} onChange={(event) => updateFilter("testerId", event.target.value)}>
+                <option value="all">All testers</option>
+                {reportTesters.map((tester) => <option key={resolveUserId(tester)} value={resolveUserId(tester)}>{resolveUserLabel(tester)}</option>)}
+              </select>
+              <select aria-label="Priority" className={cn(ANALYTICS_SELECT_CLASS, "h-10 w-full min-w-0 rounded-lg px-3")} value={filters.priority} onChange={(event) => updateFilter("priority", event.target.value)}>
+                <option value="all">All priorities</option>
+                {PRIORITIES.map((priority) => <option key={priority} value={priority}>{priority}</option>)}
+              </select>
+              <select aria-label="Severity" className={cn(ANALYTICS_SELECT_CLASS, "h-10 w-full min-w-0 rounded-lg px-3")} value={filters.severity} onChange={(event) => updateFilter("severity", event.target.value)}>
+                <option value="all">All severities</option>
+                {BUG_SEVERITY_OPTIONS.map((severity) => <option key={severity} value={severity}>{severity}</option>)}
+              </select>
+              <select aria-label="Status" className={cn(ANALYTICS_SELECT_CLASS, "h-10 w-full min-w-0 rounded-lg px-3")} value={filters.status} onChange={(event) => updateFilter("status", event.target.value)}>
+                {statusFilterOptions.map((status) => <option key={status.value} value={status.value}>{status.label}</option>)}
+              </select>
+              <select aria-label="Release" className={cn(ANALYTICS_SELECT_CLASS, "h-10 w-full min-w-0 rounded-lg px-3")} value={filters.releaseId} onChange={(event) => updateFilter("releaseId", event.target.value)}>
+                <option value="all">All releases</option>
+                {releaseOptions.map((release) => <option key={release.id} value={release.id}>{release.name}</option>)}
+              </select>
+              <select aria-label="Sprint Comparison" className={cn(ANALYTICS_SELECT_CLASS, "h-10 w-full min-w-0 rounded-lg px-3")} value={comparisonMode} onChange={(event) => updateComparisonMode(event.target.value)}>
+                <option value="sprint">Current vs Previous Sprint</option>
+                <option value="month">Current vs Previous Month</option>
+                <option value="release">Current vs Previous Release</option>
+              </select>
             </div>
+          ) : null}
+          {appliedFilters.length > 0 ? (
+            <div className="flex min-w-0 flex-wrap gap-1.5" aria-label="Applied filters">
+              {appliedFilters.map((filter) => (
+                <button key={filter.key} type="button" onClick={filter.remove} aria-label={`Remove ${filter.label} filter`} className="inline-flex max-w-full items-center gap-1 rounded-md border border-blue-100 bg-blue-50 px-2 py-1 text-xs text-blue-800 hover:bg-blue-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:border-blue-900 dark:bg-blue-950/40 dark:text-blue-200">
+                  <span className="min-w-0 break-words [overflow-wrap:anywhere]">{filter.label}: {filter.value}</span>
+                  <X className="h-3 w-3 shrink-0" />
+                </button>
+              ))}
+            </div>
+          ) : null}
+          <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-2 dark:border-slate-800">
+            <p className="text-xs text-slate-500 dark:text-slate-400" role="status">
+              {isLoading ? "Loading results…" : error ? "Results unavailable" : [needsTaskIssues && `${taskIssues.length} tasks`, needsBugIssues && `${bugIssues.length} bugs`].filter(Boolean).join(" · ")}
+              <span className="ml-2">{activeDatePresetLabel}</span>
+            </p>
+            <Button type="button" variant="ghost" size="sm" className="h-10 px-2 text-xs" onClick={showAllResults}>All Results</Button>
           </div>
         </div>
 
