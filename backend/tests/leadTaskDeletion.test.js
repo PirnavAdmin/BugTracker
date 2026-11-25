@@ -167,7 +167,7 @@ test("Team Lead cannot delete an unassigned task created by another user", async
   assert.equal(res.statusCode, 403);
 });
 
-test("Team Lead cannot delete a task they created if someone is assigned to it", async () => {
+test("Team Lead can delete a task they created even if someone is assigned to it", async () => {
   const leadId = new mongoose.Types.ObjectId();
   const devId = new mongoose.Types.ObjectId();
   const projectId = new mongoose.Types.ObjectId();
@@ -179,10 +179,13 @@ test("Team Lead cannot delete a task they created if someone is assigned to it",
     reporter: leadId,
     assignee: devId,
     assignees: [devId],
-    assignedDeveloperId: null,
+    assignedDeveloperId: devId,
     isDeleted: false,
     projectId,
     tenantId: "TENANT_001",
+    save: async function () {
+      return this;
+    },
   };
 
   Issue.findOne = () => createQuery(mockIssue);
@@ -199,11 +202,9 @@ test("Team Lead cannot delete a task they created if someone is assigned to it",
   };
 
   const res = createResponse();
-  await assert.rejects(
-    () => invokeController(deleteIssue, req, res),
-    /Task can no longer be deleted after assignment/
-  );
-  assert.equal(res.statusCode, 403);
+  await invokeController(deleteIssue, req, res);
+  assert.equal(res.statusCode, 200);
+  assert.equal(mockIssue.isDeleted, true);
 });
 
 test("QA Lead can delete an unassigned task they created", async () => {
@@ -245,7 +246,7 @@ test("QA Lead can delete an unassigned task they created", async () => {
   assert.equal(mockIssue.isDeleted, true);
 });
 
-test("QA Lead cannot delete a task they created once someone is assigned to it", async () => {
+test("QA Lead can delete a task they created even if someone is assigned to it", async () => {
   const qaId = new mongoose.Types.ObjectId();
   const devId = new mongoose.Types.ObjectId();
   const projectId = new mongoose.Types.ObjectId();
@@ -257,10 +258,13 @@ test("QA Lead cannot delete a task they created once someone is assigned to it",
     reporter: qaId,
     assignee: devId,
     assignees: [devId],
-    assignedDeveloperId: null,
+    assignedDeveloperId: devId,
     isDeleted: false,
     projectId,
     tenantId: "TENANT_001",
+    save: async function () {
+      return this;
+    },
   };
 
   Issue.findOne = () => createQuery(mockIssue);
@@ -277,11 +281,95 @@ test("QA Lead cannot delete a task they created once someone is assigned to it",
   };
 
   const res = createResponse();
-  await assert.rejects(
-    () => invokeController(deleteIssue, req, res),
-    /Task can no longer be deleted after assignment/
-  );
-  assert.equal(res.statusCode, 403);
+  await invokeController(deleteIssue, req, res);
+  assert.equal(res.statusCode, 200);
+  assert.equal(mockIssue.isDeleted, true);
+});
+
+test("Tester can delete a bug they reported even after picked/assigned", async () => {
+  const testerId = new mongoose.Types.ObjectId();
+  const devId = new mongoose.Types.ObjectId();
+  const projectId = new mongoose.Types.ObjectId();
+  const issueId = new mongoose.Types.ObjectId();
+
+  const mockIssue = {
+    _id: issueId,
+    type: "Bug",
+    status: "IN_PROGRESS",
+    reporter: testerId,
+    assignee: devId,
+    bugDetails: {
+      testerOwner: testerId,
+      developerLead: devId,
+    },
+    isDeleted: false,
+    projectId,
+    tenantId: "TENANT_001",
+    save: async function () {
+      return this;
+    },
+  };
+
+  Issue.findOne = () => createQuery(mockIssue);
+  Project.findOne = () => createQuery({ _id: projectId, tenantId: "TENANT_001" });
+
+  const req = {
+    params: { id: String(issueId) },
+    user: {
+      _id: testerId,
+      role: "Tester",
+      tenantId: "TENANT_001",
+      name: "Tester",
+    },
+  };
+
+  const res = createResponse();
+  await invokeController(deleteIssue, req, res);
+  assert.equal(res.statusCode, 200);
+  assert.equal(mockIssue.isDeleted, true);
+});
+
+test("QA Lead can delete a bug they reported even after picked/assigned", async () => {
+  const qaId = new mongoose.Types.ObjectId();
+  const devId = new mongoose.Types.ObjectId();
+  const projectId = new mongoose.Types.ObjectId();
+  const issueId = new mongoose.Types.ObjectId();
+
+  const mockIssue = {
+    _id: issueId,
+    type: "Bug",
+    status: "ASSIGNED",
+    reporter: qaId,
+    assignee: devId,
+    bugDetails: {
+      testerOwner: qaId,
+      developerLead: devId,
+    },
+    isDeleted: false,
+    projectId,
+    tenantId: "TENANT_001",
+    save: async function () {
+      return this;
+    },
+  };
+
+  Issue.findOne = () => createQuery(mockIssue);
+  Project.findOne = () => createQuery({ _id: projectId, tenantId: "TENANT_001" });
+
+  const req = {
+    params: { id: String(issueId) },
+    user: {
+      _id: qaId,
+      role: ROLE_QA_LEAD,
+      tenantId: "TENANT_001",
+      name: "QA Lead",
+    },
+  };
+
+  const res = createResponse();
+  await invokeController(deleteIssue, req, res);
+  assert.equal(res.statusCode, 200);
+  assert.equal(mockIssue.isDeleted, true);
 });
 
 test("Developer cannot delete an unassigned task even if they created it", async () => {

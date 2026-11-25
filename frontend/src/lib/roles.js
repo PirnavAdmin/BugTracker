@@ -351,14 +351,39 @@ export const canDeleteTaskForUser = (task, user) => {
 
   const userId = String(user._id || user.id || "");
   const reporterId = String(task.reporter?._id || task.reporter || "");
-  const isCreator = Boolean(userId && reporterId && userId === reporterId);
+  return Boolean(userId && reporterId && userId === reporterId);
+};
+export const canDeleteBugForUser = (bug, user) => {
+  if (!bug || !user) return false;
+  const role = user.role;
+  if (hasAdminPanelAccess(role)) return true;
 
-  const hasAssignee = Boolean(task.assignee?._id || task.assignee);
-  const hasAssignees = Array.isArray(task.assignees) && task.assignees.some((a) => Boolean(a?._id || a));
-  const hasDeveloper = Boolean(task.assignedDeveloperId?._id || task.assignedDeveloperId);
-  const isUnassigned = !hasAssignee && !hasAssignees && !hasDeveloper;
+  if (!hasTesterPanelAccess(role)) return false;
 
-  return isCreator && isUnassigned;
+  const userId = String(user._id || user.id || "");
+  const reporterId = String(bug.reporter?._id || bug.reporter || "");
+  const testerOwnerId = String(
+    bug.bugDetails?.testerOwner?._id || bug.bugDetails?.testerOwner || ""
+  );
+
+  return Boolean(userId && (userId === reporterId || userId === testerOwnerId));
+};
+export const canDeleteIssueForUser = (issue, user) => {
+  if (!issue || !user) return false;
+  const role = user.role;
+  if (hasAdminPanelAccess(role)) return true;
+
+  const type = issue.type || "Task";
+  const isBug = ["Bug"].includes(type);
+  const isStory = ["Story"].includes(type);
+
+  if (isStory) return false;
+
+  if (isBug) {
+    return canDeleteBugForUser(issue, user);
+  }
+
+  return canDeleteTaskForUser(issue, user);
 };
 export const canCreateIssues = (role) =>
   hasAdminPanelAccess(role) || hasTesterPanelAccess(role);

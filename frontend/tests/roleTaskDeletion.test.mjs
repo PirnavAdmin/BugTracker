@@ -3,6 +3,8 @@ import assert from "node:assert/strict";
 
 import {
   canDeleteTaskForUser,
+  canDeleteBugForUser,
+  canDeleteIssueForUser,
   ROLE_ADMIN,
   ROLE_MANAGER,
   ROLE_TEAM_LEAD,
@@ -21,6 +23,12 @@ const qaLeadUser = {
   _id: "user-qa-1",
   name: "QA Lead",
   role: ROLE_QA_LEAD,
+};
+
+const testerUser = {
+  _id: "user-tester-1",
+  name: "Tester",
+  role: ROLE_TESTER,
 };
 
 const devUser = {
@@ -47,7 +55,7 @@ test("Team Lead can delete an unassigned task they created", () => {
   assert.equal(canDeleteTaskForUser(task, leadUser), true);
 });
 
-test("Team Lead cannot delete an unassigned task created by someone else", () => {
+test("Team Lead cannot delete a task created by someone else", () => {
   const task = {
     _id: "task-2",
     type: "Task",
@@ -59,7 +67,7 @@ test("Team Lead cannot delete an unassigned task created by someone else", () =>
   assert.equal(canDeleteTaskForUser(task, leadUser), false);
 });
 
-test("Team Lead cannot delete a task they created if someone is assigned", () => {
+test("Team Lead can delete a task they created even if someone is assigned", () => {
   const assignedTask = {
     _id: "task-3",
     type: "Task",
@@ -68,22 +76,22 @@ test("Team Lead cannot delete a task they created if someone is assigned", () =>
     assignees: ["user-dev-1"],
   };
 
-  assert.equal(canDeleteTaskForUser(assignedTask, leadUser), false);
+  assert.equal(canDeleteTaskForUser(assignedTask, leadUser), true);
 });
 
-test("Q/A Lead can delete an unassigned task they created", () => {
+test("Q/A Lead can delete a task they created even if assigned to someone", () => {
   const task = {
     _id: "task-4",
     type: "Task",
     reporter: { _id: "user-qa-1", name: "QA Lead" },
-    assignee: null,
-    assignees: [],
+    assignee: { _id: "user-dev-1", name: "Dev" },
+    assignees: ["user-dev-1"],
   };
 
   assert.equal(canDeleteTaskForUser(task, qaLeadUser), true);
 });
 
-test("Q/A Lead cannot delete an unassigned task created by someone else", () => {
+test("Q/A Lead cannot delete a task created by someone else", () => {
   const task = {
     _id: "task-5",
     type: "Task",
@@ -95,18 +103,50 @@ test("Q/A Lead cannot delete an unassigned task created by someone else", () => 
   assert.equal(canDeleteTaskForUser(task, qaLeadUser), false);
 });
 
-test("Q/A Lead cannot delete a task they created if assigned to someone", () => {
-  const task = {
-    _id: "task-6",
-    type: "Task",
+test("Q/A Lead can delete a bug they reported even after assigned", () => {
+  const bug = {
+    _id: "bug-1",
+    type: "Bug",
     reporter: "user-qa-1",
     assignee: { _id: "user-dev-1", name: "Dev" },
+    bugDetails: {
+      testerOwner: "user-qa-1",
+      developerLead: "user-dev-1",
+    },
   };
 
-  assert.equal(canDeleteTaskForUser(task, qaLeadUser), false);
+  assert.equal(canDeleteBugForUser(bug, qaLeadUser), true);
 });
 
-test("Developer cannot delete tasks even if created by them and unassigned", () => {
+test("Tester can delete a bug they reported even after picked/assigned", () => {
+  const bug = {
+    _id: "bug-2",
+    type: "Bug",
+    reporter: "user-tester-1",
+    assignee: "user-dev-1",
+    bugDetails: {
+      testerOwner: "user-tester-1",
+      developerLead: "user-dev-1",
+    },
+  };
+
+  assert.equal(canDeleteBugForUser(bug, testerUser), true);
+});
+
+test("Tester cannot delete a bug reported by someone else", () => {
+  const bug = {
+    _id: "bug-3",
+    type: "Bug",
+    reporter: "user-other",
+    bugDetails: {
+      testerOwner: "user-other",
+    },
+  };
+
+  assert.equal(canDeleteBugForUser(bug, testerUser), false);
+});
+
+test("Developer cannot delete tasks even if created by them", () => {
   const task = {
     _id: "task-7",
     type: "Task",
@@ -127,4 +167,5 @@ test("Admin can delete any task regardless of creator or assignment", () => {
   };
 
   assert.equal(canDeleteTaskForUser(assignedTask, adminUser), true);
+  assert.equal(canDeleteIssueForUser(assignedTask, adminUser), true);
 });
