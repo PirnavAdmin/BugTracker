@@ -158,7 +158,7 @@ export default function LoginPage({ signup = false }) {
     <main data-theme="light" data-theme-lock="light" className="auth-theme-lock min-h-screen bg-[radial-gradient(circle_at_15%_20%,rgba(124,58,237,.12),transparent_30%),radial-gradient(circle_at_85%_80%,rgba(37,99,235,.1),transparent_30%),#f8fafc] px-5 py-3 text-slate-950">
       <header className="mx-auto flex max-w-6xl items-center justify-between">
         <Link to="/">
-          <img className="h-14 w-auto" src={pirnavLogo} alt="CureCode" />
+          <img className="h-auto w-[210px] max-w-full" src={pirnavLogo} alt="CureCode" />
         </Link>
       </header>
       <div className="mx-auto grid max-w-5xl items-center gap-10 py-6 lg:grid-cols-[1fr_430px] lg:py-4">
