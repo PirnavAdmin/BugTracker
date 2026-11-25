@@ -436,7 +436,7 @@ export default function LoginPage({ signup = false }) {
                 disabled={auth.isPending}
               >
                 {auth.isPending ? "Please wait..." : mode === "signup" ? "Create account" : "Sign In"}
-                <ArrowRight size={18} />
+                {mode === "signup" ? <ArrowRight size={18} /> : null}
               </button>
             </form>
           )}
