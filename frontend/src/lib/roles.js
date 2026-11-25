@@ -117,7 +117,7 @@ export const getRoleNavigation = (role) => {
 
   if (hasTesterPanelAccess(role)) {
     return [
-      { id: "dashboard", label: "Workspace", href: dashboardPathByRole[role] || dashboardPathByRole[ROLE_TESTER], icon: "dashboard" },
+      { id: "dashboard", label: "Dashboard", href: dashboardPathByRole[role] || dashboardPathByRole[ROLE_TESTER], icon: "dashboard" },
       { id: "stories", label: "Stories", href: "/stories", icon: "stories" },
       { id: "tasks", label: "Tasks", href: "/tasks", icon: "tasks" },
       { id: "bugs", label: "Bugs", href: "/bugs", icon: "bugs" },
@@ -164,6 +164,31 @@ export const filterRoleNavigation = (navigation = [], role, permissions = null) 
   return navigation.filter((item) => allowedPages.includes(item.id || item.icon));
 };
 
+export const isScreenAllowed = (role, screenId, permissions = null) => {
+  if (!screenId || hasAdminPanelAccess(role) || !SCREEN_PERMISSION_ROLES.includes(role)) {
+    return true;
+  }
+
+  const normalizedPermissions = normalizeScreenPermissions(permissions || {});
+  const allowedPages = normalizedPermissions[role] || DEFAULT_SCREEN_PERMISSIONS[role];
+
+  return allowedPages.includes(screenId);
+};
+
+export const getFirstAllowedPathByRole = (role, permissions = null) => {
+  if (hasAdminPanelAccess(role)) {
+    return dashboardPathByRole[role] || "/admin/dashboard";
+  }
+
+  const allowedNav = filterRoleNavigation(
+    getRoleNavigation(role),
+    role,
+    permissions
+  );
+
+  return allowedNav[0]?.href || "/profile";
+};
+
 export const getPageMeta = (pathname, role) => {
   if (pathname.startsWith("/stories/")) {
     return {
@@ -205,7 +230,7 @@ export const getPageMeta = (pathname, role) => {
         "Pick available bugs and move bug fixes through a workflow that stays separate from tasks and sprints.",
     },
     [dashboardPathByRole[ROLE_TESTER]]: {
-      title: "Workspace",
+      title: "Dashboard",
       description:
         "Review assigned projects and track project-wise testing performance.",
     },
@@ -305,7 +330,7 @@ export const getPageMeta = (pathname, role) => {
 
   return (
     metaByPath[pathname] || {
-      title: "Workspace",
+      title: "Dashboard",
       description: "Plan projects, move work, and keep the team aligned.",
     }
   );

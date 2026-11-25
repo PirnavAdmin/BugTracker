@@ -8,15 +8,20 @@ import { usePlatformAuth } from "@/hooks/use-platform-auth";
 import {
   ADMIN_PANEL_ROLES,
   getDashboardPathByRole,
+  getFirstAllowedPathByRole,
   hasWorkspaceMailAccess,
+  isScreenAllowed,
   ROLE_ADMIN,
   ROLE_DEVELOPER,
   ROLE_QA_LEAD,
   ROLE_TEAM_LEAD,
   ROLE_TESTER,
+  SCREEN_PERMISSION_ROLES,
   TASK_STORY_LEAD_ROLES,
   TESTER_PANEL_ROLES,
 } from "@/lib/roles";
+import { useQuery } from "@tanstack/react-query";
+import { fetchScreenPermissions } from "@/lib/api";
 
 const AuthPage = lazy(() => import("@/pages/AuthPage"));
 const LoginPage = lazy(() => import("@/pages/LoginPage"));
@@ -96,9 +101,18 @@ const getSafeRedirectPath = (search = "", fallback = "") => {
   }
 };
 
-const ProtectedRoute = ({ children, roles }) => {
+const ProtectedRoute = ({ children, roles, screenId }) => {
   const { isAuthenticated, role } = useAuth();
   const location = useLocation();
+  const shouldCheckPermissions = Boolean(
+    isAuthenticated && role && SCREEN_PERMISSION_ROLES.includes(role)
+  );
+  const { data: screenPermissions = null, isLoading: isPermissionsLoading } = useQuery({
+    queryKey: ["screen-permissions"],
+    queryFn: fetchScreenPermissions,
+    enabled: shouldCheckPermissions,
+    staleTime: 5 * 60 * 1000,
+  });
 
   if (!isAuthenticated) {
     const redirectTarget = `${location.pathname}${location.search}${location.hash}`;
@@ -112,7 +126,19 @@ const ProtectedRoute = ({ children, roles }) => {
   }
 
   if (roles?.length && !roles.includes(role)) {
-    return <Navigate to={getDashboardPathByRole(role)} replace />;
+    return <Navigate to={getFirstAllowedPathByRole(role, screenPermissions)} replace />;
+  }
+
+  if (screenId && shouldCheckPermissions) {
+    if (isPermissionsLoading && !screenPermissions) {
+      return <PublicRouteFallback />;
+    }
+
+    if (!isScreenAllowed(role, screenId, screenPermissions)) {
+      const fallbackTarget = getFirstAllowedPathByRole(role, screenPermissions);
+      const safeTarget = fallbackTarget === location.pathname ? "/profile" : fallbackTarget;
+      return <Navigate to={safeTarget} replace />;
+    }
   }
 
   return children;
@@ -121,11 +147,21 @@ const ProtectedRoute = ({ children, roles }) => {
 const PublicRoute = ({ children }) => {
   const { isAuthenticated, role } = useAuth();
   const location = useLocation();
+  const shouldCheckPermissions = Boolean(
+    isAuthenticated && role && SCREEN_PERMISSION_ROLES.includes(role)
+  );
+  const { data: screenPermissions = null } = useQuery({
+    queryKey: ["screen-permissions"],
+    queryFn: fetchScreenPermissions,
+    enabled: shouldCheckPermissions,
+    staleTime: 5 * 60 * 1000,
+  });
 
   if (isAuthenticated) {
+    const defaultTarget = getFirstAllowedPathByRole(role, screenPermissions);
     return (
       <Navigate
-        to={getSafeRedirectPath(location.search, getDashboardPathByRole(role))}
+        to={getSafeRedirectPath(location.search, defaultTarget)}
         replace
       />
     );
@@ -135,9 +171,22 @@ const PublicRoute = ({ children }) => {
 };
 
 const LegacyDashboardRedirect = () => {
-  const { role } = useAuth();
+  const { role, isAuthenticated } = useAuth();
+  const shouldCheckPermissions = Boolean(
+    isAuthenticated && role && SCREEN_PERMISSION_ROLES.includes(role)
+  );
+  const { data: screenPermissions = null, isLoading } = useQuery({
+    queryKey: ["screen-permissions"],
+    queryFn: fetchScreenPermissions,
+    enabled: shouldCheckPermissions,
+    staleTime: 5 * 60 * 1000,
+  });
 
-  return <Navigate to={getDashboardPathByRole(role)} replace />;
+  if (isLoading && !screenPermissions && shouldCheckPermissions) {
+    return <PublicRouteFallback />;
+  }
+
+  return <Navigate to={getFirstAllowedPathByRole(role, screenPermissions)} replace />;
 };
 
 const SelfSettingsRoute = () => {
@@ -353,7 +402,7 @@ const App = () => (
       <Route
         path="/admin/dashboard"
         element={
-          <ProtectedRoute roles={ADMIN_PANEL_ROLES}>
+          <ProtectedRoute roles={ADMIN_PANEL_ROLES} screenId="dashboard">
             <DashboardPage />
           </ProtectedRoute>
         }
@@ -369,7 +418,7 @@ const App = () => (
       <Route
         path="/dev/dashboard"
         element={
-          <ProtectedRoute roles={[ROLE_DEVELOPER, ROLE_TEAM_LEAD]}>
+          <ProtectedRoute roles={[ROLE_DEVELOPER, ROLE_TEAM_LEAD]} screenId="dashboard">
             <DeveloperDashboardPage />
           </ProtectedRoute>
         }
@@ -377,7 +426,7 @@ const App = () => (
       <Route
         path="/dev/bugs"
         element={
-          <ProtectedRoute roles={[ROLE_DEVELOPER, ROLE_TEAM_LEAD]}>
+          <ProtectedRoute roles={[ROLE_DEVELOPER, ROLE_TEAM_LEAD]} screenId="bugs">
             <DeveloperBugBoardPage />
           </ProtectedRoute>
         }
@@ -393,7 +442,7 @@ const App = () => (
       <Route
         path="/tester/dashboard"
         element={
-          <ProtectedRoute roles={TESTER_PANEL_ROLES}>
+          <ProtectedRoute roles={TESTER_PANEL_ROLES} screenId="dashboard">
             <TesterDashboardPage />
           </ProtectedRoute>
         }
@@ -401,7 +450,7 @@ const App = () => (
       <Route
         path="/bugs"
         element={
-          <ProtectedRoute roles={[...ADMIN_PANEL_ROLES, ...TESTER_PANEL_ROLES, ...TASK_STORY_LEAD_ROLES]}>
+          <ProtectedRoute roles={[...ADMIN_PANEL_ROLES, ...TESTER_PANEL_ROLES, ...TASK_STORY_LEAD_ROLES]} screenId="bugs">
             <BugsRoute />
           </ProtectedRoute>
         }
@@ -478,12 +527,26 @@ const App = () => (
           </ProtectedRoute>
         }
       />
-      <Route path="/issues" element={<IssuesPage />} />
-      <Route path="/issues/:issueId" element={<IssuesPage />} />
+      <Route
+        path="/issues"
+        element={
+          <ProtectedRoute roles={[...ADMIN_PANEL_ROLES, ROLE_DEVELOPER, ROLE_TEAM_LEAD, ROLE_QA_LEAD, ROLE_TESTER]} screenId="tasks">
+            <IssuesPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/issues/:issueId"
+        element={
+          <ProtectedRoute roles={[...ADMIN_PANEL_ROLES, ROLE_DEVELOPER, ROLE_TEAM_LEAD, ROLE_QA_LEAD, ROLE_TESTER]} screenId="tasks">
+            <IssuesPage />
+          </ProtectedRoute>
+        }
+      />
       <Route
         path="/stories"
         element={
-          <ProtectedRoute roles={[...ADMIN_PANEL_ROLES, ROLE_TEAM_LEAD, ROLE_QA_LEAD, ROLE_DEVELOPER, ROLE_TESTER]}>
+          <ProtectedRoute roles={[...ADMIN_PANEL_ROLES, ROLE_TEAM_LEAD, ROLE_QA_LEAD, ROLE_DEVELOPER, ROLE_TESTER]} screenId="stories">
             <StoriesPage />
           </ProtectedRoute>
         }
@@ -491,7 +554,7 @@ const App = () => (
       <Route
         path="/stories/:storyId"
         element={
-          <ProtectedRoute roles={[...ADMIN_PANEL_ROLES, ROLE_TEAM_LEAD, ROLE_QA_LEAD, ROLE_DEVELOPER, ROLE_TESTER]}>
+          <ProtectedRoute roles={[...ADMIN_PANEL_ROLES, ROLE_TEAM_LEAD, ROLE_QA_LEAD, ROLE_DEVELOPER, ROLE_TESTER]} screenId="stories">
             <StoriesPage />
           </ProtectedRoute>
         }
@@ -501,6 +564,7 @@ const App = () => (
         element={
           <ProtectedRoute
             roles={[...ADMIN_PANEL_ROLES, ROLE_TEAM_LEAD, ROLE_QA_LEAD, ROLE_DEVELOPER, ROLE_TESTER]}
+            screenId="chat"
           >
             <ChatPage />
           </ProtectedRoute>
@@ -509,15 +573,43 @@ const App = () => (
       <Route
         path="/tasks"
         element={
-          <ProtectedRoute roles={[...ADMIN_PANEL_ROLES, ROLE_DEVELOPER, ROLE_TEAM_LEAD, ROLE_QA_LEAD, ROLE_TESTER]}>
+          <ProtectedRoute roles={[...ADMIN_PANEL_ROLES, ROLE_DEVELOPER, ROLE_TEAM_LEAD, ROLE_QA_LEAD, ROLE_TESTER]} screenId="tasks">
             <TasksRoute />
           </ProtectedRoute>
         }
       />
-      <Route path="/reports" element={<ReportsPage />} />
-      <Route path="/reports/:reportKey" element={<ReportsPage />} />
-      <Route path="/analytics" element={<ReportsPage />} />
-      <Route path="/analytics/:reportKey" element={<ReportsPage />} />
+      <Route
+        path="/reports"
+        element={
+          <ProtectedRoute screenId="reports">
+            <ReportsPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/reports/:reportKey"
+        element={
+          <ProtectedRoute screenId="reports">
+            <ReportsPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/analytics"
+        element={
+          <ProtectedRoute screenId="reports">
+            <ReportsPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/analytics/:reportKey"
+        element={
+          <ProtectedRoute screenId="reports">
+            <ReportsPage />
+          </ProtectedRoute>
+        }
+      />
     </Route>
     <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
