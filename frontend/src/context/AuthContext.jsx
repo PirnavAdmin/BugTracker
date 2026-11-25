@@ -1,13 +1,11 @@
 import { createContext, useEffect, useMemo, useState } from "react";
-import { useQueryClient } from "@tanstack/react-query";
 import {
   AUTH_SESSION_CLEARED_EVENT,
-  AUTH_SESSION_UPDATED_EVENT,
   clearStoredSession,
   readStoredSession,
   writeStoredSession,
 } from "@/lib/session";
-import { logoutRequest, refreshUserAuthSession } from "@/lib/api";
+import { fetchCurrentUser } from "@/lib/api";
 import { getDashboardPathByRole } from "@/lib/roles";
 import { disconnectChatSocket } from "@/lib/socket";
 
@@ -15,7 +13,6 @@ export const AuthContext = createContext(null);
 
 export const AuthProvider = ({ children }) => {
   const [session, setSession] = useState(() => readStoredSession());
-  const queryClient = useQueryClient();
 
   const setAuthSession = (value, options = {}) => {
     try {
@@ -37,10 +34,6 @@ export const AuthProvider = ({ children }) => {
     disconnectChatSocket();
     setSession(null);
     clearStoredSession();
-    queryClient.clear();
-    logoutRequest().catch((error) => {
-      console.error("Unable to revoke the signed-in session:", error);
-    });
   };
 
   useEffect(() => {
@@ -48,49 +41,63 @@ export const AuthProvider = ({ children }) => {
       disconnectChatSocket();
       setSession(null);
     };
-    const handleSessionUpdated = () => setSession(readStoredSession());
 
     window.addEventListener(AUTH_SESSION_CLEARED_EVENT, handleSessionCleared);
-    window.addEventListener(AUTH_SESSION_UPDATED_EVENT, handleSessionUpdated);
 
     return () => {
       window.removeEventListener(AUTH_SESSION_CLEARED_EVENT, handleSessionCleared);
-      window.removeEventListener(AUTH_SESSION_UPDATED_EVENT, handleSessionUpdated);
     };
   }, []);
 
   useEffect(() => {
-    queryClient.clear();
-  }, [queryClient, session?.user?._id]);
-
-  useEffect(() => {
-    if (!session?.token || !session?.accessTokenExpiresAt) {
-      return undefined;
+    if (!session?.token) {
+      return;
     }
 
-    let timer;
-    let disposed = false;
-    const refreshBeforeExpiry = () => {
-      if (disposed) {
-        return;
-      }
+    let isCurrent = true;
 
-      const expiryTime = new Date(session.accessTokenExpiresAt).getTime();
-      const refreshDelay = Math.max(0, expiryTime - Date.now() - 60_000);
-      timer = window.setTimeout(() => {
-        refreshUserAuthSession().catch((error) => {
-          if (!disposed && ![401, 403].includes(error?.response?.status)) {
-            timer = window.setTimeout(refreshBeforeExpiry, 60_000);
+    fetchCurrentUser()
+      .then((currentUser) => {
+        if (!isCurrent || !currentUser?._id) {
+          return;
+        }
+
+        setSession((currentSession) => {
+          if (!currentSession?.token) {
+            return currentSession;
           }
+
+          const nextUser = {
+            ...currentSession.user,
+            ...currentUser,
+          };
+          const userChanged =
+            JSON.stringify(currentSession.user || {}) !== JSON.stringify(nextUser);
+
+          if (!userChanged) {
+            return currentSession;
+          }
+
+          const nextSession = {
+            ...currentSession,
+            user: nextUser,
+          };
+
+          writeStoredSession(nextSession, {
+            rememberMe: nextSession.rememberMe,
+          });
+
+          return nextSession;
         });
-      }, refreshDelay);
-    };
+      })
+      .catch(() => {
+        // 401s are handled by the shared API interceptor.
+      });
 
     return () => {
-      disposed = true;
-      window.clearTimeout(timer);
+      isCurrent = false;
     };
-  }, [session?.accessTokenExpiresAt, session?.token]);
+  }, [session?.token]);
 
   const value = useMemo(
     () => ({

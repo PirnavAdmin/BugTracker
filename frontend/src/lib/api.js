@@ -1,17 +1,13 @@
 import axios from "axios";
 import {
   AUTH_SESSION_CLEARED_EVENT,
-  AUTH_SESSION_UPDATED_EVENT,
   clearStoredSession,
   readStoredSession,
-  writeStoredSession,
 } from "@/lib/session";
 import {
   PLATFORM_AUTH_SESSION_CLEARED_EVENT,
-  PLATFORM_AUTH_SESSION_UPDATED_EVENT,
   clearPlatformSession,
   readPlatformSession,
-  writePlatformSession,
 } from "@/lib/platform-session";
 import { normalizeWorkspaceSenderResponse } from "@/lib/workspaceSender";
 import { CURRENT_WORKSPACE_SCOPE } from "@/lib/workspace";
@@ -21,7 +17,6 @@ const api = axios.create({
   // A dead proxy or network connection must not leave the login UI pending
   // forever. Individual long-running uploads can still provide an override.
   timeout: Number(import.meta.env.VITE_API_TIMEOUT_MS) || 30_000,
-  withCredentials: true,
   headers: {
     "Content-Type": "application/json",
   },
@@ -30,136 +25,10 @@ const api = axios.create({
 const platformApi = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL || "/api",
   timeout: Number(import.meta.env.VITE_API_TIMEOUT_MS) || 30_000,
-  withCredentials: true,
   headers: {
     "Content-Type": "application/json",
   },
 });
-
-let userSessionRefreshPromise = null;
-let platformSessionRefreshPromise = null;
-
-const dispatchSessionEvent = (name) => {
-  if (typeof window !== "undefined") {
-    window.dispatchEvent(new Event(name));
-  }
-};
-
-const withSessionRefreshLock = (name, refresh) => {
-  const locks = typeof navigator !== "undefined" ? navigator.locks : null;
-  return locks?.request ? locks.request(name, refresh) : refresh();
-};
-
-const refreshUserSession = () => {
-  if (!userSessionRefreshPromise) {
-    userSessionRefreshPromise = withSessionRefreshLock(
-      "curecode-user-session-refresh",
-      async () => {
-        const initiatingSession = readStoredSession();
-        if (!initiatingSession) {
-          throw new Error("The signed-in session is no longer available.");
-        }
-
-        try {
-          const { data } = await api.post("/auth/refresh", null, {
-            headers: { "X-CureCode-Session": "refresh" },
-          });
-          const currentSession = readStoredSession();
-          if (!currentSession) {
-            throw new Error("The signed-in session is no longer available.");
-          }
-          if (currentSession.token !== initiatingSession.token) {
-            return currentSession;
-          }
-
-          const nextSession = {
-            ...currentSession,
-            ...data,
-            user: currentSession.user,
-          };
-          writeStoredSession(nextSession, { rememberMe: nextSession.rememberMe });
-          dispatchSessionEvent(AUTH_SESSION_UPDATED_EVENT);
-          return nextSession;
-        } catch (error) {
-          const latestSession = readStoredSession();
-          if (
-            [401, 403].includes(error?.response?.status) &&
-            latestSession?.token &&
-            latestSession.token !== initiatingSession.token
-          ) {
-            return latestSession;
-          }
-          if ([401, 403].includes(error?.response?.status)) {
-            clearStoredSession();
-            dispatchSessionEvent(AUTH_SESSION_CLEARED_EVENT);
-          }
-          throw error;
-        }
-      }
-    )
-      .finally(() => {
-        userSessionRefreshPromise = null;
-      });
-  }
-
-  return userSessionRefreshPromise;
-};
-
-const refreshPlatformSession = () => {
-  if (!platformSessionRefreshPromise) {
-    platformSessionRefreshPromise = withSessionRefreshLock(
-      "curecode-platform-session-refresh",
-      async () => {
-        const initiatingSession = readPlatformSession();
-        if (!initiatingSession) {
-          throw new Error("The platform session is no longer available.");
-        }
-
-        try {
-          const { data } = await platformApi.post("/platform/auth/refresh", null, {
-            headers: { "X-CureCode-Session": "refresh" },
-          });
-          const currentSession = readPlatformSession();
-          if (!currentSession) {
-            throw new Error("The platform session is no longer available.");
-          }
-          if (currentSession.token !== initiatingSession.token) {
-            return currentSession;
-          }
-
-          const nextSession = { ...currentSession, ...data };
-          writePlatformSession(nextSession);
-          dispatchSessionEvent(PLATFORM_AUTH_SESSION_UPDATED_EVENT);
-          return nextSession;
-        } catch (error) {
-          const latestSession = readPlatformSession();
-          if (
-            [401, 403].includes(error?.response?.status) &&
-            latestSession?.token &&
-            latestSession.token !== initiatingSession.token
-          ) {
-            return latestSession;
-          }
-          if ([401, 403].includes(error?.response?.status)) {
-            clearPlatformSession();
-            dispatchSessionEvent(PLATFORM_AUTH_SESSION_CLEARED_EVENT);
-          }
-          throw error;
-        }
-      }
-    )
-      .finally(() => {
-        platformSessionRefreshPromise = null;
-      });
-  }
-
-  return platformSessionRefreshPromise;
-};
-
-const isAuthSessionEndpoint = (url = "") =>
-  /\/(?:platform\/)?auth\/(?:login|admin-login|register|refresh|forgot-password|reset-password)(?:$|[?#])/.test(
-    String(url)
-  );
 
 api.interceptors.request.use((config) => {
   const session = readStoredSession();
@@ -177,31 +46,16 @@ api.interceptors.request.use((config) => {
 
 api.interceptors.response.use(
   (response) => response,
-  async (error) => {
-    const config = error?.config;
-    if (error?.response?.status !== 401 || !config || isAuthSessionEndpoint(config.url)) {
-      return Promise.reject(error);
-    }
-
-    if (config._sessionRefreshRetry) {
+  (error) => {
+    if (error?.response?.status === 401) {
       clearStoredSession();
-      dispatchSessionEvent(AUTH_SESSION_CLEARED_EVENT);
-      return Promise.reject(error);
+
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new Event(AUTH_SESSION_CLEARED_EVENT));
+      }
     }
 
-    if (!readStoredSession()?.token) {
-      return Promise.reject(error);
-    }
-
-    config._sessionRefreshRetry = true;
-    try {
-      const session = await refreshUserSession();
-      config.headers = config.headers || {};
-      config.headers.Authorization = `Bearer ${session.token}`;
-      return api.request(config);
-    } catch {
-      return Promise.reject(error);
-    }
+    return Promise.reject(error);
   }
 );
 
@@ -217,31 +71,16 @@ platformApi.interceptors.request.use((config) => {
 
 platformApi.interceptors.response.use(
   (response) => response,
-  async (error) => {
-    const config = error?.config;
-    if (error?.response?.status !== 401 || !config || isAuthSessionEndpoint(config.url)) {
-      return Promise.reject(error);
-    }
-
-    if (config._sessionRefreshRetry) {
+  (error) => {
+    if (error?.response?.status === 401) {
       clearPlatformSession();
-      dispatchSessionEvent(PLATFORM_AUTH_SESSION_CLEARED_EVENT);
-      return Promise.reject(error);
+
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new Event(PLATFORM_AUTH_SESSION_CLEARED_EVENT));
+      }
     }
 
-    if (!readPlatformSession()?.token) {
-      return Promise.reject(error);
-    }
-
-    config._sessionRefreshRetry = true;
-    try {
-      const session = await refreshPlatformSession();
-      config.headers = config.headers || {};
-      config.headers.Authorization = `Bearer ${session.token}`;
-      return platformApi.request(config);
-    } catch {
-      return Promise.reject(error);
-    }
+    return Promise.reject(error);
   }
 );
 
@@ -371,18 +210,6 @@ export const loginRequest = async (payload) => {
   const response = await api.post("/auth/login", payload);
   return response.data;
 };
-
-export const logoutRequest = async () => {
-  if (userSessionRefreshPromise) {
-    await userSessionRefreshPromise.catch(() => null);
-  }
-  const response = await api.post("/auth/logout", null, {
-    headers: { "X-CureCode-Session": "logout" },
-  });
-  return response.data;
-};
-
-export const refreshUserAuthSession = () => refreshUserSession();
 
 export const adminLoginRequest = async (payload = {}) => {
   const response = await api.post("/auth/admin-login", payload);
@@ -1601,16 +1428,9 @@ export const fetchCurrentPlatformAdmin = async () => {
 };
 
 export const logoutPlatformAdmin = async () => {
-  if (platformSessionRefreshPromise) {
-    await platformSessionRefreshPromise.catch(() => null);
-  }
-  const response = await platformApi.post("/platform/auth/logout", null, {
-    headers: { "X-CureCode-Session": "logout" },
-  });
+  const response = await platformApi.post("/platform/auth/logout");
   return response.data;
 };
-
-export const refreshPlatformAuthSession = () => refreshPlatformSession();
 
 export const fetchPlatformDashboard = async () => {
   const response = await platformApi.get("/platform/dashboard");

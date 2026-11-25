@@ -11,7 +11,6 @@ const PlatformSubscription = require("../models/PlatformSubscription");
 const ProviderSubscription = require("../models/Subscription");
 const TeamMember = require("../models/TeamMember");
 const User = require("../models/User");
-const AuthSession = require("../models/AuthSession");
 const { loginPlatformAdmin } = require("../controllers/platformAuthController");
 const { login } = require("../controllers/authController");
 const { createCompanyAdminUser } = require("../services/platformCompanyService");
@@ -26,7 +25,6 @@ const originalProviderSubscriptionFindOne = ProviderSubscription.findOne;
 const originalTeamMemberFind = TeamMember.find;
 const originalUserCreate = User.create;
 const originalUserFindOne = User.findOne;
-const originalAuthSessionCreate = AuthSession.create;
 
 const runUserSaveHooks = (user) =>
   new Promise((resolve, reject) => {
@@ -57,7 +55,6 @@ const createResponse = () => {
       body = payload;
       return this;
     },
-    cookie() {},
   };
 };
 
@@ -108,10 +105,6 @@ beforeEach(() => {
       lean: async () => null,
     }),
   });
-  AuthSession.create = async (payload) => ({
-    ...payload,
-    _id: "507f1f77bcf86cd799439099",
-  });
   TeamMember.find = () => ({
     populate: () => ({
       sort: () => ({
@@ -131,7 +124,6 @@ afterEach(() => {
   TeamMember.find = originalTeamMemberFind;
   User.create = originalUserCreate;
   User.findOne = originalUserFindOne;
-  AuthSession.create = originalAuthSessionCreate;
 });
 
 test("company admin creation stores generated password as one bcrypt hash usable by normal login", async () => {

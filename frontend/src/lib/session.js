@@ -1,6 +1,5 @@
 export const AUTH_STORAGE_KEY = "jira_clone_session";
 export const AUTH_SESSION_CLEARED_EVENT = "jira_clone_session_cleared";
-export const AUTH_SESSION_UPDATED_EVENT = "jira_clone_session_updated";
 const DEFAULT_SESSION_MAX_AGE_MS = 8 * 60 * 60 * 1000;
 
 const getStorageTargets = () => {
@@ -22,15 +21,12 @@ const normalizeStoredSession = (session, { rememberMe = false } = {}) => {
     return null;
   }
 
-  const expiresAt =
-    session.expiresAt ||
-    new Date(Date.now() + DEFAULT_SESSION_MAX_AGE_MS).toISOString();
-
   return {
     ...session,
     rememberMe: Boolean(session.rememberMe ?? rememberMe),
-    expiresAt,
-    accessTokenExpiresAt: session.accessTokenExpiresAt || expiresAt,
+    expiresAt:
+      session.expiresAt ||
+      new Date(Date.now() + DEFAULT_SESSION_MAX_AGE_MS).toISOString(),
   };
 };
 
@@ -72,7 +68,7 @@ export const writeStoredSession = (value, options = {}) => {
     rememberMe,
   });
 
-  getStorageTargets().forEach((storage) => storage.removeItem(AUTH_STORAGE_KEY));
+  clearStoredSession();
 
   if (!session) {
     return;
