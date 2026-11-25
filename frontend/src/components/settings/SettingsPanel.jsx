@@ -13,12 +13,14 @@ const SettingsPanel = ({
   className,
   contentClassName,
   description,
+  footerActions = null,
   headerClassName,
   title,
 }) => (
   <Card
     className={cn(
-      "overflow-hidden rounded-[18px] border-slate-200/90 bg-white shadow-none",
+      "rounded-[18px] border-slate-200/90 bg-white shadow-none",
+      footerActions ? "overflow-visible" : "overflow-hidden",
       className
     )}
   >
@@ -44,6 +46,11 @@ const SettingsPanel = ({
     <CardContent className={cn("p-5 sm:p-7", contentClassName)}>
       {children}
     </CardContent>
+    {footerActions ? (
+      <div className="sticky bottom-0 z-10 flex justify-end border-t border-slate-100 bg-white/95 px-5 py-3 backdrop-blur sm:px-7">
+        {footerActions}
+      </div>
+    ) : null}
   </Card>
 );
 

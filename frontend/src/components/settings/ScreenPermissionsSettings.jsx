@@ -86,7 +86,7 @@ const ScreenPermissionsSettings = ({ showToast }) => {
     <SettingsPanel
       title="Screen Permissions"
       description="Choose which navigation pages are visible for each delivery role."
-      actions={
+      footerActions={
         <Button
           type="submit"
           form="screen-permissions-form"
