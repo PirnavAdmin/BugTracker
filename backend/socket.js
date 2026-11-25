@@ -621,56 +621,6 @@ const setupChatSocket = (server) => {
       }
     });
 
-    socket.on("message:pin", async (payload = {}, callback) => {
-      try {
-        const { conversationId, messageId } = payload;
-        if (!messageId) {
-          throw new Error("Message ID is required");
-        }
-        const message = await Message.findById(messageId);
-        if (!message || message.deleted) {
-          throw new Error("Message not found");
-        }
-        const conv = await Conversation.findOne({
-          _id: conversationId || message.conversationId,
-          workspaceId: socket.user.workspaceId,
-          participants: socket.user._id,
-        }).select("_id").lean();
-        if (!conv) {
-          throw new Error("You are not a participant in this conversation");
-        }
-
-        const meta =
-          message.metadata && typeof message.metadata === "object" && !Array.isArray(message.metadata)
-            ? { ...message.metadata }
-            : {};
-        const nextPinned = !Boolean(meta.isPinned);
-        meta.isPinned = nextPinned;
-        if (nextPinned) {
-          meta.pinnedBy = socket.user.name || "Teammate";
-          meta.pinnedAt = new Date().toISOString();
-        } else {
-          delete meta.pinnedBy;
-          delete meta.pinnedAt;
-        }
-        message.metadata = meta;
-        message.markModified("metadata");
-        await message.save();
-
-        const targetConversationId = String(conversationId || message.conversationId);
-        io.to(roomName(targetConversationId)).emit("message:pinned_updated", {
-          conversationId: targetConversationId,
-          messageId: String(message._id),
-          isPinned: nextPinned,
-          metadata: meta,
-        });
-
-        callback?.({ ok: true, isPinned: nextPinned, metadata: meta });
-      } catch (error) {
-        callback?.({ ok: false, error: error?.message || "Unable to pin message" });
-      }
-    });
-
     socket.on("typing", async (payload = {}) => {
       await updateSocketPresence(io, socket, "active", "chat");
       const conversation = await Conversation.findOne({

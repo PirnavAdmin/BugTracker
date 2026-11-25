@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import StatusIndicator from "@/components/presence/StatusIndicator";
 import { useChatStore } from "@/lib/chatStore";
-import { cn, formatTime } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 
 const getId = (value) => String(value?._id || value?.id || value || "");
 
@@ -114,7 +114,7 @@ const ConversationButton = memo(
 
           <div className="min-w-0 flex-1">
             <div className="flex items-center justify-between gap-2">
-              <div className="flex min-w-0 items-center gap-1.5">
+              <div className="flex min-w-0 items-center gap-2">
                 <p className="truncate text-sm font-extrabold">{title}</p>
                 {conversation.isPinned ? (
                   <Pin className="h-3 w-3 shrink-0 text-blue-500" />
@@ -123,30 +123,18 @@ const ConversationButton = memo(
                   <Star className="h-3 w-3 shrink-0 text-amber-500 fill-amber-500" />
                 ) : null}
               </div>
-              <div className="flex shrink-0 items-center gap-1.5">
-                {conversation.lastMessageAt ? (
-                  <span
-                    className={cn(
-                      "text-[11px] font-medium",
-                      isActive ? "text-white/75" : "text-slate-400"
-                    )}
-                  >
-                    {formatTime(conversation.lastMessageAt)}
-                  </span>
-                ) : null}
-                {conversation.unreadCount ? (
-                  <span
-                    className={cn(
-                      "inline-flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-[11px] font-extrabold",
-                      isActive
-                        ? "bg-white text-slate-950"
-                        : "bg-slate-950 text-white"
-                    )}
-                  >
-                    {conversation.unreadCount}
-                  </span>
-                ) : null}
-              </div>
+              {conversation.unreadCount ? (
+                <span
+                  className={cn(
+                    "inline-flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-[11px] font-extrabold",
+                    isActive
+                      ? "bg-white text-slate-950"
+                      : "bg-slate-950 text-white"
+                  )}
+                >
+                  {conversation.unreadCount}
+                </span>
+              ) : null}
             </div>
             <p
               className={cn(
@@ -249,7 +237,6 @@ const ChatSidebar = memo(
     searchResults,
   }) => {
     const [query, setQuery] = useState("");
-    const [sidebarFilter, setSidebarFilter] = useState("all");
     const [isCreatingGroup, setIsCreatingGroup] = useState(false);
     const [groupName, setGroupName] = useState("");
     const [selectedMembers, setSelectedMembers] = useState([]);
@@ -291,33 +278,20 @@ const ChatSidebar = memo(
       }
     };
 
-    const visibleConversations = useMemo(() => {
-      if (sidebarFilter === "unread") {
-        return conversations.filter((conversation) => Number(conversation.unreadCount || 0) > 0);
-      }
-      if (sidebarFilter === "direct") {
-        return conversations.filter((conversation) => conversation.type === "direct");
-      }
-      if (sidebarFilter === "channels") {
-        return conversations.filter((conversation) => conversation.type !== "direct");
-      }
-      return conversations;
-    }, [conversations, sidebarFilter]);
-
     const pinnedConversations = useMemo(
       () =>
-        visibleConversations.filter(
+        conversations.filter(
           (conversation) => conversation.isPinned && !conversation.isArchived
         ),
-      [visibleConversations]
+      [conversations]
     );
 
     const unpinnedConversations = useMemo(
       () =>
-        visibleConversations.filter(
+        conversations.filter(
           (conversation) => !conversation.isPinned || conversation.isArchived
         ),
-      [visibleConversations]
+      [conversations]
     );
 
     const groupedConversations = useMemo(
@@ -417,29 +391,6 @@ const ChatSidebar = memo(
               className="bg-white/78 pl-10"
               placeholder={isCreatingGroup ? "Add teammates" : "Search teammates"}
             />
-          </div>
-
-          <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
-            {[
-              { id: "all", label: "All" },
-              { id: "unread", label: "Unread" },
-              { id: "direct", label: "Direct" },
-              { id: "channels", label: "Channels" },
-            ].map((filterItem) => (
-              <button
-                key={filterItem.id}
-                type="button"
-                onClick={() => setSidebarFilter(filterItem.id)}
-                className={cn(
-                  "rounded-full border px-2.5 py-0.5 text-xs font-semibold transition",
-                  sidebarFilter === filterItem.id
-                    ? "border-slate-900 bg-slate-900 text-white"
-                    : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50"
-                )}
-              >
-                {filterItem.label}
-              </button>
-            ))}
           </div>
           <AnimatePresence>
             {query.trim().length >= 2 && searchResults.length ? (

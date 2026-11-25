@@ -1,17 +1,21 @@
 import {
-  Bell,
+  Archive,
   CalendarDays,
-  Hash,
+  FolderKanban,
   MessageCircle,
+  Pin,
+  Star,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 const MODULES = [
   { id: "chats", label: "Chats", icon: MessageCircle },
-  { id: "channels", label: "Channels", icon: Hash },
-  { id: "unread", label: "Unread", icon: Bell },
   { id: "meetings", label: "Meetings", icon: CalendarDays },
+  { id: "pinned", label: "Pinned", icon: Pin },
+  { id: "files", label: "Shared Files", icon: FolderKanban },
+  { id: "starred", label: "Starred", icon: Star },
+  { id: "archives", label: "Archived", icon: Archive },
 ];
 
 const ChatModuleNav = ({ activeModule, onSelect }) => (

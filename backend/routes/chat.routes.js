@@ -24,7 +24,6 @@ const {
   toggleMessageReaction,
   editChatMessage,
   deleteChatMessage,
-  togglePinChatMessage,
 } = require("../controllers/chat.controller");
 const { protect } = require("../middleware/authMiddleware");
 
@@ -43,7 +42,6 @@ router.get("/messages/:conversationId", protect, getMessages);
 router.get("/messages/:conversationId/attachments/:messageId/:attachmentIndex", protect, downloadChatAttachment);
 router.post("/messages", protect, createMessage);
 router.post("/messages/:messageId/reactions", protect, toggleMessageReaction);
-router.post("/messages/:messageId/pin", protect, togglePinChatMessage);
 router.patch("/messages/:messageId", protect, editChatMessage);
 router.delete("/messages/:messageId", protect, deleteChatMessage);
 router.get("/calls", protect, getCallLogs);
