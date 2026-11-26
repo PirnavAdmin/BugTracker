@@ -1,4 +1,5 @@
-import { createContext, useEffect, useMemo, useState } from "react";
+import { createContext, useCallback, useEffect, useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { fetchCurrentPlatformAdmin, logoutPlatformAdmin } from "@/lib/api";
 import {
   PLATFORM_AUTH_SESSION_CLEARED_EVENT,
@@ -11,14 +12,13 @@ export const PlatformAuthContext = createContext(null);
 
 export const PlatformAuthProvider = ({ children }) => {
   const [session, setSession] = useState(() => readPlatformSession());
-  const [isCheckingPlatformSession, setIsCheckingPlatformSession] = useState(Boolean(session?.token));
 
-  const setPlatformAuthSession = (value) => {
+  const setPlatformAuthSession = useCallback((value) => {
     setSession(value);
     writePlatformSession(value);
-  };
+  }, []);
 
-  const logout = async () => {
+  const logout = useCallback(async () => {
     try {
       if (session?.token) {
         await logoutPlatformAdmin();
@@ -29,7 +29,7 @@ export const PlatformAuthProvider = ({ children }) => {
       setSession(null);
       clearPlatformSession();
     }
-  };
+  }, [session?.token]);
 
   useEffect(() => {
     const handleSessionCleared = () => setSession(null);
@@ -41,48 +41,36 @@ export const PlatformAuthProvider = ({ children }) => {
     };
   }, []);
 
+  const { data: platformAdmin, isLoading: isPlatformAdminLoading } = useQuery({
+    queryKey: ["platform-auth", "current-admin", session?.token],
+    queryFn: fetchCurrentPlatformAdmin,
+    enabled: Boolean(session?.token),
+    staleTime: 5 * 60 * 1000,
+    retry: 1,
+  });
+
+  const isCheckingPlatformSession =
+    Boolean(session?.token) && isPlatformAdminLoading && !platformAdmin;
+
   useEffect(() => {
-    if (!session?.token) {
-      setIsCheckingPlatformSession(false);
-      return undefined;
+    if (!platformAdmin?._id) {
+      return;
     }
 
-    let isCurrent = true;
-    setIsCheckingPlatformSession(true);
+    setSession((currentSession) => {
+      if (!currentSession?.token) {
+        return currentSession;
+      }
 
-    fetchCurrentPlatformAdmin()
-      .then((platformAdmin) => {
-        if (!isCurrent || !platformAdmin?._id) {
-          return;
-        }
+      const nextSession = {
+        ...currentSession,
+        platformAdmin,
+      };
 
-        setSession((currentSession) => {
-          if (!currentSession?.token) {
-            return currentSession;
-          }
-
-          const nextSession = {
-            ...currentSession,
-            platformAdmin,
-          };
-
-          writePlatformSession(nextSession);
-          return nextSession;
-        });
-      })
-      .catch(() => {
-        // 401s are handled by the platform API interceptor.
-      })
-      .finally(() => {
-        if (isCurrent) {
-          setIsCheckingPlatformSession(false);
-        }
-      });
-
-    return () => {
-      isCurrent = false;
-    };
-  }, [session?.token]);
+      writePlatformSession(nextSession);
+      return nextSession;
+    });
+  }, [platformAdmin]);
 
   const value = useMemo(
     () => ({
@@ -94,7 +82,7 @@ export const PlatformAuthProvider = ({ children }) => {
       setPlatformAuthSession,
       logout,
     }),
-    [isCheckingPlatformSession, session]
+    [isCheckingPlatformSession, session, setPlatformAuthSession, logout]
   );
 
   return (

@@ -1,4 +1,5 @@
-import { createContext, useEffect, useMemo, useState } from "react";
+import { createContext, useCallback, useEffect, useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import {
   AUTH_SESSION_CLEARED_EVENT,
   clearStoredSession,
@@ -14,7 +15,7 @@ export const AuthContext = createContext(null);
 export const AuthProvider = ({ children }) => {
   const [session, setSession] = useState(() => readStoredSession());
 
-  const setAuthSession = (value, options = {}) => {
+  const setAuthSession = useCallback((value, options = {}) => {
     try {
       localStorage.setItem("curecode-theme", "light");
       window.dispatchEvent(new Event("curecode_auth_login"));
@@ -23,9 +24,9 @@ export const AuthProvider = ({ children }) => {
     }
     setSession(value);
     writeStoredSession(value, options);
-  };
+  }, []);
 
-  const logout = () => {
+  const logout = useCallback(() => {
     try {
       localStorage.setItem("curecode-theme", "light");
     } catch {
@@ -34,7 +35,7 @@ export const AuthProvider = ({ children }) => {
     disconnectChatSocket();
     setSession(null);
     clearStoredSession();
-  };
+  }, []);
 
   useEffect(() => {
     const handleSessionCleared = () => {
@@ -49,55 +50,47 @@ export const AuthProvider = ({ children }) => {
     };
   }, []);
 
+  const { data: currentUser } = useQuery({
+    queryKey: ["auth", "current-user", session?.token],
+    queryFn: fetchCurrentUser,
+    enabled: Boolean(session?.token),
+    staleTime: 5 * 60 * 1000,
+    retry: 1,
+  });
+
   useEffect(() => {
-    if (!session?.token) {
+    if (!currentUser?._id) {
       return;
     }
 
-    let isCurrent = true;
+    setSession((currentSession) => {
+      if (!currentSession?.token) {
+        return currentSession;
+      }
 
-    fetchCurrentUser()
-      .then((currentUser) => {
-        if (!isCurrent || !currentUser?._id) {
-          return;
-        }
+      const nextUser = {
+        ...currentSession.user,
+        ...currentUser,
+      };
+      const userChanged =
+        JSON.stringify(currentSession.user || {}) !== JSON.stringify(nextUser);
 
-        setSession((currentSession) => {
-          if (!currentSession?.token) {
-            return currentSession;
-          }
+      if (!userChanged) {
+        return currentSession;
+      }
 
-          const nextUser = {
-            ...currentSession.user,
-            ...currentUser,
-          };
-          const userChanged =
-            JSON.stringify(currentSession.user || {}) !== JSON.stringify(nextUser);
+      const nextSession = {
+        ...currentSession,
+        user: nextUser,
+      };
 
-          if (!userChanged) {
-            return currentSession;
-          }
-
-          const nextSession = {
-            ...currentSession,
-            user: nextUser,
-          };
-
-          writeStoredSession(nextSession, {
-            rememberMe: nextSession.rememberMe,
-          });
-
-          return nextSession;
-        });
-      })
-      .catch(() => {
-        // 401s are handled by the shared API interceptor.
+      writeStoredSession(nextSession, {
+        rememberMe: nextSession.rememberMe,
       });
 
-    return () => {
-      isCurrent = false;
-    };
-  }, [session?.token]);
+      return nextSession;
+    });
+  }, [currentUser]);
 
   const value = useMemo(
     () => ({
@@ -110,7 +103,7 @@ export const AuthProvider = ({ children }) => {
       setAuthSession,
       logout,
     }),
-    [session]
+    [session, setAuthSession, logout]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

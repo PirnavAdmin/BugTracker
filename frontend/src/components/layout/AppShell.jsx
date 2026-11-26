@@ -65,7 +65,7 @@ const AppShell = () => {
         >
           <Suspense fallback={<RouteContentFallback />}>
             <div
-              key={`${location.pathname}${location.search}`}
+              key={location.pathname}
               className={cn(
                 "page-shell-enter w-full",
                 usesInternalScroll ? "h-full overflow-hidden" : "min-h-full"

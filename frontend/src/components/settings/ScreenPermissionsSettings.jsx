@@ -4,6 +4,7 @@ import { MonitorCog, Save } from "lucide-react";
 import SettingsPanel from "@/components/settings/SettingsPanel";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { useAuth } from "@/hooks/use-auth";
 import { fetchScreenPermissions, saveScreenPermissions } from "@/lib/api";
 import {
   DEFAULT_SCREEN_PERMISSIONS,
@@ -15,12 +16,14 @@ import { cn } from "@/lib/utils";
 
 const ScreenPermissionsSettings = ({ showToast }) => {
   const queryClient = useQueryClient();
+  const { user } = useAuth();
+  const permissionsQueryKey = ["screen-permissions", user?._id || "anonymous"];
   const [draftPermissions, setDraftPermissions] = useState(
     DEFAULT_SCREEN_PERMISSIONS
   );
   const { data: savedPermissions = DEFAULT_SCREEN_PERMISSIONS, isLoading } =
     useQuery({
-      queryKey: ["screen-permissions"],
+      queryKey: permissionsQueryKey,
       queryFn: fetchScreenPermissions,
     });
 
@@ -38,8 +41,8 @@ const ScreenPermissionsSettings = ({ showToast }) => {
     onSuccess: (data) => {
       const permissions = normalizeScreenPermissions(data?.permissions || {});
 
-      queryClient.setQueryData(["screen-permissions"], permissions);
-      queryClient.invalidateQueries({ queryKey: ["screen-permissions"] });
+      queryClient.setQueryData(permissionsQueryKey, permissions);
+      queryClient.invalidateQueries({ queryKey: permissionsQueryKey });
       showToast?.("success", data?.message || "Screen permissions saved.");
     },
     onError: (error) => {

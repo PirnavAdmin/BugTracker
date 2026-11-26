@@ -3,6 +3,7 @@ const fs = require("fs/promises");
 const path = require("path");
 const User = require("../models/User");
 const TeamMember = require("../models/TeamMember");
+const Team = require("../models/Team");
 const { sendWorkspaceEmail } = require("../services/emailService");
 const { publicSmtpFailure } = require("../utils/smtpDelivery");
 const asyncHandler = require("../utils/asyncHandler");
@@ -98,18 +99,26 @@ const getUserTeams = async (user) => {
   const memberships = await TeamMember.find({
     userId: user._id,
   })
-    .populate({
-      path: "teamId",
-      select: "_id name workspaceId",
-      match: {
-        workspaceId: normalizeWorkspaceId(user.workspaceId),
-      },
-    })
+    .select("teamId createdAt")
     .sort({ createdAt: 1 })
     .lean();
 
+  if (!memberships.length) {
+    return [];
+  }
+
+  const teams = await Team.find({
+    _id: {
+      $in: memberships.map((membership) => membership.teamId).filter(Boolean),
+    },
+    workspaceId: normalizeWorkspaceId(user.workspaceId),
+  })
+    .select("_id name")
+    .lean();
+  const teamsById = new Map(teams.map((team) => [String(team._id), team]));
+
   return memberships
-    .map((membership) => membership.teamId)
+    .map((membership) => teamsById.get(String(membership.teamId)))
     .filter(Boolean)
     .map(serializeTeam);
 };
@@ -339,16 +348,19 @@ const getUsers = asyncHandler(async (req, res) => {
     workspaceId: normalizeWorkspaceId(req.user.workspaceId),
   }, req.user))
     .select("name email role avatarUrl createdAt workspaceId tenantId")
-    .sort({ name: 1 });
+    .sort({ name: 1 })
+    .lean();
 
-  console.log(
-    "[auth] Returning users:",
-    users.map((user) => ({
-      id: String(user._id),
-      name: user.name,
-      role: user.role,
-    }))
-  );
+  if (String(process.env.PERF_DIAGNOSTICS_ENABLED || "").toLowerCase() === "true") {
+    console.log(
+      "[auth] Returning users:",
+      users.map((user) => ({
+        id: String(user._id),
+        name: user.name,
+        role: user.role,
+      }))
+    );
+  }
 
   res.status(200).json(users);
 });

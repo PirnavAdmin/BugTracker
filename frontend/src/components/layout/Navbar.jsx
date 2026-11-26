@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "framer-motion";
 import {
@@ -47,6 +47,22 @@ const iconMap = {
 const navItemClassName =
   "group inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium transition duration-200 ease-out whitespace-nowrap";
 
+const desktopNavClassName = ({ isActive }) =>
+  cn(
+    navItemClassName,
+    isActive
+      ? "border-blue-200/70 bg-gradient-to-r from-blue-500/80 via-sky-400/75 to-cyan-300/70 font-semibold text-white shadow-[0_10px_24px_rgba(37,99,235,0.25)]"
+      : "border-white/30 bg-white/32 text-slate-700 hover:-translate-y-0.5 hover:border-blue-200/60 hover:bg-white/48 hover:text-slate-900 dark:border-white/10 dark:bg-slate-950/30 dark:text-slate-200 dark:hover:border-blue-400/40 dark:hover:bg-slate-800/80 dark:hover:text-white"
+  );
+
+const mobileNavClassName = ({ isActive }) =>
+  cn(
+    "group flex w-full items-center gap-3 rounded-lg border px-4 py-2.5 text-sm font-medium transition-all duration-200",
+    isActive
+      ? "border-blue-200/60 bg-blue-50 text-blue-700 shadow-sm"
+      : "border-slate-200 bg-white text-slate-700 hover:border-blue-200/50 hover:bg-blue-50/70 hover:text-blue-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:border-blue-500/40 dark:hover:bg-slate-800 dark:hover:text-blue-300"
+  );
+
 const REPORT_NAV_STORAGE_KEY = "jira-report-last-path";
 
 const resolveNavigationHref = (item, location) => {
@@ -74,21 +90,36 @@ const Navbar = () => {
   const { user, logout } = useAuth();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const { data: screenPermissions = null } = useQuery({
-    queryKey: ["screen-permissions"],
+    queryKey: ["screen-permissions", user?._id || "anonymous"],
     queryFn: fetchScreenPermissions,
     enabled: Boolean(user),
     staleTime: 5 * 60 * 1000,
   });
-  const navigation = filterRoleNavigation(
-    getRoleNavigation(user?.role),
-    user?.role,
-    screenPermissions
+  const navigation = useMemo(
+    () =>
+      filterRoleNavigation(
+        getRoleNavigation(user?.role),
+        user?.role,
+        screenPermissions
+      ),
+    [screenPermissions, user?.role]
   );
-  const chatUnreadCount = useChatStore((state) =>
-    state.conversations.reduce(
-      (total, conversation) => total + Number(conversation.unreadCount || 0),
-      0
-    )
+  const navigationItems = useMemo(
+    () =>
+      navigation.map((item) => ({
+        ...item,
+        href: resolveNavigationHref(item, location),
+      })),
+    [location.pathname, location.search, navigation]
+  );
+  const conversations = useChatStore((state) => state.conversations);
+  const chatUnreadCount = useMemo(
+    () =>
+      conversations.reduce(
+        (total, conversation) => total + Number(conversation.unreadCount || 0),
+        0
+      ),
+    [conversations]
   );
   const hasLoadedConversations = useChatStore(
     (state) => state.hasLoadedConversations
@@ -139,6 +170,15 @@ const Navbar = () => {
     };
   }, [isMenuOpen]);
 
+  const toggleMenu = useCallback(() => {
+    setIsMenuOpen((current) => !current);
+  }, []);
+  const closeMenu = useCallback(() => setIsMenuOpen(false), []);
+  const handleLogout = useCallback(() => {
+    setIsMenuOpen(false);
+    logout();
+  }, [logout]);
+
   return (
     <header className="print:hidden fixed inset-x-0 top-0 z-40 h-[var(--app-navbar-height)] overflow-visible border-b border-white/40 bg-gradient-to-r from-white/78 via-blue-50/72 to-sky-100/68 shadow-[0_8px_24px_rgba(15,23,42,0.06)] backdrop-blur-2xl dark:border-white/10 dark:from-slate-950/95 dark:via-slate-900/95 dark:to-indigo-950/90 dark:shadow-black/25">
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,_rgba(96,165,250,0.14),transparent_32%),radial-gradient(circle_at_top_right,_rgba(186,230,253,0.20),transparent_40%)]" />
@@ -146,7 +186,7 @@ const Navbar = () => {
       <div className="relative z-10 mx-auto h-full w-full max-w-screen-2xl overflow-visible px-4 sm:px-6 lg:px-8">
         <div className="flex h-full items-center gap-2 overflow-visible lg:gap-3">
           <NavLink
-            to={navigation[0]?.href || "/"}
+            to={navigationItems[0]?.href || "/"}
             className="flex min-w-0 items-center gap-3"
           >
             <img
@@ -157,22 +197,14 @@ const Navbar = () => {
           </NavLink>
 
           <nav className="hidden items-center gap-1 lg:flex">
-            {navigation.map((item) => {
+            {navigationItems.map((item) => {
               const Icon = iconMap[item.icon] || LayoutDashboard;
-              const href = resolveNavigationHref(item, location);
 
               return (
                 <NavLink
                   key={item.href}
-                  to={href}
-                  className={({ isActive }) =>
-                    cn(
-                      navItemClassName,
-                      isActive
-                        ? "border-blue-200/70 bg-gradient-to-r from-blue-500/80 via-sky-400/75 to-cyan-300/70 font-semibold text-white shadow-[0_10px_24px_rgba(37,99,235,0.25)]"
-                        : "border-white/30 bg-white/32 text-slate-700 hover:-translate-y-0.5 hover:border-blue-200/60 hover:bg-white/48 hover:text-slate-900 dark:border-white/10 dark:bg-slate-950/30 dark:text-slate-200 dark:hover:border-blue-400/40 dark:hover:bg-slate-800/80 dark:hover:text-white"
-                    )
-                  }
+                  to={item.href}
+                  className={desktopNavClassName}
                 >
                   <Icon className="h-4 w-4 transition-transform duration-300 group-hover:scale-105" />
                   <span>{item.label}</span>
@@ -199,7 +231,7 @@ const Navbar = () => {
               size="icon"
               type="button"
               aria-label={isMenuOpen ? "Close menu" : "Open menu"}
-              onClick={() => setIsMenuOpen((current) => !current)}
+              onClick={toggleMenu}
             >
               {isMenuOpen ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
             </Button>
@@ -218,7 +250,7 @@ const Navbar = () => {
               exit={{ opacity: 0 }}
               transition={{ duration: 0.2 }}
               className="fixed inset-0 z-[9998] bg-black/50 backdrop-blur-sm lg:hidden"
-              onClick={() => setIsMenuOpen(false)}
+              onClick={closeMenu}
             />
 
             {/* Mobile drawer - slides from RIGHT */}
@@ -240,7 +272,7 @@ const Navbar = () => {
                 <Button
                   variant="ghost"
                   size="icon"
-                  onClick={() => setIsMenuOpen(false)}
+                  onClick={closeMenu}
                   className="shrink-0 -mr-2 hover:bg-slate-100"
                 >
                   <X className="h-5 w-5 text-slate-600" />
@@ -251,23 +283,15 @@ const Navbar = () => {
               <div className="flex-1 overflow-y-auto space-y-3 px-3 py-4 sm:space-y-4 sm:px-4 sm:py-5">
                 {/* Navigation items */}
                 <nav className="space-y-2">
-                  {navigation.map((item) => {
+                  {navigationItems.map((item) => {
                     const Icon = iconMap[item.icon] || LayoutDashboard;
-                    const href = resolveNavigationHref(item, location);
 
                     return (
                       <NavLink
                         key={item.href}
-                        to={href}
-                        onClick={() => setIsMenuOpen(false)}
-                        className={({ isActive }) =>
-                          cn(
-                            "group flex w-full items-center gap-3 rounded-lg border px-4 py-2.5 text-sm font-medium transition-all duration-200",
-                            isActive
-                              ? "border-blue-200/60 bg-blue-50 text-blue-700 shadow-sm"
-                              : "border-slate-200 bg-white text-slate-700 hover:border-blue-200/50 hover:bg-blue-50/70 hover:text-blue-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:border-blue-500/40 dark:hover:bg-slate-800 dark:hover:text-blue-300"
-                          )
-                        }
+                        to={item.href}
+                        onClick={closeMenu}
+                        className={mobileNavClassName}
                       >
                         <Icon className="h-4 w-4 shrink-0 transition-transform duration-300 group-hover:scale-110" />
                         <span className="flex-1 text-left">{item.label}</span>
@@ -306,7 +330,7 @@ const Navbar = () => {
                   {/* Quick profile actions */}
                   <NavLink
                     to="/profile"
-                    onClick={() => setIsMenuOpen(false)}
+                    onClick={closeMenu}
                     className="block w-full rounded-lg border border-blue-200/60 bg-blue-50 px-4 py-2.5 text-center text-sm font-medium text-blue-700 transition-all duration-200 hover:bg-blue-100 hover:border-blue-300"
                   >
                     View Profile
@@ -319,10 +343,7 @@ const Navbar = () => {
                 <button
                   className="flex w-full items-center justify-center gap-2 rounded-lg bg-red-500 px-4 py-2.5 text-sm font-medium text-white transition-all duration-200 hover:bg-red-600 active:bg-red-700"
                   type="button"
-                  onClick={() => {
-                    setIsMenuOpen(false);
-                    logout();
-                  }}
+                  onClick={handleLogout}
                 >
                   <LogOut className="h-4 w-4 shrink-0" />
                   <span>Logout</span>

@@ -25,7 +25,6 @@ import {
   resolveIssueProjectId,
 } from "@/lib/issues";
 import { useAuth } from "@/hooks/use-auth";
-import { useBugWorkflowRealtime } from "@/hooks/useBugWorkflowRealtime";
 import { DEFAULT_WORK_PERMISSIONS, ROLE_TEAM_LEAD, normalizeWorkPermissions } from "@/lib/roles";
 import {
   getDeveloperBugBucketQueryFilters,
@@ -94,8 +93,6 @@ const updateCachedIssue = (issues, issueId, updater) =>
     : issues;
 
 const DeveloperBugBoardPage = () => {
-  useBugWorkflowRealtime();
-
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [searchParams] = useSearchParams();

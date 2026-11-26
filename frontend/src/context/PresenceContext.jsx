@@ -28,14 +28,28 @@ export const PresenceProvider = ({ children }) => {
       return;
     }
 
-    setPresenceByUserId((current) => ({
-      ...current,
-      [userId]: {
+    setPresenceByUserId((current) => {
+      const nextEntry = {
         ...current[userId],
         ...presence,
         userId,
-      },
-    }));
+      };
+      const currentEntry = current[userId];
+
+      if (
+        currentEntry &&
+        Object.keys(nextEntry).every(
+          (key) => currentEntry[key] === nextEntry[key]
+        )
+      ) {
+        return current;
+      }
+
+      return {
+        ...current,
+        [userId]: nextEntry,
+      };
+    });
   }, []);
 
   const emitStatus = useCallback(
@@ -118,20 +132,25 @@ export const PresenceProvider = ({ children }) => {
     });
   }, [upsertPresence, user]);
 
+  const getPresence = useCallback(
+    (userId) =>
+      presenceByUserId[getId(userId)] || {
+        userId: getId(userId),
+        status: "offline",
+        lastSeen: null,
+      },
+    [presenceByUserId]
+  );
+
   const value = useMemo(
     () => ({
       markActive,
       markIdle,
       markOffline,
       presenceByUserId,
-      getPresence: (userId) =>
-        presenceByUserId[getId(userId)] || {
-          userId: getId(userId),
-          status: "offline",
-          lastSeen: null,
-        },
+      getPresence,
     }),
-    [markActive, markIdle, markOffline, presenceByUserId]
+    [markActive, markIdle, markOffline, presenceByUserId, getPresence]
   );
 
   return <PresenceContext.Provider value={value}>{children}</PresenceContext.Provider>;

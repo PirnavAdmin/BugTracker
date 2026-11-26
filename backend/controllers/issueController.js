@@ -4118,10 +4118,7 @@ const getIssues = asyncHandler(async (req, res) => {
   issueListQuery = useLightweightList
     ? populateIssueListQuery(issueListQuery)
     : populateIssueQuery(issueListQuery);
-
-  if (useLightweightList) {
-    issueListQuery = issueListQuery.lean();
-  }
+  issueListQuery = issueListQuery.lean();
 
   const databaseStartedAt = performance.now();
   const [issues, nonBugFilteredTotal, summary] = await Promise.all([
@@ -4269,10 +4266,10 @@ const getStories = asyncHandler(async (req, res) => {
   let storiesQuery = Issue.find(query).sort({ updatedAt: -1, createdAt: -1 });
 
   if (useLightweightList) {
-    storiesQuery = storiesQuery.select(ISSUE_LIST_PROJECTION).lean();
+    storiesQuery = storiesQuery.select(ISSUE_LIST_PROJECTION);
   }
 
-  const stories = await populateStories(storiesQuery);
+  const stories = await populateStories(storiesQuery.lean());
   const storyIds = stories.map((story) => story._id);
   let children = [];
 
@@ -4287,10 +4284,10 @@ const getStories = asyncHandler(async (req, res) => {
     }).sort({ createdAt: -1 });
 
     if (useLightweightList) {
-      childrenQuery = childrenQuery.select(ISSUE_LIST_PROJECTION).lean();
+      childrenQuery = childrenQuery.select(ISSUE_LIST_PROJECTION);
     }
 
-    children = await populateStories(childrenQuery);
+    children = await populateStories(childrenQuery.lean());
   }
   const serializedChildren = serializeIssues(children);
   const childrenByStory = serializedChildren.reduce((map, child) => {
@@ -4459,32 +4456,63 @@ const getBugBucket = asyncHandler(async (req, res) => {
   });
   Object.assign(query, ACTIVE_ISSUE_QUERY);
   const requestFilters = summarizeBugQueryFilters(req);
-  const [totalQueueItemsInDatabase, matchingQueueCount] = await Promise.all([
-    Issue.countDocuments({
-      ...ACTIVE_ISSUE_QUERY,
-      type: {
-        $in: [ISSUE_TYPES.BUG, ISSUE_TYPES.STORY],
-      },
-    }),
-    Issue.countDocuments(query),
-  ]);
+  const perfDiagnosticsEnabled =
+    String(process.env.PERF_DIAGNOSTICS_ENABLED || "").toLowerCase() === "true";
+  const [totalQueueItemsInDatabase, matchingQueueCount] = perfDiagnosticsEnabled
+    ? await Promise.all([
+        Issue.countDocuments({
+          ...ACTIVE_ISSUE_QUERY,
+          type: {
+            $in: [ISSUE_TYPES.BUG, ISSUE_TYPES.STORY],
+          },
+        }),
+        Issue.countDocuments(query),
+      ])
+    : [0, 0];
 
-  const issues = await applyListOptions(populateIssueQuery(Issue.find(query)), req);
+  const issues = await applyListOptions(
+    populateIssueQuery(Issue.find(query)).lean(),
+    req
+  );
   const issueIds = issues.map((issue) => issue._id);
   const accessibleProjectIdSet = new Set(accessibleProjectIds.map(String));
+  const pickupEligibilityByKey = new Map();
+  const getPickupEligibility = ({
+    projectId,
+    issueTeamId,
+    hasProjectAccess,
+  }) => {
+    const key = `${String(projectId || "")}:${String(issueTeamId || "")}:${hasProjectAccess}`;
+
+    if (!pickupEligibilityByKey.has(key)) {
+      pickupEligibilityByKey.set(
+        key,
+        getBugPickupProjectEligibility({
+          user: req.user,
+          projectId,
+          issueTeamId,
+          hasProjectAccess,
+        })
+      );
+    }
+
+    return pickupEligibilityByKey.get(key);
+  };
   const pickupEligibilityByIssueId = new Map(
     await Promise.all(
-      issues.map(async (issue) => [
-        String(issue._id),
-        await getBugPickupProjectEligibility({
-          user: req.user,
-          projectId: issue.projectId?._id || issue.projectId,
-          issueTeamId: issue.teamId?._id || issue.teamId,
-          hasProjectAccess: accessibleProjectIdSet.has(
-            String(issue.projectId?._id || issue.projectId || "")
-          ),
-        }),
-      ])
+      issues.map(async (issue) => {
+        const projectId = issue.projectId?._id || issue.projectId;
+        const issueTeamId = issue.teamId?._id || issue.teamId;
+
+        return [
+          String(issue._id),
+          await getPickupEligibility({
+            projectId,
+            issueTeamId,
+            hasProjectAccess: accessibleProjectIdSet.has(String(projectId || "")),
+          }),
+        ];
+      })
     )
   );
   const attachmentCounts = issueIds.length

@@ -1,6 +1,5 @@
 import { Suspense, lazy } from "react";
 import { Navigate, Route, Routes, useLocation } from "react-router-dom";
-import AppShell from "@/components/layout/AppShell";
 import ActivityTracker from "@/components/presence/ActivityTracker";
 import { PresenceProvider } from "@/context/PresenceContext";
 import { useAuth } from "@/hooks/use-auth";
@@ -21,8 +20,10 @@ import {
   TESTER_PANEL_ROLES,
 } from "@/lib/roles";
 import { useQuery } from "@tanstack/react-query";
+import { Skeleton } from "@/components/ui/skeleton";
 import { fetchScreenPermissions } from "@/lib/api";
 
+const AppShell = lazy(() => import("@/components/layout/AppShell"));
 const AuthPage = lazy(() => import("@/pages/AuthPage"));
 const LoginPage = lazy(() => import("@/pages/LoginPage"));
 const PublicSite = lazy(() => import("@/pages/PublicSite"));
@@ -69,6 +70,27 @@ const PublicRouteFallback = () => (
   </main>
 );
 
+const ModuleFallback = () => (
+  <div className="mx-auto w-full max-w-6xl space-y-4 px-5 py-8" aria-label="Loading module">
+    <Skeleton className="h-8 w-56 rounded-lg" />
+    <Skeleton className="h-28 w-full rounded-2xl" />
+    <div className="grid gap-4 md:grid-cols-2">
+      <Skeleton className="h-48 w-full rounded-2xl" />
+      <Skeleton className="h-48 w-full rounded-2xl" />
+    </div>
+  </div>
+);
+
+const SCREEN_PERMISSIONS_STALE_TIME = 5 * 60 * 1000;
+
+const useScreenPermissions = (enabled, userId) =>
+  useQuery({
+    queryKey: ["screen-permissions", userId || "anonymous"],
+    queryFn: fetchScreenPermissions,
+    enabled,
+    staleTime: SCREEN_PERMISSIONS_STALE_TIME,
+  });
+
 const LegacyBacklogRedirect = () => {
   const location = useLocation();
   return <Navigate to={`/sprint-planning${location.search}`} replace />;
@@ -102,17 +124,17 @@ const getSafeRedirectPath = (search = "", fallback = "") => {
 };
 
 const ProtectedRoute = ({ children, roles, screenId }) => {
-  const { isAuthenticated, role } = useAuth();
+  const { isAuthenticated, role, user } = useAuth();
   const location = useLocation();
+  const roleAllowed = !roles?.length || roles.includes(role);
   const shouldCheckPermissions = Boolean(
-    isAuthenticated && role && SCREEN_PERMISSION_ROLES.includes(role)
+    isAuthenticated &&
+      role &&
+      SCREEN_PERMISSION_ROLES.includes(role) &&
+      (screenId || !roleAllowed)
   );
-  const { data: screenPermissions = null, isLoading: isPermissionsLoading } = useQuery({
-    queryKey: ["screen-permissions"],
-    queryFn: fetchScreenPermissions,
-    enabled: shouldCheckPermissions,
-    staleTime: 5 * 60 * 1000,
-  });
+  const { data: screenPermissions = null, isLoading: isPermissionsLoading } =
+    useScreenPermissions(shouldCheckPermissions, user?._id);
 
   if (!isAuthenticated) {
     const redirectTarget = `${location.pathname}${location.search}${location.hash}`;
@@ -131,7 +153,7 @@ const ProtectedRoute = ({ children, roles, screenId }) => {
 
   if (screenId && shouldCheckPermissions) {
     if (isPermissionsLoading && !screenPermissions) {
-      return <PublicRouteFallback />;
+      return <ModuleFallback />;
     }
 
     if (!isScreenAllowed(role, screenId, screenPermissions)) {
@@ -145,17 +167,15 @@ const ProtectedRoute = ({ children, roles, screenId }) => {
 };
 
 const PublicRoute = ({ children }) => {
-  const { isAuthenticated, role } = useAuth();
+  const { isAuthenticated, role, user } = useAuth();
   const location = useLocation();
   const shouldCheckPermissions = Boolean(
     isAuthenticated && role && SCREEN_PERMISSION_ROLES.includes(role)
   );
-  const { data: screenPermissions = null } = useQuery({
-    queryKey: ["screen-permissions"],
-    queryFn: fetchScreenPermissions,
-    enabled: shouldCheckPermissions,
-    staleTime: 5 * 60 * 1000,
-  });
+  const { data: screenPermissions = null } = useScreenPermissions(
+    shouldCheckPermissions,
+    user?._id
+  );
 
   if (isAuthenticated) {
     const defaultTarget = getFirstAllowedPathByRole(role, screenPermissions);
@@ -171,19 +191,17 @@ const PublicRoute = ({ children }) => {
 };
 
 const LegacyDashboardRedirect = () => {
-  const { role, isAuthenticated } = useAuth();
+  const { role, isAuthenticated, user } = useAuth();
   const shouldCheckPermissions = Boolean(
     isAuthenticated && role && SCREEN_PERMISSION_ROLES.includes(role)
   );
-  const { data: screenPermissions = null, isLoading } = useQuery({
-    queryKey: ["screen-permissions"],
-    queryFn: fetchScreenPermissions,
-    enabled: shouldCheckPermissions,
-    staleTime: 5 * 60 * 1000,
-  });
+  const { data: screenPermissions = null, isLoading } = useScreenPermissions(
+    shouldCheckPermissions,
+    user?._id
+  );
 
   if (isLoading && !screenPermissions && shouldCheckPermissions) {
-    return <PublicRouteFallback />;
+    return <ModuleFallback />;
   }
 
   return <Navigate to={getFirstAllowedPathByRole(role, screenPermissions)} replace />;
@@ -375,7 +393,9 @@ const App = () => (
     <Route
       element={
         <ProtectedRoute>
-          <AppShell />
+          <Suspense fallback={<ModuleFallback />}>
+            <AppShell />
+          </Suspense>
         </ProtectedRoute>
       }
     >

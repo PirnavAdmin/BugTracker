@@ -25,7 +25,6 @@ import {
 import { getProjectTeams, resolveUserId } from "@/lib/project-teams";
 import { canDeleteBugForUser } from "@/lib/roles";
 import { useAuth } from "@/hooks/use-auth";
-import { useBugWorkflowRealtime } from "@/hooks/useBugWorkflowRealtime";
 import BugKanbanBoard from "@/components/bugs/BugKanbanBoard";
 import { TESTER_BUG_COLUMNS } from "@/components/bugs/bugBoardConfig";
 import IssueComposer from "@/components/issues/IssueComposer";
@@ -169,8 +168,6 @@ const filterOptions = {
 };
 
 const TesterBugsPage = () => {
-  useBugWorkflowRealtime();
-
   const queryClient = useQueryClient();
   const { user } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();

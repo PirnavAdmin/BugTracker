@@ -61,7 +61,6 @@ import {
 import { AnimatePresence, motion } from "framer-motion";
 import useAnalytics, { useAnalyticsIssues, useDeveloperDashboard, useDeveloperMetrics, useQAMetrics } from "@/hooks/use-analytics";
 import { useAuth } from "@/hooks/use-auth";
-import { useBugWorkflowRealtime } from "@/hooks/useBugWorkflowRealtime";
 import { fetchEpics, fetchIssues, fetchProjects, fetchSprints, fetchUsers } from "@/lib/api";
 import {
   BUG_STATUS_OPTIONS,
@@ -2302,8 +2301,6 @@ const LegacyTesterReportsDashboard = ({ user }) => {
 };
 
 const DeveloperReportsDashboard = ({ user }) => {
-  useBugWorkflowRealtime();
-
   const currentDeveloperId = user?._id || user?.id || "";
   const defaultFilters = {
     projectId: "all",
@@ -6810,10 +6807,6 @@ const JiraReportsDashboard = () => {
 
 const ReportsPage = () => {
   const { role, user } = useAuth();
-
-  // Refresh analytics immediately after bug workflow events rather than
-  // leaving the tester report page on its previous query-cache snapshot.
-  useBugWorkflowRealtime();
 
   if (hasTesterPanelAccess(role)) {
     return <TesterReportsDashboard user={user} />;
