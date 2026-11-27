@@ -1,8 +1,10 @@
+import { useState } from "react";
 import { MailPlus } from "lucide-react";
 import { Link } from "react-router-dom";
 import SettingsPanel from "@/components/settings/SettingsPanel";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { getEmailValidationError } from "@/lib/emailValidation";
 import { WORKSPACE_ROLE_OPTIONS } from "@/lib/roles";
 
 const InviteDeliveryPreview = ({ entries = [], helperText, title }) => {
@@ -77,13 +79,37 @@ const InviteUserSettings = ({
   onRoleChange,
   onSubmit,
   recentInvite,
-}) => (
+}) => {
+  const [emailError, setEmailError] = useState("");
+
+  const handleEmailChange = (event) => {
+    const value = event.target.value;
+
+    onEmailChange(value);
+    if (emailError) {
+      setEmailError(getEmailValidationError(value));
+    }
+  };
+
+  const handleSubmit = (event) => {
+    const validationError = getEmailValidationError(inviteEmail);
+
+    setEmailError(validationError);
+    if (validationError) {
+      event.preventDefault();
+      return;
+    }
+
+    onSubmit(event);
+  };
+
+  return (
   <SettingsPanel
     title="Invite User"
     description="Create a workspace account for one teammate and assign their role upfront. Invited users get the default password Curecode@123."
   >
     <div className="max-w-2xl space-y-5">
-      <form className="space-y-4" onSubmit={onSubmit}>
+      <form className="space-y-4" noValidate onSubmit={handleSubmit}>
         <label className="space-y-2">
           <span className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">
             Email
@@ -92,9 +118,15 @@ const InviteUserSettings = ({
             type="email"
             placeholder="name@company.com"
             value={inviteEmail}
-            onChange={(event) => onEmailChange(event.target.value)}
+            onChange={handleEmailChange}
+            aria-invalid={Boolean(emailError)}
             required
           />
+          {emailError ? (
+            <p className="text-xs font-medium text-rose-600" role="alert">
+              {emailError}
+            </p>
+          ) : null}
         </label>
 
         <label className="space-y-2">
@@ -152,6 +184,7 @@ const InviteUserSettings = ({
       />
     </div>
   </SettingsPanel>
-);
+  );
+};
 
 export default InviteUserSettings;
